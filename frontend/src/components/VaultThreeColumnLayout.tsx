@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useVault } from "@/hooks/useVault";
+import { useVaultStore } from "@/store/vaultStore";
 import { VaultEntry } from "@/types/vault";
 import { useSearchParams } from "react-router-dom";
 import { EntriesListPanel } from "@/components/EntriesListPanel";
@@ -18,25 +18,25 @@ interface VaultThreeColumnLayoutProps {
 }
 
 export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) {
-  const { vaultContext, addEntry, updateEntry, deleteEntry, toggleFavorite } = useVault();
+  const vault = useVaultStore((state) => state.vault);
   const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
   const [searchParams] = useSearchParams();
   const [editMode, setEditMode] = useState(false);
   const isMobile = useIsMobile();
   
   const allEntries = useMemo(() => {
-    if (!vaultContext?.Vault) return [];
+    if (!vault?.Vault) return [];
 
     const entries: VaultEntry[] = [
-      ...(vaultContext.Vault.entries?.login || []),
-      ...(vaultContext.Vault.entries?.card || []),
-      ...(vaultContext.Vault.entries?.note || []),
-      ...(vaultContext.Vault.entries?.sshkey || []),
-      ...(vaultContext.Vault.entries?.identity || []),
+      ...(vault.Vault.entries?.login || []),
+      ...(vault.Vault.entries?.card || []),
+      ...(vault.Vault.entries?.note || []),
+      ...(vault.Vault.entries?.sshkey || []),
+      ...(vault.Vault.entries?.identity || []),
     ];
 
     return entries;
-  }, [vaultContext]);
+  }, [vault]);
   
   // Get entry ID from URL params
   const entryIdFromUrl = searchParams.get("entry");
@@ -72,61 +72,58 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   }, [allEntries, filter]);
 
   const handleToggleFavorite = (entryId: string) => {
-    toggleFavorite(entryId);
+    // TODO: Implement favorite toggle in store
+    console.log('Toggle favorite:', entryId);
   };
 
   const handleCreateEntry = (entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">) => {
-    const newEntry: VaultEntry = {
-      ...entry,
-      id: `${entry.type}-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      trashed: false,
-      is_draft: false,
-    } as VaultEntry;
-    addEntry(newEntry);
+    // TODO: Implement entry creation via API
+    console.log('Create entry:', entry);
   };
 
   const handleEditEntry = (updates: Partial<VaultEntry>) => {
     if (selectedEntry) {
-      updateEntry(selectedEntry.id, updates);
+      // TODO: Implement entry update via API
+      console.log('Edit entry:', selectedEntry.id, updates);
       setSelectedEntry({ ...selectedEntry, ...updates } as VaultEntry);
       setEditMode(false);
     }
   };
 
   const handleDeleteEntry = (entryId: string) => {
-    deleteEntry(entryId);
+    // TODO: Implement entry deletion via API
+    console.log('Delete entry:', entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
   const handleRestoreEntry = (entryId: string) => {
-    updateEntry(entryId, { trashed: false });
+    // TODO: Implement entry restore via API
+    console.log('Restore entry:', entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
   const handleDeletePermanently = (entryId: string) => {
-    // For now, just mark as deleted (in real app, would actually remove from state)
-    updateEntry(entryId, { trashed: true });
+    // TODO: Implement permanent deletion via API
+    console.log('Delete permanently:', entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
-  const syncStatus = vaultContext?.Dirty ? "unsynced" : "synced";
+  const syncStatus = vault?.Dirty ? "unsynced" : "synced";
   
   const metrics = useMemo(() => {
     const total = filteredEntries.length;
-    const synced = filteredEntries.filter(e => !vaultContext?.Dirty).length;
+    const synced = filteredEntries.filter(e => !vault?.Dirty).length;
     const unsynced = total - synced;
     const favorites = filteredEntries.filter(e => e.is_favorite).length;
     
     return { total, synced, unsynced, favorites };
-  }, [filteredEntries, vaultContext]);
+  }, [filteredEntries, vault]);
 
   return (
     <div className="flex h-full">
@@ -145,7 +142,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
               {filter === "note" && "Secure Notes"}
               {filter === "sshkey" && "SSH Keys"}
               {filter.startsWith("folder:") && 
-                vaultContext?.Vault.folders?.find(f => f.id === filter.replace("folder:", ""))?.name || "Folder"
+                vault?.Vault.folders?.find(f => f.id === filter.replace("folder:", ""))?.name || "Folder"
               }
             </h2>
             

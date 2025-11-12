@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { RecipientsManagementModal } from "@/components/RecipientsManagementModal";
 import { Users, FileText, Lock, Info, Calendar, Shield } from "lucide-react";
 import { useState } from "react";
 
@@ -15,6 +16,7 @@ interface SharedEntryOverviewProps {
 
 export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverviewProps) {
   const [accessMode, setAccessMode] = useState<"read" | "edit">(entry?.access_mode || "read");
+  const [isRecipientsModalOpen, setIsRecipientsModalOpen] = useState(false);
 
   if (!entry) {
     return (
@@ -90,7 +92,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
               </div>
               <div>
                 <p className="text-muted-foreground">Recipients</p>
-                <p className="font-medium mt-1">{entry.recipients.length}</p>
+                <p className="font-medium mt-1">{entry?.recipients ? entry?.recipients.length : 0}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Shared Date</p>
@@ -121,12 +123,15 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => onViewChange("recipients")}
+                onClick={() => {
+                  onViewChange("recipients");
+                  setIsRecipientsModalOpen(true);
+                }}
               >
                 <Users className="h-4 w-4 mr-2" />
                 Recipients
                 <Badge variant="secondary" className="ml-auto">
-                  {entry.recipients.length}
+                  {entry?.recipients ? entry?.recipients.length : 0}
                 </Badge>
               </Button>
 
@@ -138,7 +143,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
                 <FileText className="h-4 w-4 mr-2" />
                 Audit Log
                 <Badge variant="secondary" className="ml-auto">
-                  {entry.audit_log.length}
+                  {entry.audit_log?.length ? entry?.audit_log.length : 0}
                 </Badge>
               </Button>
 
@@ -163,6 +168,13 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
           </div>
         </div>
       </ScrollArea>
+
+      {/* Recipients Management Modal */}
+      <RecipientsManagementModal
+        open={isRecipientsModalOpen}
+        onOpenChange={setIsRecipientsModalOpen}
+        entry={entry}
+      />
     </div>
   );
 }

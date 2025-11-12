@@ -398,3 +398,54 @@ export async function upgradeVaultPlan(payload: {
     throw error;
   }
 }
+
+/**
+ * Get full vault context (entries + shared entries + runtime context)
+ */
+export async function getVaultContext(): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/vault`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to get vault context:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new shared entry
+ */
+export async function createSharedEntry(payload: {
+  entry_id: string;
+  recipients: string[];
+  permission: 'read' | 'edit' | 'temporary';
+  expiration_date?: string;
+  custom_message?: string;
+}): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/shared-entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to create shared entry:', error);
+    throw error;
+  }
+}

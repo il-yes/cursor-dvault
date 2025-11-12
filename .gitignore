@@ -1,0 +1,10 @@
+node_modules
+frontend/dist
+
+
+doc.md
+
+frontend/dist/*
+frontend/dist/index.html
+frontend/node_modules/%
+build

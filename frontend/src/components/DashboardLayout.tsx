@@ -1,0 +1,405 @@
+import { ReactNode, useState, useMemo, useEffect } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import {
+  Database, Shield, Settings, LogOut, Menu, Search, User,
+  Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
+  LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
+  Plus, Crown, X
+} from "lucide-react";
+import { useVault } from "@/hooks/useVault";
+import { OnboardingModal } from "@/components/OnboardingModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { CreateEntryDialog } from "./CreateEntryDialog";
+import { SearchOverlay } from "./SearchOverlay";
+import { VaultEntry } from "@/types/vault";
+
+const dashboardNavItems = [
+  { title: "Dashboard", url: "/dashboard", icon: Home },
+  { title: "Vault", url: "/dashboard/vault", icon: Shield },
+  { title: "Shared entries", url: "/dashboard/shared", icon: Rocket },
+];
+
+const dashboardSecondaryItems = [
+  { title: "About", url: "/dashboard/about", icon: Info },
+  { title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
+];
+
+const vaultMainItems = [
+  { title: "All", url: "/dashboard/vault", icon: Folder },
+  { title: "Favorites", url: "/dashboard/vault/favorites", icon: Star },
+  { title: "Trash", url: "/dashboard/vault/trash", icon: Trash2 },
+];
+
+const vaultSecondaryItems = [
+  { title: "Identifiers", type: "login", url: "/dashboard/vault/login", icon: LogIn },
+  { title: "Payment card", type: "card", url: "/dashboard/vault/card", icon: CreditCard },
+  { title: "Identity", type: "identity", url: "/dashboard/vault/identity", icon: UserCircle },
+  { title: "Secure note", type: "note", url: "/dashboard/vault/note", icon: FileText },
+  { title: "SSH key", type: "sshkey", url: "/dashboard/vault/sshkey", icon: Key },
+];
+
+function DashboardNavbar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+  const { vaultContext, addEntry } = useVault();
+  
+  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+  
+  const allEntries = useMemo(() => {
+    if (!vaultContext?.Vault) return [];
+    return [
+      ...(vaultContext.Vault.entries?.login || []),
+      ...(vaultContext.Vault.entries?.card || []),
+      ...(vaultContext.Vault.entries?.note || []),
+      ...(vaultContext.Vault.entries?.sshkey || []),
+      ...(vaultContext.Vault.entries?.identity || []),
+    ];
+  }, [vaultContext]);
+
+  const handleLogout = () => {
+    navigate("/");
+  };
+  const handleAddEntry = () => {
+    setIsCreateDialogOpen(true);
+  };
+  const handleCreateEntry = (entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">) => {
+    const newEntry: VaultEntry = {
+      ...entry,
+      id: `${entry.type}-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      trashed: false,
+      is_draft: false,
+    } as VaultEntry;
+    addEntry(newEntry);
+  };
+  
+  const handleSelectEntry = (entry: VaultEntry) => {
+    navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
+    setSearchQuery("");
+    setShowSearchOverlay(false);
+  };
+  
+  useEffect(() => {
+    setShowSearchOverlay(searchQuery.trim().length > 0);
+  }, [searchQuery]);
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-16 items-center px-4 md:px-6">
+        <div className="flex items-center gap-2 md:hidden">
+          <SidebarTrigger>
+            <Button variant="ghost" size="icon">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SidebarTrigger>
+        </div>
+
+        <div className="hidden md:flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
+            <Shield className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-bold text-foreground">VaultCore</span>
+        </div>
+
+          <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
+            <Plus
+              data-tooltip-target="tooltip-default" 
+              onClick={handleAddEntry}
+              className="h-5 w-8"
+            />
+          </div>
+
+        <div className="flex-1 flex justify-center px-4 md:px-8">
+          <div className="w-full max-w-md relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search entries, identities, or cards…"
+              className="pl-9 bg-secondary/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={!isVaultContext}
+            />
+            {isVaultContext && showSearchOverlay && (
+              <SearchOverlay
+                entries={allEntries}
+                searchQuery={searchQuery}
+                onSelectEntry={handleSelectEntry}
+                onClose={() => {
+                  setSearchQuery("");
+                  setShowSearchOverlay(false);
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary/10">
+                  <User className="h-4 w-4 text-primary" />
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
+              <User className="mr-2 h-4 w-4" />
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Create Entry Dialog */}
+      <CreateEntryDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onSubmit={handleCreateEntry}
+      />
+    </header>
+  );
+}
+
+function AppSidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+  const { vaultContext, addFolder } = useVault();
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
+  const mainItems = isVaultContext ? vaultMainItems : dashboardNavItems;
+  const secondaryItems = isVaultContext ? vaultSecondaryItems : dashboardSecondaryItems;
+
+  const handleCreateFolder = () => {
+    if (newFolderName.trim()) {
+      addFolder(newFolderName);
+      setNewFolderName("");
+      setIsNewFolderOpen(false);
+    }
+  };
+
+  return (
+    <Sidebar className="border-r border-border w-[220px]">
+      <SidebarContent>
+        {isVaultContext && (
+          <div className="p-4 border-b border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="w-full justify-start"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </div>
+        )}
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
+            {isVaultContext ? "Vault" : "Main"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`
+                      }
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
+            {isVaultContext ? "Entry Types" : "More"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {secondaryItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`
+                      }
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Folders Section (Vault only) */}
+        {isVaultContext && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs flex justify-between">
+              <span>Folders</span>
+              <SidebarMenuButton asChild>
+                <button
+                  onClick={() => setIsNewFolderOpen(true)}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-muted-foreground hover:bg-secondary hover:text-foreground text-left"
+                  style={{ width: "auto" }}
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              </SidebarMenuButton>
+            </SidebarGroupLabel>
+            {/* {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && ( */}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && vaultContext.Vault.folders.map((folder) => (
+                  <SidebarMenuItem key={folder.id}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={`/dashboard/vault/folder/${folder.id}`}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`
+                        }
+                      >
+                        <Folder className="h-5 w-5" />
+                        <span>{folder.name}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+            {/* )} */}
+          </SidebarGroup>
+        )}
+      </SidebarContent>
+
+      {/* Upgrade Button at Bottom */}
+      <div className="mt-auto p-4 border-t border-border">
+        <Button
+          onClick={() => setIsUpgradeOpen(true)}
+          className=" py-3 px-4 bg-[#C9A44A] hover:bg-[#B8934A] text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <Crown className="h-4 w-4" />
+          Upgrade to Premium
+        </Button>
+      </div>
+
+      {/* Upgrade Modal */}
+      <OnboardingModal
+        open={isUpgradeOpen}
+        onOpenChange={setIsUpgradeOpen}
+      />
+
+      {/* New Folder Dialog */}
+      <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Folder Name</Label>
+              <Input
+                id="folder-name"
+                placeholder="e.g., Work Accounts"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateFolder();
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsNewFolderOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className="bg-[#C9A44A] hover:bg-[#B8934A]"
+              >
+                Create Folder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Sidebar>
+  );
+}
+
+export function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <SidebarProvider>
+      <div className="flex h-screen w-full bg-background overflow-hidden">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <DashboardNavbar />
+          <main className="flex-1 overflow-hidden">
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}

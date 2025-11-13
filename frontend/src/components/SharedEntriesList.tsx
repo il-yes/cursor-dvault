@@ -1,16 +1,13 @@
 import { SharedEntry, ShareFilter } from "@/types/sharing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { CreditCard, FileText, Key, Shield, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SharedEntriesListProps {
   entries: SharedEntry[];
   selectedEntryId: string | null;
-  filter: ShareFilter;
   onSelectEntry: (entry: SharedEntry) => void;
-  onFilterChange: (filter: ShareFilter) => void;
 }
 
 const getEntryIcon = (type: string) => {
@@ -48,46 +45,21 @@ const getStatusVariant = (status: string) => {
 export function SharedEntriesList({
   entries,
   selectedEntryId,
-  filter,
   onSelectEntry,
-  onFilterChange,
 }: SharedEntriesListProps) {
-  const filters: { value: ShareFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "sent", label: "Sent" },
-    { value: "received", label: "Received" },
-    { value: "pending", label: "Pending" },
-    { value: "revoked", label: "Revoked" },
-  ];
-
   return (
-    <div className="w-full md:w-80 lg:w-96 flex flex-col border-r border-border bg-secondary/30 h-full overflow-hidden">
+    <>
       {/* Fixed Header */}
       <div className="sticky top-0 z-10 border-b border-border p-4 bg-background">
         <h2 className="text-lg font-semibold mb-3">Shared Entries</h2>
         
-        {/* Filter Tabs */}
-        <div className="flex gap-2 flex-wrap">
-          {filters.map((f) => (
-            <Button
-              key={f.value}
-              variant={filter === f.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => onFilterChange(f.value)}
-              className="text-xs"
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-        
-        <div className="mt-3 text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           {entries.length} {entries.length === 1 ? "entry" : "entries"}
         </div>
       </div>
 
       {/* Scrollable List */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="p-2 space-y-1">
           {entries.map((entry) => {
             const Icon = getEntryIcon(entry.entry_type);
@@ -126,8 +98,8 @@ export function SharedEntriesList({
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Users className="h-3 w-3" />
                       <span>
-                        Shared with {entry.recipients.length}{" "}
-                        {entry.recipients.length === 1 ? "recipient" : "recipients"}
+                        Shared with {entry?.recipients ? entry?.recipients.length : 0}{" "}
+                        {entry?.recipients && entry?.recipients.length > 0 && entry?.recipients.length === 1 ? "recipient" : "recipients"}
                       </span>
                     </div>
                     
@@ -149,7 +121,7 @@ export function SharedEntriesList({
             </div>
           )}
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </>
   );
 }

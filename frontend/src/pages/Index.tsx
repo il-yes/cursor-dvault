@@ -1,8 +1,14 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, Database, Activity, Users } from "lucide-react";
+import { GlobalSecurityInsight } from "@/components/GlobalSecurityInsight";
+import { useVaultStore } from "@/store/vaultStore";
 
 const Index = () => {
+  const { vault, lastSyncTime, loadVault } = useVaultStore();
+  const sharedEntries = useVaultStore((state) => state.shared.items);
+  const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -20,7 +26,7 @@ const Index = () => {
               <Database className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
+              <div className="text-2xl font-bold">{totalEntries}</div>
               <p className="text-xs text-muted-foreground">
                 +2 from last month
               </p>
@@ -46,7 +52,7 @@ const Index = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
+              <div className="text-2xl font-bold">{sharedEntries.length}</div>
               <p className="text-xs text-muted-foreground">
                 Active shares
               </p>
@@ -67,39 +73,43 @@ const Index = () => {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Your latest vault operations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New entry created</p>
-                  <p className="text-xs text-muted-foreground">2 hours ago</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>
+                Your latest vault operations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-2 w-2 rounded-full bg-primary" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">New entry created</p>
+                    <p className="text-xs text-muted-foreground">2 hours ago</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-2 w-2 rounded-full bg-primary" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Entry shared with team</p>
+                    <p className="text-xs text-muted-foreground">5 hours ago</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-2 w-2 rounded-full bg-muted" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Password updated</p>
+                    <p className="text-xs text-muted-foreground">1 day ago</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Entry shared with team</p>
-                  <p className="text-xs text-muted-foreground">5 hours ago</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-2 rounded-full bg-muted" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Password updated</p>
-                  <p className="text-xs text-muted-foreground">1 day ago</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <GlobalSecurityInsight />
+        </div>
       </div>
     </DashboardLayout>
   );

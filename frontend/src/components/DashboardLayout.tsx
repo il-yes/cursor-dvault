@@ -4,10 +4,11 @@ import {
   Database, Shield, Settings, LogOut, Menu, Search, User,
   Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
   LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
-  Plus, Crown, X
+  Plus, Crown, X, Clock, Users
 } from "lucide-react";
 import { useVault } from "@/hooks/useVault";
 import { OnboardingModal } from "@/components/OnboardingModal";
+import { NewShareModal } from "@/components/NewShareModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,14 @@ const dashboardNavItems = [
 const dashboardSecondaryItems = [
   { title: "About", url: "/dashboard/about", icon: Info },
   { title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
+];
+
+const sharedEntriesItems = [
+  { title: "All", filter: "all", url: "/dashboard/shared", icon: Folder },
+  { title: "Sent", filter: "sent", url: "/dashboard/shared?filter=sent", icon: LogOut },
+  { title: "Received", filter: "received", url: "/dashboard/shared?filter=received", icon: LogIn },
+  { title: "Pending", filter: "pending", url: "/dashboard/shared?filter=pending", icon: Clock },
+  { title: "Revoked", filter: "revoked", url: "/dashboard/shared?filter=revoked", icon: X },
 ];
 
 const vaultMainItems = [
@@ -200,13 +209,16 @@ function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+  const isSharedContext = location.pathname.startsWith("/dashboard/shared");
   const { vaultContext, addFolder } = useVault();
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [isNewShareOpen, setIsNewShareOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
 
-  const mainItems = isVaultContext ? vaultMainItems : dashboardNavItems;
-  const secondaryItems = isVaultContext ? vaultSecondaryItems : dashboardSecondaryItems;
+  const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
+  const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
@@ -219,7 +231,7 @@ function AppSidebar() {
   return (
     <Sidebar className="border-r border-border w-[220px]">
       <SidebarContent>
-        {isVaultContext && (
+        {(isVaultContext || isSharedContext) && (
           <div className="p-4 border-b border-border">
             <Button
               variant="ghost"
@@ -235,7 +247,7 @@ function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
-            {isVaultContext ? "Vault" : "Main"}
+            {isVaultContext ? "Vault" : isSharedContext ? "Shared Entries" : "Main"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -262,13 +274,14 @@ function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
-            {isVaultContext ? "Entry Types" : "More"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {secondaryItems.map((item) => (
+        {secondaryItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
+              {isVaultContext ? "Entry Types" : "More"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {secondaryItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -285,10 +298,11 @@ function AppSidebar() {
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Folders Section (Vault only) */}
         {isVaultContext && (
@@ -330,6 +344,19 @@ function AppSidebar() {
             </SidebarGroupContent>
             {/* )} */}
           </SidebarGroup>
+        )}
+
+        {/* New Share Button (Shared Entries only) */}
+        {isSharedContext && (
+          <div className="mt-auto p-4">
+            <Button
+              onClick={() => setIsNewShareOpen(true)}
+              className="w-full bg-[#C9A44A] hover:bg-[#B8934A]"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Share
+            </Button>
+          </div>
         )}
       </SidebarContent>
 
@@ -384,6 +411,17 @@ function AppSidebar() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* New Share Modal */}
+      <NewShareModal
+        open={isNewShareOpen}
+        onOpenChange={setIsNewShareOpen}
+        onShareSuccess={() => {
+          setSharedEntriesRefreshKey(prev => prev + 1);
+          // Trigger a custom event to notify SharedEntriesLayout
+          window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
+        }}
+      />
     </Sidebar>
   );
 }

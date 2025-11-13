@@ -10,6 +10,9 @@ export interface StellarAccount {
 export interface CurrentUser {
   id: string;
   role: string;
+  name: string;
+  last_name: string;
+  email: string;
   stellar_account: StellarAccount;
 }
 
@@ -23,16 +26,58 @@ export interface BlockchainConfig {
     pinning_service?: string;
   };
 }
-
 export interface AppSettings {
+  id: string;
+  repo_id: string;
+  branch: string;
+  tracecore_enabled: boolean;
+  commit_rules: CommitRule[];
+  branching_model: string;
   encryption_policy: string;
-  blockchain: BlockchainConfig;
-  auto_sync_enabled: boolean;
-  commit_rules: {
-    auto_anchor_stellar: boolean;
-    auto_commit_tracecore: boolean;
-  };
+  actors: string[];
+  federated_providers: FederatedProvider[] | null;
+  default_phase: string;
+  default_vault_path: string;
+  vault_settings: VaultSettings;
+  blockchain: BlockchainConfig2;
+  user_id?: number;
 }
+
+export interface CommitRule {
+  id: number;
+  rule: string;
+  actors: string[] | null;
+}
+
+export interface VaultSettings {
+  max_entries: number;
+  auto_sync_enabled: boolean;
+  encryption_scheme: string;
+}
+
+export interface BlockchainConfig2 {
+  stellar: StellarConfig;
+  ipfs: IPFSConfig;
+}
+
+export interface StellarConfig {
+  network: string;
+  horizon_url: string;
+  fee: number;
+}
+
+export interface IPFSConfig {
+  api_endpoint: string;
+  gateway_url: string;
+}
+
+export interface FederatedProvider {
+  name: string;
+  client_id: string;
+  client_secret?: string;
+  scopes?: string[];
+}
+
 
 // Base Entry matching Go BaseEntry struct
 export interface BaseEntry {

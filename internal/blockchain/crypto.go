@@ -1,0 +1,157 @@
+package blockchain
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"log"
+
+	"golang.org/x/crypto/hkdf"
+	"golang.org/x/crypto/scrypt"
+)
+const (
+	EncryptionPolicyAES256GCM = "AES-256-GCM"
+	EncryptionPolicyNone      = "PLAINTEXT"
+)
+
+const (
+	saltSize  = 16
+	keySize   = 32 // AES-256
+	nonceSize = 12 // GCM standard nonce size
+	scryptN   = 32768
+	scryptR   = 8
+	scryptP   = 1
+)
+
+// DeriveKey derives a key from password using scrypt.
+func DeriveKey(password string, salt []byte) ([]byte, error) {
+	return scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keySize)
+}
+
+// Encrypt encrypts plain data using a password.
+func Encrypt(data []byte, password string) ([]byte, error) {
+	// Generate random salt
+	salt := make([]byte, saltSize)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("key derivation failed: %w", err)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Final encrypted data = salt + nonce + ciphertext
+	ciphertext := gcm.Seal(nil, nonce, data, nil)
+	final := append(salt, nonce...)
+	final = append(final, ciphertext...)
+	return final, nil
+}
+
+// Decrypt decrypts encrypted data using a password.
+func Decrypt(encrypted []byte, password string) ([]byte, error) {
+	if len(encrypted) < saltSize+nonceSize {
+		return nil, fmt.Errorf("❌ invalid data length")
+	}
+
+	salt := encrypted[:saltSize]
+	nonce := encrypted[saltSize : saltSize+nonceSize]
+	ciphertext := encrypted[saltSize+nonceSize:]
+
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("❌ key derivation failed: %w", err)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("❌ cipher creation failed: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
+	}
+	log.Printf("🧂 Salt: %x", salt)
+	log.Printf("🔑 Key: %x", key)
+	log.Printf("🔁 Nonce: %x", nonce)
+	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
+
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	return plain, nil
+}
+
+// deriveKeyFromStellar derives a 32-byte AES key from Stellar private key string
+func deriveKeyFromStellar(stellarSecret string) ([]byte, error) {
+	hk := hkdf.New(sha256.New, []byte(stellarSecret), nil, []byte("stellar-password-wrap"))
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(hk, key); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+// EncryptPasswordWithStellar encrypts the password using the Stellar private key
+func EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error) {
+	key, err := deriveKeyFromStellar(stellarSecret)
+	if err != nil {
+		return nil, nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+	ciphertext = gcm.Seal(nil, nonce, []byte(password), nil)
+	return nonce, ciphertext, nil
+}
+
+// DecryptPasswordWithStellar decrypts the password using the Stellar private key
+func DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error) {
+	key, err := deriveKeyFromStellar(stellarSecret)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}

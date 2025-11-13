@@ -1,0 +1,633 @@
+{
+   "user_id": 34,
+   "Vault": {
+      "version": "1.0.0",
+      "name": "",
+      "folders": [
+         {
+            "id": 61734720405,
+            "name": "Stone",
+            "created_at": "2025-08-28T11:27:38-07:00",
+            "updated_at": "2025-08-28T11:27:38-07:00",
+            "is_draft": false
+         },
+         {
+            "id": 2737542499,
+            "name": "Minerals",
+            "created_at": "2025-08-29T09:50:57-07:00",
+            "updated_at": "2025-08-29T09:50:57-07:00",
+            "is_draft": false
+         }
+      ],
+      "entries": {
+         "login": [
+            {
+               "id": "c2c3420b-b4f2-4c6e-8fcd-1b09cb03d013",
+               "entry_name": "reddit",
+               "folder_id": "",
+               "type": "login",
+               "additionnal_note": "Yosemite National Park is a national park spanning 747,956 acres (1,169.4 sq mi; 3,025.2 km2) in the western Sierra Nevada of Central California.\n",
+               "trashed": false,
+               "is_draft": true,
+               "created_at": "",
+               "updated_at": "",
+               "user_name": "terre_1G",
+               "password": "password",
+               "web_site": "http://reddit.com"
+            },
+            {
+               "id": "c584aa23-c288-451c-b4f9-49afc0647e98",
+               "entry_name": "Terre",
+               "folder_id": "61734720405",
+               "type": "login",
+               "trashed": false,
+               "is_draft": true,
+               "created_at": "",
+               "updated_at": "",
+               "user_name": "braeden64",
+               "password": "uped6qodnfzn25p"
+            },
+            {
+               "id": "login-1",
+               "type": "login",
+               "entry_name": "GitHub Account",
+               "folder_id": "folder-3",
+               "user_name": "developer@example.com",
+               "password": "••••••••••••",
+               "web_site": "https://github.com",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-15T10:30:00Z",
+               "updated_at": "2024-01-20T14:45:00Z",
+               "is_favorite": true
+            },
+            {
+               "id": "login-2",
+               "type": "login",
+               "entry_name": "AWS Console",
+               "folder_id": "folder-3",
+               "user_name": "admin@company.com",
+               "password": "••••••••••••",
+               "web_site": "https://aws.amazon.com",
+               "additionnal_note": "Production environment access",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-10T09:15:00Z",
+               "updated_at": "2024-01-22T16:20:00Z",
+               "is_favorite": false
+            },
+            {
+               "id": "login-3",
+               "type": "login",
+               "entry_name": "Personal Email",
+               "folder_id": "folder-4",
+               "user_name": "myemail@gmail.com",
+               "password": "••••••••••••",
+               "web_site": "https://mail.google.com",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-05T08:00:00Z",
+               "updated_at": "2024-01-18T11:30:00Z",
+               "is_favorite": true
+            }
+         ],
+         "card": [
+            {
+               "id": "f3823b69-4fe8-446e-98e2-ec590355073f",
+               "entry_name": "Visa card",
+               "folder_id": "",
+               "type": "card",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": "",
+               "owner": "jeff",
+               "number": "654323456788765432345678",
+               "expiration": "11/07/33",
+               "cvc": "342"
+            },
+            {
+               "id": "b7dd17d2-85cc-43ce-aa39-037518aee59f",
+               "entry_name": "Test",
+               "folder_id": "",
+               "type": "card",
+               "trashed": true,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": "",
+               "owner": "supa me",
+               "number": "7654567887654",
+               "expiration": "11/33",
+               "cvc": "123"
+            },
+            {
+               "id": "card-1",
+               "type": "card",
+               "entry_name": "Visa Gold Card",
+               "folder_id": "folder-4",
+               "owner": "John Doe",
+               "number": "•••• •••• •••• 1234",
+               "expiration": "12/26",
+               "cvc": "•••",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-12T12:00:00Z",
+               "updated_at": "2024-01-12T12:00:00Z",
+               "is_favorite": false
+            },
+            {
+               "id": "card-2",
+               "type": "card",
+               "entry_name": "Business Mastercard",
+               "folder_id": "folder-3",
+               "owner": "Jane Smith",
+               "number": "•••• •••• •••• 5678",
+               "expiration": "08/25",
+               "cvc": "•••",
+               "additionnal_note": "Company expenses only",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-08T14:30:00Z",
+               "updated_at": "2024-01-19T10:15:00Z",
+               "is_favorite": true
+            }
+         ],
+         "identity": [
+            {
+               "id": "identity-1",
+               "type": "identity",
+               "entry_name": "Personal Identity",
+               "folder_id": "folder-4",
+               "genre": "Male",
+               "firstname": "John",
+               "lastname": "Doe",
+               "username": "johndoe",
+               "mail": "john.doe@example.com",
+               "telephone": "+1-555-0123",
+               "address_one": "123 Main Street",
+               "city": "San Francisco",
+               "state": "California",
+               "postal_code": "94102",
+               "country": "United States",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-07T10:00:00Z",
+               "updated_at": "2024-01-16T14:30:00Z",
+               "is_favorite": false
+            },
+            {
+               "id": "identity-2",
+               "type": "identity",
+               "entry_name": "Business Identity",
+               "folder_id": "folder-3",
+               "firstname": "Jane",
+               "lastname": "Smith",
+               "company": "TechCorp Inc.",
+               "username": "janesmith",
+               "mail": "jane.smith@techcorp.com",
+               "telephone": "+1-555-9876",
+               "address_one": "456 Business Ave",
+               "address_two": "Suite 200",
+               "city": "New York",
+               "state": "New York",
+               "postal_code": "10001",
+               "country": "United States",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-06T09:00:00Z",
+               "updated_at": "2024-01-17T11:45:00Z",
+               "is_favorite": true
+            }
+         ],
+         "note": [
+            {
+               "id": "28814f28-b80f-4a81-a9a6-16c4b7245008",
+               "entry_name": "my secured notes",
+               "folder_id": "2737542499",
+               "type": "note",
+               "additionnal_note": "We will start with a simple Virtual Terminal, which can be used to process so-called \"card not present\" transactions. This will be a fully functional web application, built from the ground up on Go (sometimes referred to as Golang). The front end will be rendered using Go's rich html/template package, and authenticated users will be able to process credit card payments from a secure form, integrated with the Stripe API. In this section of the course, we will cover the following:\n\nHow to build a secure, production ready web application in Go\n\nHow to capture the necessary information for a secure online credit card transaction\n\nHow to call the Stripe API from a Go back end to create a paymentIntent (Stripe's object for authorizing and making a transaction)",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": ""
+            },
+            {
+               "id": "7d77b3f9-d692-462b-a51d-7159c459aa3a",
+               "entry_name": "dvault app f",
+               "folder_id": "",
+               "type": "note",
+               "additionnal_note": "Notes...",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": ""
+            },
+            {
+               "id": "8994e993-bcb8-4a37-93ce-6a9283ddfb21",
+               "entry_name": "unsynced note",
+               "folder_id": "",
+               "type": "note",
+               "additionnal_note": "note",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": ""
+            },
+            {
+               "id": "5e68f181-629b-4c51-a9ca-984540fa4f53",
+               "entry_name": "Album studio",
+               "folder_id": "",
+               "type": "note",
+               "additionnal_note": "some notes about studio schedules….",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "",
+               "updated_at": ""
+            },
+            {
+               "id": "note-1",
+               "type": "note",
+               "entry_name": "Project Ideas",
+               "folder_id": "folder-3",
+               "additionnal_note": "1. Implement AI-powered search\n2. Add blockchain verification\n3. Enhance mobile responsiveness\n4. Create API documentation",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-14T16:45:00Z",
+               "updated_at": "2024-01-21T09:30:00Z",
+               "is_favorite": false
+            },
+            {
+               "id": "note-2",
+               "type": "note",
+               "entry_name": "Recovery Codes",
+               "folder_id": "folder-4",
+               "additionnal_note": "Backup codes for 2FA:\n1. ABC-DEF-GHI\n2. JKL-MNO-PQR\n3. STU-VWX-YZ1",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-09T11:20:00Z",
+               "updated_at": "2024-01-09T11:20:00Z",
+               "is_favorite": true
+            }
+         ],
+         "sshkey": [
+            {
+               "id": "sshkey-1",
+               "type": "sshkey",
+               "entry_name": "Production Server",
+               "folder_id": "folder-3",
+               "private_key": "••••••••••••••••••••",
+               "public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC...",
+               "e_fingerprint": "SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8",
+               "additionnal_note": "Main production server access",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-11T13:00:00Z",
+               "updated_at": "2024-01-11T13:00:00Z",
+               "is_favorite": true
+            },
+            {
+               "id": "sshkey-2",
+               "type": "sshkey",
+               "entry_name": "Development Environment",
+               "folder_id": "folder-3",
+               "private_key": "••••••••••••••••••••",
+               "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm...",
+               "e_fingerprint": "SHA256:4Vw6fK2zLx5bHZRr8t9p3qWe7yUiOkNhGfDsSaQpLm1",
+               "trashed": false,
+               "is_draft": false,
+               "created_at": "2024-01-13T15:30:00Z",
+               "updated_at": "2024-01-20T12:00:00Z",
+               "is_favorite": false
+            }
+         ]
+      },
+      "created_at": "2025-08-12T13:12:14-07:00",
+      "updated_at": "2025-08-12T13:12:14-07:00"
+   },
+   "SharedEntries": [
+      {
+         "id": "share_7f39",
+         "entry_ref": "c584aa23-c288-451c-b4f9-49afc0647e98",
+         "entry_name": "Terre",
+         "status": "active",
+         "access_mode": "read",
+         "blockchain_hash": "65ERSDFY865765...",
+         "entry_snapshot": {
+            "entry_name": "Terre - entry_snapshot",
+            "type": "login",
+            "user_name": "braeden64",
+            "website": "http://facebook.com"
+         },
+         "encryption": "AES-256-GCM",
+         "blockchain_hash": "0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+         "ipfs_anchor": "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+         "shared_by": {
+            "id": 34,
+            "name": "Terre",
+            "stellar_public": "GDZXKSAPDSQ5XVUF35D34IQ5NIPJK2UZ7IR3KGWRQH47G3ZO56AYY763"
+         },
+         "recipients": [
+            {
+               "id": 56,
+               "name": "Alice",
+               "role": "viewer",
+               "joined_at": "2025-10-10T10:00:00Z"
+            },
+            {
+               "id": 58,
+               "name": "Bob",
+               "role": "editor",
+               "joined_at": "2025-10-10T10:00:00Z"
+            }
+         ],
+         "shared_with": [
+            {
+               "id": 56,
+               "name": "Alice",
+               "role": "viewer",
+               "joined_at": "2025-10-10T10:00:00Z"
+            },
+            {
+               "id": 58,
+               "name": "Bob",
+               "role": "editor",
+               "joined_at": "2025-10-10T10:00:00Z"
+            }
+         ],
+         "permissions": [
+            "read"
+         ],
+         "audit_log": [
+            {
+               "id": "audit-1",
+               "action": "Shared",
+               "actor": "@currentuser",
+               "timestamp": "2025-01-15T10:30:00Z",
+               "details": "Shared with 2 recipients"
+            }
+         ],
+         "created_at": "2025-10-10T10:00:00Z",
+         "updated_at": "2025-10-11T14:00:00Z"
+      },
+      {
+         "id": "shared-1",
+         "entry_name": "GitHub Account",
+         "entry_type": "login",
+         "description": "Main GitHub account for development",
+         "folder": "Work",
+         "status": "active",
+         "access_mode": "read",
+         "encryption": "AES-256-GCM",
+         "blockchain_hash": "0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+         "ipfs_anchor": "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+         "shared_at": "2025-01-15T10:30:00Z",
+         "expires_at": "2025-07-15T10:30:00Z",
+         "created_at": "2025-01-15T10:30:00Z",
+         "updated_at": "2025-01-20T14:22:00Z",
+         "recipients": [
+            {
+               "id": "rec-1",
+               "name": "Alice Johnson",
+               "email": "alice@example.com",
+               "role": "viewer",
+               "joined_at": "2025-01-15T10:35:00Z"
+            },
+            {
+               "id": "rec-2",
+               "name": "Bob Smith",
+               "email": "bob@example.com",
+               "role": "editor",
+               "joined_at": "2025-01-16T09:12:00Z"
+            }
+         ],
+         "audit_log": [
+            {
+               "id": "audit-1",
+               "action": "Shared",
+               "actor": "@currentuser",
+               "timestamp": "2025-01-15T10:30:00Z",
+               "details": "Shared with 2 recipients"
+            },
+            {
+               "id": "audit-2",
+               "action": "Access changed",
+               "actor": "@currentuser",
+               "timestamp": "2025-01-20T14:22:00Z",
+               "details": "Changed Bob Smith to Editor role"
+            }
+         ]
+      },
+      {
+         "id": "shared-2",
+         "entry_name": "AWS Console",
+         "entry_type": "login",
+         "description": "Production AWS account",
+         "folder": "Infrastructure",
+         "status": "active",
+         "access_mode": "edit",
+         "encryption": "AES-256-GCM",
+         "blockchain_hash": "0xa591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e",
+         "ipfs_anchor": "QmPZ9gcCEpqKTo6aq61g2nXGUhM4iCL3ewB6LDXZCtioEB",
+         "shared_at": "2025-02-01T08:15:00Z",
+         "created_at": "2025-02-01T08:15:00Z",
+         "updated_at": "2025-02-01T08:15:00Z",
+         "recipients": [
+            {
+               "id": "rec-3",
+               "name": "Carol Williams",
+               "email": "carol@example.com",
+               "role": "owner",
+               "joined_at": "2025-02-01T08:20:00Z"
+            }
+         ],
+         "audit_log": [
+            {
+               "id": "audit-3",
+               "action": "Shared",
+               "actor": "@currentuser",
+               "timestamp": "2025-02-01T08:15:00Z",
+               "details": "Shared with 1 recipient"
+            }
+         ]
+      },
+      {
+         "id": "shared-3",
+         "entry_name": "Company Credit Card",
+         "entry_type": "card",
+         "description": "Team expense card",
+         "folder": "Finance",
+         "status": "active",
+         "access_mode": "read",
+         "encryption": "AES-256-GCM",
+         "blockchain_hash": "0x2c7536e3605d9c16a7a3d7b1898e529396a65c23042c0a15c72165c1f28c83aa",
+         "shared_at": "2025-01-10T12:00:00Z",
+         "expires_at": "2025-12-31T23:59:59Z",
+         "created_at": "2025-01-10T12:00:00Z",
+         "updated_at": "2025-01-10T12:00:00Z",
+         "recipients": [
+            {
+               "id": "rec-4",
+               "name": "David Lee",
+               "email": "david@example.com",
+               "role": "viewer",
+               "joined_at": "2025-01-10T12:05:00Z"
+            },
+            {
+               "id": "rec-5",
+               "name": "Emma Davis",
+               "email": "emma@example.com",
+               "role": "viewer",
+               "joined_at": "2025-01-11T09:30:00Z"
+            },
+            {
+               "id": "rec-6",
+               "name": "Frank Miller",
+               "email": "frank@example.com",
+               "role": "viewer",
+               "joined_at": "2025-01-12T14:15:00Z"
+            }
+         ],
+         "audit_log": [
+            {
+               "id": "audit-4",
+               "action": "Shared",
+               "actor": "@currentuser",
+               "timestamp": "2025-01-10T12:00:00Z",
+               "details": "Shared with 3 recipients"
+            }
+         ]
+      },
+      {
+         "id": "shared-4",
+         "entry_name": "API Documentation",
+         "entry_type": "note",
+         "description": "Internal API specs and examples",
+         "status": "pending",
+         "access_mode": "read",
+         "encryption": "AES-256-GCM",
+         "shared_at": "2025-02-10T16:45:00Z",
+         "created_at": "2025-02-10T16:45:00Z",
+         "updated_at": "2025-02-10T16:45:00Z",
+         "recipients": [
+            {
+               "id": "rec-7",
+               "name": "Grace Taylor",
+               "email": "grace@example.com",
+               "role": "viewer",
+               "joined_at": "2025-02-10T16:50:00Z"
+            }
+         ],
+         "audit_log": [
+            {
+               "id": "audit-5",
+               "action": "Invite sent",
+               "actor": "@currentuser",
+               "timestamp": "2025-02-10T16:45:00Z",
+               "details": "Invitation pending acceptance"
+            }
+         ]
+      },
+      {
+         "id": "shared-5",
+         "entry_name": "SSH Production Key",
+         "entry_type": "sshkey",
+         "description": "Production server access",
+         "folder": "Infrastructure",
+         "status": "revoked",
+         "access_mode": "read",
+         "encryption": "AES-256-GCM",
+         "shared_at": "2024-12-01T10:00:00Z",
+         "created_at": "2024-12-01T10:00:00Z",
+         "updated_at": "2025-01-05T11:30:00Z",
+         "recipients": [
+            {
+               "id": "rec-8",
+               "name": "Henry Wilson",
+               "email": "henry@example.com",
+               "role": "viewer",
+               "joined_at": "2024-12-01T10:05:00Z"
+            }
+         ],
+         "audit_log": [
+            {
+               "id": "audit-6",
+               "action": "Shared",
+               "actor": "@currentuser",
+               "timestamp": "2024-12-01T10:00:00Z",
+               "details": "Shared with 1 recipient"
+            },
+            {
+               "id": "audit-7",
+               "action": "Revoked",
+               "actor": "@currentuser",
+               "timestamp": "2025-01-05T11:30:00Z",
+               "details": "Access revoked for security reasons"
+            }
+         ]
+      }
+   ],
+   "LastCID": "QmVSMqe2GmANXRtN8MB3bm96jgTNCaimXXkQf6SUS9zK78",
+   "Dirty": true,
+   "LastSynced": "2025-08-29T13:47:10-07:00",
+   "LastUpdated": "2025-11-03T19:16:20Z",
+   "vault_runtime_context": {
+      "CurrentUser": {
+         "id": "34",
+         "role": "user",
+         "name": "Tchala",
+         "last_name": "black_panther",
+         "email": "tchala@blackpanther.af",
+         "signature": "",
+         "connected_orgs": null,
+         "stellar_account": {
+            "public_key": "GDZXKSAPDSQ5XVUF35D34IQ5NIPJK2UZ7IR3KGWRQH47G3ZO56AYY763",
+            "private_key": "SBPRI27LYUH47VDHFDH42AFQQXD5AQWAGMONMJEK5BIJD2AC5XHU723Z",
+            "EncPassword": "zoji6I1t9IHmoxWznKedDk0G5SPOswqa",
+            "EncNonce": "PaHelYfxo88gI3Tp"
+         },
+         "sharing_rules": null
+      },
+      "AppSettings": {
+         "id": "b554b202-b2b9-42e3-bf18-3fd724551859",
+         "repo_id": "",
+         "branch": "main",
+         "tracecore_enabled": false,
+         "commit_rules": [
+            {
+               "id": 0,
+               "rule": "REQUIRES_SIGNATURE",
+               "actors": null
+            }
+         ],
+         "branching_model": "approval",
+         "encryption_policy": "AES-256-GCM",
+         "actors": [
+            "user",
+            "lawyer"
+         ],
+         "federated_providers": null,
+         "default_phase": "",
+         "default_vault_path": "",
+         "vault_settings": {
+            "max_entries": 500,
+            "auto_sync_enabled": false,
+            "encryption_scheme": "AES-256-GCM"
+         },
+         "blockchain": {
+            "stellar": {
+               "network": "testnet",
+               "horizon_url": "https://horizon-testnet.stellar.org",
+               "fee": 100
+            },
+            "ipfs": {
+               "api_endpoint": "",
+               "gateway_url": ""
+            }
+         },
+         "user_id": 34
+      },
+      "SessionSecrets": {},
+      "WorkingBranch": "main",
+      "LoadedEntries": []
+   }
+}

@@ -1,0 +1,155 @@
+import { SharedEntry, ShareFilter } from "@/types/sharing";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CreditCard, FileText, Key, Shield, User, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface SharedEntriesListProps {
+  entries: SharedEntry[];
+  selectedEntryId: string | null;
+  filter: ShareFilter;
+  onSelectEntry: (entry: SharedEntry) => void;
+  onFilterChange: (filter: ShareFilter) => void;
+}
+
+const getEntryIcon = (type: string) => {
+  switch (type) {
+    case "login":
+      return Shield;
+    case "card":
+      return CreditCard;
+    case "note":
+      return FileText;
+    case "identity":
+      return User;
+    case "sshkey":
+      return Key;
+    default:
+      return Shield;
+  }
+};
+
+const getStatusVariant = (status: string) => {
+  switch (status) {
+    case "active":
+      return "default";
+    case "pending":
+      return "secondary";
+    case "expired":
+      return "outline";
+    case "revoked":
+      return "destructive";
+    default:
+      return "default";
+  }
+};
+
+export function SharedEntriesList({
+  entries,
+  selectedEntryId,
+  filter,
+  onSelectEntry,
+  onFilterChange,
+}: SharedEntriesListProps) {
+  const filters: { value: ShareFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "sent", label: "Sent" },
+    { value: "received", label: "Received" },
+    { value: "pending", label: "Pending" },
+    { value: "revoked", label: "Revoked" },
+  ];
+
+  return (
+    <div className="w-full md:w-80 lg:w-96 flex flex-col border-r border-border bg-secondary/30 h-full overflow-hidden">
+      {/* Fixed Header */}
+      <div className="sticky top-0 z-10 border-b border-border p-4 bg-background">
+        <h2 className="text-lg font-semibold mb-3">Shared Entries</h2>
+        
+        {/* Filter Tabs */}
+        <div className="flex gap-2 flex-wrap">
+          {filters.map((f) => (
+            <Button
+              key={f.value}
+              variant={filter === f.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => onFilterChange(f.value)}
+              className="text-xs"
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
+        
+        <div className="mt-3 text-xs text-muted-foreground">
+          {entries.length} {entries.length === 1 ? "entry" : "entries"}
+        </div>
+      </div>
+
+      {/* Scrollable List */}
+      <ScrollArea className="flex-1">
+        <div className="p-2 space-y-1">
+          {entries.map((entry) => {
+            const Icon = getEntryIcon(entry.entry_type);
+            const isSelected = selectedEntryId === entry.id;
+
+            return (
+              <button
+                key={entry.id}
+                onClick={() => onSelectEntry(entry)}
+                className={cn(
+                  "w-full text-left p-3 rounded-lg transition-all hover:bg-accent/50",
+                  isSelected && "bg-accent border border-primary/20"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "mt-1 p-2 rounded-md",
+                    isSelected ? "bg-primary/10 text-primary" : "bg-muted"
+                  )}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-medium text-sm truncate">
+                        {entry.entry_name}
+                      </h3>
+                      <Badge 
+                        variant={getStatusVariant(entry.status)}
+                        className="text-xs shrink-0"
+                      >
+                        {entry.status}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Users className="h-3 w-3" />
+                      <span>
+                        Shared with {entry.recipients.length}{" "}
+                        {entry.recipients.length === 1 ? "recipient" : "recipients"}
+                      </span>
+                    </div>
+                    
+                    {entry.expires_at && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Expires: {new Date(entry.expires_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          {entries.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <p className="text-sm">No shared entries found</p>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}

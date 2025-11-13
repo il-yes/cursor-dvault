@@ -1,0 +1,164 @@
+/**
+ * Vault types matching backend VaultContext structure
+ */
+
+export interface StellarAccount {
+  public_key: string;
+  private_key?: string; // Only in dev mode
+}
+
+export interface CurrentUser {
+  id: string;
+  role: string;
+  stellar_account: StellarAccount;
+}
+
+export interface BlockchainConfig {
+  stellar: {
+    network: string;
+    horizon_url: string;
+  };
+  ipfs: {
+    gateway_url: string;
+    pinning_service?: string;
+  };
+}
+
+export interface AppSettings {
+  encryption_policy: string;
+  blockchain: BlockchainConfig;
+  auto_sync_enabled: boolean;
+  commit_rules: {
+    auto_anchor_stellar: boolean;
+    auto_commit_tracecore: boolean;
+  };
+}
+
+// Base Entry matching Go BaseEntry struct
+export interface BaseEntry {
+  id: string;
+  entry_name: string;
+  folder_id?: string;
+  type: 'login' | 'card' | 'note' | 'sshkey' | 'identity';
+  additionnal_note?: string;
+  custom_fields?: Record<string, any>;
+  trashed: boolean;
+  is_draft: boolean;
+  created_at: string;
+  updated_at: string;
+  is_favorite?: boolean;
+}
+
+// Login Entry
+export interface LoginEntry extends BaseEntry {
+  type: 'login';
+  user_name: string;
+  password: string;
+  web_site?: string;
+}
+
+// Card Entry
+export interface CardEntry extends BaseEntry {
+  type: 'card';
+  owner: string;
+  number: string;
+  expiration: string;
+  cvc: string;
+}
+
+// Identity Entry
+export interface IdentityEntry extends BaseEntry {
+  type: 'identity';
+  genre?: string;
+  firstname?: string;
+  second_firstname?: string;
+  lastname?: string;
+  username?: string;
+  company?: string;
+  social_security_number?: string;
+  ID_number?: string;
+  driver_license?: string;
+  mail?: string;
+  telephone?: string;
+  address_one?: string;
+  address_two?: string;
+  address_three?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+}
+
+// Note Entry
+export interface NoteEntry extends BaseEntry {
+  type: 'note';
+}
+
+// SSH Key Entry
+export interface SSHKeyEntry extends BaseEntry {
+  type: 'sshkey';
+  private_key: string;
+  public_key: string;
+  e_fingerprint: string;
+}
+
+// Union type for all entries
+export type VaultEntry = LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry;
+
+export interface Folder {
+  id: string;
+  name: string;
+  icon?: string;
+  parent_id?: string;
+}
+
+export interface Vault {
+  version: string;
+  name: string;
+  folders: Folder[];
+  entries: {
+    login: VaultEntry[];
+    card: VaultEntry[];
+    note: VaultEntry[];
+    sshkey: VaultEntry[];
+    identity: VaultEntry[];
+  };
+}
+
+export interface VaultRuntimeContext {
+  CurrentUser: CurrentUser;
+  AppSettings: AppSettings;
+  WorkingBranch: string;
+  LoadedEntries: string[];
+}
+
+export interface VaultContext {
+  user_id: string;
+  role: string;
+  Vault: Vault;
+  LastCID?: string;
+  Dirty: boolean;
+  LastSynced?: string;
+  LastUpdated: string;
+  vault_runtime_context: VaultRuntimeContext;
+}
+
+export interface DecryptRequest {
+  entry_id: string;
+  field_name: string;
+  challenge?: string;
+}
+
+export interface DecryptResponse {
+  field_name: string;
+  plaintext: string;
+  expires_in: number; // seconds
+}
+
+export interface AuditEvent {
+  event_type: 'view' | 'decrypt' | 'create' | 'update' | 'delete';
+  entry_id: string;
+  field_name?: string;
+  timestamp: string;
+  user_id: string;
+}

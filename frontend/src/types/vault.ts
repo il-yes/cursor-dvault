@@ -41,6 +41,7 @@ export interface AppSettings {
   vault_settings: VaultSettings;
   blockchain: BlockchainConfig2;
   user_id?: number;
+  auto_sync_enabled: boolean; 
 }
 
 export interface CommitRule {
@@ -51,7 +52,6 @@ export interface CommitRule {
 
 export interface VaultSettings {
   max_entries: number;
-  auto_sync_enabled: boolean;
   encryption_scheme: string;
 }
 
@@ -168,6 +168,9 @@ export interface Vault {
     sshkey: VaultEntry[];
     identity: VaultEntry[];
   };
+  created_at?: string;
+  updated_at?: string;
+
 }
 
 export interface VaultRuntimeContext {
@@ -207,3 +210,49 @@ export interface AuditEvent {
   timestamp: string;
   user_id: string;
 }
+
+export interface VaultPayload {
+  version: string;
+  name: string;
+  folders: Folder[];
+  entries: {
+    login: Entry[];      // 👈 Separate out types
+    card: Entry[];
+    note: Entry[];
+    identity: Entry[]
+    sshkey: Entry[]
+  };
+  created_at: string;
+  updated_at: string;
+}
+export interface LoginResponse {
+  User: User;
+  Vault: VaultPayload;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  type?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+  publicKey?: string;
+  signedMessage?: string;
+  signature?: string;
+}
+export interface User {
+  id: number;
+  email: string;
+  password: string;
+  username: string;
+  role: string;
+}
+export type Entry =
+  | LoginEntry
+  | CardEntry
+  | IdentityEntry
+  | NoteEntry
+  | SSHKeyEntry;

@@ -47,7 +47,6 @@ export const useVaultStore = create<VaultStoreState>()(
 
           if (USE_MOCK) {
             try {
-console.log("using mock data ---------------: ", USE_MOCK)
               // 🔹 Use local mock payload
               data = mockVaultPayload;
               console.log('✅ Using mock vault payload');
@@ -58,7 +57,6 @@ console.log("using mock data ---------------: ", USE_MOCK)
             }
 
           } else {
-console.log("vault api ------------------", USE_MOCK)
             // 🔹 Normal backend fetch
             const response = await fetch(`${API_BASE_URL}/api/vault`, {
               method: 'GET',

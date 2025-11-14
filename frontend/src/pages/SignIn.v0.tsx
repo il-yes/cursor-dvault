@@ -1,53 +1,42 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Shield } from "lucide-react";
-
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-
-import { useAuth } from "@/hooks/useAuth";         // <-- REAL login logic
-import { StellarLoginForm } from "@/components/StellarLoginForm";
-import { LoginRequest } from "@/types/vault";
+import { useToast } from "@/hooks/use-toast";
 
 const SignIn = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  // Local UI state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  // v0 REAL logic
-  const { loginWithPassword, loginWithStellar } = useAuth();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      // 🔐 REAL BACKEND CALL
-      // Note: loginWithPassword handles user update and navigation internally
-      await loginWithPassword({ email, password });
-
-      toast({
-        title: "Authentication successful",
-        description: "Redirecting to your vault...",
-      });
-    } catch (err: any) {
-      console.error("Login failed:", err);
-
-      toast({
-        title: "Authentication failed",
-        description: err?.message ?? "Invalid credentials or connection issue.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Simulate authentication - in production, this would call Keycloak
+    setTimeout(() => {
+      if (email && password) {
+        toast({
+          title: "Authentication successful",
+          description: "Redirecting to dashboard...",
+        });
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 500);
+      } else {
+        toast({
+          title: "Authentication failed",
+          description: "Please enter valid credentials.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+      }
+    }, 1000);
   };
 
   return (
@@ -77,8 +66,6 @@ const SignIn = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignIn} className="space-y-4">
-
-              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -91,7 +78,6 @@ const SignIn = () => {
                 />
               </div>
 
-              {/* Password */}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -104,7 +90,6 @@ const SignIn = () => {
                 />
               </div>
 
-              {/* Submit */}
               <Button
                 type="submit"
                 className="w-full"
@@ -113,7 +98,6 @@ const SignIn = () => {
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
-              {/* Divider */}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
@@ -125,11 +109,6 @@ const SignIn = () => {
                 </div>
               </div>
 
-
-			<StellarLoginForm onLogin={loginWithStellar} />
-
-
-              {/* Offline mode (still useful) */}
               <Button
                 type="button"
                 variant="outline"
@@ -141,7 +120,7 @@ const SignIn = () => {
             </form>
 
             <p className="text-xs text-muted-foreground text-center mt-6">
-              Backend integration active — real login required.
+              Keycloak integration in progress. For now, any email/password combination will work.
             </p>
           </CardContent>
         </Card>

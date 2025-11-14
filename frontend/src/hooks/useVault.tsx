@@ -73,26 +73,41 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         CurrentUser: {
           id: "mock-user-123",
           role: "owner",
+          name: "John",
+          last_name: "Doe",
+          email: "john.doe@example.com",
           stellar_account: {
             public_key: "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
           },
         },
         AppSettings: {
+          id: "mock-app-settings-123",
+          repo_id: "mock-repo-123",
+          branch: "main",
+          tracecore_enabled: false,
+          commit_rules: [],
+          branching_model: "single",
           encryption_policy: "AES-256-GCM",
+          actors: ["user"],
+          federated_providers: null,
+          default_phase: "vault_entry",
+          default_vault_path: "",
+          vault_settings: {
+            max_entries: 1000,
+            encryption_scheme: "AES-256-GCM",
+          },
           blockchain: {
             stellar: {
               network: "testnet",
               horizon_url: "https://horizon-testnet.stellar.org",
+              fee: 100,
             },
             ipfs: {
               gateway_url: "https://ipfs.io",
+              api_endpoint: "http://localhost:5001",
             },
           },
           auto_sync_enabled: true,
-          commit_rules: {
-            auto_anchor_stellar: true,
-            auto_commit_tracecore: true,
-          },
         },
         WorkingBranch: "main",
         LoadedEntries: [],

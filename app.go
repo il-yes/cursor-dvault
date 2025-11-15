@@ -147,6 +147,11 @@ func NewApp() *App {
 			Factory: func() models.VaultEntry { return &models.IdentityEntry{} },
 			Handler: handlers.NewIdentityHandler(*db, *ipfs, sessions, appLogger),
 		},
+		{
+			Type:    "sshkey",
+			Factory: func() models.VaultEntry { return &models.SSHKeyEntry{} },
+			Handler: handlers.NewSSHKeyHandler(*db, *ipfs, sessions, appLogger),
+		},
 	})
 
 	runtimeCtx := &models.VaultRuntimeContext{

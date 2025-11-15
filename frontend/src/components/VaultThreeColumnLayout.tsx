@@ -35,6 +35,21 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     return entries;
   }, [vaultContext]);
 
+  // Sync selectedEntry with vault context when it changes
+  useEffect(() => {
+    if (selectedEntry && vaultContext?.Vault) {
+      const entryType = selectedEntry.type;
+      const entries = vaultContext.Vault.entries[entryType as keyof typeof vaultContext.Vault.entries];
+      const updatedEntry = entries?.find(e => e.id === selectedEntry.id);
+
+      // Only update if the entry has actually changed to avoid infinite loops
+      if (updatedEntry && JSON.stringify(updatedEntry) !== JSON.stringify(selectedEntry)) {
+        setSelectedEntry(updatedEntry as VaultEntry);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultContext]);
+
   // Get entry ID from URL params
   const entryIdFromUrl = searchParams.get("entry");
 
@@ -75,17 +90,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   const handleEditEntry = async (updates: Partial<VaultEntry>) => {
     if (selectedEntry) {
       await updateEntry(selectedEntry.id, updates);
-
-      // ✅ Refresh selectedEntry from vault context to get the updated entry
-      // Find the updated entry in the vault context
-      const entryType = selectedEntry.type;
-      const entries = vaultContext?.Vault.entries[entryType as keyof typeof vaultContext.Vault.entries];
-      const updatedEntry = entries?.find(e => e.id === selectedEntry.id);
-
-      if (updatedEntry) {
-        setSelectedEntry(updatedEntry as VaultEntry);
-      }
-
+      // selectedEntry will be automatically synced by the useEffect hook
       setEditMode(false);
     }
   };

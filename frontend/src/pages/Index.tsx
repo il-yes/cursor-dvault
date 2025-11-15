@@ -3,11 +3,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, Database, Activity, Users } from "lucide-react";
 import { GlobalSecurityInsight } from "@/components/GlobalSecurityInsight";
 import { useVaultStore } from "@/store/vaultStore";
+import ContributionGraph from "@/components/ContributionGraph"
 
 const Index = () => {
   const { vault, lastSyncTime, loadVault } = useVaultStore();
   const sharedEntries = useVaultStore((state) => state.shared.items);
   const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
+
+  const sampleData = {
+    "2025-01-01": 2,
+    "2025-01-02": 4,
+    "2025-01-03": 10,
+    // ... (other days)
+  };
 
   return (
     <DashboardLayout>
@@ -106,10 +114,24 @@ const Index = () => {
                 </div>
               </div>
             </CardContent>
+
+
+            <CardHeader>
+              <CardDescription>
+                Your Contributions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+
+              <ContributionGraph contributions={sampleData} />
+            </CardContent>
+           
           </Card>
 
           <GlobalSecurityInsight />
         </div>
+
+
       </div>
     </DashboardLayout>
   );

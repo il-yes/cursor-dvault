@@ -34,7 +34,11 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CreateEntryDialog } from "./CreateEntryDialog";
 import { SearchOverlay } from "./SearchOverlay";
-import { VaultEntry } from "@/types/vault";
+import { VaultEntry, VaultPayload } from "@/types/vault";
+import { useAuthStore } from "@/store/useAuthStore";
+import { toast } from "@/hooks/use-toast";
+import * as AppAPI from "../../wailsjs/go/main/App";
+
 
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
@@ -76,9 +80,16 @@ function DashboardNavbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const { vaultContext, addEntry } = useVault();
-  
+
+  const { updateOnboarding, onboarding, jwtToken } = useAuthStore();
+  const [encryptedVault, setEncryptedVault] = useState<string | null>(null);
+  const [vaultDecryptionPassword, setVaultDecryptionPassword] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [vault, setVault] = useState<VaultPayload | null>(null);
+  const [decryptionPassword, setDecryptionPassword] = useState<string | null>(null);
+
   const isVaultContext = location.pathname.startsWith("/dashboard/vault");
-  
+
   const allEntries = useMemo(() => {
     if (!vaultContext?.Vault) return [];
     return [
@@ -96,24 +107,65 @@ function DashboardNavbar() {
   const handleAddEntry = () => {
     setIsCreateDialogOpen(true);
   };
-  const handleCreateEntry = (entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">) => {
-    const newEntry: VaultEntry = {
-      ...entry,
-      id: `${entry.type}-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      trashed: false,
-      is_draft: false,
-    } as VaultEntry;
-    addEntry(newEntry);
+  const handleCreateEntry = async (
+    entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">
+  ) => {
+    try {
+      // Debug: Check if jwtToken is available
+      console.log("🔑 JWT Token:", jwtToken);
+
+      if (!jwtToken) {
+        toast({
+          title: "Authentication Error",
+          description: "You are not authenticated. Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 1️⃣ Prepare entry to send to backend
+      const entryPayload = {
+        ...entry,
+        // Backend will usually generate id / timestamps
+      };
+
+      // 2️⃣ Send to backend (v0 logic)
+      const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
+
+      // 3️⃣ Convert backend response if needed
+      const newEntry: VaultEntry = {
+        ...rawEntry,
+        created_at: rawEntry.created_at || new Date().toISOString(),
+        updated_at: rawEntry.updated_at || new Date().toISOString(),
+      };
+
+      // 4️⃣ Update Zustand store
+      addEntry(newEntry);
+
+      // 5️⃣ Show feedback
+      toast({
+        title: "Entry created",
+        description: `${newEntry.entry_name} has been added to your vault.`,
+      });
+    } catch (err) {
+      console.error("Failed to create entry:", err);
+      toast({
+        title: "Error",
+        description: "Could not save entry. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
-  
+
+  console.log({allEntries})
+
+
   const handleSelectEntry = (entry: VaultEntry) => {
     navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
     setSearchQuery("");
     setShowSearchOverlay(false);
   };
-  
+
   useEffect(() => {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
@@ -136,13 +188,13 @@ function DashboardNavbar() {
           <span className="text-lg font-bold text-foreground">VaultCore</span>
         </div>
 
-          <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
-            <Plus
-              data-tooltip-target="tooltip-default" 
-              onClick={handleAddEntry}
-              className="h-5 w-8"
-            />
-          </div>
+        <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
+          <Plus
+            data-tooltip-target="tooltip-default"
+            onClick={handleAddEntry}
+            className="h-5 w-8"
+          />
+        </div>
 
         <div className="flex-1 flex justify-center px-4 md:px-8">
           <div className="w-full max-w-md relative">
@@ -282,22 +334,22 @@ function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {secondaryItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                        }`
-                      }
-                    >
-                      <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          }`
+                        }
+                      >
+                        <item.icon className="h-5 w-5" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>

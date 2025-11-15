@@ -71,6 +71,8 @@ type App struct {
 
 // NewApp creates a new App instance (required by Wails)
 func NewApp() *App {
+	startTime := time.Now()
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -80,6 +82,7 @@ func NewApp() *App {
 
 	// Use auto-init from env
 	appLogger := logger.NewFromEnv()
+	appLogger.Info("🚀 Starting D-Vault initialization...")
 
 	// Pick DSN
 	dsn := cfg.db.dsn
@@ -112,9 +115,15 @@ func NewApp() *App {
 	}
 
 	// Init services
+	appLogger.Info("🔧 Initializing IPFS client...")
 	ipfs := blockchain.NewIPFSClient("localhost:5001")
+	appLogger.Info("✅ IPFS client initialized (connection will be tested on first use)")
+
 	sessions := make(map[int]*models.VaultSession)
+
+	appLogger.Info("🔧 Initializing Tracecore client...")
 	tcClient := tracecore.NewTracecoreClient("http://localhost:8000/api/v1", os.Getenv("TRACECORE_TOKEN"))
+	appLogger.Info("✅ Tracecore client initialized")
 
 	reg := registry.NewRegistry(appLogger)
 	reg.RegisterDefinitions([]registry.EntryDefinition{
@@ -163,10 +172,17 @@ func NewApp() *App {
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth)
 
-	storedSessions, err := db.GetAllSessions()
-	if err != nil {
-		appLogger.Error("❌ Failed to load stored sessions: %v", err)
-	} else {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// ⚡ Restore sessions asynchronously to speed up startup
+	go func() {
+		appLogger.Info("🔄 Restoring sessions in background...")
+		storedSessions, err := db.GetAllSessions()
+		if err != nil {
+			appLogger.Error("❌ Failed to load stored sessions: %v", err)
+			return
+		}
+
 		for _, s := range storedSessions {
 			sessions[s.UserID] = s
 			if len(s.PendingCommits) > 0 {
@@ -177,11 +193,14 @@ func NewApp() *App {
 				}
 			}
 		}
-		appLogger.Info("🔄 Restored %d sessions from DB", len(storedSessions))
-	}
+		appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
+	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
+
+	elapsed := time.Since(startTime)
+	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
 		config:         cfg,
@@ -215,7 +234,7 @@ func (a *App) SignOut(userID int, cid string, password string) {
 	a.Auth.Logout(userID)
 }
 func (a *App) CheckSession(userID int) (string, error) {
-    return a.Auth.RefreshToken(userID) // same logic you already wrote
+	return a.Auth.RefreshToken(userID) // same logic you already wrote
 }
 
 // -----------------------------
@@ -342,6 +361,7 @@ func (a *App) IsVaultDirty(jwtToken string) (bool, error) {
 func (a *App) FetchUsers() ([]models.UserDTO, error) {
 	return a.DB.FindUsers()
 }
+
 // -----------------------------
 // Helpers
 // -----------------------------
@@ -363,4 +383,3 @@ func (a *App) startup(ctx context.Context) {
 	fmt.Println("App has started.")
 	a.ctx = ctx
 }
-

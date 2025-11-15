@@ -10,6 +10,7 @@ import (
 	// "github.com/mattn/go-sqlite3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 // OpenDB opens a SQLite database with given DSN.
@@ -26,10 +27,13 @@ func OpenDB1(dsn string) (*sql.DB, error) {
 
 	return db, nil
 }
+
 // OpenDB opens a GORM SQLite database with the given DSN
 func OpenDB(dsn string) (*gorm.DB, error) {
-	// This is the correct usage for GORM's SQLite driver
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	// ✅ Disable GORM SQL logging to prevent log pollution
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
 	if err != nil {
 		return nil, err
 	}

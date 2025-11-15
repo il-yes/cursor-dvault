@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
@@ -87,7 +86,7 @@ func (h *LoginHandler) Edit(userID int, entry any) (*any, error) {
 
 
 	h.logger.Info("✏️ Updated login entry for user %d: %s\n", userID, updatedEntry.EntryName)
-	utils.LogPretty("session after update", session)
+	// utils.LogPretty("session after update", session)
 
 	var result any = updatedEntry
 	return &result, nil

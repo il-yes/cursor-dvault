@@ -5,20 +5,15 @@ import { ArrowLeft, Shield } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-<<<<<<< Updated upstream
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
 
-import { useAuth } from "@/hooks/useAuth";         // <-- REAL login logic
-import { StellarLoginForm } from "@/components/StellarLoginForm";
-import { LoginRequest } from "@/types/vault";
-=======
 import { useToast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/store/vaultStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
+import { useAuth } from "@/hooks/useAuth";
 import * as AppAPI from "../../wailsjs/go/main/App";
->>>>>>> Stashed changes
+import { Button } from "@/components/ui/button";
+import { StellarLoginForm } from "@/components/StellarLoginForm";
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -26,39 +21,18 @@ const SignIn = () => {
   const { setVault } = useVaultStore();
   const { hydrateVault } = useVault();
   const { setJwtToken, setRefreshToken, setUser, setLoggedIn, updateOnboarding } = useAuthStore();
+  const { loginWithStellar } = useAuth();
 
   // Local UI state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-<<<<<<< Updated upstream
-  // v0 REAL logic
-  const { loginWithPassword, loginWithStellar } = useAuth();
-
-=======
->>>>>>> Stashed changes
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-<<<<<<< Updated upstream
-      // 🔐 REAL BACKEND CALL
-      // Note: loginWithPassword handles user update and navigation internally
-      await loginWithPassword({ email, password });
-
-      toast({
-        title: "Authentication successful",
-        description: "Redirecting to your vault...",
-      });
-    } catch (err: any) {
-      console.error("Login failed:", err);
-
-      toast({
-        title: "Authentication failed",
-        description: err?.message ?? "Invalid credentials or connection issue.",
-=======
       // Call backend SignIn
       const result = await AppAPI.SignIn({ email, password });
 
@@ -131,7 +105,6 @@ const SignIn = () => {
       toast({
         title: "Authentication failed",
         description: err.message || "Please enter valid credentials.",
->>>>>>> Stashed changes
         variant: "destructive",
       });
     } finally {
@@ -193,10 +166,6 @@ const SignIn = () => {
                 />
               </div>
 
-<<<<<<< Updated upstream
-              {/* Submit */}
-=======
->>>>>>> Stashed changes
               <Button
                 type="submit"
                 className="w-full"
@@ -205,10 +174,6 @@ const SignIn = () => {
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
 
-<<<<<<< Updated upstream
-              {/* Divider */}
-=======
->>>>>>> Stashed changes
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border" />
@@ -220,14 +185,10 @@ const SignIn = () => {
                 </div>
               </div>
 
-<<<<<<< Updated upstream
-
-			<StellarLoginForm onLogin={loginWithStellar} />
+              <StellarLoginForm onLogin={loginWithStellar} />
 
 
               {/* Offline mode (still useful) */}
-=======
->>>>>>> Stashed changes
               <Button
                 type="button"
                 variant="outline"
@@ -239,11 +200,7 @@ const SignIn = () => {
             </form>
 
             <p className="text-xs text-muted-foreground text-center mt-6">
-<<<<<<< Updated upstream
-              Backend integration active — real login required.
-=======
               Keycloak integration in progress. Onboarding will trigger when upgrading an account.
->>>>>>> Stashed changes
             </p>
           </CardContent>
         </Card>

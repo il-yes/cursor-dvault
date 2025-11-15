@@ -196,6 +196,7 @@ export namespace models {
 	    custom_fields?: Record<string, string>;
 	    trashed: boolean;
 	    is_draft: boolean;
+	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
 	    owner: string;
@@ -217,6 +218,7 @@ export namespace models {
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
 	        this.is_draft = source["is_draft"];
+	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	        this.owner = source["owner"];
@@ -234,6 +236,7 @@ export namespace models {
 	    custom_fields?: Record<string, string>;
 	    trashed: boolean;
 	    is_draft: boolean;
+	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
 	    private_key: string;
@@ -254,6 +257,7 @@ export namespace models {
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
 	        this.is_draft = source["is_draft"];
+	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	        this.private_key = source["private_key"];
@@ -270,6 +274,7 @@ export namespace models {
 	    custom_fields?: Record<string, string>;
 	    trashed: boolean;
 	    is_draft: boolean;
+	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
 	
@@ -287,6 +292,7 @@ export namespace models {
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
 	        this.is_draft = source["is_draft"];
+	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }
@@ -300,6 +306,7 @@ export namespace models {
 	    custom_fields?: Record<string, string>;
 	    trashed: boolean;
 	    is_draft: boolean;
+	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
 	    genre?: string;
@@ -335,6 +342,7 @@ export namespace models {
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
 	        this.is_draft = source["is_draft"];
+	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	        this.genre = source["genre"];
@@ -366,6 +374,7 @@ export namespace models {
 	    custom_fields?: Record<string, string>;
 	    trashed: boolean;
 	    is_draft: boolean;
+	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
 	    user_name: string;
@@ -386,6 +395,7 @@ export namespace models {
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
 	        this.is_draft = source["is_draft"];
+	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	        this.user_name = source["user_name"];

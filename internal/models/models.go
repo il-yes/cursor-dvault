@@ -100,11 +100,11 @@ type Folder struct {
 type VaultItemType string
 
 const (
-	Credentials VaultItemType = "Identifiers" // Email/password
-	Card        VaultItemType = "card"        // Payment card
-	Identity    VaultItemType = "identity"    // Name, address, etc.
-	Note        VaultItemType = "note"        // Secure notes
-	SSHKey      VaultItemType = "ssh_key"     // SSH private key
+	Credentials VaultItemType = "login"    // Email/password
+	Card        VaultItemType = "card"     // Payment card
+	Identity    VaultItemType = "identity" // Name, address, etc.
+	Note        VaultItemType = "note"     // Secure notes
+	SSHKey      VaultItemType = "sshkey"   // SSH private key
 )
 
 // Vault of the user (could be versionned)
@@ -223,7 +223,6 @@ func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 	return moved
 }
 
-
 // undraft entries to render vault payload for syncing
 // func (v *VaultPayload) Sync() VaultPayload {
 
@@ -308,6 +307,7 @@ type BaseEntry struct {
 	CustomFields    JSONMap   `json:"custom_fields,omitempty" gorm:"type:jsonb"`
 	Trashed         bool      `json:"trashed"`
 	IsDraft         bool      `json:"is_draft"`
+	IsFavorite      bool      `json:"is_favorite"`
 	// or type:text if jsonb unsupported
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
@@ -387,7 +387,7 @@ func (e NoteEntry) GetId() string           { return e.ID }
 func (e NoteEntry) GetTypeName() string     { return "note" }
 func (e NoteEntry) GetName() string         { return e.EntryName }
 func (e SSHKeyEntry) GetId() string         { return e.ID }
-func (e SSHKeyEntry) GetTypeName() string   { return "ssh_key" }
+func (e SSHKeyEntry) GetTypeName() string   { return "sshkey" }
 func (e SSHKeyEntry) GetName() string       { return e.EntryName }
 
 func (db *DBModel) SaveVaultCID(vault VaultCID) (*VaultCID, error) {

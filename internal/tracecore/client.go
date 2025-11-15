@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"time"
-	utils "vault-app/internal"
 )
 
 type TracecoreClient struct {
@@ -20,11 +19,13 @@ type TracecoreClient struct {
 
 // NewTracecoreClient creates a new Tracecore client with default timeout.
 func NewTracecoreClient(baseURL, token string) *TracecoreClient {
+	// ⚠️ Don't use log.Fatal during startup - it kills the app!
+	// Just log warnings and allow the app to start
 	if baseURL == "" {
-		log.Fatal("TRACECORE_URL is empty — did you load your .env?")
+		log.Println("⚠️ TRACECORE_URL is empty — Tracecore features will be disabled")
 	}
 	if token == "" {
-		log.Fatal("TRACECORE_TOKEN is empty — check environment config")
+		log.Println("⚠️ TRACECORE_TOKEN is empty — Tracecore features will be disabled")
 	}
 
 	return &TracecoreClient{
@@ -53,7 +54,7 @@ func (tc *TracecoreClient) Commit(payload CommitEnvelope) (*CommitResponse, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode commit payload: %w", err)
 	}
-	utils.LogPretty("commit enveloppe", data)
+	// utils.LogPretty("commit enveloppe", data)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
@@ -79,20 +80,20 @@ func (tc *TracecoreClient) Commit(payload CommitEnvelope) (*CommitResponse, erro
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
-		utils.LogPretty("Tracecore raw response", body)
+		// utils.LogPretty("Tracecore raw response", body)
 		return nil, fmt.Errorf("❌ Tracecore returned status %d: %s", resp.StatusCode, body)
 	}
-	utils.LogPretty("tracecore response", resp.Body)
+	// utils.LogPretty("tracecore response", resp.Body)
 	var commitResp CommitResponse
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("❌ failed to decode Tracecore response: %w\nRaw body: %s", err, body)
 	}
-	utils.LogPretty("commitResp", &commitResp)
+	// utils.LogPretty("commitResp", &commitResp)
 	return &commitResp, nil
 
 }
 
-func (tc *TracecoreClient) CreateRepo()(*string, error) {
+func (tc *TracecoreClient) CreateRepo() (*string, error) {
 	return nil, fmt.Errorf("Methid Not implemented")
 }

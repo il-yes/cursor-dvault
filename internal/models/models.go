@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
 	"vault-app/internal/tracecore"
@@ -542,7 +541,7 @@ func (m *DBModel) GetUserByPublicKey(pubKey string) (*User, *app_config.UserConf
 		return nil, nil, fmt.Errorf("❌ failed to find user from userCfg id: %s", userCfg.ID)
 	}
 
-	utils.LogPretty("user from db", user)
+	// utils.LogPretty("user from db", user)
 	return &user, &userCfg, nil
 }
 

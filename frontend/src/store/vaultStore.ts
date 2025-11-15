@@ -51,11 +51,11 @@ export const useVaultStore = create<VaultStoreState>()(
               data = mockVaultPayload;
               console.log('✅ Using mock vault payload');
               await new Promise((res) => setTimeout(res, 500)); // simulate delay
+              console.log("Mock vault ")
             } catch (err) {
               console.error('❌ Failed to load vault mock:', err);
               return null;
             }
-
           } else {
             // 🔹 Normal backend fetch
             const response = await fetch(`${API_BASE_URL}/api/vault`, {
@@ -66,6 +66,7 @@ export const useVaultStore = create<VaultStoreState>()(
 
             if (!response.ok) throw new Error(`Failed to load vault: ${response.status}`);
             data = await response.json();
+            console.log("Normal backend fetch")
           }
 
           console.log(data.SharedEntries)

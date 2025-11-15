@@ -13,6 +13,9 @@ export function useAuth() {
   const [feedback, setFeedback] = React.useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
 
   const loginSuccess = (response: any) => {
+    console.log("🔐 Login Response:", response);
+    console.log("🔑 Access Token:", response.Tokens?.access_token);
+
     setLoggedIn(true);
     localStorage.setItem("userId", JSON.stringify(response.User.id));
     updateOnboarding({ userId: response.User.id });

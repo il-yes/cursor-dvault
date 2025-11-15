@@ -1,46 +1,43 @@
 import { useState, useMemo, useEffect } from "react";
-import { useVaultStore } from "@/store/vaultStore";
 import { VaultEntry } from "@/types/vault";
 import { useSearchParams } from "react-router-dom";
 import { EntriesListPanel } from "@/components/EntriesListPanel";
 import { EntryDetailPanel } from "@/components/EntryDetailPanel";
 import { TrashDetailPanel } from "@/components/TrashDetailPanel";
-import { CreateEntryDialog } from "@/components/CreateEntryDialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Search, Shield, Radio, Database, CheckCircle2, Clock, Star } from "lucide-react";
+import { Radio, Database, CheckCircle2, Clock, Star } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
+import { useVault } from "@/hooks/useVault";
 
 interface VaultThreeColumnLayoutProps {
   filter: string;
 }
 
 export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) {
-  const vault = useVaultStore((state) => state.vault);
+  const { vaultContext, updateEntry, deleteEntry, restoreEntry, toggleFavorite } = useVault();
   const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
   const [searchParams] = useSearchParams();
   const [editMode, setEditMode] = useState(false);
   const isMobile = useIsMobile();
-  
+
   const allEntries = useMemo(() => {
-    if (!vault?.Vault) return [];
+    if (!vaultContext?.Vault) return [];
 
     const entries: VaultEntry[] = [
-      ...(vault.Vault.entries?.login || []),
-      ...(vault.Vault.entries?.card || []),
-      ...(vault.Vault.entries?.note || []),
-      ...(vault.Vault.entries?.sshkey || []),
-      ...(vault.Vault.entries?.identity || []),
+      ...(vaultContext.Vault.entries?.login || []),
+      ...(vaultContext.Vault.entries?.card || []),
+      ...(vaultContext.Vault.entries?.note || []),
+      ...(vaultContext.Vault.entries?.sshkey || []),
+      ...(vaultContext.Vault.entries?.identity || []),
     ];
 
     return entries;
-  }, [vault]);
-  
+  }, [vaultContext]);
+
   // Get entry ID from URL params
   const entryIdFromUrl = searchParams.get("entry");
-  
+
   useEffect(() => {
     if (entryIdFromUrl && allEntries.length > 0) {
       const entry = allEntries.find(e => e.id === entryIdFromUrl);
@@ -71,59 +68,61 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     return filtered;
   }, [allEntries, filter]);
 
-  const handleToggleFavorite = (entryId: string) => {
-    // TODO: Implement favorite toggle in store
-    console.log('Toggle favorite:', entryId);
+  const handleToggleFavorite = async (entryId: string) => {
+    await toggleFavorite(entryId);
   };
 
-  const handleCreateEntry = (entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">) => {
-    // TODO: Implement entry creation via API
-    console.log('Create entry:', entry);
-  };
-
-  const handleEditEntry = (updates: Partial<VaultEntry>) => {
+  const handleEditEntry = async (updates: Partial<VaultEntry>) => {
     if (selectedEntry) {
-      // TODO: Implement entry update via API
-      console.log('Edit entry:', selectedEntry.id, updates);
-      setSelectedEntry({ ...selectedEntry, ...updates } as VaultEntry);
+      await updateEntry(selectedEntry.id, updates);
+
+      // ✅ Refresh selectedEntry from vault context to get the updated entry
+      // Find the updated entry in the vault context
+      const entryType = selectedEntry.type;
+      const entries = vaultContext?.Vault.entries[entryType as keyof typeof vaultContext.Vault.entries];
+      const updatedEntry = entries?.find(e => e.id === selectedEntry.id);
+
+      if (updatedEntry) {
+        setSelectedEntry(updatedEntry as VaultEntry);
+      }
+
       setEditMode(false);
     }
   };
 
-  const handleDeleteEntry = (entryId: string) => {
-    // TODO: Implement entry deletion via API
-    console.log('Delete entry:', entryId);
+  const handleDeleteEntry = async (entryId: string) => {
+    await deleteEntry(entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
-  const handleRestoreEntry = (entryId: string) => {
-    // TODO: Implement entry restore via API
-    console.log('Restore entry:', entryId);
+  const handleRestoreEntry = async (entryId: string) => {
+    await restoreEntry(entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
-  const handleDeletePermanently = (entryId: string) => {
-    // TODO: Implement permanent deletion via API
+  const handleDeletePermanently = async (entryId: string) => {
+    // TODO: Implement permanent deletion via API (different from trash)
     console.log('Delete permanently:', entryId);
+    await deleteEntry(entryId);
     if (selectedEntry?.id === entryId) {
       setSelectedEntry(null);
     }
   };
 
-  const syncStatus = vault?.Dirty ? "unsynced" : "synced";
-  
+  const syncStatus = vaultContext?.Dirty ? "unsynced" : "synced";
+
   const metrics = useMemo(() => {
     const total = filteredEntries.length;
-    const synced = filteredEntries.filter(e => !vault?.Dirty).length;
+    const synced = filteredEntries.filter(e => !vaultContext?.Dirty).length;
     const unsynced = total - synced;
     const favorites = filteredEntries.filter(e => e.is_favorite).length;
-    
+
     return { total, synced, unsynced, favorites };
-  }, [filteredEntries, vault]);
+  }, [filteredEntries, vaultContext]);
 
   return (
     <div className="flex h-full">
@@ -137,23 +136,22 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
               {filter === "favorites" && "Favorites"}
               {filter === "trash" && "Trash"}
               {filter === "login" && "Identifiers"}
-              {filter === "card" && "Payment Cards"}
+              {filter == "card" && "Payment Cards"}
               {filter === "identity" && "Identities"}
               {filter === "note" && "Secure Notes"}
               {filter === "sshkey" && "SSH Keys"}
-              {filter.startsWith("folder:") && 
-                vault?.Vault.folders?.find(f => f.id === filter.replace("folder:", ""))?.name || "Folder"
+              {filter.startsWith("folder:") &&
+                vaultContext?.Vault.folders?.find(f => f.id === filter.replace("folder:", ""))?.name || "Folder"
               }
             </h2>
-            
+
             {/* Sync Status Badge */}
-            <Badge 
+            <Badge
               variant={syncStatus === "synced" ? "default" : "secondary"}
-              className={`flex items-center gap-1 ${
-                syncStatus === "synced" 
-                  ? "bg-primary/10 text-primary border-primary/20" 
-                  : "animate-pulse-glow bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
-              }`}
+              className={`flex items-center gap-1 ${syncStatus === "synced"
+                ? "bg-primary/10 text-primary border-primary/20"
+                : "animate-pulse-glow bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+                }`}
             >
               <Radio className="h-3 w-3" />
               {syncStatus === "synced" ? "Synced" : "Pending"}
@@ -202,7 +200,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
                   onDeletePermanently={handleDeletePermanently}
                 />
               ) : (
-                <EntryDetailPanel 
+                <EntryDetailPanel
                   entry={selectedEntry}
                   editMode={editMode}
                   onEdit={() => setEditMode(true)}
@@ -224,7 +222,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
                 onDeletePermanently={handleDeletePermanently}
               />
             ) : (
-              <EntryDetailPanel 
+              <EntryDetailPanel
                 entry={selectedEntry}
                 editMode={editMode}
                 onEdit={() => setEditMode(true)}

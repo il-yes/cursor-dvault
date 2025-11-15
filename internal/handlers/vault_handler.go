@@ -86,7 +86,7 @@ func (vh *VaultHandler) GetSession(userID int) (*models.VaultSession, error) {
 }
 func (vh *VaultHandler) EndSession(userID int) {
 	if session, ok := vh.Sessions[userID]; ok {
-		utils.LogPretty("ssession saved", session)
+		// utils.LogPretty("ssession saved", session)
 		// Persist before deleting
 		if err := vh.DB.SaveSession(userID, session); err != nil {
 			vh.logger.Error("❌ failed to save session for user %d: %v", userID, err)
@@ -142,7 +142,7 @@ func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
 	}
-	utils.LogPretty("session vault", session.Vault)
+	// ✅ Removed noisy LogPretty - too verbose for production
 	// 2. Marshal in-memory vault
 	vaultBytes, err := json.Marshal(session.Vault) // session.Vault.Sync()
 	if err != nil {
@@ -157,8 +157,7 @@ func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
 	}
 	vh.logger.Info("🔐 Vault encrypted")
 
-
-	// GetBackendPlanParamForTransaction for managing plans from remote 
+	// GetBackendPlanParamForTransaction for managing plans from remote
 
 	// 4. Upload to IPFS
 	newCID, err := vh.IPFS.AddData(encrypted)
@@ -203,7 +202,7 @@ func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
 	vh.vaultDirty = false
 
 	vh.logger.Info("✅ Vault sync complete for user %d", userID)
-	utils.LogPretty("session after sync", session)
+	// utils.LogPretty("session after sync", session)
 
 	return newCID, nil
 }
@@ -223,38 +222,38 @@ func (vh *VaultHandler) AddEntryFor(userID int, entry any) (*any, error) {
 	if !ok {
 		return nil, fmt.Errorf("❌ entry does not implement VaultEntry interface")
 	}
-	entryType := ve.GetTypeName() 
+	entryType := ve.GetTypeName()
 
 	// 1. Prepare tracecore commit envelope if applicable
-	options := map[string]any{
-		"action":      services.CREATE_ENTRY,
-		"receiver":    "",
-		"permissions": nil,
-		"expiry":      "",
-	}
-	var envelope *tracecore.CommitEnvelope
-	if env, err := vh.PrepareTracecoreEnvelope(userID, ve, options); err == nil && env != nil {
-		envelope = env
-		// Try committing immediately (best-effort)
-		if vh.TracecoreClient != nil {
-			traceResp, err := vh.TracecoreClient.Commit(*envelope)
-			if err != nil || traceResp == nil || traceResp.Status != 201 {
-				// commit failed -> enqueue and mark dirty, but proceed to add entry
-				vh.logger.Error("❌ Tracecore commit failed (best-effort): %v", err)
-				vh.EnqueuePendingCommit(userID, *envelope)
-				// Optionally emit event/metric here
-			} else {
-				vh.logger.Info("✅ Tracecore commit succeeded for entry %s user %d", entryType, userID)
-			}
-		} else {
-			// No tracecore client available, just enqueue
-			vh.logger.Warn("⚠️ TracecoreClient unavailable — enqueueing commit for later")
-			vh.EnqueuePendingCommit(userID, *envelope)
-		}
-	} else if err != nil {
-		// if preparing the envelope failed, log but continue adding entry
-		vh.logger.Warn("⚠️ Skip Tracecore commit prep: %v", err)
-	}
+	// options := map[string]any{
+	// 	"action":      services.CREATE_ENTRY,
+	// 	"receiver":    "",
+	// 	"permissions": nil,
+	// 	"expiry":      "",
+	// }
+	// var envelope *tracecore.CommitEnvelope
+	// if env, err := vh.PrepareTracecoreEnvelope(userID, ve, options); err == nil && env != nil {
+	// 	envelope = env
+	// 	// Try committing immediately (best-effort)
+	// 	if vh.TracecoreClient != nil {
+	// 		traceResp, err := vh.TracecoreClient.Commit(*envelope)
+	// 		if err != nil || traceResp == nil || traceResp.Status != 201 {
+	// 			// commit failed -> enqueue and mark dirty, but proceed to add entry
+	// 			vh.logger.Error("❌ Tracecore commit failed (best-effort): %v", err)
+	// 			vh.EnqueuePendingCommit(userID, *envelope)
+	// 			// Optionally emit event/metric here
+	// 		} else {
+	// 			vh.logger.Info("✅ Tracecore commit succeeded for entry %s user %d", entryType, userID)
+	// 		}
+	// 	} else {
+	// 		// No tracecore client available, just enqueue
+	// 		vh.logger.Warn("⚠️ TracecoreClient unavailable — enqueueing commit for later")
+	// 		vh.EnqueuePendingCommit(userID, *envelope)
+	// 	}
+	// } else if err != nil {
+	// 	// if preparing the envelope failed, log but continue adding entry
+	// 	vh.logger.Warn("⚠️ Skip Tracecore commit prep: %v", err)
+	// }
 
 	// 2. Add entry (route to handler)
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
@@ -277,7 +276,7 @@ func (vh *VaultHandler) AddEntry(userID int, entryType string, raw json.RawMessa
 		return nil, fmt.Errorf("failed to parse %s entry: %w", entryType, err)
 
 	}
-	vh.logger.Info("🚨 AddEntry using tcClient at %p", vh.TracecoreClient)
+	// ✅ Removed noisy debug log
 
 	// 1. GetBackendPlanParamForTransaction for managing plans from remote
 
@@ -565,7 +564,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID int, entry models.VaultE
 
 	payloadMetadata, err := factoryCreate.Build()
 	if err != nil {
-		fmt.Println("Error:", err)
+		vh.logger.Error("❌ Failed to create commit tracecore payload: %v", err)
 		return nil, fmt.Errorf("❌ failed to create commit tracecore payload - %s: %w", services.CREATE_ENTRY, err)
 	}
 	payloadMetadata.Actor = tracecore.Actor{
@@ -574,7 +573,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID int, entry models.VaultE
 		Signature: actorSig,
 	}
 	payloadMetadata.Signature = actorSig
-	fmt.Printf("Post Entry Payload: %+v\n", *payloadMetadata)
+	// ✅ Removed noisy fmt.Printf - use logger instead if needed
 
 	// Build payload
 	tracePayload := tracecore.CommitPayload{
@@ -635,7 +634,7 @@ func (vh *VaultHandler) RetryPendingCommits(userID int) {
 		return
 	}
 
-	vh.logger.Info("🔁 Retrying %d pending commits for user %d", len(pending), userID)
+	// ✅ Removed duplicate log - already logged in StartPendingCommitWorker
 	remaining := make([]tracecore.CommitEnvelope, 0, len(pending))
 
 	for _, env := range pending {
@@ -692,9 +691,11 @@ func (vh *VaultHandler) StartPendingCommitWorker(ctx context.Context, interval t
 						continue
 					}
 
-					// Try retrying
+					// Try retrying (only log if there are actually pending commits)
 					before := len(vh.pendingCommits[uid])
-					vh.logger.Info("ℹ️ pending commits: %d", before)
+					if before > 0 {
+						vh.logger.Info("ℹ️ Retrying %d pending commits for user %d", before, uid)
+					}
 					vh.RetryPendingCommits(uid)
 					after := len(vh.pendingCommits[uid])
 

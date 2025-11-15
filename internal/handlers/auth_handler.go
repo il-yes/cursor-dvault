@@ -109,10 +109,10 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// 2. Always update last connection
 	// -----------------------------
 	user.LastConnectedAt = time.Now().UTC()
-	if saved, errSave := ah.DB.TouchLastConnected(user.ID); errSave != nil {
+	if _, errSave := ah.DB.TouchLastConnected(user.ID); errSave != nil {
 		ah.logger.Error("❌ failed to update last connection: %v", errSave)
 	} else {
-		utils.LogPretty("last connected user", saved)
+		utils.LogPretty("connexion ok !", user.LastConnectedAt)
 	}
 
 	// 9. create a jwt user
@@ -142,8 +142,8 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 			ah.Vaults.MarkDirty(user.ID)
 		}
 		ah.logger.Info("♻️ Reusing in-memory session for user %d", user.ID)
-	utils.LogPretty("session", existingSession)
-		
+		// utils.LogPretty("session", existingSession)
+
 		return &LoginResponse{
 			User:   *user,
 			Vault:  *existingSession.Vault,
@@ -190,7 +190,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	if vaultMeta == nil {
 		return nil, fmt.Errorf("❌ no vault metadata found for user %d", user.ID)
 	}
-	utils.LogPretty("✅ vaultMeta", vaultMeta)
+	// utils.LogPretty("✅ vaultMeta", vaultMeta)
 
 	rawVault, err := ah.IPFS.GetData(vaultMeta.CID)
 	if err != nil {
@@ -199,7 +199,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	if rawVault == nil || len(rawVault) == 0 {
 		return nil, fmt.Errorf("❌ empty vault data for CID %s", vaultMeta.CID)
 	}
-	utils.LogPretty("✅ rawVault", rawVault)
+	// utils.LogPretty("✅ rawVault", rawVault)
 
 	decrypted, err := blockchain.Decrypt(rawVault, credentials.Password)
 	if err != nil {
@@ -573,12 +573,12 @@ func (ah *AuthHandler) LinkStellarKey(user *app_config.UserConfig, stellarSecret
 		EncNonce:    nonce,
 	}
 
-	userCfg, err := ah.DB.SaveUserConfig(*user)
+	_, err = ah.DB.SaveUserConfig(*user)
 	if err != nil {
 		ah.logger.Error("❌ Failed to encrypted password with stellar key")
 		return err
 	}
-	utils.LogPretty("userCfg", userCfg)
+	// utils.LogPretty("userCfg", userCfg)
 	return nil
 }
 
@@ -611,7 +611,7 @@ func (ah *AuthHandler) RefreshToken(userID int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid refresh token: %w", err)
 	}
-	utils.LogPretty("claims", claims)
+	// utils.LogPretty("claims", claims)
 
 	if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
 		return "", errors.New("refresh token expired; please login again")

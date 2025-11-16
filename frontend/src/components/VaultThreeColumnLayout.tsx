@@ -16,7 +16,7 @@ interface VaultThreeColumnLayoutProps {
 
 export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) {
   const { vaultContext, updateEntry, deleteEntry, restoreEntry, toggleFavorite } = useVault();
-  const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const [editMode, setEditMode] = useState(false);
   const isMobile = useIsMobile();
@@ -35,20 +35,24 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     return entries;
   }, [vaultContext]);
 
-  // Sync selectedEntry with vault context when it changes
-  useEffect(() => {
-    if (selectedEntry && vaultContext?.Vault) {
-      const entryType = selectedEntry.type;
-      const entries = vaultContext.Vault.entries[entryType as keyof typeof vaultContext.Vault.entries];
-      const updatedEntry = entries?.find(e => e.id === selectedEntry.id);
+  // Derive selectedEntry from vaultContext using the ID - this ensures we always have the latest data
+  const selectedEntry = useMemo(() => {
+    if (!selectedEntryId || !vaultContext?.Vault) return null;
 
-      // Only update if the entry has actually changed to avoid infinite loops
-      if (updatedEntry && JSON.stringify(updatedEntry) !== JSON.stringify(selectedEntry)) {
-        setSelectedEntry(updatedEntry as VaultEntry);
+    // Search through all entry types to find the entry with the matching ID
+    const allEntryTypes = Object.keys(vaultContext.Vault.entries) as Array<keyof typeof vaultContext.Vault.entries>;
+    for (const type of allEntryTypes) {
+      const entries = vaultContext.Vault.entries[type];
+      if (entries && Array.isArray(entries)) {
+        const found = entries.find(e => e.id === selectedEntryId);
+        if (found) {
+          console.log('� Found selected entry:', found.entry_name, 'updated_at:', found.updated_at);
+          return found as VaultEntry;
+        }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vaultContext]);
+    return null;
+  }, [selectedEntryId, vaultContext]);
 
   // Get entry ID from URL params
   const entryIdFromUrl = searchParams.get("entry");
@@ -57,7 +61,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     if (entryIdFromUrl && allEntries.length > 0) {
       const entry = allEntries.find(e => e.id === entryIdFromUrl);
       if (entry) {
-        setSelectedEntry(entry);
+        setSelectedEntryId(entry.id);
       }
     }
   }, [entryIdFromUrl, allEntries]);
@@ -88,24 +92,24 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   };
 
   const handleEditEntry = async (updates: Partial<VaultEntry>) => {
-    if (selectedEntry) {
-      await updateEntry(selectedEntry.id, updates);
-      // selectedEntry will be automatically synced by the useEffect hook
+    if (selectedEntryId) {
+      await updateEntry(selectedEntryId, updates);
+      // selectedEntry will be automatically updated via useMemo when vaultContext changes
       setEditMode(false);
     }
   };
 
   const handleDeleteEntry = async (entryId: string) => {
     await deleteEntry(entryId);
-    if (selectedEntry?.id === entryId) {
-      setSelectedEntry(null);
+    if (selectedEntryId === entryId) {
+      setSelectedEntryId(null);
     }
   };
 
   const handleRestoreEntry = async (entryId: string) => {
     await restoreEntry(entryId);
-    if (selectedEntry?.id === entryId) {
-      setSelectedEntry(null);
+    if (selectedEntryId === entryId) {
+      setSelectedEntryId(null);
     }
   };
 
@@ -113,8 +117,8 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     // TODO: Implement permanent deletion via API (different from trash)
     console.log('Delete permanently:', entryId);
     await deleteEntry(entryId);
-    if (selectedEntry?.id === entryId) {
-      setSelectedEntry(null);
+    if (selectedEntryId === entryId) {
+      setSelectedEntryId(null);
     }
   };
 
@@ -122,7 +126,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
 
   const metrics = useMemo(() => {
     const total = filteredEntries.length;
-    const synced = filteredEntries.filter(e => !vaultContext?.Dirty).length;
+    const synced = vaultContext?.Dirty ? 0 : total;
     const unsynced = total - synced;
     const favorites = filteredEntries.filter(e => e.is_favorite).length;
 
@@ -186,8 +190,8 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
 
         <EntriesListPanel
           entries={filteredEntries}
-          selectedEntryId={selectedEntry?.id || null}
-          onSelectEntry={setSelectedEntry}
+          selectedEntryId={selectedEntryId}
+          onSelectEntry={(entry) => setSelectedEntryId(entry.id)}
           onToggleFavorite={handleToggleFavorite}
         />
 
@@ -195,7 +199,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
 
       {/* Detail Panel - Right Column (Desktop) / Drawer (Mobile) */}
       {isMobile ? (
-        <Sheet open={!!selectedEntry} onOpenChange={(open) => !open && setSelectedEntry(null)}>
+        <Sheet open={!!selectedEntry} onOpenChange={(open) => !open && setSelectedEntryId(null)}>
           <SheetContent side="right" className="w-full p-0">
             <div className="h-full overflow-y-auto">
               {filter === "trash" ? (

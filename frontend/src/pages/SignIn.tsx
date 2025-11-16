@@ -9,107 +9,204 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/store/vaultStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useVault } from "@/hooks/useVault";
 import { useAuth } from "@/hooks/useAuth";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { Button } from "@/components/ui/button";
 import { StellarLoginForm } from "@/components/StellarLoginForm";
+import { handlers } from "../../wailsjs/go/models";
+import { useAppStore } from "@/store/appStore";
+import { useVault } from "@/hooks/useVault";
+import { normalizePreloadedVault } from "@/services/normalizeVault";
+
 
 const SignIn = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { setVault } = useVaultStore();
-  const { hydrateVault } = useVault();
   const { setJwtToken, setRefreshToken, setUser, setLoggedIn, updateOnboarding } = useAuthStore();
   const { loginWithStellar } = useAuth();
+  const { vaultContext } = useVault();
 
   // Local UI state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+
+  const vaultStore = useVaultStore.getState();
+
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Call backend SignIn
-      const result = await AppAPI.SignIn({ email, password });
+      const res: handlers.LoginResponse = await AppAPI.SignIn({ email, password });
 
-      console.log("🔐 Login Response:", result);
-      console.log("🔑 Access Token:", result.Tokens?.access_token);
+      // Check if we got a valid response
+      if (!res) throw new Error("SignIn failed: empty result");
 
-      // If user exists, load vault directly into vaultStore
-      if (result && result.Vault) {
-        // Save authentication tokens to auth store
-        if (result.Tokens) {
-          setJwtToken(result.Tokens.access_token);
-          setRefreshToken(result.Tokens.refresh_token);
-          console.log("✅ JWT Token saved to auth store");
-        }
+      await handleSuccessfulAuth(res);
 
-        // Save user info
-        setUser(result.User);
-        setLoggedIn(true);
-        updateOnboarding({ userId: result.User.id });
-        localStorage.setItem("userId", JSON.stringify(result.User.id));
-
-        // Transform LoginResponse to VaultContext format
-        const vaultContext = {
-          user_id: result.User.id.toString(),
-          role: result.User.role,
-          Vault: result.Vault as any, // Type mismatch between Wails models and VaultContext
-          Dirty: false,
-          LastUpdated: new Date().toISOString(),
-          vault_runtime_context: {
-            CurrentUser: {
-              id: result.User.id.toString(),
-              role: result.User.role,
-              name: result.User.username,
-              last_name: "",
-              email: result.User.email,
-              stellar_account: {
-                public_key: "",
-              },
-            },
-            AppSettings: {} as any,
-            WorkingBranch: "main",
-            LoadedEntries: [],
-          },
-        };
-        console.log("📦 Vault Context:", vaultContext);
-
-        // ✅ Save to vaultStore (for persistence)
-        setVault(vaultContext as any);
-
-        // ✅ Hydrate VaultContextProvider (for live CRUD operations)
-        hydrateVault(vaultContext as any);
-
-        toast({
-          title: "Authentication successful",
-          description: "Vault loaded! Redirecting to dashboard...",
-        });
-        setTimeout(() => navigate("/dashboard"), 500);
-      } else {
-        // Fallback: unknown user → optional onboarding
-        toast({
-          title: "User not found",
-          description: "Please sign up or upgrade your account",
-          variant: "destructive",
-        });
-        // Navigate to onboarding / upgrade page
-        setTimeout(() => navigate("/onboarding"), 500);
-      }
     } catch (err: any) {
-      console.error("SignIn failed:", err);
+      // Extract error message from various error formats (Wails, React, etc.)
+      const errorMsg = String(err?.message || err?.toString?.() || err || "").toLowerCase();
+
+      // Check if this is a "user not found" error - try signup silently
+      const isUserNotFound =
+        errorMsg.includes("user not found") ||
+        errorMsg.includes("invalid credentials") ||
+        errorMsg.includes("no rows") ||
+        errorMsg.includes("record not found");
+
+      if (isUserNotFound) {
+        // Silently attempt signup without showing any error
+        try {
+          await handleSignupAfterSigninFailure(email, password);
+          // If signup succeeds, user will be redirected automatically
+          return; // Exit early, don't show any error
+        } catch (signupErr: any) {
+          // Even if signup fails, show a friendly message
+          const signupErrorMsg = String(signupErr?.message || signupErr?.toString?.() || signupErr || "");
+
+          toast({
+            title: "Account Creation",
+            description: signupErrorMsg.includes("duplicate") || signupErrorMsg.includes("already exists")
+              ? "This account already exists. Please check your credentials."
+              : "Unable to create account. Please try again or contact support.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // For other errors (network, server, etc.), show the error
       toast({
         title: "Authentication failed",
-        description: err.message || "Please enter valid credentials.",
+        description: errorMsg || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSuccessfulAuth = async (data: any) => {
+    console.log("🎉 Auth Success (raw):", data);
+
+    // Normalize backend shape into what store expects
+    const normalized = normalizePreloadedVault(data);
+    console.log("🎯 Normalized payload:", normalized);
+
+    // Save user
+    setUser(normalized.User);
+    setLoggedIn(true);
+    updateOnboarding({ userId: normalized.User.id });
+    localStorage.setItem("userId", JSON.stringify(normalized.User.id));
+
+    // Save tokens
+    if (normalized.Tokens) {
+      setJwtToken(normalized.Tokens.access_token);
+      setRefreshToken(normalized.Tokens.refresh_token);
+    }
+
+    // Save session data (runtime from backend)
+    useAppStore.getState().setSessionData({
+      user: normalized.User,
+      vault_runtime_context: normalized.vault_runtime_context || null,
+      last_cid: normalized.last_cid,
+      dirty: normalized.dirty,
+    });
+
+    // Load vault into zustand (pass normalized)
+    console.log('🚀 SignIn: About to call vaultStore.loadVault with:', {
+      hasUser: !!normalized.User,
+      hasVault: !!normalized.Vault,
+      hasEntries: !!normalized.Vault?.entries,
+      User: normalized.User,
+      Vault: normalized.Vault,
+    });
+
+    try {
+      await vaultStore.loadVault({
+        User: normalized.User,
+        Vault: normalized.Vault,
+        SharedEntries: normalized.SharedEntries,
+        vault_runtime_context: normalized.vault_runtime_context,
+        last_cid: normalized.last_cid,
+        dirty: normalized.dirty,
+        Tokens: normalized.Tokens,
+      });
+      console.log('✅ SignIn: vaultStore.loadVault completed successfully');
+    } catch (error) {
+      console.error('❌ SignIn: vaultStore.loadVault failed:', error);
+      throw error;
+    }
+
+    toast({
+      title: "Welcome!",
+      description: "Redirecting to your vault...",
+    });
+
+    setTimeout(() => navigate("/dashboard"), 500);
+  };
+
+  const handleSuccessfulAuth2 = async (data: any) => {
+    console.log("🎉 Auth Success:", data);
+
+    // Save user
+    setUser(data.User);
+    setLoggedIn(true);
+    updateOnboarding({ userId: data.User.id });
+    localStorage.setItem("userId", JSON.stringify(data.User.id));
+
+    // Save tokens
+    if (data.Tokens) {
+      setJwtToken(data.Tokens.access_token);
+      setRefreshToken(data.Tokens.refresh_token);
+    }
+
+    // ⭐ NEW: Save session using REAL runtime context from backend
+    useAppStore.getState().setSessionData(data)
+    console.log(useAppStore.getState().session);
+
+
+    console.log("📦 Session hydrated:", {
+      session: useAppStore.getState().session
+    });
+
+    // Load vault into zustand
+    await vaultStore.loadVault({
+      User: data.User,
+      Vault: data.Vault,
+      SharedEntries: data.SharedEntries || [],
+      VaultRuntimeContext: data.vault_runtime_context || {},
+      LastCID: data.last_cid || "main",
+      Dirty: data.dirty ?? false,
+    });
+
+    toast({
+      title: "Welcome!",
+      description: "Redirecting to your vault...",
+    });
+
+    setTimeout(() => navigate("/dashboard"), 500);
+  };
+
+  const handleSignupAfterSigninFailure = async (email: string, password: string) => {
+    const userAlias = email.split("@")[0];
+
+    const signupResult = await AppAPI.SignUp({
+      user_id: email,
+      user_alias: userAlias,
+      password,
+      vault_name: `${userAlias}-vault`,
+      role: "user",
+      repo_template: "",
+      encryption_policy: "AES-256-GCM",
+      federated_providers: [],
+    });
+
+    return handleSuccessfulAuth(signupResult);
   };
 
   return (

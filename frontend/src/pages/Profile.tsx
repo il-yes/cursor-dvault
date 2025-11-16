@@ -11,20 +11,25 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useVaultStore } from "@/store/vaultStore";
 import { formatDistanceToNow } from "date-fns";
+import { useAppStore } from "@/store/appStore";
+import { formatMonthYear } from "@/services/utils";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useVault } from "@/hooks/useVault";
 
 const Profile = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { vault, lastSyncTime, loadVault } = useVaultStore();
+  const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
+  const { clearVault: clearVaultContext } = useVault();
 
   const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
   const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
   const usagePercent = Math.ceil((totalEntries / maxEntries) * 100);
   const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
-  const user = vault?.vault_runtime_context?.CurrentUser
+  const session = useAppStore.getState().session;
+  const user = session?.vault_runtime_context?.CurrentUser
 
-  const handleCopyStellarAddress = () => {
-    const stellarAddress = "GCTD...XY7Z";
+  const handleCopyStellarAddress = (stellarAddress: string) => {
     navigator.clipboard.writeText(stellarAddress);
     toast({
       title: "Copied!",
@@ -54,7 +59,22 @@ const Profile = () => {
   };
 
   const handleLogout = () => {
-    navigate("/");
+    // Clear all stores and state
+    clearVaultStore();                   // Clear vault store (entries, vault data)
+    clearVaultContext();                 // Clear vault context provider
+    useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+    useAppStore.getState().reset();      // Clear app store (session)
+
+    // Clear specific localStorage items (not all, to preserve settings)
+    localStorage.removeItem('userId');
+    localStorage.removeItem('vault-storage');
+
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+
+    navigate("/auth/signin");
   };
 
   return (
@@ -95,15 +115,15 @@ const Profile = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
-                  <Input id="name" defaultValue={user?.name} />
+                  <Input id="name" defaultValue={session?.user?.username} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="last_name">Last Name</Label>
-                  <Input id="last_name" defaultValue={user?.last_name} />
+                  <Input id="last_name" defaultValue={session?.user?.last_name} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" defaultValue={user?.email} />
+                  <Input id="email" type="email" defaultValue={session?.user?.email} />
                 </div>
               </div>
 
@@ -131,7 +151,22 @@ const Profile = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={handleCopyStellarAddress}
+                    onClick={() => handleCopyStellarAddress(user?.stellar_account?.public_key)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    value={user?.stellar_account?.private_key}
+                    readOnly
+                    className="font-mono bg-secondary"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleCopyStellarAddress(user?.stellar_account?.private_key)}
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -191,7 +226,7 @@ const Profile = () => {
                 </div>
 
                 <div className="flex items-center">
-                  <Button variant="outline" onClick={loadVault}>
+                  <Button variant="outline" onClick={() => loadVault()}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Sync Now
                   </Button>
@@ -224,7 +259,7 @@ const Profile = () => {
                 <div>
                   <p className="text-sm font-medium">VaultCore v1.2.0</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Last updated: December 2024
+                    Last updated: {formatMonthYear(vault.LastUpdated)} 
                   </p>
                 </div>
                 <Button

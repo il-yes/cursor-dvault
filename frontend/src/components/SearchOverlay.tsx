@@ -92,8 +92,13 @@ export function SearchOverlay({ entries, searchQuery, onSelectEntry, onClose }: 
       ) : (
         <div className="py-2">
           {Object.entries(filteredResults).map(([type, typeEntries]) => {
-            const Icon = entryTypeIcons[type as keyof typeof entryTypeIcons];
-            const label = entryTypeLabels[type as keyof typeof entryTypeLabels];
+            const Icon =
+              entryTypeIcons[type as keyof typeof entryTypeIcons] ?? FileText; // fallback icon
+
+            const label =
+              entryTypeLabels[type as keyof typeof entryTypeLabels] ??
+              type.charAt(0).toUpperCase() + type.slice(1); // fallback label
+
 
             return (
               <div key={type} className="mb-2">

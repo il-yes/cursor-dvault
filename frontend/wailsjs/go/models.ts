@@ -1,3 +1,238 @@
+export namespace app_config {
+	
+	export class IPFSConfig {
+	    api_endpoint: string;
+	    gateway_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IPFSConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.api_endpoint = source["api_endpoint"];
+	        this.gateway_url = source["gateway_url"];
+	    }
+	}
+	export class StellarConfig {
+	    network: string;
+	    horizon_url: string;
+	    fee: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StellarConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.network = source["network"];
+	        this.horizon_url = source["horizon_url"];
+	        this.fee = source["fee"];
+	    }
+	}
+	export class BlockchainConfig {
+	    stellar: StellarConfig;
+	    ipfs: IPFSConfig;
+	
+	    static createFrom(source: any = {}) {
+	        return new BlockchainConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stellar = this.convertValues(source["stellar"], StellarConfig);
+	        this.ipfs = this.convertValues(source["ipfs"], IPFSConfig);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VaultConfig {
+	    max_entries: number;
+	    auto_sync_enabled: boolean;
+	    encryption_scheme: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.max_entries = source["max_entries"];
+	        this.auto_sync_enabled = source["auto_sync_enabled"];
+	        this.encryption_scheme = source["encryption_scheme"];
+	    }
+	}
+	export class CommitRule {
+	    id: number;
+	    rule: string;
+	    actors: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CommitRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.rule = source["rule"];
+	        this.actors = source["actors"];
+	    }
+	}
+	export class AppConfig {
+	    id: string;
+	    repo_id: string;
+	    branch: string;
+	    tracecore_enabled: boolean;
+	    commit_rules: CommitRule[];
+	    branching_model: string;
+	    encryption_policy: string;
+	    actors: string[];
+	    federated_providers: string[];
+	    default_phase: string;
+	    default_vault_path: string;
+	    vault_settings: VaultConfig;
+	    blockchain: BlockchainConfig;
+	    user_id: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.repo_id = source["repo_id"];
+	        this.branch = source["branch"];
+	        this.tracecore_enabled = source["tracecore_enabled"];
+	        this.commit_rules = this.convertValues(source["commit_rules"], CommitRule);
+	        this.branching_model = source["branching_model"];
+	        this.encryption_policy = source["encryption_policy"];
+	        this.actors = source["actors"];
+	        this.federated_providers = source["federated_providers"];
+	        this.default_phase = source["default_phase"];
+	        this.default_vault_path = source["default_vault_path"];
+	        this.vault_settings = this.convertValues(source["vault_settings"], VaultConfig);
+	        this.blockchain = this.convertValues(source["blockchain"], BlockchainConfig);
+	        this.user_id = source["user_id"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class SharingRule {
+	    id: number;
+	    entry_type: string;
+	    targets: string[];
+	    encrypted: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SharingRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.entry_type = source["entry_type"];
+	        this.targets = source["targets"];
+	        this.encrypted = source["encrypted"];
+	    }
+	}
+	export class StellarAccountConfig {
+	    public_key: string;
+	    private_key?: string;
+	    EncPassword: number[];
+	    EncNonce: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StellarAccountConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.public_key = source["public_key"];
+	        this.private_key = source["private_key"];
+	        this.EncPassword = source["EncPassword"];
+	        this.EncNonce = source["EncNonce"];
+	    }
+	}
+	
+	export class UserConfig {
+	    id: string;
+	    role: string;
+	    signature: string;
+	    connected_orgs: string[];
+	    stellar_account: StellarAccountConfig;
+	    sharing_rules: SharingRule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UserConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.role = source["role"];
+	        this.signature = source["signature"];
+	        this.connected_orgs = source["connected_orgs"];
+	        this.stellar_account = this.convertValues(source["stellar_account"], StellarAccountConfig);
+	        this.sharing_rules = this.convertValues(source["sharing_rules"], SharingRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace auth {
 	
 	export class TokenPairs {
@@ -91,7 +326,10 @@ export namespace handlers {
 	export class LoginResponse {
 	    User: models.User;
 	    Vault: models.VaultPayload;
-	    Tokens: auth.TokenPairs;
+	    Tokens?: auth.TokenPairs;
+	    vault_runtime_context?: models.VaultRuntimeContext;
+	    last_cid: string;
+	    dirty: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoginResponse(source);
@@ -102,6 +340,9 @@ export namespace handlers {
 	        this.User = this.convertValues(source["User"], models.User);
 	        this.Vault = this.convertValues(source["Vault"], models.VaultPayload);
 	        this.Tokens = this.convertValues(source["Tokens"], auth.TokenPairs);
+	        this.vault_runtime_context = this.convertValues(source["vault_runtime_context"], models.VaultRuntimeContext);
+	        this.last_cid = source["last_cid"];
+	        this.dirty = source["dirty"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -554,6 +795,44 @@ export namespace models {
 	        this.entries = this.convertValues(source["entries"], Entries);
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VaultRuntimeContext {
+	    CurrentUser: app_config.UserConfig;
+	    AppSettings: app_config.AppConfig;
+	    SessionSecrets: Record<string, string>;
+	    WorkingBranch: string;
+	    LoadedEntries: any[];
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultRuntimeContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.CurrentUser = this.convertValues(source["CurrentUser"], app_config.UserConfig);
+	        this.AppSettings = this.convertValues(source["AppSettings"], app_config.AppConfig);
+	        this.SessionSecrets = source["SessionSecrets"];
+	        this.WorkingBranch = source["WorkingBranch"];
+	        this.LoadedEntries = source["LoadedEntries"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

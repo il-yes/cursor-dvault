@@ -256,3 +256,27 @@ export type Entry =
   | IdentityEntry
   | NoteEntry
   | SSHKeyEntry;
+
+
+export  type WailsResponse<T> = {
+  result: T | null;
+  error: string | null;
+  callbackid: string;
+};
+export interface PreloadedVaultResponse {
+  User: {
+    id: string | number;
+    role: string;
+    email?: string;
+    username?: string;
+  };
+  Vault: any; // You can type strictly if you want
+  Tokens?: {
+    access_token: string;
+    refresh_token: string;
+  };
+  SharedEntries?: any[];
+  VaultRuntimeContext?: any;
+  LastCID?: string;
+  Dirty?: boolean;
+}

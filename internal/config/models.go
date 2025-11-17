@@ -23,6 +23,10 @@ type AppConfig struct {
 	VaultSettings      VaultConfig      `json:"vault_settings" yaml:"vault_settings" gorm:"embedded"`
 	Blockchain         BlockchainConfig `json:"blockchain" yaml:"blockchain" gorm:"embedded"`
 	UserID             int              `json:"user_id" gorm:"integer"`
+	AutoLockTimeout    string           `json:"auto_lock_timeout" yaml:"auto_lock_timeout"`
+	RemaskDelay        string           `json:"remask_delay" yaml:"remask_delay"`
+	Theme              string           `json:"theme" yaml:"theme"`
+	AnimationsEnabled  bool             `json:"animations_enabled" yaml:"animations_enabled"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -50,6 +54,7 @@ type UserConfig struct {
 	ConnectedOrgs  []string             `json:"connected_orgs" yaml:"connected_orgs" gorm:"type:json;serializer:json"`
 	StellarAccount StellarAccountConfig `json:"stellar_account" yaml:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
 	SharingRules   []SharingRule        `json:"sharing_rules" yaml:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
+	TwoFactorEnabled bool               `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
 }
 
 type StellarAccountConfig struct {
@@ -77,6 +82,7 @@ type StellarConfig struct {
 	Network    string `json:"network" yaml:"network" gorm:"column:network"`
 	HorizonURL string `json:"horizon_url" yaml:"horizon_url" gorm:"column:horizon_url"`
 	Fee        int64  `json:"fee" yaml:"fee" gorm:"column:fee"`
+	SyncFrequency string `json:"sync_frequency" yaml:"sync_frequency" gorm:"column:sync_frequency"`
 }
 
 type IPFSConfig struct {

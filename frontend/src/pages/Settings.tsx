@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,16 +11,18 @@ import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Shield, Cloud, Palette, Trash2, Download, Lock, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/store/appStore";
 
 const Settings = () => {
   const { toast } = useToast();
-  const [autoLockTimeout, setAutoLockTimeout] = useState("5");
+  const [autoLockTimeout, setAutoLockTimeout] = useState();
   const [remaskDelay, setRemaskDelay] = useState("8");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [ipfsPinning, setIpfsPinning] = useState(true);
   const [stellarSyncFrequency, setStellarSyncFrequency] = useState("auto");
   const [theme, setTheme] = useState("system");
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const session = useAppStore((s) => s.session);
 
   const handleSaveSettings = () => {
     toast({
@@ -43,6 +45,11 @@ const Settings = () => {
       variant: "destructive",
     });
   };
+
+  useEffect(() => {
+    // Load settings from local storage or API on component mount
+    setAutoLockTimeout(session?.AppSettings?.auto_lock_timeout || "5");
+  }, []);
 
   return (
     <DashboardLayout>
@@ -72,7 +79,7 @@ const Settings = () => {
                       Automatically lock vault after period of inactivity
                     </p>
                   </div>
-                  <Select value={autoLockTimeout} onValueChange={setAutoLockTimeout}>
+                  <Select value={autoLockTimeout} onValueChange={() => setAutoLockTimeout}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>

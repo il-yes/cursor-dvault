@@ -614,7 +614,7 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 	var sharingRules []app_config.SharingRule
 	userCfg := app_config.UserConfig{
 		ID:           strconv.Itoa(user.ID),
-		Role:         "to-define",
+		Role:         "user",
 		Signature:    "", // will be generated later
 		SharingRules: sharingRules,
 	}

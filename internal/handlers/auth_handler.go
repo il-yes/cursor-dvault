@@ -16,6 +16,7 @@ import (
 	"vault-app/internal/tracecore"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthHandler struct {
@@ -52,14 +53,18 @@ type LoginRequest struct {
 	Signature     string `json:"signature,omitempty"`     // optional
 }
 type LoginResponse struct {
-	User   models.User
-	Vault  models.VaultPayload
-	Tokens auth.TokenPairs
+	User                models.User                 `json:"User"`
+	Vault               models.VaultPayload         `json:"Vault"`
+	Tokens              *auth.TokenPairs            `json:"Tokens"`
+	VaultRuntimeContext *models.VaultRuntimeContext `json:"vault_runtime_context"`
+	LastCID             string                      `json:"last_cid"`
+	Dirty               bool                        `json:"dirty"`
 }
 
 func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	var user *models.User
 	var err error
+	fmt.Println("🔥 SIGNIN ROUTE HIT AT:", time.Now())
 
 	// -----------------------------
 	// 1. Identify login method
@@ -145,9 +150,12 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		// utils.LogPretty("session", existingSession)
 
 		return &LoginResponse{
-			User:   *user,
-			Vault:  *existingSession.Vault,
-			Tokens: tokens,
+			User:                *user,
+			Vault:               *existingSession.Vault,
+			Tokens:              &tokens,
+			VaultRuntimeContext: &existingSession.VaultRuntimeContext,
+			LastCID:             existingSession.LastCID,
+			Dirty:               existingSession.Dirty,
 		}, nil
 	}
 
@@ -172,11 +180,14 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 			ah.Vaults.MarkDirty(user.ID)
 		}
 		ah.logger.Info("🔄 Restored session for user %d from DB", user.ID)
-		
+
 		return &LoginResponse{
 			User:   *user,
 			Vault:  *storedSession.Vault,
-			Tokens: tokens,
+			Tokens: &tokens,
+			VaultRuntimeContext: &storedSession.VaultRuntimeContext,
+			LastCID:             storedSession.LastCID,
+			Dirty:               storedSession.Dirty,
 		}, nil
 	}
 
@@ -184,9 +195,12 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// 5. Fresh login → fetch vault
 	// -----------------------------
 	vaultMeta, err := ah.DB.GetLatestVaultCIDByUserID(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("❌ vault metadata lookup failed: %w", err)
+	// If the user exists but has NO VAULT → minimal onboarding
+	if errors.Is(err, gorm.ErrRecordNotFound) || vaultMeta == nil {
+		ah.logger.Warn("⚠️ User %d has no vault, performing minimal onboarding...", user.ID)
+		return ah.OnboardMissingVault(user, credentials.Password)
 	}
+
 	if vaultMeta == nil {
 		return nil, fmt.Errorf("❌ no vault metadata found for user %d", user.ID)
 	}
@@ -214,19 +228,13 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// -----------------------------
 	// 6. Load App & User Config
 	// -----------------------------
-	appCfg, err := ah.DB.GetAppConfigByUserID(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("❌ failed to load app config: %w", err)
-	}
-	if appCfg == nil {
-		return nil, fmt.Errorf("❌ app config missing for user %d", user.ID)
-	}
-	userCfg, err := ah.DB.GetUserConfigByUserID(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("❌ failed to load user config: %w", err)
-	}
-	if userCfg == nil {
-		return nil, fmt.Errorf("❌ user config missing for user %d", user.ID)
+	appCfg, _ := ah.DB.GetAppConfigByUserID(user.ID)
+	userCfg, _ := ah.DB.GetUserConfigByUserID(user.ID)
+
+	// If either config missing → minimal config onboarding
+	if appCfg == nil || userCfg == nil {
+		ah.logger.Warn("⚠️ Missing configs for user %d — creating minimal config...", user.ID)
+		return ah.OnboardMissingConfig(user, credentials.Password)
 	}
 
 	// -----------------------------
@@ -252,8 +260,101 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	return &LoginResponse{
 		User:   *user,
 		Vault:  vaultPayload,
-		Tokens: tokens,
+		Tokens: &tokens,
+		VaultRuntimeContext: runtimeCtx,
+		LastCID:             vaultMeta.CID,
+		Dirty:               false,
 	}, nil
+}
+func (ah *AuthHandler) OnboardMissingVault(user *models.User, password string) (*LoginResponse, error) {
+	vaultName := fmt.Sprintf("%s-vault", user.Username)
+
+	// Create empty vault
+	vaultPayload := models.VaultPayload{
+		Version: "1.0.0",
+		Name:    vaultName,
+		BaseVaultContent: models.BaseVaultContent{
+			Folders:   []models.Folder{},
+			Entries:   models.Entries{},
+			CreatedAt: ah.NowUTC(),
+			UpdatedAt: ah.NowUTC(),
+		},
+	}
+
+	vaultBytes, _ := json.MarshalIndent(vaultPayload, "", "  ")
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return nil, fmt.Errorf("❌ minimal vault encryption failed: %w", err)
+	}
+
+	cid, err := ah.IPFS.AddData(encrypted)
+	if err != nil {
+		return nil, fmt.Errorf("❌ failed to save minimal vault: %w", err)
+	}
+
+	savedVault, err := ah.DB.SaveVaultCID(models.VaultCID{
+		Name:      vaultName,
+		Type:      "vault",
+		UserID:    user.ID,
+		CID:       cid,
+		CreatedAt: ah.NowUTC(),
+		UpdatedAt: ah.NowUTC(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("❌ failed to persist minimal vault metadata: %w", err)
+	}
+
+	ah.logger.Info("✅ Minimal vault created for user %d, CID=%s", user.ID, savedVault.CID)
+
+	// Auto-login after minimal onboarding
+	return ah.Login(LoginRequest{
+		Email:    user.Email,
+		Password: password,
+	})
+}
+func (ah *AuthHandler) OnboardMissingConfig(user *models.User, password string) (*LoginResponse, error) {
+	ah.logger.Info("🛠 Creating minimal config for user %d", user.ID)
+
+	// ---- AppConfig ----
+	appCfg := app_config.AppConfig{
+		UserID:           user.ID,
+		Branch:           "main",
+		TracecoreEnabled: false,
+		EncryptionPolicy: "AES-256-GCM",
+		VaultSettings: app_config.VaultConfig{
+			MaxEntries:       1000,
+			AutoSyncEnabled:  false,
+			EncryptionScheme: "AES-256-GCM",
+		},
+		Blockchain: app_config.BlockchainConfig{
+			Stellar: app_config.StellarConfig{
+				Network:    "testnet",
+				HorizonURL: "https://horizon-testnet.stellar.org",
+				Fee:        100,
+			},
+		},
+	}
+
+	// ---- UserConfig ----
+	userCfg := app_config.UserConfig{
+		ID:             strconv.Itoa(user.ID),
+		Role:           "user",
+		Signature:      "",
+		SharingRules:   []app_config.SharingRule{},
+		StellarAccount: app_config.StellarAccountConfig{}, // optional
+	}
+
+	if err := ah.SaveConfigurations(appCfg, userCfg); err != nil {
+		return nil, fmt.Errorf("❌ failed to save minimal configs: %w", err)
+	}
+
+	ah.logger.Info("✅ Minimal configs created for user %d", user.ID)
+
+	// After creating configs → resume login flow
+	return ah.Login(LoginRequest{
+		Email:    user.Email,
+		Password: password,
+	})
 }
 
 func RehydrateSession(s *models.VaultSession) *models.VaultSession {
@@ -427,19 +528,28 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 	ah.logger.Info("Saved vault in db - CID: %s", savedVault.CID)
 
 	// -----------------------------
-	// 4. (Optional) Bootstrap Tracecore Repo
+	// 4. (Optional) Bootstrap Tracecore Repo & Load Template
 	// -----------------------------
+	// Use default template if none specified
+	if setup.RepoTemplate == "" {
+		setup.RepoTemplate = "personal" // default template
+	}
+
 	template, ok := registry.VaultTemplates[setup.RepoTemplate]
+	if !ok {
+		// Fallback to personal template if invalid template specified
+		ah.logger.Warn("⚠️ Invalid template '%s', using 'personal' as fallback", setup.RepoTemplate)
+		template = registry.VaultTemplates["personal"]
+	}
+
 	var repoIDStr string
-	if setup.RepoTemplate != "" && ah.TracecoreClient != nil {
-		if ok {
-			repoID, err := template.ShouldBootstrapTracecoreRepo(ah.TracecoreClient)
-			if err == nil && repoID != nil {
-				repoIDStr = *repoID
-			}
+	if template.Tracecore.Enabled && ah.TracecoreClient != nil {
+		repoID, err := template.ShouldBootstrapTracecoreRepo(ah.TracecoreClient)
+		if err == nil && repoID != nil {
+			repoIDStr = *repoID
 		}
 	}
-	ah.logger.Info("Repo ID: %d", repoIDStr)
+	ah.logger.Info("Repo ID: %s", repoIDStr)
 
 	// -----------------------------
 	// 5. (Optional) Stellar account
@@ -503,11 +613,15 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 	// 8. Build UserConfig
 	var sharingRules []app_config.SharingRule
 	userCfg := app_config.UserConfig{
-		ID:             strconv.Itoa(user.ID),
-		Role:           "to-define",
-		Signature:      "", // will be generated later
-		StellarAccount: *stellarAccount,
-		SharingRules:   sharingRules,
+		ID:           strconv.Itoa(user.ID),
+		Role:         "to-define",
+		Signature:    "", // will be generated later
+		SharingRules: sharingRules,
+	}
+
+	// Only set StellarAccount if it was created
+	if stellarAccount != nil {
+		userCfg.StellarAccount = *stellarAccount
 	}
 	// 9. Save appconfigurations
 	errCfg := ah.SaveConfigurations(appCfg, userCfg)

@@ -38,6 +38,8 @@ import { VaultEntry, VaultPayload } from "@/types/vault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "@/hooks/use-toast";
 import * as AppAPI from "../../wailsjs/go/main/App";
+import { useAppStore } from "@/store/appStore";
+import { useVaultStore } from "@/store/vaultStore";
 
 
 const dashboardNavItems = [
@@ -79,7 +81,8 @@ function DashboardNavbar() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
-  const { vaultContext, addEntry } = useVault();
+  const { vaultContext, addEntry, clearVault: clearVaultContext } = useVault();
+  const { clearVault: clearVaultStore } = useVaultStore();
 
   const { updateOnboarding, onboarding, jwtToken } = useAuthStore();
   const [encryptedVault, setEncryptedVault] = useState<string | null>(null);
@@ -102,7 +105,22 @@ function DashboardNavbar() {
   }, [vaultContext]);
 
   const handleLogout = () => {
-    navigate("/");
+    // Clear all stores and state
+    clearVaultStore();                   // Clear vault store (entries, vault data)
+    clearVaultContext();                 // Clear vault context provider
+    useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+    useAppStore.getState().reset();      // Clear app store (session)
+
+    // Clear specific localStorage items (not all, to preserve settings)
+    localStorage.removeItem('userId');
+    localStorage.removeItem('vault-storage');
+
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+    });
+
+    navigate("/auth/signin");
   };
   const handleAddEntry = () => {
     setIsCreateDialogOpen(true);
@@ -156,9 +174,6 @@ function DashboardNavbar() {
       });
     }
   };
-
-  console.log({allEntries})
-
 
   const handleSelectEntry = (entry: VaultEntry) => {
     navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
@@ -268,6 +283,7 @@ function AppSidebar() {
   const [isNewShareOpen, setIsNewShareOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
+  const { user } = useAuthStore();
 
   const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
   const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
@@ -279,6 +295,7 @@ function AppSidebar() {
       setIsNewFolderOpen(false);
     }
   };
+
 
   return (
     <Sidebar className="border-r border-border w-[220px]">
@@ -421,6 +438,11 @@ function AppSidebar() {
           <Crown className="h-4 w-4" />
           Upgrade to Premium
         </Button>
+        {user && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {user.email}
+          </p>
+        )}
       </div>
 
       {/* Upgrade Modal */}
@@ -479,13 +501,20 @@ function AppSidebar() {
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
+  const { user } = useAuthStore();
+
+  if (!user) {
+    return <div>Loading session...</div>;
+  }
+
+  const session = useAppStore((s) => s.session);
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <DashboardNavbar />
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-auto">
             {children}
           </main>
         </div>

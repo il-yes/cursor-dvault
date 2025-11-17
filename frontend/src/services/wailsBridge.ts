@@ -4,6 +4,7 @@
  */
 
 import { VaultContext } from '@/types/vault';
+import mockVaultPayload from '@/data/vault-payload.json';
 
 declare global {
   interface Window {
@@ -66,7 +67,7 @@ class WailsBridgeService {
       }
     }
 
-    // Fallback to REST API
+    // Fallback to REST API or mock data
     return this.fetchContextFromAPI();
   }
 
@@ -76,12 +77,16 @@ class WailsBridgeService {
   private async fetchContextFromAPI(): Promise<VaultContext | null> {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const userId = localStorage.getItem('user_id'); // TODO: Replace with actual auth
-      
-      if (!userId) return null;
+      const userId = localStorage.getItem('user_id');
 
-      const response = await fetch(`${API_BASE_URL}/api/vault/context?user_id=${userId}`);
-      
+      if (!userId) {
+        console.warn('No userId found in localStorage - cannot fetch vault context');
+        return null;
+      }
+
+      const url = `${API_BASE_URL}/api/vault/context?user_id=${userId}`;
+      const response = await fetch(url);
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

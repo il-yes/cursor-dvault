@@ -26,16 +26,42 @@ const VaultContextProvider = createContext<VaultContextValue | undefined>(undefi
 
 export function VaultProvider({ children }: { children: ReactNode }) {
 	const [vaultContext, setVaultContext] = useState<VaultContext | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
+	const vaultStoreData = useVaultStore((state) => state.vault);
+
+	// Sync vaultStore data to vaultContext
+	useEffect(() => {
+		console.log('🔄 VaultProvider: useEffect triggered', {
+			hasVaultStoreData: !!vaultStoreData,
+			vaultStoreData: vaultStoreData ? {
+				user_id: vaultStoreData.user_id,
+				hasVault: !!vaultStoreData.Vault,
+				hasEntries: !!vaultStoreData.Vault?.entries,
+				lastUpdated: vaultStoreData.LastUpdated
+			} : null
+		});
+
+		if (vaultStoreData) {
+			console.log('✅ VaultProvider: Syncing vaultStoreData to vaultContext');
+			setVaultContext(vaultStoreData);
+			setIsLoading(false);
+		} else {
+			console.log('⚠️ VaultProvider: No vaultStoreData to sync');
+		}
+	}, [vaultStoreData]);
 
 	useEffect(() => {
-		// Setup Wails bridge listener
+		// Listen to context pushes from backend
 		const unsubscribe = wailsBridge.onContextReceived((context) => {
 			hydrateVault(context);
 		});
 
-		// Try to load context on mount or initialize with mock data
-		loadInitialContext();
+		// Load context at startup only if vaultStore is empty
+		if (!vaultStoreData) {
+			loadInitialContext();
+		} else {
+			setIsLoading(false);
+		}
 
 		return () => {
 			unsubscribe();
@@ -43,86 +69,26 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const loadInitialContext = async () => {
-		setIsLoading(true);
 		try {
 			const context = await wailsBridge.requestContext();
+
 			if (context) {
 				hydrateVault(context);
 			} else {
-				// Initialize with mock data if no context
-				initializeMockVault();
+				// No mock! User is probably not logged in
+				setVaultContext(null);
 			}
 		} catch (error) {
-			console.error('Failed to load initial vault context:', error);
-			// Fallback to mock data
-			initializeMockVault();
+			console.error("Failed to load initial vault context:", error);
+			setVaultContext(null);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	const initializeMockVault = () => {
-		const mockContext: VaultContext = {
-			user_id: "mock-user-123",
-			role: "owner",
-			Vault: {
-				version: "1.0.0",
-				name: "Sovereign Vault",
-				folders: mockFolders,
-				entries: getMockVaultEntries(),
-			},
-			Dirty: false,
-			LastSynced: new Date().toISOString(),
-			LastUpdated: new Date().toISOString(),
-			vault_runtime_context: {
-				CurrentUser: {
-					id: "mock-user-123",
-					role: "owner",
-					name: "John",
-					last_name: "Doe",
-					email: "john.doe@example.com",
-					stellar_account: {
-						public_key: "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-					},
-				},
-				AppSettings: {
-					id: "mock-app-settings-123",
-					repo_id: "mock-repo-123",
-					branch: "main",
-					tracecore_enabled: false,
-					commit_rules: [],
-					branching_model: "single",
-					encryption_policy: "AES-256-GCM",
-					actors: ["user"],
-					federated_providers: null,
-					default_phase: "vault_entry",
-					default_vault_path: "",
-					vault_settings: {
-						max_entries: 1000,
-						encryption_scheme: "AES-256-GCM",
-					},
-					blockchain: {
-						stellar: {
-							network: "testnet",
-							horizon_url: "https://horizon-testnet.stellar.org",
-							fee: 100,
-						},
-						ipfs: {
-							gateway_url: "https://ipfs.io",
-							api_endpoint: "http://localhost:5001",
-						},
-					},
-					auto_sync_enabled: true,
-				},
-				WorkingBranch: "main",
-				LoadedEntries: [],
-			},
-		};
-		setVaultContext(mockContext);
-	};
-
 	const hydrateVault = (context: VaultContext) => {
-		setVaultContext(context);
+		// Update vaultStore - this will trigger the useEffect to update vaultContext
+		useVaultStore.getState().setVault(context);
 
 		// Show sync status
 		if (context.Dirty && !context.vault_runtime_context.AppSettings.auto_sync_enabled) {
@@ -143,7 +109,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		try {
 			const context = await wailsBridge.requestContext();
 			if (context) {
-				setVaultContext(context);
+				// Update vaultStore - this will trigger the useEffect to update vaultContext
+				useVaultStore.getState().setVault(context);
 			}
 		} catch (error) {
 			console.error('Failed to refresh vault:', error);
@@ -168,8 +135,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		const type = entry.type as keyof typeof vaultContext.Vault.entries;
 
 		// ✅ Entry already has backend-generated ID from DashboardLayout
-		// Just add it to the context
-		setVaultContext({
+		// Create updated context
+		const updatedContext = {
 			...vaultContext,
 			Vault: {
 				...vaultContext.Vault,
@@ -180,7 +147,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			},
 			Dirty: true,
 			LastUpdated: new Date().toISOString(),
-		});
+		};
+
+		// Update vaultStore - this will trigger the useEffect to update vaultContext
+		useVaultStore.getState().setVault(updatedContext);
 	};
 
 	// Update an entry
@@ -192,27 +162,38 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		}
 
 		const { jwtToken } = useAuthStore.getState();
-		const newEntries = { ...vaultContext.Vault.entries };
 		let updated = false;
 		let updatedEntry: VaultEntry | null = null;
 		let entryType: string = '';
 
-		Object.keys(newEntries).forEach((type) => {
-			const entries = newEntries[type as keyof typeof vaultContext.Vault.entries];
+		// Create a deep copy of entries with new array references
+		const newEntries: any = {};
+
+		Object.keys(vaultContext.Vault.entries).forEach((type) => {
+			const entries = vaultContext.Vault.entries[type as keyof typeof vaultContext.Vault.entries];
 
 			// ✅ Safety check: ensure entries array exists
 			if (!entries || !Array.isArray(entries)) {
 				console.warn(`⚠️ No entries array for type: ${type}`);
+				newEntries[type] = entries;
 				return;
 			}
 
 			const index = entries.findIndex((e) => e.id === entryId);
 			if (index !== -1) {
-				entries[index] = { ...entries[index], ...updates, updated_at: new Date().toISOString() } as VaultEntry;
-				updatedEntry = entries[index];
-				// ✅ Ensure type is lowercase for backend compatibility
-				entryType = entries[index].type.toLowerCase();
+				// Create a new array with the updated entry
+				const updatedEntryData = { ...entries[index], ...updates, updated_at: new Date().toISOString() } as VaultEntry;
+				newEntries[type] = [
+					...entries.slice(0, index),
+					updatedEntryData,
+					...entries.slice(index + 1)
+				];
+				updatedEntry = updatedEntryData;
+				entryType = updatedEntryData.type.toLowerCase();
 				updated = true;
+			} else {
+				// Keep the same array if no update
+				newEntries[type] = entries;
 			}
 		});
 
@@ -223,12 +204,18 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		}
 
 		// 1️⃣ Update context immediately (optimistic update)
-		setVaultContext({
+		const updatedContext = {
 			...vaultContext,
-			Vault: { ...vaultContext.Vault, entries: newEntries },
+			Vault: {
+				...vaultContext.Vault,
+				entries: newEntries // New entries object with new array references
+			},
 			Dirty: true,
 			LastUpdated: new Date().toISOString()
-		});
+		};
+
+		// Update vaultStore - this will trigger the useEffect to update vaultContext
+		useVaultStore.getState().setVault(updatedContext);
 
 		if (!jwtToken) {
 			toast({ title: "Warning", description: "Changes saved locally only (not authenticated).", variant: "default" });

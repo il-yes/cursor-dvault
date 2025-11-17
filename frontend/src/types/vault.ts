@@ -80,6 +80,14 @@ export interface FederatedProvider {
 
 
 // Base Entry matching Go BaseEntry struct
+export interface OOFormDocument {
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+  base64: string;
+}
+
 export interface BaseEntry {
   id: string;
   entry_name: string;
@@ -92,6 +100,7 @@ export interface BaseEntry {
   created_at: string;
   updated_at: string;
   is_favorite?: boolean;
+  oo_form_document?: OOFormDocument | null;
 }
 
 // Login Entry

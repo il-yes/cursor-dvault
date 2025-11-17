@@ -24,7 +24,6 @@ const SignIn = () => {
   const { toast } = useToast();
   const { setJwtToken, setRefreshToken, setUser, setLoggedIn, updateOnboarding } = useAuthStore();
   const { loginWithStellar } = useAuth();
-  const { vaultContext } = useVault();
 
   // Local UI state
   const [email, setEmail] = useState("");
@@ -141,48 +140,6 @@ const SignIn = () => {
       console.error('❌ SignIn: vaultStore.loadVault failed:', error);
       throw error;
     }
-
-    toast({
-      title: "Welcome!",
-      description: "Redirecting to your vault...",
-    });
-
-    setTimeout(() => navigate("/dashboard"), 500);
-  };
-
-  const handleSuccessfulAuth2 = async (data: any) => {
-    console.log("🎉 Auth Success:", data);
-
-    // Save user
-    setUser(data.User);
-    setLoggedIn(true);
-    updateOnboarding({ userId: data.User.id });
-    localStorage.setItem("userId", JSON.stringify(data.User.id));
-
-    // Save tokens
-    if (data.Tokens) {
-      setJwtToken(data.Tokens.access_token);
-      setRefreshToken(data.Tokens.refresh_token);
-    }
-
-    // ⭐ NEW: Save session using REAL runtime context from backend
-    useAppStore.getState().setSessionData(data)
-    console.log(useAppStore.getState().session);
-
-
-    console.log("📦 Session hydrated:", {
-      session: useAppStore.getState().session
-    });
-
-    // Load vault into zustand
-    await vaultStore.loadVault({
-      User: data.User,
-      Vault: data.Vault,
-      SharedEntries: data.SharedEntries || [],
-      VaultRuntimeContext: data.vault_runtime_context || {},
-      LastCID: data.last_cid || "main",
-      Dirty: data.dirty ?? false,
-    });
 
     toast({
       title: "Welcome!",

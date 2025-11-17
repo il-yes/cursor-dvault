@@ -15,12 +15,14 @@ import { useAppStore } from "@/store/appStore";
 import { formatMonthYear } from "@/services/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
+import * as AppAPI from "../../wailsjs/go/main/App";
+
 
 const Profile = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
-  const { clearVault: clearVaultContext } = useVault();
+  const { clearVault: clearVaultContext, vaultContext } = useVault();
 
   const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
   const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
@@ -76,6 +78,35 @@ const Profile = () => {
 
     navigate("/auth/signin");
   };
+
+  const handleSync = async () => {
+    const { jwtToken } = useAuthStore.getState();
+    const { refreshVault } = useVault();
+
+    try {
+      const vaultPassword = "password"
+      const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
+      console.log("Vault sync success:", cid);
+
+      // 1. Reload full updated vault session from backend
+      const updatedContext = await loadVault();
+
+      // 2. Update the VaultProvider runtime with fresh session
+      // 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
+      await refreshVault();
+
+      toast({
+        title: "Success",
+        description: "Vault synced successfully!",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
+      });
+    }
+  };
+
 
   return (
     <DashboardLayout>
@@ -226,7 +257,7 @@ const Profile = () => {
                 </div>
 
                 <div className="flex items-center">
-                  <Button variant="outline" onClick={() => loadVault()}>
+                  <Button variant="outline" onClick={() => handleSync()}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Sync Now
                   </Button>
@@ -259,7 +290,7 @@ const Profile = () => {
                 <div>
                   <p className="text-sm font-medium">VaultCore v1.2.0</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Last updated: {formatMonthYear(vault.LastUpdated)} 
+                    Last updated: {formatMonthYear(vault.LastUpdated)}
                   </p>
                 </div>
                 <Button

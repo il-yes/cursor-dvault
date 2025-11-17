@@ -18,6 +18,7 @@ export namespace app_config {
 	    network: string;
 	    horizon_url: string;
 	    fee: number;
+	    sync_frequency: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StellarConfig(source);
@@ -28,6 +29,7 @@ export namespace app_config {
 	        this.network = source["network"];
 	        this.horizon_url = source["horizon_url"];
 	        this.fee = source["fee"];
+	        this.sync_frequency = source["sync_frequency"];
 	    }
 	}
 	export class BlockchainConfig {
@@ -109,6 +111,10 @@ export namespace app_config {
 	    vault_settings: VaultConfig;
 	    blockchain: BlockchainConfig;
 	    user_id: number;
+	    auto_lock_timeout: string;
+	    remask_delay: string;
+	    theme: string;
+	    animations_enabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -130,6 +136,10 @@ export namespace app_config {
 	        this.vault_settings = this.convertValues(source["vault_settings"], VaultConfig);
 	        this.blockchain = this.convertValues(source["blockchain"], BlockchainConfig);
 	        this.user_id = source["user_id"];
+	        this.auto_lock_timeout = source["auto_lock_timeout"];
+	        this.remask_delay = source["remask_delay"];
+	        this.theme = source["theme"];
+	        this.animations_enabled = source["animations_enabled"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -197,6 +207,7 @@ export namespace app_config {
 	    connected_orgs: string[];
 	    stellar_account: StellarAccountConfig;
 	    sharing_rules: SharingRule[];
+	    two_factor_enabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new UserConfig(source);
@@ -210,6 +221,7 @@ export namespace app_config {
 	        this.connected_orgs = source["connected_orgs"];
 	        this.stellar_account = this.convertValues(source["stellar_account"], StellarAccountConfig);
 	        this.sharing_rules = this.convertValues(source["sharing_rules"], SharingRule);
+	        this.two_factor_enabled = source["two_factor_enabled"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

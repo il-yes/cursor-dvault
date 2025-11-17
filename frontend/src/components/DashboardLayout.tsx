@@ -507,7 +507,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     return <div>Loading session...</div>;
   }
 
-  const session = useAppStore((s) => s.session);
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden">

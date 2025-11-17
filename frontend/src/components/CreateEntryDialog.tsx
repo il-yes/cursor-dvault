@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +18,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { VaultEntry } from "@/types/vault";
+import { VaultEntry, OOFormDocument } from "@/types/vault";
+import { FileText, Upload, X } from "lucide-react";
+
+const MAX_OO_FORM_SIZE = 10 * 1024 * 1024; // 10 MB
+const ACCEPTED_OO_FORM_TYPES = ".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg";
+
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+};
 
 interface CreateEntryDialogProps {
   open: boolean;
@@ -32,6 +44,62 @@ export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryD
   const [username, setUsername] = useState("");
   const [url, setUrl] = useState("");
   const [note, setNote] = useState("");
+  const [ooFormDocument, setOoFormDocument] = useState<OOFormDocument | null>(null);
+  const [ooFormError, setOoFormError] = useState<string | null>(null);
+  const ooFormInputRef = useRef<HTMLInputElement | null>(null);
+
+  const resetOoFormInput = () => {
+    if (ooFormInputRef.current) {
+      ooFormInputRef.current.value = "";
+    }
+  };
+
+  const handleOoFormRemove = () => {
+    setOoFormDocument(null);
+    setOoFormError(null);
+    resetOoFormInput();
+  };
+
+  const handleOoFormChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_OO_FORM_SIZE) {
+      setOoFormError("The OO form document exceeds the 10 MB limit.");
+      setOoFormDocument(null);
+      resetOoFormInput();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        const base64 = result.includes(",") ? result.split(",")[1] : result;
+        setOoFormDocument({
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/octet-stream",
+          lastModified: file.lastModified,
+          base64,
+        });
+        setOoFormError(null);
+      } else {
+        setOoFormError("Unable to read the OO form document. Please try again.");
+        setOoFormDocument(null);
+      }
+    };
+    reader.onerror = () => {
+      setOoFormError("Failed to process the OO form document.");
+      setOoFormDocument(null);
+      resetOoFormInput();
+    };
+
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +110,7 @@ export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryD
       trashed: false,
       is_draft: false,
       is_favorite: false,
+      oo_form_document: ooFormDocument,
     };
 
     let newEntry: Omit<VaultEntry, "id" | "created_at" | "updated_at">;
@@ -77,6 +146,7 @@ export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryD
     setUsername("");
     setUrl("");
     setNote("");
+    handleOoFormRemove();
     onOpenChange(false);
   };
 
@@ -156,6 +226,68 @@ export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryD
                 />
               </div>
             )}
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="ooForm">OO Form Document</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Upload the signed OO (Operational Order) form to keep a verifiable document with this entry.
+                  </p>
+                </div>
+
+                <input
+                  ref={ooFormInputRef}
+                  id="ooForm"
+                  type="file"
+                  accept={ACCEPTED_OO_FORM_TYPES}
+                  className="hidden"
+                  onChange={handleOoFormChange}
+                />
+
+                <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-border"
+                    onClick={() => ooFormInputRef.current?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Select OO Form Document
+                  </Button>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Accepted: PDF, DOC/DOCX, ODT, TXT, JPG/PNG · Max 10 MB
+                  </p>
+                </div>
+
+                {ooFormDocument ? (
+                  <div className="flex items-center justify-between rounded-md border border-border bg-background/80 px-3 py-2">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-medium">{ooFormDocument.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatBytes(ooFormDocument.size)} · {ooFormDocument.type || "Unknown type"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={handleOoFormRemove}
+                    >
+                      <X className="mr-1 h-4 w-4" />
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-muted-foreground">No OO form attached yet.</p>
+                )}
+
+                {ooFormError && <p className="text-sm text-destructive">{ooFormError}</p>}
+              </div>
           </div>
           <DialogFooter>
             <Button

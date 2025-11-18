@@ -36,7 +36,7 @@ const Home = () => {
   }, []);
 
   const handleGetStarted = () => {
-    setOnboardingOpen(true);
+    navigate('/login/email');
   };
 
   const scrollToSection = (id: string) => {

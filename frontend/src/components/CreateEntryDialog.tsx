@@ -1,42 +1,65 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { VaultEntry } from "@/types/vault";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
-  SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { VaultEntry } from "@/types/vault";
 
 interface CreateEntryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">) => void;
+  onSubmit: (
+    entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">
+  ) => void;
 }
 
-export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryDialogProps) {
+export function CreateEntryDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+}: CreateEntryDialogProps) {
   const [entryName, setEntryName] = useState("");
-  const [type, setType] = useState<VaultEntry['type']>("login");
-  const [username, setUsername] = useState("");
-  const [url, setUrl] = useState("");
-  const [note, setNote] = useState("");
+  const [type, setType] = useState<VaultEntry["type"]>("login");
+
+  // LOGIN
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginSite, setLoginSite] = useState("");
+
+  // CARD
+  const [cardOwner, setCardOwner] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExp, setCardExp] = useState("");
+  const [cardCVC, setCardCVC] = useState("");
+
+  // IDENTITY
+  const [identity, setIdentity] = useState<Record<string, string>>({});
+
+  // NOTE
+  const [noteText, setNoteText] = useState("");
+
+  // SSH KEY
+  const [sshPrivate, setSSHPrivate] = useState("");
+  const [sshPublic, setSSHPublic] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const baseEntry = {
+
+    const base = {
       entry_name: entryName,
       type,
       trashed: false,
@@ -44,131 +67,257 @@ export function CreateEntryDialog({ open, onOpenChange, onSubmit }: CreateEntryD
       is_favorite: false,
     };
 
-    let newEntry: Omit<VaultEntry, "id" | "created_at" | "updated_at">;
-    
+    let entry: any;
+
     switch (type) {
-      case 'login':
-        newEntry = {
-          ...baseEntry,
-          type: 'login' as const,
-          user_name: username,
+      case "login":
+        entry = {
+          ...base,
+          user_name: loginUsername,
           password: "",
-          web_site: url,
-        } as Omit<VaultEntry, "id" | "created_at" | "updated_at">;
+          web_site: loginSite || undefined,
+        };
         break;
-      case 'note':
-        newEntry = {
-          ...baseEntry,
-          type: 'note' as const,
-          additionnal_note: note,
-        } as Omit<VaultEntry, "id" | "created_at" | "updated_at">;
+
+      case "card":
+        entry = {
+          ...base,
+          owner: cardOwner,
+          number: cardNumber,
+          expiration: cardExp,
+          cvc: cardCVC,
+        };
         break;
-      default:
-        newEntry = {
-          ...baseEntry,
-        } as Omit<VaultEntry, "id" | "created_at" | "updated_at">;
+
+      case "identity":
+        entry = {
+          ...base,
+          ...identity,
+        };
+        break;
+
+      case "note":
+        entry = {
+          ...base,
+          additionnal_note: noteText,
+        };
+        break;
+
+      case "sshkey":
+        entry = {
+          ...base,
+          private_key: sshPrivate,
+          public_key: sshPublic,
+          e_fingerprint: "",
+        };
+        break;
     }
 
-    onSubmit(newEntry);
-    
-    // Reset form
+    onSubmit(entry);
+
+    // Reset
     setEntryName("");
     setType("login");
-    setUsername("");
-    setUrl("");
-    setNote("");
+    setNoteText("");
+    setLoginUsername("");
+    setLoginSite("");
+    setCardOwner("");
+    setCardNumber("");
+    setCardExp("");
+    setCardCVC("");
+    setIdentity({});
+    setSSHPrivate("");
+    setSSHPublic("");
+
     onOpenChange(false);
+  };
+
+  const renderFields = () => {
+    switch (type) {
+      case "login":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Website</Label>
+              <Input
+                value={loginSite}
+                onChange={(e) => setLoginSite(e.target.value)}
+              />
+            </div>
+          </>
+        );
+
+      case "card":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label>Owner</Label>
+              <Input
+                value={cardOwner}
+                onChange={(e) => setCardOwner(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Card Number</Label>
+              <Input
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Expiration</Label>
+              <Input
+                placeholder="MM/YY"
+                value={cardExp}
+                onChange={(e) => setCardExp(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>CVC</Label>
+              <Input
+                value={cardCVC}
+                onChange={(e) => setCardCVC(e.target.value)}
+              />
+            </div>
+          </>
+        );
+
+      case "identity":
+        const identityFields = [
+          "firstname",
+          "second_firstname",
+          "lastname",
+          "username",
+          "company",
+          "genre",
+          "social_security_number",
+          "ID_number",
+          "driver_license",
+          "mail",
+          "telephone",
+          "address_one",
+          "address_two",
+          "address_three",
+          "city",
+          "state",
+          "postal_code",
+          "country",
+        ];
+
+        return (
+          <div className="grid grid-cols-2 gap-4">
+            {identityFields.map((f) => (
+              <div className="space-y-2" key={f}>
+                <Label className="capitalize">{f.replace(/_/g, " ")}</Label>
+                <Input
+                  value={identity[f] || ""}
+                  onChange={(e) =>
+                    setIdentity((prev) => ({
+                      ...prev,
+                      [f]: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        );
+
+      case "note":
+        return (
+          <div className="space-y-2">
+            <Label>Secure Note</Label>
+            <Textarea
+              className="min-h-[120px]"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+            />
+          </div>
+        );
+
+      case "sshkey":
+        return (
+          <>
+            <div className="space-y-2">
+              <Label>Private Key</Label>
+              <Textarea
+                className="min-h-[120px]"
+                value={sshPrivate}
+                onChange={(e) => setSSHPrivate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Public Key</Label>
+              <Textarea
+                className="min-h-[120px]"
+                value={sshPublic}
+                onChange={(e) => setSSHPublic(e.target.value)}
+              />
+            </div>
+          </>
+        );
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-card border-border">
+      <DialogContent className="sm:max-w-[600px] bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Create New Entry</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Add a new encrypted entry to your sovereign vault.
+          <DialogTitle>Create New Entry</DialogTitle>
+          <DialogDescription>
+            Fill the fields according to the entry type.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="entryName">Entry Name</Label>
-              <Input
-                id="entryName"
-                placeholder="e.g., GitHub Account"
-                value={entryName}
-                onChange={(e) => setEntryName(e.target.value)}
-                required
-                className="bg-background border-border"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="type">Entry Type</Label>
-              <Select value={type} onValueChange={(val) => setType(val as VaultEntry['type'])} required>
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue placeholder="Select entry type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="login">Login</SelectItem>
-                  <SelectItem value="card">Payment Card</SelectItem>
-                  <SelectItem value="identity">Identity</SelectItem>
-                  <SelectItem value="note">Secure Note</SelectItem>
-                  <SelectItem value="sshkey">SSH Key</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
-            {type === 'login' && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username / Email</Label>
-                  <Input
-                    id="username"
-                    placeholder="user@example.com"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="bg-background border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="url">Website URL</Label>
-                  <Input
-                    id="url"
-                    placeholder="https://example.com"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="bg-background border-border"
-                  />
-                </div>
-              </>
-            )}
-
-            {type === 'note' && (
-              <div className="space-y-2">
-                <Label htmlFor="note">Note Content</Label>
-                <Textarea
-                  id="note"
-                  placeholder="Enter your secure note..."
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="bg-background border-border min-h-[100px]"
-                />
-              </div>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+          <div className="space-y-2">
+            <Label>Entry Name</Label>
+            <Input
+              required
+              value={entryName}
+              onChange={(e) => setEntryName(e.target.value)}
+            />
           </div>
+
+          <div className="space-y-2">
+            <Label>Entry Type</Label>
+            <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="login">Login</SelectItem>
+                <SelectItem value="card">Payment Card</SelectItem>
+                <SelectItem value="identity">Identity</SelectItem>
+                <SelectItem value="note">Secure Note</SelectItem>
+                <SelectItem value="sshkey">SSH Key</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {renderFields()}
+
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-border"
             >
               Cancel
             </Button>
-            <Button type="submit" className="shadow-glow bg-primary hover:bg-primary/90">
-              Create Entry
-            </Button>
+            <Button type="submit">Create</Button>
           </DialogFooter>
         </form>
       </DialogContent>

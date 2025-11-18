@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CreateEntryDialog } from "./CreateEntryDialog";
+import { CreateEntryDialog } from "@/components/CreateEntryDialog"
 import { SearchOverlay } from "./SearchOverlay";
 import { VaultEntry, VaultPayload } from "@/types/vault";
 import { useAuthStore } from "@/store/useAuthStore";

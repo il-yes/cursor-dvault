@@ -432,7 +432,9 @@ export async function createSharedEntry(payload: {
   custom_message?: string;
 }): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/shared-entries`, {
+    console.log("Frontend origin =", window.location.origin);
+
+    const response = await fetch(`http://localhost:4001/api/shares`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

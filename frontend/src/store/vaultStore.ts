@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { VaultContext } from '@/types/vault';
-import { SharedEntry } from '@/types/sharing';
+import { CreateShareEntryPayload, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 
 // Import or paste your mock payload JSON here
@@ -20,7 +20,7 @@ interface VaultStoreState {
   loadVault: (preloaded?: PreloadedVaultResponse) => Promise<void>;
   setVault: (vault: VaultContext) => void;
   clearVault: () => void;
-  addSharedEntry: (entry: SharedEntry) => void;
+  addSharedEntry: (entry: CreateShareEntryPayload) => void;
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
 }
@@ -138,11 +138,11 @@ export const useVaultStore = create<VaultStoreState>()(
           console.error('❌ Failed to load vault:', err);
           set({ isLoading: false });
 
-          toast({
-            title: 'Failed to load vault',
-            description: 'Could not connect to backend. Using cached data.',
-            variant: 'destructive',
-          });
+          // toast({
+          //   title: 'Failed to load vault',
+          //   description: 'Could not connect to backend. Using cached data.',
+          //   variant: 'destructive',
+          // });
         }
       },
 
@@ -158,8 +158,41 @@ export const useVaultStore = create<VaultStoreState>()(
         });
       },
 
-      addSharedEntry: (entry) => {
+      addSharedEntry: (payload: CreateShareEntryPayload) => {
         const { shared } = get();
+
+        const now = new Date().toISOString();
+        const tempShareId = `local-${Date.now()}`;
+
+        const entry: SharedEntry = {
+          id: tempShareId,     // temporary ID until backend returns real one
+          created_at: now,
+          updated_at: now,
+          shared_at: now,
+
+          audit_log: [],
+
+          entry_name: payload.entry_name,
+          entry_type: payload.entry_type,
+          status: payload.status,
+          access_mode: payload.access_mode,
+          encryption: payload.encryption,
+          entry_snapshot: payload.entry_snapshot,
+          expires_at: payload.expires_at,
+
+          // Map simplified recipients to full Recipient objects
+          recipients: payload.recipients.map((r, index) => ({
+            id: `rec-${Date.now()}-${index}`,
+            share_id: tempShareId,
+            name: r.name,
+            email: r.email,
+            role: r.role,
+            joined_at: now,
+            created_at: now,
+            updated_at: now,
+          })),
+        };
+
         set({
           shared: {
             ...shared,
@@ -167,6 +200,7 @@ export const useVaultStore = create<VaultStoreState>()(
           },
         });
       },
+
 
       updateSharedEntry: (entryId, updates) => {
         const { shared } = get();

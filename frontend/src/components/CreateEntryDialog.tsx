@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { FileUploadWidget } from "@/components/FileUploadWidget";
 import {
   Select,
   SelectTrigger,
@@ -55,6 +56,7 @@ export function CreateEntryDialog({
   // SSH KEY
   const [sshPrivate, setSSHPrivate] = useState("");
   const [sshPublic, setSSHPublic] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +130,7 @@ export function CreateEntryDialog({
     setIdentity({});
     setSSHPrivate("");
     setSSHPublic("");
+    setAttachedFiles([]);
 
     onOpenChange(false);
   };
@@ -277,7 +280,7 @@ export function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>Create New Entry</DialogTitle>
           <DialogDescription>
-            Fill the fields according to the entry type.
+            Add a new encrypted entry to your sovereign vault.
           </DialogDescription>
         </DialogHeader>
 
@@ -308,6 +311,17 @@ export function CreateEntryDialog({
           </div>
 
           {renderFields()}
+
+
+            {/* File Upload Widget */}
+            <div className="space-y-2">
+              <Label>Attachments</Label>
+              <FileUploadWidget
+                onFileSelect={setAttachedFiles}
+                value={attachedFiles}
+                maxFiles={5}
+              />
+            </div>
 
           <DialogFooter>
             <Button

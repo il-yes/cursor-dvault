@@ -370,6 +370,7 @@ function AppSidebar() {
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
+
           </SidebarGroup>
         )}
 
@@ -430,7 +431,7 @@ function AppSidebar() {
       </SidebarContent>
 
       {/* Upgrade Button at Bottom */}
-      <div className="mt-auto p-4 border-t border-border">
+      <div className="mt-auto p-4 border-t border-border space-y-3">
         <Button
           onClick={() => setIsUpgradeOpen(true)}
           className=" py-3 px-4 bg-[#C9A44A] hover:bg-[#B8934A] text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -438,11 +439,18 @@ function AppSidebar() {
           <Crown className="h-4 w-4" />
           Upgrade to Premium
         </Button>
-        {user && (
-          <p className="text-xs text-muted-foreground mt-2">
-            {user.email}
-          </p>
-        )}
+        {/* User Info at Bottom */}
+          <div className="flex items-center gap-3 px-2 py-3 rounded-lg bg-secondary/30 border-t border border-border">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary/10 text-sm">
+                <User className="h-5 w-5 text-primary" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{user && user?.username}</p>
+              <p className="text-xs text-muted-foreground truncate">{user && user?.email}</p>
+            </div>
+          </div>
       </div>
 
       {/* Upgrade Modal */}

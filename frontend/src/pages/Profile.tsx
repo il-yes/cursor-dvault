@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { User, Copy, RefreshCw, HardDrive, Clock, LogOut, Key } from "lucide-react";
@@ -16,13 +16,15 @@ import { formatMonthYear } from "@/services/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-
+import { useState, useRef } from "react";
 
 const Profile = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
   const { clearVault: clearVaultContext, vaultContext } = useVault();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
   const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
@@ -30,6 +32,30 @@ const Profile = () => {
   const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
   const session = useAppStore.getState().session;
   const user = session?.vault_runtime_context?.CurrentUser
+
+   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 2MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarUrl(e.target?.result as string);
+        toast({
+          title: "Avatar updated",
+          description: "Your profile picture has been changed.",
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleCopyStellarAddress = (stellarAddress: string) => {
     navigator.clipboard.writeText(stellarAddress);
@@ -128,11 +154,28 @@ const Profile = () => {
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
                   <AvatarFallback className="bg-primary/10 text-2xl">
-                    <User className="h-10 w-10 text-primary" />
+                  {avatarUrl ? (
+                    <AvatarImage src={avatarUrl} alt="User avatar" />
+                  ) : (
+                    <AvatarFallback className="bg-primary/10 text-2xl">
+                      <User className="h-10 w-10 text-primary" />
+                    </AvatarFallback>
+                  )}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <Button variant="outline" size="sm">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     Change Avatar
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">

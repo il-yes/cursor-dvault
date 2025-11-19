@@ -13,6 +13,8 @@ import NotFound from "./pages/NotFound";
 import ShareEntries from "./pages/ShareEntries";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import EmailLookup from "./pages/EmailLookup";
+import LoginStep2 from "./pages/LoginStep2";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,8 @@ function AppContent() {
       <Route path="/dashboard/settings" element={<Settings />} />
       <Route path="/vault/offline" element={<OfflineVault />} />
       <Route path="/auth/signin" element={<SignIn />} />
+      <Route path="/login/email" element={<EmailLookup />} />
+      <Route path="/login/step2" element={<LoginStep2/>} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>

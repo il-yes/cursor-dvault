@@ -433,7 +433,6 @@ export async function createSharedEntry(payload: {
 }): Promise<any> {
   try {
     console.log("Frontend origin =", window.location.origin);
-
     const response = await fetch(`http://localhost:4001/api/shares`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -451,3 +450,73 @@ export async function createSharedEntry(payload: {
     throw error;
   }
 }
+
+// Auth APIs
+export interface CheckEmailResponse {
+  status: 'NEW_USER' | 'EXISTS';
+  auth_methods?: ('password' | 'stellar')[];
+}
+
+export const checkEmail = async (email: string): Promise<CheckEmailResponse> => {
+  const response = await fetch(`${API_BASE_URL}/check-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to check email: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export interface LoginPayload {
+  email: string;
+  password?: string;
+  publicKey?: string;
+  signedMessage?: string;
+  signature?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: any;
+  vault: any;
+}
+
+export const login = async (payload: LoginPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to login: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export interface SignupPayload {
+  email: string;
+  name: string;
+  password: string;
+  org?: string;
+  country?: string;
+}
+
+export const signup = async (payload: SignupPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to signup: ${response.statusText}`);
+  }
+
+  return response.json();
+};

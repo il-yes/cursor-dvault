@@ -22,6 +22,9 @@
  * POST   /api/tracecore/commit       - Create Tracecore commit
  * GET    /api/tracecore/verify/:id   - Verify commit integrity
  */
+import { LoginRequest, User, VaultPayload } from "@/types/vault";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { handlers } from "../../wailsjs/go/models";
 
 export interface VaultEntry {
   id: string;
@@ -90,7 +93,7 @@ export async function listEntries(): Promise<VaultEntry[]> {
     // const response = await fetch(`${API_BASE_URL}/api/vault/entries`);
     // const data = await response.json();
     // return data.entries;
-    
+
     // Mock implementation for preview
     return new Promise((resolve) => {
       setTimeout(() => resolve(MOCK_ENTRIES), 500);
@@ -110,7 +113,7 @@ export async function getEntry(id: string): Promise<VaultEntry> {
     // const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}`);
     // const data = await response.json();
     // return data.entry;
-    
+
     // Mock implementation
     return new Promise((resolve, reject) => {
       setTimeout(() => {
@@ -142,7 +145,7 @@ export async function createEntry(payload: CreateEntryPayload): Promise<VaultEnt
     // });
     // const data = await response.json();
     // return data.entry;
-    
+
     // Mock implementation
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -179,7 +182,7 @@ export async function updateEntry(id: string, payload: Partial<CreateEntryPayloa
     // });
     // const data = await response.json();
     // return data.entry;
-    
+
     // Mock implementation
     return new Promise((resolve, reject) => {
       setTimeout(() => {
@@ -211,7 +214,7 @@ export async function deleteEntry(id: string): Promise<void> {
     // await fetch(`${API_BASE_URL}/api/vault/entries/${id}`, {
     //   method: 'DELETE',
     // });
-    
+
     // Mock implementation
     return new Promise((resolve, reject) => {
       setTimeout(() => {
@@ -243,7 +246,7 @@ export async function shareEntry(id: string, expirationHours: number = 24): Prom
     // });
     // const data = await response.json();
     // return data;
-    
+
     // Mock implementation
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -285,14 +288,14 @@ export async function createVault(payload: CreateVaultPayload): Promise<{ succes
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const data = await response.json();
     return { success: true, vaultContext: data.vault_context };
-    
+
     // Mock implementation - simulate API call
     // return new Promise((resolve) => {
     //   setTimeout(() => {
@@ -315,11 +318,11 @@ export async function setupStellarAccount(): Promise<{ publicKey: string; privat
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to setup Stellar account:', error);
@@ -337,11 +340,11 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to decrypt field:', error);
@@ -387,11 +390,11 @@ export async function upgradeVaultPlan(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to upgrade plan:', error);
@@ -409,11 +412,11 @@ export async function getVaultContext(): Promise<any> {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to get vault context:', error);
@@ -439,11 +442,11 @@ export async function createSharedEntry(payload: {
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to create shared entry:', error);
@@ -458,45 +461,35 @@ export interface CheckEmailResponse {
 }
 
 export const checkEmail = async (email: string): Promise<CheckEmailResponse> => {
-  const response = await fetch(`${API_BASE_URL}/check-email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to check email: ${response.statusText}`);
-  }
-
-  return response.json();
+  const res: handlers.CheckEmailResponse = await AppAPI.CheckEmail(email);
+  // Check if we got a valid response
+  if (!res) throw new Error("CheckEmail failed: empty result");
+  console.log("CheckEmailResponse:", res);
+  return {
+    status: res.status as 'NEW_USER' | 'EXISTS',
+    auth_methods: res.auth_methods as ('password' | 'stellar')[] | undefined,
+  };
 };
 
-export interface LoginPayload {
-  email: string;
-  password?: string;
-  publicKey?: string;
-  signedMessage?: string;
-  signature?: string;
-}
 
 export interface AuthResponse {
-  token: string;
-  user: any;
-  vault: any;
+  User: User;
+  Vault: VaultPayload;
+  Tokens: {
+    access_token: string;
+    refresh_token: string;
+  };
+  vault_runtime_context: any;
+  last_cid: string;
+  dirty: boolean;
 }
 
-export const login = async (payload: LoginPayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+export const login = async (payload: LoginRequest): Promise<handlers.LoginResponse> => {
+  console.log("Password login payload:", payload);
+  const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+  console.log("LoginResponse:", res);
 
-  if (!response.ok) {
-    throw new Error(`Failed to login: ${response.statusText}`);
-  }
-
-  return response.json();
+  return res;
 };
 
 export interface SignupPayload {

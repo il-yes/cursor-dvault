@@ -122,7 +122,7 @@ func NewApp() *App {
 	sessions := make(map[int]*models.VaultSession)
 
 	appLogger.Info("🔧 Initializing Tracecore client...")
-	tcClient := tracecore.NewTracecoreClient("http://localhost:8000/api/v1", os.Getenv("TRACECORE_TOKEN"))
+	tcClient := tracecore.NewTracecoreClient(os.Getenv("ANKHORA_URL"), os.Getenv("TRACECORE_TOKEN"))
 	appLogger.Info("✅ Tracecore client initialized")
 
 	reg := registry.NewRegistry(appLogger)
@@ -241,7 +241,9 @@ func (a *App) SignOut(userID int, cid string, password string) {
 func (a *App) CheckSession(userID int) (string, error) {
 	return a.Auth.RefreshToken(userID) // same logic you already wrote
 }
-
+func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
+	return a.Auth.CheckEmail(email)
+}
 // -----------------------------
 // JWT Token
 // -----------------------------

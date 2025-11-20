@@ -4,11 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"time"
+)
+
+// Error definitions
+var (
+	ErrUserNotFound = errors.New("user not found")
+)
+var (
+	ErrNotFound = errors.New("endpoint not found")
 )
 
 type TracecoreClient struct {
@@ -35,6 +44,49 @@ func NewTracecoreClient(baseURL, token string) *TracecoreClient {
 			Timeout: 10 * time.Second,
 		},
 	}
+}
+
+func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, body any, out any) error {
+	var buf io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		buf = bytes.NewBuffer(b)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		b, _ := io.ReadAll(resp.Body)
+		// Return specific error for 404 Not Found
+		if resp.StatusCode == http.StatusNotFound {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("server error %d: %s", resp.StatusCode, string(b))
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	fmt.Println("RAW RESPONSE:", string(raw))
+	resp.Body = io.NopCloser(bytes.NewBuffer(raw))
+
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
+	}
+	return nil
 }
 
 func (tc *TracecoreClient) Commit(payload CommitEnvelope) (*CommitResponse, error) {

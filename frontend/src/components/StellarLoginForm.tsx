@@ -53,6 +53,7 @@ export function StellarLoginForm({ onLogin }: { onLogin: (req: LoginRequest) => 
                 title: "Stellar login successful",
                 description: "Signature accepted. Logging you in...",
             });
+            
         } catch (err: any) {
             toast({
                 title: "Stellar login failed",
@@ -71,7 +72,7 @@ export function StellarLoginForm({ onLogin }: { onLogin: (req: LoginRequest) => 
                     <Shield className="h-5 w-5 text-primary" /> Sign in with Stellar
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                    Use your Stellar private key to authenticate securely.
+                    Use your Stellar private key to authenticate securely
                 </p>
             </CardHeader>
 

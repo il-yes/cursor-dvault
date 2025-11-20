@@ -315,10 +315,25 @@ export namespace blockchain {
 
 export namespace handlers {
 	
+	export class CheckEmailResponse {
+	    status: string;
+	    auth_methods?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckEmailResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.auth_methods = source["auth_methods"];
+	    }
+	}
 	export class LoginRequest {
 	    email: string;
 	    password: string;
 	    publicKey?: string;
+	    privateKey?: string;
 	    signedMessage?: string;
 	    signature?: string;
 	
@@ -331,6 +346,7 @@ export namespace handlers {
 	        this.email = source["email"];
 	        this.password = source["password"];
 	        this.publicKey = source["publicKey"];
+	        this.privateKey = source["privateKey"];
 	        this.signedMessage = source["signedMessage"];
 	        this.signature = source["signature"];
 	    }

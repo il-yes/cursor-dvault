@@ -10,6 +10,10 @@ export function AuthVerify(arg1) {
   return window['go']['main']['App']['AuthVerify'](arg1);
 }
 
+export function CheckEmail(arg1) {
+  return window['go']['main']['App']['CheckEmail'](arg1);
+}
+
 export function CheckSession(arg1) {
   return window['go']['main']['App']['CheckSession'](arg1);
 }

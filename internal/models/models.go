@@ -10,7 +10,6 @@ import (
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
 	"vault-app/internal/tracecore"
-
 	"gorm.io/gorm"
 )
 

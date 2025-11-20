@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +50,7 @@ type LoginRequest struct {
 	Email         string `json:"email"`
 	Password      string `json:"password"`
 	PublicKey     string `json:"publicKey,omitempty"`     // optional
+	PrivateKey    string `json:"privateKey,omitempty"`    // optional
 	SignedMessage string `json:"signedMessage,omitempty"` // optional
 	Signature     string `json:"signature,omitempty"`     // optional
 }
@@ -94,10 +96,23 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("❌ failed to recover password: %w", err)
 		}
+		println("plainPassword", plainPassword)	
 		credentials.Password = plainPassword
 
 	} else {
 		ah.logger.Info("📧 Email login request: %s", credentials.Email)
+		// authenticate too Ankhora.io
+		authToken, err := ah.TracecoreClient.Login(context.Background(), tracecore.LoginRequest{
+			Email:         credentials.Email,
+			Password:      credentials.Password,
+			PublicKey:     credentials.PublicKey,
+			SignedMessage: credentials.SignedMessage,
+			Signature:     credentials.Signature,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to authenticate with Ankhora: %w", err)
+		}
+		utils.LogPretty("authToken", authToken)
 
 		user, err = ah.DB.GetUserByEmail(credentials.Email)
 		if err != nil || user == nil {
@@ -182,9 +197,9 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		ah.logger.Info("🔄 Restored session for user %d from DB", user.ID)
 
 		return &LoginResponse{
-			User:   *user,
-			Vault:  *storedSession.Vault,
-			Tokens: &tokens,
+			User:                *user,
+			Vault:               *storedSession.Vault,
+			Tokens:              &tokens,
 			VaultRuntimeContext: &storedSession.VaultRuntimeContext,
 			LastCID:             storedSession.LastCID,
 			Dirty:               storedSession.Dirty,
@@ -258,14 +273,15 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// 10. Return login response
 	// -----------------------------
 	return &LoginResponse{
-		User:   *user,
-		Vault:  vaultPayload,
-		Tokens: &tokens,
+		User:                *user,
+		Vault:               vaultPayload,
+		Tokens:              &tokens,
 		VaultRuntimeContext: runtimeCtx,
 		LastCID:             vaultMeta.CID,
 		Dirty:               false,
 	}, nil
 }
+
 func (ah *AuthHandler) OnboardMissingVault(user *models.User, password string) (*LoginResponse, error) {
 	vaultName := fmt.Sprintf("%s-vault", user.Username)
 
@@ -402,6 +418,46 @@ func (ah *AuthHandler) AuthVerify(req *blockchain.SignatureVerification) (string
 	} else {
 		return "", fmt.Errorf("❌ Signature verification failed: %w", err)
 	}
+}
+
+type CheckEmailResponse struct {
+	Status      string   `json:"status"`
+	AuthMethods []string `json:"auth_methods,omitempty"`
+}
+
+func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
+	ctx := context.Background() // or pass from caller
+
+	user, err := ah.TracecoreClient.GetUserByEmail(ctx, email)
+	utils.LogPretty("user in checkemail", user)
+	// ----------------------------
+	// Case 1: User does NOT exist
+	// ----------------------------
+	if err != nil {
+		if errors.Is(err, tracecore.ErrUserNotFound) {
+			return &CheckEmailResponse{
+				Status:      "NEW_USER",
+				AuthMethods: []string{},
+			}, nil
+		}
+
+		// real error -> bubble up
+		return &CheckEmailResponse{}, err
+	}
+
+	// ----------------------------
+	// Case 2: User exists
+	// ----------------------------
+	authMethods := []string{"password"}
+
+	// if user.PublicKey != "" {
+	// 	authMethods = append(authMethods, "stellar")
+	// }
+
+	return &CheckEmailResponse{
+		Status:      "EXISTS",
+		AuthMethods: authMethods,
+	}, nil
 }
 
 // -----------------------------

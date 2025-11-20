@@ -8,6 +8,13 @@ import { useToast } from "@/hooks/use-toast";
 import { login } from "@/services/api";
 import { useVaultStore } from "@/store/vaultStore";
 import { Shield, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { handlers } from "wailsjs/go/models";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { normalizePreloadedVault } from "@/services/normalizeVault";
+import { useAppStore } from "@/store/appStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useVault } from "@/hooks/useVault";
+
 
 const LoginStep2 = () => {
   const [searchParams] = useSearchParams();
@@ -20,6 +27,9 @@ const LoginStep2 = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { setJwtToken, setRefreshToken, setUser, setLoggedIn, updateOnboarding } = useAuthStore();
+
+  const vaultStore = useVaultStore.getState();
 
   const hasPassword = methods.includes("password");
   const hasStellar = methods.includes("stellar");
@@ -65,10 +75,27 @@ const LoginStep2 = () => {
         // TODO: Add signing logic when backend is ready
         // payload.signedMessage = signedMessage;
         // payload.signature = signature;
+        console.log("Stellar login payload:", payload);
+
+        const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+
+        // Check if we got a valid response
+        if (!res) throw new Error("SignIn failed: empty result");
+
+        await handleSuccessfulAuth(res);
+
+        toast({
+          title: "Welcome back!",
+          description: "Successfully logged in.",
+        });
+
+        navigate("/dashboard");
       }
 
-      const response = await login(payload);
-      // handleSuccessfulAuth(response);
+      const response = await login(payload);  // Check if we got a valid response
+      if (!response) throw new Error("SignIn failed: empty result");
+
+      await handleSuccessfulAuth(response);
 
       toast({
         title: "Welcome back!",
@@ -85,6 +112,67 @@ const LoginStep2 = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+
+  const handleSuccessfulAuth = async (data: any) => {
+    console.log("🎉 Auth Success (raw):", data);
+
+    // Normalize backend shape into what store expects
+    const normalized = normalizePreloadedVault(data);
+    console.log("🎯 Normalized payload:", normalized);
+
+    // Save user
+    setUser(normalized.User);
+    setLoggedIn(true);
+    updateOnboarding({ userId: normalized.User.id });
+    localStorage.setItem("userId", JSON.stringify(normalized.User.id));
+
+    // Save tokens
+    if (normalized.Tokens) {
+      setJwtToken(normalized.Tokens.access_token);
+      setRefreshToken(normalized.Tokens.refresh_token);
+    }
+
+    // Save session data (runtime from backend)
+    useAppStore.getState().setSessionData({
+      user: normalized.User,
+      vault_runtime_context: normalized.vault_runtime_context || null,
+      last_cid: normalized.last_cid,
+      dirty: normalized.dirty,
+    });
+
+    // Load vault into zustand (pass normalized)
+    console.log('🚀 SignIn: About to call vaultStore.loadVault with:', {
+      hasUser: !!normalized.User,
+      hasVault: !!normalized.Vault,
+      hasEntries: !!normalized.Vault?.entries,
+      User: normalized.User,
+      Vault: normalized.Vault,
+    });
+
+    try {
+      await vaultStore.loadVault({
+        User: normalized.User,
+        Vault: normalized.Vault,
+        SharedEntries: normalized.SharedEntries,
+        vault_runtime_context: normalized.vault_runtime_context,
+        last_cid: normalized.last_cid,
+        dirty: normalized.dirty,
+        Tokens: normalized.Tokens,
+      });
+      console.log('✅ SignIn: vaultStore.loadVault completed successfully');
+    } catch (error) {
+      console.error('❌ SignIn: vaultStore.loadVault failed:', error);
+      throw error;
+    }
+
+    toast({
+      title: "Welcome!",
+      description: "Redirecting to your vault...",
+    });
+
+    setTimeout(() => navigate("/dashboard"), 500);
   };
 
   return (

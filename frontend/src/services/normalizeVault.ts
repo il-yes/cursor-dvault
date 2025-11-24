@@ -41,6 +41,7 @@ export function normalizePreloadedVault(data: any) {
     dirty,
     SharedEntries,
     Tokens: data.Tokens || data.tokens || {},
+    CloudTokens: data.cloud_token || data.cloud_tokens || {},
   };
 
   return normalizedVault;

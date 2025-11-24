@@ -45,6 +45,9 @@ func NewTracecoreClient(baseURL, token string) *TracecoreClient {
 		},
 	}
 }
+func (c *TracecoreClient) SetToken(token string) {
+    c.Token = token
+}
 
 func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, body any, out any) error {
 	var buf io.Reader

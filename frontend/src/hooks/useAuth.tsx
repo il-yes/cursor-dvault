@@ -10,7 +10,7 @@ import { useAppStore } from "@/store/appStore";
 import { normalizePreloadedVault } from "@/services/normalizeVault";
 
 export function useAuth() {
-  const { setLoggedIn, setJwtToken, setRefreshToken, setUser, updateOnboarding } = useAuthStore();
+  const { setLoggedIn, setJwtToken, setRefreshToken, setJwtCloudToken,  setUser, updateOnboarding } = useAuthStore();
   const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
   const [feedback, setFeedback] = React.useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
@@ -34,6 +34,10 @@ export function useAuth() {
     if (normalized.Tokens) {
       setJwtToken(normalized.Tokens.access_token);
       setRefreshToken(normalized.Tokens.refresh_token);
+    }
+    // Save tokens
+    if (normalized.CloudTokens) {
+      setJwtCloudToken(normalized.CloudTokens?.access_token);
     }
 
     // Save session data (runtime from backend)

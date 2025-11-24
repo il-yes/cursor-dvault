@@ -11,12 +11,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, set } from "date-fns";
 import { buildEntrySnapshot, cn } from "@/lib/utils";
 import { useVaultStore } from "@/store/vaultStore";
 import { createSharedEntry } from "@/services/api";
 import { CreateShareEntryPayload, SharedEntry } from "@/types/sharing";
 import { VaultEntry } from "@/types/vault";
+import { getSharedEntry, listSharedEntries } from "@/services/api";
 
 interface NewShareModalProps {
 	open: boolean;
@@ -27,7 +28,10 @@ interface NewShareModalProps {
 export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareModalProps) {
 	const { toast } = useToast();
 	const vault = useVaultStore((state) => state.vault);
+	const setSharedEntries = useVaultStore((state) => state.setSharedEntries);	
 	const addSharedEntry = useVaultStore((state) => state.addSharedEntry);
+	const updateSharedEntry = useVaultStore((state) => state.updateSharedEntry);
+	const removeSharedEntry = useVaultStore((state) => state.removeSharedEntry);
 	const [selectedEntry, setSelectedEntry] = useState("");
 	const [recipients, setRecipients] = useState<string[]>([]);
 	const [recipientInput, setRecipientInput] = useState("");
@@ -57,7 +61,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 		setRecipients(recipients.filter(r => r !== recipient));
 	};
 
-	const handleShare = async () => {
+	const handleShare2 = async () => {
 		if (!selectedEntry || recipients.length === 0) {
 			toast({
 				title: "Missing Information",
@@ -72,11 +76,12 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			// Call API to create shared entry
 			const response = await createSharedEntry({
 				entry_id: selectedEntry,
-				recipients,
+				recipients: recipients.map(email => ({ name: email.split("@")[0], email, role: permission })),
 				permission: permission as 'read' | 'edit' | 'temporary',
 				expiration_date: expirationDate?.toISOString(),
 				custom_message: customMessage,
 			});
+			console.log('✅ Shared entry created: --------------------', response);
 
 
 			// we have to fetch the entry from the vault and fill the fields 
@@ -101,8 +106,6 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 
 				expires_at: expirationDate?.toISOString() || null,
 			};
-
-
 
 			addSharedEntry(newSharedEntry);
 
@@ -133,6 +136,92 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			setIsSubmitting(false);
 		}
 	};
+
+	const handleShare = async () => {
+		if (!selectedEntry || recipients.length === 0) {
+			toast({
+				title: "Missing Information",
+				description: "Please select an entry and add at least one recipient.",
+				variant: "destructive",
+			});
+			return;
+		}
+
+		setIsSubmitting(true);
+		try {
+			const selectedVaultEntry = vaultEntries.find(e => e.id === selectedEntry);
+			if (!selectedVaultEntry) throw new Error("Entry not found");
+
+			// 1️⃣ Build optimistic payload
+			const optimisticPayload: CreateShareEntryPayload = {
+				entry_name: selectedVaultEntry.entry_name,
+				entry_type: selectedVaultEntry.type,
+
+				// always pending at creation
+				status: "pending",
+
+				access_mode: permission === "edit" ? "edit" : "read",
+				encryption: "AES-256-GCM",
+
+				entry_snapshot: buildEntrySnapshot(selectedVaultEntry),
+
+				// IMPORTANT: OPTIMISTIC → no recipients yet
+				recipients: [],
+
+				expires_at: expirationDate?.toISOString() || null,
+			};
+
+			// 2️⃣ Add optimistic entry and get temp ID
+			const tempId = addSharedEntry(optimisticPayload);
+
+			// 3️⃣ Create real shared entry via backend
+			const cloudResponse = await createSharedEntry({
+				entry_id: selectedEntry,
+				recipients: recipients.map(email => ({
+					name: email.split("@")[0],
+					email,
+					role: permission,
+				})),
+				permission: permission as "read" | "edit" | "temporary",
+				expiration_date: expirationDate?.toISOString(),
+				custom_message: customMessage,
+			});
+
+			console.log("☁️ Cloud shared entry:", cloudResponse);
+
+			// 4️⃣ Replace optimistic entry with real backend entry
+			const fullEntries = await listSharedEntries();
+			// updateSharedEntry(tempId, fullEntry);
+			setSharedEntries(fullEntries);
+
+			toast({
+				title: "✅ Entry shared successfully",
+				description: "Now visible in your Shared Entries",
+			});
+
+			onShareSuccess?.();
+
+			// Reset UI
+			setSelectedEntry("");
+			setRecipients([]);
+			setRecipientInput("");
+			setPermission("read");
+			setExpirationDate(undefined);
+			setCustomMessage("");
+			onOpenChange(false);
+
+		} catch (err) {
+			console.error("Failed to share entry:", err);
+			toast({
+				title: "Failed to share",
+				description: "Could not share entry. Please try again.",
+				variant: "destructive",
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

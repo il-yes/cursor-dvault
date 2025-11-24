@@ -24,7 +24,13 @@
  */
 import { LoginRequest, User, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers } from "../../wailsjs/go/models";
+import { handlers, main } from "../../wailsjs/go/models";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useVaultStore } from "@/store/vaultStore";
+import { buildEntrySnapshot } from "@/lib/utils";
+
+
+const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://localhost:4001/api';
 
 export interface VaultEntry {
   id: string;
@@ -403,7 +409,7 @@ export async function upgradeVaultPlan(payload: {
 }
 
 /**
- * Get full vault context (entries + shared entries + runtime context)
+ * todo: Get full vault context (entries + shared entries + runtime context)
  */
 export async function getVaultContext(): Promise<any> {
   try {
@@ -425,32 +431,77 @@ export async function getVaultContext(): Promise<any> {
 }
 
 /**
- * Create a new shared entry
+ * Create a new shared entry (through Wails backend)
  */
 export async function createSharedEntry(payload: {
   entry_id: string;
-  recipients: string[];
+  recipients: { name: string; email: string; role: string }[];
   permission: 'read' | 'edit' | 'temporary';
   expiration_date?: string;
   custom_message?: string;
 }): Promise<any> {
   try {
-    console.log("Frontend origin =", window.location.origin);
-    const response = await fetch(`http://localhost:4001/api/shares`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
+    const jwtToken = useAuthStore.getState().jwtToken;
+    const vaultStore = useVaultStore.getState();
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    // Find the entry in the vault
+    const vaultEntries = vaultStore.vault?.Vault ? [
+      ...(vaultStore.vault.Vault.entries?.login || []),
+      ...(vaultStore.vault.Vault.entries?.card || []),
+      ...(vaultStore.vault.Vault.entries?.note || []),
+      ...(vaultStore.vault.Vault.entries?.sshkey || []),
+      ...(vaultStore.vault.Vault.entries?.identity || []),
+    ] : [];
+
+    const selectedEntry = vaultEntries.find(e => e.id === payload.entry_id);
+
+    if (!selectedEntry) {
+      throw new Error(`Entry with id ${payload.entry_id} not found in vault`);
     }
 
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to create shared entry:', error);
-    throw error;
+    // Build the proper CreateShareEntryPayload
+    const createSharePayload = new handlers.CreateShareEntryPayload({
+      entry_name: selectedEntry.entry_name,
+      entry_type: selectedEntry.type,
+      status: "active",
+      access_mode: payload.permission === 'edit' ? 'edit' : 'read',
+      encryption: "AES-256-GCM",
+      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
+      expires_at: payload.expiration_date || "",
+      recipients: payload.recipients.map(r => ({
+        name: r.name,
+        email: r.email,
+        role: r.role,
+      })),
+    });
+
+    // Wails backend is exposed via the global App object
+    // This calls your Go handler CreateShare
+    const input = new main.CreateShareInput({
+      payload: createSharePayload,
+      jwtToken: jwtToken,
+    });
+
+    console.log("CreateShareInput:", input);
+    const result = await AppAPI.CreateShare(input);
+
+    console.log("CreateShareInput result:", result);
+    return result;
+  } catch (err) {
+    console.error("Failed to create shared entry:", err);
+    throw err;
+  }
+}
+
+export async function listSharedEntries(): Promise<any> {
+  try {
+    const jwtToken = useAuthStore.getState().jwtToken;
+    const result = await AppAPI.ListSharedEntries(jwtToken);
+    console.log("Listed shared entries:", result);
+    return result;
+  } catch (err) {
+    console.error("Failed to list shared entries:", err);
+    throw err;
   }
 }
 
@@ -513,3 +564,13 @@ export const signup = async (payload: SignupPayload): Promise<AuthResponse> => {
 
   return response.json();
 };
+export async function getSharedEntry(id: string) {
+  const res = await fetch(`${CLOUD_BASE_URL}/shares/${id}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch shared entry");
+
+  return await res.json();
+}

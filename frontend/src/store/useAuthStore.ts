@@ -16,6 +16,8 @@ interface AuthState {
   jwtToken: string | null;
   refreshToken: string | null;
 
+  jwtCloudToken: string | null;
+
   // Temp onboarding data (if needed)
   onboarding: {
     userId?: number;
@@ -38,6 +40,8 @@ interface AuthState {
 
   setJwtToken: (token: string | null) => void;
   setRefreshToken: (token: string | null) => void;
+  
+  setJwtCloudToken: (token: string | null) => void;
 
   setFeedback: (f: FeedbackState | null) => void;
 
@@ -56,6 +60,8 @@ export const useAuthStore = create<AuthState>()(
       jwtToken: null,
       refreshToken: null,
 
+      jwtCloudToken: null,
+
       onboarding: {},
 
       feedback: null,
@@ -66,6 +72,8 @@ export const useAuthStore = create<AuthState>()(
 
       setJwtToken: (token) => set({ jwtToken: token }),
       setRefreshToken: (token) => set({ refreshToken: token }),
+
+      setJwtCloudToken: (token) => set({ jwtCloudToken: token }),
 
       setFeedback: (f) => set({ feedback: f }),
 
@@ -79,6 +87,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           jwtToken: null,
           refreshToken: null,
+          jwtCloudToken: null,
           isLoggedIn: false,
           onboarding: {},
           vault: null,
@@ -92,6 +101,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         jwtToken: state.jwtToken,
         refreshToken: state.refreshToken,
+        jwtCloudToken: state.jwtCloudToken,
         isLoggedIn: state.isLoggedIn,
       }),
     }

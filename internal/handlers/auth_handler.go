@@ -58,14 +58,17 @@ type LoginResponse struct {
 	User                models.User                 `json:"User"`
 	Vault               models.VaultPayload         `json:"Vault"`
 	Tokens              *auth.TokenPairs            `json:"Tokens"`
+	CloudToken          string                      `json:"cloud_token"`
 	VaultRuntimeContext *models.VaultRuntimeContext `json:"vault_runtime_context"`
 	LastCID             string                      `json:"last_cid"`
 	Dirty               bool                        `json:"dirty"`
+	// SharedEntries      []share_domain.ShareEntry `json:"share_domain_entries"`
 }
 
 func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	var user *models.User
 	var err error
+	var cloudLoginResponse *tracecore.LoginResponse
 	fmt.Println("🔥 SIGNIN ROUTE HIT AT:", time.Now())
 
 	// -----------------------------
@@ -96,13 +99,13 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("❌ failed to recover password: %w", err)
 		}
-		println("plainPassword", plainPassword)	
+		println("plainPassword", plainPassword)
 		credentials.Password = plainPassword
 
 	} else {
 		ah.logger.Info("📧 Email login request: %s", credentials.Email)
 		// authenticate too Ankhora.io
-		authToken, err := ah.TracecoreClient.Login(context.Background(), tracecore.LoginRequest{
+		cloudLoginResponse, err = ah.TracecoreClient.Login(context.Background(), tracecore.LoginRequest{
 			Email:         credentials.Email,
 			Password:      credentials.Password,
 			PublicKey:     credentials.PublicKey,
@@ -112,7 +115,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if err != nil {
 			return nil, fmt.Errorf("❌ failed to authenticate with Ankhora: %w", err)
 		}
-		utils.LogPretty("authToken", authToken)
+		utils.LogPretty("cloud login respoonse", cloudLoginResponse)
 
 		user, err = ah.DB.GetUserByEmail(credentials.Email)
 		if err != nil || user == nil {
@@ -154,6 +157,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	}
 	ah.logger.Info("saved token: ", savedtoken.Token)
 
+	// LOAD VAULT
 	// -----------------------------
 	// 3. Try to reuse existing session
 	// -----------------------------
@@ -161,13 +165,22 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if existingSession.Dirty {
 			ah.Vaults.MarkDirty(user.ID)
 		}
+
 		ah.logger.Info("♻️ Reusing in-memory session for user %d", user.ID)
-		// utils.LogPretty("session", existingSession)
+
+		existingSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
+
+		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
+			ah.TracecoreClient.Token = cloudLoginResponse.Token
+			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)	
+		}
 
 		return &LoginResponse{
 			User:                *user,
 			Vault:               *existingSession.Vault,
 			Tokens:              &tokens,
+			CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
 			VaultRuntimeContext: &existingSession.VaultRuntimeContext,
 			LastCID:             existingSession.LastCID,
 			Dirty:               existingSession.Dirty,
@@ -194,12 +207,21 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if storedSession.Dirty {
 			ah.Vaults.MarkDirty(user.ID)
 		}
+
+		storedSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
+
+		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+			storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
+			ah.TracecoreClient.Token = cloudLoginResponse.Token
+			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)	
+		}
 		ah.logger.Info("🔄 Restored session for user %d from DB", user.ID)
 
 		return &LoginResponse{
 			User:                *user,
 			Vault:               *storedSession.Vault,
 			Tokens:              &tokens,
+			CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
 			VaultRuntimeContext: &storedSession.VaultRuntimeContext,
 			LastCID:             storedSession.LastCID,
 			Dirty:               storedSession.Dirty,
@@ -276,6 +298,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		User:                *user,
 		Vault:               vaultPayload,
 		Tokens:              &tokens,
+		CloudToken:          cloudLoginResponse.Token,
 		VaultRuntimeContext: runtimeCtx,
 		LastCID:             vaultMeta.CID,
 		Dirty:               false,

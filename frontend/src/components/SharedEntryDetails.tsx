@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+ import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 
 interface SharedEntryDetailsProps {
   entry: SharedEntry | null;
@@ -19,18 +20,23 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
   const { toast } = useToast();
   const [recipients, setRecipients] = useState<Recipient[]>(entry?.recipients || []);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" }>({ 
-    name: "", 
-    email: "", 
-    role: "viewer" 
+  const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" }>({
+    name: "",
+    email: "",
+    role: "viewer"
   });
 
   if (!entry) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
-        <div className="text-center text-muted-foreground">
-          <p className="text-sm">Select an action to view details</p>
+      <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
+        <div className="relative">
+          <img src={ankhoraLogo} alt="Ankhora Logo" className=" w-auto" style={{ width: "11.5rem" }} />
+          {/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
+          {/* <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" /> */}
         </div>
+        <p className="text-sm mt-4 text-muted-foreground max-w-xs italic" style={{ opacity: "0.8" }}>
+          Select an action to view details.
+        </p>
       </div>
     );
   }
@@ -47,14 +53,14 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
     const recipient: Recipient = {
       id: `rec-${Date.now()}`,
+      share_id: entry.id, 
       ...newRecipient,
-      joined_at: new Date().toISOString(),
     };
 
     setRecipients([...recipients, recipient]);
     setNewRecipient({ name: "", email: "", role: "viewer" });
     setShowAddForm(false);
-    
+
     toast({
       title: "Recipient added",
       description: `${recipient.name} has been added as a ${recipient.role}`,
@@ -64,7 +70,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
   const handleRemoveRecipient = (id: string) => {
     const recipient = recipients.find(r => r.id === id);
     setRecipients(recipients.filter(r => r.id !== id));
-    
+
     toast({
       title: "Recipient removed",
       description: `${recipient?.name} has been removed`,
@@ -73,7 +79,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
   const handleChangeRole = (id: string, newRole: "viewer" | "editor" | "owner") => {
     setRecipients(recipients.map(r => r.id === id ? { ...r, role: newRole } : r));
-    
+
     toast({
       title: "Role updated",
       description: "Recipient role has been changed",
@@ -260,12 +266,12 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
                 <div className="space-y-2">
                   <div>
                     <p className="text-xs text-muted-foreground">Blockchain Hash</p>
-                    <p className="text-sm font-mono break-all">{entry.blockchain_hash}</p>
+                    <p className="text-sm font-mono break-all">{entry?.blockchain_hash}</p>
                   </div>
-                  {entry.ipfs_anchor && (
+                  {entry?.ipfs_anchor && (
                     <div>
                       <p className="text-xs text-muted-foreground">IPFS Anchor</p>
-                      <p className="text-sm font-mono break-all">{entry.ipfs_anchor}</p>
+                      <p className="text-sm font-mono break-all">{entry?.ipfs_anchor}</p>
                     </div>
                   )}
                 </div>
@@ -305,12 +311,12 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
                   <Label className="text-muted-foreground">Type</Label>
                   <Badge variant="outline" className="mt-1">{entry.entry_type}</Badge>
                 </div>
-                {entry.folder && (
+                {entry?.folder && (
                   <div>
                     <Label className="text-muted-foreground">Folder</Label>
                     <p className="font-medium mt-1 flex items-center gap-1">
                       <FolderOpen className="h-4 w-4" />
-                      {entry.folder}
+                      {entry?.folder}
                     </p>
                   </div>
                 )}
@@ -334,12 +340,12 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
                 </div>
               </div>
 
-              {entry.description && (
+              {entry?.description && (
                 <>
                   <Separator />
                   <div>
                     <Label className="text-muted-foreground">Description</Label>
-                    <p className="mt-2 text-sm">{entry.description}</p>
+                    <p className="mt-2 text-sm">{entry?.description}</p>
                   </div>
                 </>
               )}

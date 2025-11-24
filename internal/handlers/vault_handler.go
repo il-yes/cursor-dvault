@@ -11,7 +11,11 @@ import (
 	"sync"
 	"time"
 	utils "vault-app/internal"
+	share_application_events "vault-app/internal/application/events/share"
+	share_application_use_cases "vault-app/internal/application/use_cases"
 	"vault-app/internal/blockchain"
+	share_domain "vault-app/internal/domain/shared"
+	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
@@ -34,6 +38,8 @@ type VaultHandler struct {
 	// optionally keep in-memory pending commits per user
 	pendingCommits map[int][]tracecore.CommitEnvelope
 	SessionsMu     sync.Mutex
+
+	EventDispatcher share_application_events.EventDispatcher
 }
 
 func NewVaultHandler(
@@ -59,6 +65,7 @@ func NewVaultHandler(
 		TracecoreClient:     tc,
 		VaultRuntimeContext: runtimeCtx,
 		pendingCommits:      make(map[int][]tracecore.CommitEnvelope),
+		EventDispatcher:     share_infrastructure.InitializeEventDispatcher(),
 	}
 }
 
@@ -500,6 +507,193 @@ func (vh *VaultHandler) DeleteFolder(userID int, id int) error {
 	vault.Folders = newFolders
 
 	return nil
+}
+
+func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID int) ([]share_domain.ShareEntry, error) {
+	user, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found with ID %d: %w",userID, err)
+	}
+	utils.LogPretty("ListSharedEntries - user", user)
+
+	existingSession, ok := vh.Sessions[user.ID]
+	if !ok {
+		return nil, fmt.Errorf("no active session for user %d", userID)
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	entries, err := uc.ListSharedEntries(ctx, uint(user.ID), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
+	if err != nil {
+		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
+	}
+
+	return entries, nil
+}
+func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]share_domain.ShareEntry, error) {
+
+	user, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	entries, err := uc.ListReceivedShares(ctx, uint(user.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}
+
+// vaultHandler.go
+
+func (vh *VaultHandler) GetShareForAccept(
+	ctx context.Context,
+	userID int,
+	shareID string,
+) (*share_domain.ShareAcceptData, error) {
+
+	_, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	return uc.GetShareForAccept(ctx, shareID, uint(userID))
+}
+func (vh *VaultHandler) AcceptShare(ctx context.Context, userID int, shareID uint) (*share_application_use_cases.AcceptShareResult, error) {
+	// Load user
+	user, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	result, err := usecase.AcceptShare(ctx, shareID, uint(user.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+func (vh *VaultHandler) RejectShare(ctx context.Context, userID int, shareID uint) (*share_application_use_cases.RejectShareResult, error) {
+	// Load user
+	user, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	result, err := usecase.RejectShare(ctx, shareID, uint(user.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+func (vh *VaultHandler) AddReceiver(ctx context.Context, userID int, in share_application_use_cases.AddReceiverInput) (*share_application_use_cases.AddReceiverResult, error) {
+
+	user, err := vh.DB.FindUserById(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+
+	result, err := usecase.AddReceiver(ctx, uint(user.ID), in)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+type RecipientPayload struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+type CreateShareEntryPayload struct {
+	EntryName     string                     `json:"entry_name"`
+	EntryType     string                     `json:"entry_type"`
+	EntryRef      string                     `json:"entry_ref"`
+	Status        string                     `json:"status"`
+	AccessMode    string                     `json:"access_mode"`
+	Encryption    string                     `json:"encryption"`
+	// Snapshot as JSON string from frontend
+	EntrySnapshot string `json:"entry_snapshot"`
+
+	ExpiresAt     string                     `json:"expires_at"`
+	Recipients    []RecipientPayload         `json:"recipients"`
+}
+
+func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID int) (*share_domain.ShareEntry, error) {
+	// Convert JSON string -> domain struct
+	var snapshot share_domain.EntrySnapshot
+	if err := json.Unmarshal([]byte(payload.EntrySnapshot), &snapshot); err != nil {
+		return nil, fmt.Errorf("invalid entry_snapshot: %w", err)
+	}
+	utils.LogPretty("payload", payload)
+	
+	// map payload -> domain.ShareEntry
+	var s share_domain.ShareEntry
+	s.OwnerID = uint(ownerID)
+	s.EntryName = payload.EntryName
+	s.EntryRef = payload.EntryRef
+	s.EntryType = payload.EntryType
+	s.Status = payload.Status
+	s.AccessMode = payload.AccessMode
+	s.Encryption = payload.Encryption
+	s.EntrySnapshot = snapshot
+
+	// parse ExpiresAt if present (payload.ExpiresAt is string)
+	if payload.ExpiresAt != "" {
+		t, err := time.Parse(time.RFC3339, payload.ExpiresAt)
+		if err == nil {
+			s.ExpiresAt = &t
+		} else {
+			// optional: handle other formats or ignore
+			s.ExpiresAt = nil
+		}
+	}
+
+	// recipients
+	recips := make([]share_domain.Recipient, 0, len(payload.Recipients))
+	for _, r := range payload.Recipients {
+		recips = append(recips, share_domain.Recipient{
+			Name:  r.Name,
+			Email: r.Email,
+			Role:  r.Role,
+			// IDs are assigned by DB
+		})
+	}
+	s.Recipients = recips
+
+	// create dependencies once and inject
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	tcClient := vh.TracecoreClient   // ensure VaultHandler has TracecoreClient set
+	dispatcher := vh.EventDispatcher // ensure VaultHandler has dispatcher reference (or nil)
+
+	uc := share_application_use_cases.NewShareUseCase(repo, tcClient, dispatcher)
+	// call usecase
+	created, err := uc.CreateShare(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("Handler response - created", created)
+	return created, nil
 }
 
 // -----------------------------

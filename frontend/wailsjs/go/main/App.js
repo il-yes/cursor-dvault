@@ -6,6 +6,10 @@ export function AddEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddEntry'](arg1, arg2, arg3);
 }
 
+export function AddReceiver(arg1, arg2) {
+  return window['go']['main']['App']['AddReceiver'](arg1, arg2);
+}
+
 export function AuthVerify(arg1) {
   return window['go']['main']['App']['AuthVerify'](arg1);
 }
@@ -20,6 +24,10 @@ export function CheckSession(arg1) {
 
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
+}
+
+export function CreateShare(arg1) {
+  return window['go']['main']['App']['CreateShare'](arg1);
 }
 
 export function DeleteFolder(arg1, arg2, arg3) {
@@ -46,12 +54,28 @@ export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
 }
 
+export function GetShareForAccept(arg1, arg2) {
+  return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
+}
+
 export function IsVaultDirty(arg1) {
   return window['go']['main']['App']['IsVaultDirty'](arg1);
 }
 
+export function ListReceivedShares(arg1) {
+  return window['go']['main']['App']['ListReceivedShares'](arg1);
+}
+
+export function ListSharedEntries(arg1) {
+  return window['go']['main']['App']['ListSharedEntries'](arg1);
+}
+
 export function RefreshToken(arg1) {
   return window['go']['main']['App']['RefreshToken'](arg1);
+}
+
+export function RejectShare(arg1, arg2) {
+  return window['go']['main']['App']['RejectShare'](arg1, arg2);
 }
 
 export function RequestChallenge(arg1) {

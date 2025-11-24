@@ -8,6 +8,8 @@ import { VaultEntry } from "@/types/vault";
 import { decryptField, logAuditEvent } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+ import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
+
 
 interface EntryDetailPanelProps {
 	entry: VaultEntry | null;
@@ -356,24 +358,23 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 	const current = localEntry ?? entry;
 
 	if (!current) {
-		return (
-			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
-				<div className="relative">
-					<Shield className="h-20 w-20 text-primary/20 mb-4" />
-					<Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" />
-				</div>
-				<h3 className="text-lg font-semibold mb-2">
-					Select an entry to view details
-				</h3>
-				<p className="text-sm text-muted-foreground max-w-xs">
-					Your vault entries are encrypted and protected. Choose an entry from the list to securely view its contents.
-				</p>
-				<Badge variant="outline" className="mt-4 text-xs">
-					<Shield className="h-3 w-3 mr-1 text-primary" />
-					AES-256-GCM Encryption
-				</Badge>
-			</div>
-		);
+      <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
+        <div className="relative">
+            <img src={ankhoraLogo} alt="Ankhora Logo" className=" w-auto" style={{width: "11.5rem"}} />
+          {/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
+          <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">
+          Select an entry to view details
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Your vault entries are encrypted and protected. Choose an entry from the list to securely view its contents.
+        </p>
+        <Badge variant="outline" className="mt-4 text-xs">
+          <Shield className="h-3 w-3 mr-1 text-primary" />
+          AES-256-GCM Encryption
+        </Badge>
+      </div>
 	}
 
 	return (
@@ -382,10 +383,10 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 			<div className="sticky top-0 z-10 border-border p-6 bg-background" style={{ paddingBottom: "0px" }}>
 				<div className="flex items-start justify-between mb-4">
 					<div className="space-y-2">
-						<h2 className="text-2xl font-bold">{current.entry_name ?? ""}</h2>
+						<h2 className="text-2xl font-bold">{current?.entry_name ?? ""}</h2>
 						<div className="flex items-center gap-2">
 							<Badge variant="secondary" className="capitalize">
-								{current.type}
+								{current?.type}
 							</Badge>
 							<Badge variant="outline" className="text-xs">
 								<Shield className="h-3 w-3 mr-1 text-primary" />
@@ -457,7 +458,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 					<div className="space-y-2">
 						<Label className="text-sm">Entry Name</Label>
 						<Input
-							value={editMode ? ((editData as any).entry_name ?? "") : (current.entry_name ?? "")}
+							value={editMode ? ((editData as any).entry_name ?? "") : (current?.entry_name ?? "")}
 							onChange={(e) => editMode && handleFieldChange("entry_name", e.target.value)}
 							readOnly={!editMode}
 							className={editMode ? "border-primary/50" : ""}
@@ -466,17 +467,17 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
 					<div className="space-y-2">
 						<Label className="text-sm">Entry ID</Label>
-						<Input value={current.id ?? ""} readOnly className="font-mono text-xs" />
+						<Input value={current?.id ?? ""} readOnly className="font-mono text-xs" />
 					</div>
 
 					<div className="space-y-2">
 						<Label className="text-sm">Created</Label>
-						<Input value={current.created_at ? new Date(current.created_at).toLocaleString() : ""} readOnly />
+						<Input value={current?.created_at ? new Date(current?.created_at).toLocaleString() : ""} readOnly />
 					</div>
 
 					<div className="space-y-2">
 						<Label className="text-sm">Last Updated</Label>
-						<Input value={current.updated_at ? new Date(current.updated_at).toLocaleString() : ""} readOnly />
+						<Input value={current?.updated_at ? new Date(current?.updated_at).toLocaleString() : ""} readOnly />
 					</div>
 				</div>
 
@@ -492,7 +493,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						</Badge>
 					</div>
 
-					{current.type === 'login' && (
+					{current?.type === 'login' && (
 						<>
 							{renderSensitiveField('user_name', 'Username', false)}
 							{renderSensitiveField('password', 'Password', true)}
@@ -508,7 +509,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						</>
 					)}
 
-					{current.type === 'card' && (
+					{current?.type === 'card' && (
 						<>
 							<div className="space-y-2">
 								<Label className="text-sm">Card Owner</Label>
@@ -531,7 +532,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						</>
 					)}
 
-					{current.type === 'note' && (
+					{current?.type === 'note' && (
 						<>
 							<div className="space-y-2">
 								<Label className="text-sm">Note Content</Label>
@@ -551,7 +552,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						</>
 					)}
 
-					{current.type === 'sshkey' && (
+					{current?.type === 'sshkey' && (
 						<>
 							<div className="space-y-2">
 								<Label className="text-sm">Public Key</Label>
@@ -583,7 +584,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						</>
 					)}
 
-					{current.type === 'identity' && (
+					{current?.type === 'identity' && (
 						<>
 							<div className="space-y-2">
 								<Label className="text-sm">First Name</Label>

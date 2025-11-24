@@ -6,6 +6,7 @@ import { toast } from '@/hooks/use-toast';
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
+import { listSharedEntries } from '@/services/api';
 
 interface VaultStoreState {
   vault: VaultContext | null;
@@ -20,7 +21,8 @@ interface VaultStoreState {
   loadVault: (preloaded?: PreloadedVaultResponse) => Promise<void>;
   setVault: (vault: VaultContext) => void;
   clearVault: () => void;
-  addSharedEntry: (entry: CreateShareEntryPayload) => void;
+  setSharedEntries: (sharedEntries: SharedEntry[]) => void;
+  addSharedEntry: (entry: CreateShareEntryPayload) => string;
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
 }
@@ -41,6 +43,7 @@ interface PreloadedVaultResponse {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const CLOUD_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const USE_MOCK = import.meta.env.VITE_MOCK_VAULT === 'true';
 
 export const useVaultStore = create<VaultStoreState>()(
@@ -81,12 +84,12 @@ export const useVaultStore = create<VaultStoreState>()(
             await new Promise((res) => setTimeout(res, 500)); // simulate delay
           } else {
             // ✅ Fetch from backend
-            const response = await fetch(`${API_BASE_URL}/api/vault`, {
+            const response = await fetch(`${CLOUD_BASE_URL}/api/vault`, {
               method: 'GET',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
             });
-            console.log("response", response);
+            console.log("VaultStore - loadVault response", response);
 
             if (!response.ok) {
               throw new Error(`Failed to load vault: ${response.status}`);
@@ -120,6 +123,8 @@ export const useVaultStore = create<VaultStoreState>()(
             hasRuntimeContext: !!vaultObject.vault_runtime_context,
           });
 
+          const sharedEntries = await listSharedEntries();
+          console.log('✅ Listed shared entries:', sharedEntries);
           set({
             vault: vaultObject,
             shared: {
@@ -158,51 +163,107 @@ export const useVaultStore = create<VaultStoreState>()(
         });
       },
 
-      addSharedEntry: (payload: CreateShareEntryPayload) => {
-        const { shared } = get();
+      addSharedEntry2: (payload: CreateShareEntryPayload) => {
+        try {
+          const { shared } = get();
 
-        const now = new Date().toISOString();
-        const tempShareId = `local-${Date.now()}`;
+          const now = new Date().toISOString();
+          const tempShareId = `local-${Date.now()}`;
 
-        const entry: SharedEntry = {
-          id: tempShareId,     // temporary ID until backend returns real one
-          created_at: now,
-          updated_at: now,
-          shared_at: now,
-
-          audit_log: [],
-
-          entry_name: payload.entry_name,
-          entry_type: payload.entry_type,
-          status: payload.status,
-          access_mode: payload.access_mode,
-          encryption: payload.encryption,
-          entry_snapshot: payload.entry_snapshot,
-          expires_at: payload.expires_at,
-
-          // Map simplified recipients to full Recipient objects
-          recipients: payload.recipients.map((r, index) => ({
-            id: `rec-${Date.now()}-${index}`,
-            share_id: tempShareId,
-            name: r.name,
-            email: r.email,
-            role: r.role,
-            joined_at: now,
+          const entry: SharedEntry = {
+            id: tempShareId,     // temporary ID until backend returns real one
             created_at: now,
             updated_at: now,
-          })),
-        };
+            shared_at: now,
 
+            audit_log: [],
+
+            entry_name: payload.entry_name,
+            entry_type: payload.entry_type,
+            status: payload.status,
+            access_mode: payload.access_mode,
+            encryption: payload.encryption,
+            entry_snapshot: payload.entry_snapshot,
+            expires_at: payload.expires_at,
+
+            // Map simplified recipients to full Recipient objects
+            recipients: payload.recipients.map((r, index) => ({
+              id: `rec-${Date.now()}-${index}`,
+              share_id: tempShareId,
+              name: r.name,
+              email: r.email,
+              role: r.role,
+              created_at: now,
+              updated_at: now,
+            })),
+          };
+
+          set({
+            shared: {
+              ...shared,
+              items: [...shared.items, entry],
+            },
+          });
+
+        } catch (err) {
+          console.error('❌ Failed to add shared entry:', err);
+        }
+      },
+
+      addSharedEntry: (payload: CreateShareEntryPayload) => {
+        try {
+          const { shared } = get();
+
+          const now = new Date().toISOString();
+          const tempShareId = `local-${Date.now()}`;
+
+          const entry: SharedEntry = {
+            id: tempShareId,
+            created_at: now,
+            updated_at: now,
+            shared_at: now,
+
+            audit_log: [],
+
+            entry_name: payload.entry_name,
+            entry_type: payload.entry_type,
+
+            // always pending when optimistic
+            status: "pending",
+            access_mode: payload.access_mode,
+            encryption: payload.encryption,
+            entry_snapshot: payload.entry_snapshot,
+            expires_at: payload.expires_at,
+
+            // IMPORTANT: no recipients during optimistic state
+            recipients: [],
+          };
+
+          set({
+            shared: {
+              ...shared,
+              items: [...shared.items, entry],
+            },
+          });
+
+          // return temporary ID so caller can replace it later
+          return tempShareId;
+
+        } catch (err) {
+          console.error("❌ Failed to add shared entry:", err);
+        }
+      },
+
+      setSharedEntries: (sharedEntries: SharedEntry[]) => {
         set({
           shared: {
-            ...shared,
-            items: [...shared.items, entry],
+            status: 'loaded',
+            items: sharedEntries,
           },
         });
       },
 
-
-      updateSharedEntry: (entryId, updates) => {
+      updateSharedEntry: (entryId: string, updates) => {
         const { shared } = get();
         set({
           shared: {
@@ -222,7 +283,8 @@ export const useVaultStore = create<VaultStoreState>()(
             items: shared.items.filter((item) => item.id !== entryId),
           },
         });
-      },
+      }
+
     }),
     {
       name: 'vault-storage',

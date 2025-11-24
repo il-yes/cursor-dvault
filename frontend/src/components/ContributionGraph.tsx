@@ -55,7 +55,7 @@ const ContributionGraph = ({ contributions }) => {
 		}
 	});
 
-	const weekdayLabels = ["Mon", "-", "Wed", "-", "Fri"];
+	const weekdayLabels = ["Mon", "ma", "Wed", "my", "Fri"];
 
 	return (
 		<div className="flex flex-col items-start gap-1 text-xs text-gray-500 dark:text-gray-400">

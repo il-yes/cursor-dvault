@@ -7,9 +7,12 @@ import (
 	"log"
 	"os"
 	"time"
+	utils "vault-app/internal"
+	share_application "vault-app/internal/application/use_cases"
 	"vault-app/internal/auth"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
 	"vault-app/internal/logger/logger"
@@ -244,6 +247,7 @@ func (a *App) CheckSession(userID int) (string, error) {
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
 }
+
 // -----------------------------
 // JWT Token
 // -----------------------------
@@ -331,6 +335,76 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 		return "", err
 	}
 	return a.Vaults.SyncVault(claims.UserID, password)
+}
+type CreateShareInput struct {
+    Payload handlers.CreateShareEntryPayload `json:"payload"`
+    JwtToken string                                   `json:"jwtToken"`
+}
+
+func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, error) {
+    claims, err := a.Auth.RequireAuth(input.JwtToken)
+    if err != nil {
+        return nil, err
+    }
+	userID := int(claims.UserID)
+    return a.Vaults.CreateShareEntry(context.Background(),input.Payload, userID )
+}
+
+func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("ListSharedEntries - auth failed: %w", err)
+	}
+	utils.LogPretty("ListSharedEntries - claims", claims)	
+
+	entries, err := a.Vaults.ListSharedEntries(context.Background(), int(claims.UserID))
+	if err != nil {
+		return nil, err
+	}
+
+	return &entries, nil
+}
+func (a *App) ListReceivedShares(jwtToken string) (*[]share_domain.ShareEntry, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := a.Vaults.ListReceivedShares(context.Background(), int(claims.UserID))
+	if err != nil {
+		return nil, err
+	}
+
+	return &entries, nil // Wails wants pointer
+}
+func (a *App) GetShareForAccept(jwt, shareID string) (*share_domain.ShareAcceptData, error) {
+	claims, err := a.Auth.RequireAuth(jwt)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Vaults.GetShareForAccept(
+		context.Background(),
+		int(claims.UserID),
+		shareID,
+	)
+}
+func (a *App) RejectShare(jwtToken string, shareID uint) (*share_application.RejectShareResult, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Vaults.RejectShare(context.Background(), int(claims.UserID), shareID)
+}
+func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiverInput) (*share_application.AddReceiverResult, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("❌ Failed to authenticate user: %v", err)
+		return nil, err
+	}
+
+	return a.Vaults.AddReceiver(context.Background(), int(claims.UserID), payload)
 }
 
 // FlushAllSessions persists and clears all active sessions.

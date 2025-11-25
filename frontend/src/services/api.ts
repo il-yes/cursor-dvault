@@ -496,6 +496,7 @@ export async function createSharedEntry(payload: {
 export async function listSharedEntries(): Promise<any> {
   try {
     const jwtToken = useAuthStore.getState().jwtToken;
+    console.log("jwtToken:", jwtToken);
     const result = await AppAPI.ListSharedEntries(jwtToken);
     console.log("Listed shared entries:", result);
     return result;

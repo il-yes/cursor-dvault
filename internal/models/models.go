@@ -9,7 +9,10 @@ import (
 	"time"
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
+	share_domain "vault-app/internal/domain/shared"
+	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/tracecore"
+
 	"gorm.io/gorm"
 )
 
@@ -48,6 +51,12 @@ func AutoMigrate(db *gorm.DB) error {
 		&app_config.SharingConfig{}, // if used for advanced sharing
 		&UserSession{},
 		&auth.TokenPairs{},
+
+		// Sharing
+		&share_infrastructure.ShareEntryModel{},
+		&share_infrastructure.RecipientModel{},
+		&share_domain.AuditLog{},	
+
 	)
 }
 
@@ -494,7 +503,7 @@ func (m *DBModel) FindUsers() ([]UserDTO, error) {
 }
 func (m *DBModel) FindUserById(id int) (*User, error) {
 	var user User
-	if err := m.DB.Find(&user).Error; err != nil {
+	if err := m.DB.First(&user, "id = ?", id).Error; err != nil {
 		return nil, fmt.Errorf("❌ failed to find user with id: %d - %w", id, err)
 	}
 

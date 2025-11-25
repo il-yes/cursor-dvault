@@ -40,7 +40,7 @@ import { toast } from "@/hooks/use-toast";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { useAppStore } from "@/store/appStore";
 import { useVaultStore } from "@/store/vaultStore";
-
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },

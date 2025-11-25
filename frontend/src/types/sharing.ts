@@ -94,9 +94,9 @@ export interface Recipient {
   name: string;
   email: string;
   role: "viewer" | "editor" | "owner";
-  joined_at: string;  // backend-generated
-  created_at: string;
-  updated_at: string;
+  joined_at?: string;  // backend-generated
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuditEvent {
@@ -109,7 +109,7 @@ export interface AuditEvent {
 export interface CreateShareEntryPayload {
   entry_name: string;
   entry_type: "login" | "card" | "note" | "identity" | "sshkey";
-  status: "active";
+  status: "active" | "pending"  | "expired" | "revoked";
   access_mode: "read" | "edit";
   encryption: "AES-256-GCM";
   entry_snapshot: EntrySnapshot;

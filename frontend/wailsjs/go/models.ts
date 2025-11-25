@@ -329,6 +329,68 @@ export namespace handlers {
 	        this.auth_methods = source["auth_methods"];
 	    }
 	}
+	export class RecipientPayload {
+	    name: string;
+	    email: string;
+	    role: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecipientPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.email = source["email"];
+	        this.role = source["role"];
+	    }
+	}
+	export class CreateShareEntryPayload {
+	    entry_name: string;
+	    entry_type: string;
+	    entry_ref: string;
+	    status: string;
+	    access_mode: string;
+	    encryption: string;
+	    entry_snapshot: string;
+	    expires_at: string;
+	    recipients: RecipientPayload[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateShareEntryPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry_name = source["entry_name"];
+	        this.entry_type = source["entry_type"];
+	        this.entry_ref = source["entry_ref"];
+	        this.status = source["status"];
+	        this.access_mode = source["access_mode"];
+	        this.encryption = source["encryption"];
+	        this.entry_snapshot = source["entry_snapshot"];
+	        this.expires_at = source["expires_at"];
+	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoginRequest {
 	    email: string;
 	    password: string;
@@ -355,6 +417,7 @@ export namespace handlers {
 	    User: models.User;
 	    Vault: models.VaultPayload;
 	    Tokens?: auth.TokenPairs;
+	    cloud_token: string;
 	    vault_runtime_context?: models.VaultRuntimeContext;
 	    last_cid: string;
 	    dirty: boolean;
@@ -368,6 +431,7 @@ export namespace handlers {
 	        this.User = this.convertValues(source["User"], models.User);
 	        this.Vault = this.convertValues(source["Vault"], models.VaultPayload);
 	        this.Tokens = this.convertValues(source["Tokens"], auth.TokenPairs);
+	        this.cloud_token = source["cloud_token"];
 	        this.vault_runtime_context = this.convertValues(source["vault_runtime_context"], models.VaultRuntimeContext);
 	        this.last_cid = source["last_cid"];
 	        this.dirty = source["dirty"];
@@ -431,6 +495,43 @@ export namespace handlers {
 	        this.Vault = this.convertValues(source["Vault"], models.VaultPayload);
 	        this.User = this.convertValues(source["User"], models.User);
 	        this.Tokens = this.convertValues(source["Tokens"], auth.TokenPairs);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace main {
+	
+	export class CreateShareInput {
+	    payload: handlers.CreateShareEntryPayload;
+	    jwtToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateShareInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.payload = this.convertValues(source["payload"], handlers.CreateShareEntryPayload);
+	        this.jwtToken = source["jwtToken"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -861,6 +962,283 @@ export namespace models {
 	        this.SessionSecrets = source["SessionSecrets"];
 	        this.WorkingBranch = source["WorkingBranch"];
 	        this.LoadedEntries = source["LoadedEntries"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace share_application_use_cases {
+	
+	export class AddReceiverInput {
+	    ShareID: number;
+	    Name: string;
+	    Email: string;
+	    Role: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddReceiverInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.Name = source["Name"];
+	        this.Email = source["Email"];
+	        this.Role = source["Role"];
+	    }
+	}
+	export class AddReceiverResult {
+	    ShareID: number;
+	    RecipientID: number;
+	    Message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddReceiverResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.RecipientID = source["RecipientID"];
+	        this.Message = source["Message"];
+	    }
+	}
+	export class RejectShareResult {
+	    ShareID: number;
+	    RecipientID: number;
+	    Message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RejectShareResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.RecipientID = source["RecipientID"];
+	        this.Message = source["Message"];
+	    }
+	}
+
+}
+
+export namespace share_domain {
+	
+	export class EntrySnapshot {
+	    entry_name: string;
+	    type: string;
+	    user_name: string;
+	    password: string;
+	    website: string;
+	    cardholder_name: string;
+	    card_number: string;
+	    expiry_month: number;
+	    expiry_year: number;
+	    cvv: string;
+	    private_key: string;
+	    public_key: string;
+	    note: string;
+	    genre: string;
+	    firstname: string;
+	    second_firstname: string;
+	    lastname: string;
+	    username: string;
+	    company: string;
+	    social_security_number: string;
+	    ID_number: string;
+	    driver_license: string;
+	    mail: string;
+	    telephone: string;
+	    address_one: string;
+	    address_two: string;
+	    address_three: string;
+	    city: string;
+	    state: string;
+	    postal_code: string;
+	    country: string;
+	    extra_fields: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EntrySnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry_name = source["entry_name"];
+	        this.type = source["type"];
+	        this.user_name = source["user_name"];
+	        this.password = source["password"];
+	        this.website = source["website"];
+	        this.cardholder_name = source["cardholder_name"];
+	        this.card_number = source["card_number"];
+	        this.expiry_month = source["expiry_month"];
+	        this.expiry_year = source["expiry_year"];
+	        this.cvv = source["cvv"];
+	        this.private_key = source["private_key"];
+	        this.public_key = source["public_key"];
+	        this.note = source["note"];
+	        this.genre = source["genre"];
+	        this.firstname = source["firstname"];
+	        this.second_firstname = source["second_firstname"];
+	        this.lastname = source["lastname"];
+	        this.username = source["username"];
+	        this.company = source["company"];
+	        this.social_security_number = source["social_security_number"];
+	        this.ID_number = source["ID_number"];
+	        this.driver_license = source["driver_license"];
+	        this.mail = source["mail"];
+	        this.telephone = source["telephone"];
+	        this.address_one = source["address_one"];
+	        this.address_two = source["address_two"];
+	        this.address_three = source["address_three"];
+	        this.city = source["city"];
+	        this.state = source["state"];
+	        this.postal_code = source["postal_code"];
+	        this.country = source["country"];
+	        this.extra_fields = source["extra_fields"];
+	    }
+	}
+	export class Recipient {
+	    id: string;
+	    share_id: string;
+	    name: string;
+	    email: string;
+	    role: string;
+	    // Go type: time
+	    joined_at: any;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    encrypted_blob: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Recipient(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.share_id = source["share_id"];
+	        this.name = source["name"];
+	        this.email = source["email"];
+	        this.role = source["role"];
+	        this.joined_at = this.convertValues(source["joined_at"], null);
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.encrypted_blob = source["encrypted_blob"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ShareEntry {
+	    id: string;
+	    owner_id: number;
+	    entry_name: string;
+	    entry_type: string;
+	    entry_ref: string;
+	    status: string;
+	    access_mode: string;
+	    encryption: string;
+	    entry_snapshot: EntrySnapshot;
+	    // Go type: time
+	    expires_at?: any;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    // Go type: time
+	    shared_at: any;
+	    recipients: Recipient[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ShareEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.owner_id = source["owner_id"];
+	        this.entry_name = source["entry_name"];
+	        this.entry_type = source["entry_type"];
+	        this.entry_ref = source["entry_ref"];
+	        this.status = source["status"];
+	        this.access_mode = source["access_mode"];
+	        this.encryption = source["encryption"];
+	        this.entry_snapshot = this.convertValues(source["entry_snapshot"], EntrySnapshot);
+	        this.expires_at = this.convertValues(source["expires_at"], null);
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.shared_at = this.convertValues(source["shared_at"], null);
+	        this.recipients = this.convertValues(source["recipients"], Recipient);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ShareAcceptData {
+	    share: ShareEntry;
+	    recipient: Recipient;
+	    blob: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ShareAcceptData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.share = this.convertValues(source["share"], ShareEntry);
+	        this.recipient = this.convertValues(source["recipient"], Recipient);
+	        this.blob = source["blob"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -74,3 +74,52 @@ export function buildEntrySnapshot(entry: VaultEntry): EntrySnapshot {
       };
   }
 }
+
+
+// const res = await fetch(`${API_BASE}/api/shared-entries`, { credentials: "include" });
+// const { SharedEntries } = await res.json();
+
+
+// export const fetchReceivedShares = async (): Promise<ShareEntry[]> => {
+//   const token = await getStoredJwtToken();
+//   const res = await AppAPI.ListReceivedShares(token);
+
+//   if (!res) throw new Error("Failed to load received shares");
+//   return res;
+// };
+
+// export interface RejectShareResult {
+//   share_id: number;
+//   recipient_id: number;
+//   message: string;
+// }
+
+// export const rejectShare = async (token: string, shareId: number): Promise<RejectShareResult> => {
+//   return await AppAPI.RejectShare(token, shareId);
+// };
+
+
+// export interface AcceptShareResult {
+//   share: ShareEntry;
+//   recipient: Recipient;
+//   blob: Uint8Array;
+// }
+// export const acceptShare = async (token: string, shareId: number): Promise<AcceptShareResult> => {
+//   return await AppAPI.AcceptShare(token, shareId);
+// };
+
+
+// export interface AddReceiverInput {
+//   share_id: number;
+//   name: string;
+//   email: string;
+//   role: string;
+// }
+// export interface AddReceiverResult {
+//   share_id: number;
+//   recipient_id: number;
+//   message: string;
+// }
+// export const addReceiver = async (token: string, payload: AddReceiverInput): Promise<AddReceiverResult> => {
+//   return await AppAPI.AddReceiver(token, payload);
+// };

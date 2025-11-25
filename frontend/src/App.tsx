@@ -15,16 +15,26 @@ import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import EmailLookup from "./pages/EmailLookup";
 import LoginStep2 from "./pages/LoginStep2";
+import { ThemeProvider } from "@/components/theme-provider";
+import { listSharedEntries } from "@/services/api";
 
 const queryClient = new QueryClient();
 
 function AppContent() {
   const loadVault = useVaultStore((state) => state.loadVault);
+	const setSharedEntries = useVaultStore((state) => state.setSharedEntries);	
 
   useEffect(() => {
     // Load vault data on app startup
-    loadVault();
-  }, [loadVault]);
+    // loadVault();
+    loadShares();
+  }, []);
+
+  const loadShares = ( ) => {
+    listSharedEntries().then((entries) => {
+      setSharedEntries(entries);
+    });
+  };  
 
   return (
     <Routes>
@@ -47,13 +57,17 @@ function AppContent() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <Toaster />
-    <Sonner />
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
-  </QueryClientProvider>
+  <ThemeProvider defaultTheme="light" storageKey="ankhora-theme">
+    <QueryClientProvider client={queryClient}>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
+
+

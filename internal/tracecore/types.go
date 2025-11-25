@@ -10,12 +10,28 @@ type LoginRequest struct {
     Signature     string `json:"signature,omitempty"`
 }
 
+
+type CloudLoginResponse struct {
+	Error               bool   `json:"error"`
+	Message             string `json:"message"`
+	AuthenticationToken struct {
+		Token  string    `json:"token"`
+		Expiry time.Time `json:"expiry"`
+	} `json:"authentication_token"`
+}
+
+type CloudAuthToken struct {
+    Token  string    `json:"token"`
+    Expiry time.Time `json:"expiry"`
+}
+
 type LoginResponse struct {
-    UserID      int64  `json:"user_id"`
-    Email       string `json:"email"`
-    Token       string `json:"token"`
-    VaultCID    string `json:"vault_cid,omitempty"`
-    VaultDirty  bool   `json:"vault_dirty"`
+    Token string `json:"token"`
+
+    AuthenticationToken *struct {
+        Token  string    `json:"token"`
+        Expiry time.Time `json:"expiry"`
+    } `json:"authentication_token"`
 }
 
 type VaultEntry struct {
@@ -25,13 +41,13 @@ type VaultEntry struct {
     UpdatedAt time.Time `json:"updated_at"`
 }
 
-type ShareEntry struct {
-    ID        string    `json:"id"`
-    EntryRef  string    `json:"entry_ref"`
-    EntryName string    `json:"entry_name"`
-    Status    string    `json:"status"`
-    SharedAt  time.Time `json:"shared_at"`
-}
+// type ShareEntry struct {
+//     ID        string    `json:"id"`
+//     EntryRef  string    `json:"entry_ref"`
+//     EntryName string    `json:"entry_name"`
+//     Status    string    `json:"status"`
+//     SharedAt  time.Time `json:"shared_at"`
+// }
 type User struct {
 	ID        int64  `json:"id"`
 	FirstName string `json:"first_name"`

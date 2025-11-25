@@ -16,10 +16,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
+import ankhoraLogoColored from "@/assets/ankhora-logo-colored.png";
+import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import localSovereignty from "@/assets/local-sovereignty.jpg";
 import decentralizedSync from "@/assets/decentralized-sync.jpg";
 import sovereignCloud from "@/assets/sovereign-cloud.jpg";
+import { ThemeToggle } from "@/components/ThemeToggle";
+ 
 
 const Home = () => {
   const navigate = useNavigate();
@@ -75,6 +78,7 @@ const Home = () => {
             >
               Pricing
             </button>
+            <ThemeToggle />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -96,48 +100,81 @@ const Home = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="min-h-screen flex items-center justify-center px-4 py-20">
-        <div className="max-w-3xl mx-auto text-center animate-fadeInUp">
-          <p className="text-sm uppercase tracking-wider text-muted-foreground mb-4 font-medium">
-            Self-Sovereign Digital Vault
-          </p>
+      <section className="relative min-h-screen flex items-center justify-center px-4 py-20 overflow-hidden">
+        {/* Subtle background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent dark:from-primary/10 pointer-events-none" />
+        
+        {/* Animated glow orbs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
+        
+        <div className="relative max-w-4xl mx-auto text-center">
+          {/* Logo with intense glow */}
+          <div className="flex justify-center mb-8 animate-fadeInUp">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/30 rounded-full blur-2xl animate-pulse-glow" />
+              <img 
+                src={ankhoraLogo} 
+                alt="Ankhora Logo" 
+                className="relative h-28 md:h-32 w-auto drop-shadow-2xl" 
+              />
+            </div>
+          </div>
           
-          <h1 className="text-5xl md:text-7xl font-light mb-6 leading-tight text-foreground">
+          {/* Tagline with shimmer effect */}
+          <div className="animate-fadeInStagger mb-6" style={{ animationDelay: '0.1s' }}>
+            <p className="text-sm uppercase tracking-[0.2em] text-primary font-semibold mb-2">
+              Self-Sovereign Digital Vault
+            </p>
+            <div className="w-24 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto" />
+          </div>
+          
+          {/* Main heading with gradient text */}
+          <h1 className="text-6xl md:text-8xl font-light mb-8 leading-[1.1] text-foreground animate-fadeInStagger" style={{ animationDelay: '0.2s' }}>
             Your Data. <br />
-            <span className="font-semibold">Your Control.</span> <br />
-            Forever.
+            <span className="font-bold bg-gradient-to-r from-primary via-primary-glow to-primary bg-clip-text text-transparent">
+              Your Control.
+            </span> <br />
+            <span className="text-5xl md:text-7xl">Forever.</span>
           </h1>
           
-          <p className="text-lg md:text-xl text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed font-light">
+          {/* Description */}
+          <p className="text-lg md:text-2xl text-muted-foreground mb-16 max-w-3xl mx-auto leading-relaxed font-light animate-fadeInStagger" style={{ animationDelay: '0.3s' }}>
             Store sensitive information with zero-trust architecture. Encrypted on your device, 
             backed up to IPFS, and verifiable on the blockchain.
           </p>
           
-          <div className="max-w-xl mx-auto">
-            <div className="flex gap-2 shadow-elegant rounded-2xl p-2 bg-card">
-              <Input
-                type="text"
-                placeholder="Store anything to start your vault…"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                className="flex-1 border-0 focus-visible:ring-0 text-base bg-transparent"
-                onKeyDown={(e) => e.key === "Enter" && handleGetStarted()}
-              />
-              <Button 
-                onClick={handleGetStarted}
-                className="gradient-primary text-primary-foreground px-6 hover:opacity-90 transition-smooth"
-              >
-                Encrypt & Begin
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+          {/* CTA Input with enhanced glow */}
+          <div className="max-w-2xl mx-auto animate-fadeInStagger" style={{ animationDelay: '0.4s' }}>
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-primary via-primary-glow to-primary rounded-3xl blur-xl opacity-30 group-hover:opacity-50 transition-smooth" />
+              <div className="relative flex gap-3 shadow-elegant rounded-2xl p-3 bg-card border border-border/50 backdrop-blur-sm">
+                <Input
+                  type="text"
+                  placeholder="Store anything to start your vault…"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  className="flex-1 border-0 focus-visible:ring-0 text-base md:text-lg bg-transparent px-4 h-14"
+                  onKeyDown={(e) => e.key === "Enter" && handleGetStarted()}
+                />
+                <Button 
+                  onClick={handleGetStarted}
+                  className="gradient-primary text-primary-foreground px-8 h-14 hover:opacity-90 transition-smooth shadow-lg hover:shadow-xl font-semibold text-base"
+                >
+                  Encrypt & Begin
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </div>
             </div>
           </div>
           
-          <div className="mt-16 animate-bounce">
-            <ChevronDown className="h-6 w-6 mx-auto text-muted-foreground" />
+          {/* Scroll indicator */}
+          <div className="mt-20 animate-bounce">
+            <ChevronDown className="h-7 w-7 mx-auto text-primary/60" />
           </div>
         </div>
       </section>
+
 
       {/* Feature Section */}
       <section id="features" className="py-20 px-4 bg-card">
@@ -317,6 +354,6 @@ const Home = () => {
       <OnboardingModal open={onboardingOpen} onOpenChange={setOnboardingOpen} />
     </div>
   );
-};
+}
 
 export default Home;

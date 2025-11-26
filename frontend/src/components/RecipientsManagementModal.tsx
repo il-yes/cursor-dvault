@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,11 @@ export function RecipientsManagementModal({
   const [newRecipientEmail, setNewRecipientEmail] = useState("");
   const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner">("viewer");
 
+  useEffect(() => {
+    setRecipients(entry?.recipients || []);
+  }, [entry]);
+
+
   const handleRoleChange = (recipientId: string, newRole: "viewer" | "editor" | "owner") => {
     setRecipients(recipients.map(r =>
       r.id === recipientId ? { ...r, role: newRole } : r
@@ -42,6 +47,8 @@ export function RecipientsManagementModal({
     });
   };
 
+
+
   const handleAddRecipient = () => {
     if (!newRecipientEmail.trim()) return;
 
@@ -50,7 +57,7 @@ export function RecipientsManagementModal({
       name: newRecipientEmail.split("@")[0],
       email: newRecipientEmail,
       role: newRecipientRole,
-      joined_at: new Date().toISOString(),
+      share_id: entry!.id,
     };
 
     setRecipients([...recipients, newRecipient]);

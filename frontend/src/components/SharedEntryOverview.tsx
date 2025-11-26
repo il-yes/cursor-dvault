@@ -17,6 +17,7 @@ interface SharedEntryOverviewProps {
 export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverviewProps) {
 	const [accessMode, setAccessMode] = useState<"read" | "edit">(entry?.access_mode || "read");
 	const [isRecipientsModalOpen, setIsRecipientsModalOpen] = useState(false);
+	const [selectedShare, setSelectedShare] = useState<SharedEntry | null>(null);
 
 	if (!entry) {
 		return (
@@ -124,6 +125,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
 								variant="outline"
 								className="w-full justify-start"
 								onClick={() => {
+									setSelectedShare(entry);        // <-- THIS WAS MISSING
 									onViewChange("recipients");
 									setIsRecipientsModalOpen(true);
 								}}
@@ -173,7 +175,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
 			<RecipientsManagementModal
 				open={isRecipientsModalOpen}
 				onOpenChange={setIsRecipientsModalOpen}
-				entry={entry}
+				entry={selectedShare}
 			/>
 		</div>
 	);

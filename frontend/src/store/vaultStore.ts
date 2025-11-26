@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { VaultContext } from '@/types/vault';
-import { CreateShareEntryPayload, SharedEntry } from '@/types/sharing';
+import { CreateShareEntryPayload, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 
 // Import or paste your mock payload JSON here
@@ -25,6 +25,7 @@ interface VaultStoreState {
   addSharedEntry: (entry: CreateShareEntryPayload) => string;
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
+  updateSharedEntryRecipients: (entryId: string, recipients: Recipient[]) => void;
 }
 interface PreloadedVaultResponse {
   User: any;
@@ -125,11 +126,16 @@ export const useVaultStore = create<VaultStoreState>()(
 
           const sharedEntries = await listSharedEntries();
           console.log('✅ Listed shared entries:', sharedEntries);
+          // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
+          const finalSharedEntries = (sharedEntries && sharedEntries.length > 0)
+            ? sharedEntries
+            : (data.SharedEntries || []);
+
           set({
             vault: vaultObject,
             shared: {
               status: 'loaded',
-              items: data.SharedEntries || [],
+              items: finalSharedEntries,
             },
             lastSyncTime: new Date().toISOString(),
             isLoading: false,
@@ -283,7 +289,21 @@ export const useVaultStore = create<VaultStoreState>()(
             items: shared.items.filter((item) => item.id !== entryId),
           },
         });
-      }
+      },
+      updateSharedEntryRecipients: (entryId: string, recipients) => {
+        const { shared } = get();
+        set({
+          shared: {
+            ...shared,
+            items: shared.items.map((item) =>
+              item.id === entryId
+                ? { ...item, recipients: [...recipients] }
+                : item
+            ),
+          },
+        });
+      },
+
 
     }),
     {

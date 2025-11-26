@@ -22,19 +22,10 @@ const queryClient = new QueryClient();
 
 function AppContent() {
   const loadVault = useVaultStore((state) => state.loadVault);
-	const setSharedEntries = useVaultStore((state) => state.setSharedEntries);	
 
   useEffect(() => {
-    // Load vault data on app startup
-    // loadVault();
-    loadShares();
+    loadVault();
   }, []);
-
-  const loadShares = ( ) => {
-    listSharedEntries().then((entries) => {
-      setSharedEntries(entries);
-    });
-  };  
 
   return (
     <Routes>

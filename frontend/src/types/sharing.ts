@@ -93,7 +93,7 @@ export interface Recipient {
   share_id: string;  // backend-generated
   name: string;
   email: string;
-  role: "viewer" | "editor" | "owner";
+  role: "viewer" | "read" | "editor" | "owner";
   joined_at?: string;  // backend-generated
   created_at?: string;
   updated_at?: string;

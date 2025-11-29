@@ -78,8 +78,17 @@ func (s *ShareUseCase) ListSharedEntries(ctx context.Context, userID uint, cloud
 // ------------------------------------------------
 // Use case: fetch shares *received* by the user
 // ------------------------------------------------
-func (uc *ShareUseCase) ListReceivedShares(ctx context.Context, userID uint) ([]share_domain.ShareEntry, error) {
-	return uc.repo.ListReceivedByUser(userID)
+func (s *ShareUseCase) ListReceivedShares(ctx context.Context, userID uint, cloudToken string) ([]share_domain.ShareEntry, error) {
+	utils.LogPretty("share - ListSharedEntries", userID)
+	s.tc.SetToken(cloudToken)
+	// Mirror to cloud if client available
+	cloudShares, err := s.tc.GetShareWithMe(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("dvault ListReceivedShares failed: %w", err)
+	}
+	utils.LogPretty("share - ListSharedEntries - cloudShares", cloudShares)	
+	
+	return cloudShares, nil	
 }
 
 func (uc *ShareUseCase) GetShareForAccept(

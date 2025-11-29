@@ -45,7 +45,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Vault", url: "/dashboard/vault", icon: Shield },
-  { title: "Shared entries", url: "/dashboard/shared", icon: Rocket },
+  { title: "Shares", url: "/dashboard/shared", icon: Rocket },
 ];
 
 const dashboardSecondaryItems = [
@@ -59,6 +59,7 @@ const sharedEntriesItems = [
   { title: "Received", filter: "received", url: "/dashboard/shared?filter=received", icon: LogIn },
   { title: "Pending", filter: "pending", url: "/dashboard/shared?filter=pending", icon: Clock },
   { title: "Revoked", filter: "revoked", url: "/dashboard/shared?filter=revoked", icon: X },
+  { title: "With me", filter: "withme", url: "/dashboard/shared?filter=withme", icon: Users },
 ];
 
 const vaultMainItems = [
@@ -120,7 +121,7 @@ function DashboardNavbar() {
       description: "You have been successfully logged out.",
     });
 
-    navigate("/auth/signin");
+    navigate("/login/email");
   };
   const handleAddEntry = () => {
     setIsCreateDialogOpen(true);
@@ -316,7 +317,7 @@ function AppSidebar() {
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
-            {isVaultContext ? "Vault" : isSharedContext ? "Shared Entries" : "Main"}
+            {isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

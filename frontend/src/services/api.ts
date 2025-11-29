@@ -498,7 +498,19 @@ export async function listSharedEntries(): Promise<any> {
     const jwtToken = useAuthStore.getState().jwtToken;
     console.log("jwtToken:", jwtToken);
     const result = await AppAPI.ListSharedEntries(jwtToken);
-    console.log("Listed shared entries:", result);
+    console.log("Listed shared by me:", result);
+    return result;
+  } catch (err) {
+    console.error("Failed to list shared entries:", err);
+    throw err;
+  }
+}
+export async function listSharedWithMe(): Promise<any> {
+  try {
+    const jwtToken = useAuthStore.getState().jwtToken;
+    console.log("jwtToken:", jwtToken);
+    const result = await AppAPI.ListReceivedShares(jwtToken);
+    console.log("Listed shared with me:", result);
     return result;
   } catch (err) {
     console.error("Failed to list shared entries:", err);

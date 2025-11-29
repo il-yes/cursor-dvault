@@ -8,7 +8,7 @@ import { VaultEntry } from "@/types/vault";
 import { decryptField, logAuditEvent } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
- import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
+import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 
 
 interface EntryDetailPanelProps {
@@ -358,23 +358,25 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 	const current = localEntry ?? entry;
 
 	if (!current) {
-      <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
-        <div className="relative">
-            <img src={ankhoraLogo} alt="Ankhora Logo" className=" w-auto" style={{width: "11.5rem"}} />
-          {/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
-          <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" />
-        </div>
-        <h3 className="text-lg font-semibold mb-2">
-          Select an entry to view details
-        </h3>
-        <p className="text-sm text-muted-foreground max-w-xs">
-          Your vault entries are encrypted and protected. Choose an entry from the list to securely view its contents.
-        </p>
-        <Badge variant="outline" className="mt-4 text-xs">
-          <Shield className="h-3 w-3 mr-1 text-primary" />
-          AES-256-GCM Encryption
-        </Badge>
-      </div>
+		return (
+			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
+				<div className="relative">
+					<img src={ankhoraLogo} alt="Ankhora Logo" className=" w-auto" style={{ width: "11.5rem" }} />
+					{/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
+					<Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" />
+				</div>
+				<h3 className="text-lg font-semibold mb-2">
+					Select an entry to view details
+				</h3>
+				<p className="text-sm text-muted-foreground max-w-xs">
+					Your vault entries are encrypted and protected. Choose an entry from the list to securely view its contents.
+				</p>
+				<Badge variant="outline" className="mt-4 text-xs">
+					<Shield className="h-3 w-3 mr-1 text-primary" />
+					AES-256-GCM Encryption
+				</Badge>
+			</div>
+		)
 	}
 
 	return (
@@ -667,7 +669,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 						<div className="text-xs text-foreground space-y-1">
 							<p className="font-medium">Zero-knowledge encryption</p>
 							<p className="text-muted-foreground">
-								Sensitive fields are encrypted at rest and decrypted only on demand. 
+								Sensitive fields are encrypted at rest and decrypted only on demand.
 								All view actions are logged for audit.
 							</p>
 						</div>

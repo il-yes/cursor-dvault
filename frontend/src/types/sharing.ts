@@ -47,7 +47,7 @@ export interface SharedEntry {
   audit_log: AuditEvent[]; // always empty for now, backend returns nothing
 }
 
-export type ShareFilter = "all" | "sent" | "received" | "pending" | "revoked";
+export type ShareFilter = "all" | "sent" | "received" | "pending" | "revoked" | "withme";
 export type DetailView = "recipients" | "audit" | "encryption" | "metadata";
 export interface EntrySnapshot {
   entry_name: string;

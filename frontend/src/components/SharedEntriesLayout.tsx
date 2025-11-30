@@ -8,6 +8,8 @@ import { useVaultStore } from "@/store/vaultStore";
 
 export function SharedEntriesLayout() {
 	const sharedEntries = useVaultStore((state) => state.shared.items);
+	// const sharedByMe = useVaultStore(state => state.shared.items);
+	const sharedWithMe = useVaultStore(state => state.sharedWithMe.items);
 	const [selectedEntry, setSelectedEntry] = useState<SharedEntry | null>(null);
 	const [searchParams] = useSearchParams();
 	const filterParam = (searchParams.get("filter") || "all") as ShareFilter;
@@ -69,6 +71,9 @@ export function SharedEntriesLayout() {
 				break;
 			case "revoked":
 				filtered = filtered.filter(e => e.status === "revoked");
+				break;
+			case "withme":
+				filtered = sharedWithMe;
 				break;
 			case "all":
 			default:

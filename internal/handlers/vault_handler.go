@@ -538,12 +538,19 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]s
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
 
+	utils.LogPretty("ListReceivedEntries - user", user)
+
+	existingSession, ok := vh.Sessions[user.ID]
+	if !ok {
+		return nil, fmt.Errorf("no active session for user %d", userID)
+	}
+
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	entries, err := uc.ListReceivedShares(ctx, uint(user.ID))
+	entries, err := uc.ListReceivedShares(ctx, uint(user.ID), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
 	}
 
 	return entries, nil

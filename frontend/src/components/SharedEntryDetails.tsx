@@ -20,7 +20,7 @@ interface SharedEntryDetailsProps {
 export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	const { toast } = useToast();
 	const [showAddForm, setShowAddForm] = useState(false);
-	const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" }>({
+	const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" | "read" }>({
 		name: "",
 		email: "",
 		role: "viewer"
@@ -189,7 +189,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 											</div>
 											<div className="flex items-center gap-2">
 												<Select
-													value={recipient.role}
+													value={recipient?.role}
 													onValueChange={(value: "viewer" | "editor" | "owner" | "read") =>
 														handleChangeRole(recipient.id, value)
 													}

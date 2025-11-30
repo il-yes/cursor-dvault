@@ -16,7 +16,6 @@ import Settings from "./pages/Settings";
 import EmailLookup from "./pages/EmailLookup";
 import LoginStep2 from "./pages/LoginStep2";
 import { ThemeProvider } from "@/components/theme-provider";
-import { listSharedEntries } from "@/services/api";
 
 const queryClient = new QueryClient();
 

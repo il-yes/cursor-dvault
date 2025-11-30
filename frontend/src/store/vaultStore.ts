@@ -6,11 +6,15 @@ import { toast } from '@/hooks/use-toast';
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
-import { listSharedEntries } from '@/services/api';
+import { listSharedEntries, listSharedWithMe } from '@/services/api';
 
 interface VaultStoreState {
   vault: VaultContext | null;
   shared: {
+    status: 'idle' | 'loading' | 'loaded';
+    items: SharedEntry[];
+  };
+  sharedWithMe: {
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };
@@ -26,6 +30,9 @@ interface VaultStoreState {
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
   updateSharedEntryRecipients: (entryId: string, recipients: Recipient[]) => void;
+
+  setSharedWithMe: (sharedWithMe: SharedEntry[]) => void;
+
 }
 interface PreloadedVaultResponse {
   User: any;
@@ -52,6 +59,10 @@ export const useVaultStore = create<VaultStoreState>()(
     (set, get) => ({
       vault: null,
       shared: {
+        status: 'idle',
+        items: [],
+      },
+      sharedWithMe: {
         status: 'idle',
         items: [],
       },
@@ -124,6 +135,7 @@ export const useVaultStore = create<VaultStoreState>()(
             hasRuntimeContext: !!vaultObject.vault_runtime_context,
           });
 
+          // share by me
           const sharedEntries = await listSharedEntries();
           console.log('✅ Listed shared entries:', sharedEntries);
           // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
@@ -131,11 +143,23 @@ export const useVaultStore = create<VaultStoreState>()(
             ? sharedEntries
             : (data.SharedEntries || []);
 
+          // share with me
+          const sharedWithMe = await listSharedWithMe();
+          console.log('✅ Listed shared with me:', sharedWithMe);
+          // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
+          const finalSharedWithMe = (sharedWithMe && sharedWithMe.length > 0)
+            ? sharedWithMe
+            : (data.Sha || []);
+
           set({
             vault: vaultObject,
             shared: {
               status: 'loaded',
               items: finalSharedEntries,
+            },
+            sharedWithMe: {
+              status: 'loaded',
+              items: finalSharedWithMe,
             },
             lastSyncTime: new Date().toISOString(),
             isLoading: false,
@@ -265,6 +289,15 @@ export const useVaultStore = create<VaultStoreState>()(
           shared: {
             status: 'loaded',
             items: sharedEntries,
+          },
+        });
+      },
+
+      setSharedWithMe: (sharedWithMe: SharedEntry[]) => {
+        set({
+          sharedWithMe: {
+            status: 'loaded',
+            items: sharedWithMe,
           },
         });
       },

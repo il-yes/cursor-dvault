@@ -26,14 +26,14 @@ export function RecipientsManagementModal({
   const [recipients, setRecipients] = useState<Recipient[]>(entry?.recipients || []);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newRecipientEmail, setNewRecipientEmail] = useState("");
-  const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner">("viewer");
+  const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner"| "read">("viewer");
 
   useEffect(() => {
     setRecipients(entry?.recipients || []);
   }, [entry]);
 
 
-  const handleRoleChange = (recipientId: string, newRole: "viewer" | "editor" | "owner") => {
+  const handleRoleChange = (recipientId: string, newRole: "viewer" | "editor" | "owner"| "read") => {
     setRecipients(recipients.map(r =>
       r.id === recipientId ? { ...r, role: newRole } : r
     ));
@@ -131,11 +131,12 @@ export function RecipientsManagementModal({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-role">Role</Label>
-                  <Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner")}>
+                  <Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner" | "read" )}>
                     <SelectTrigger id="new-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="read">Viewer</SelectItem>
                       <SelectItem value="viewer">Viewer</SelectItem>
                       <SelectItem value="editor">Editor</SelectItem>
                       <SelectItem value="owner">Owner</SelectItem>
@@ -200,13 +201,14 @@ export function RecipientsManagementModal({
                     </div>
 
                     <Select
-                      value={recipient.role}
-                      onValueChange={(value) => handleRoleChange(recipient.id, value as "viewer" | "editor" | "owner")}
+                      value={recipient?.role}
+                      onValueChange={(value) => handleRoleChange(recipient.id, value as "viewer" | "editor" | "owner"| "read")}
                     >
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                      <SelectItem value="read">Viewer</SelectItem>
                         <SelectItem value="viewer">Viewer</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="owner">Owner</SelectItem>

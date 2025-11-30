@@ -16,6 +16,8 @@ import Settings from "./pages/Settings";
 import EmailLookup from "./pages/EmailLookup";
 import LoginStep2 from "./pages/LoginStep2";
 import { ThemeProvider } from "@/components/theme-provider";
+import Feedback from "./pages/Feedback";
+import About from "./pages/About";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,8 @@ function AppContent() {
       <Route path="/auth/signin" element={<SignIn />} />
       <Route path="/login/email" element={<EmailLookup />} />
       <Route path="/login/step2" element={<LoginStep2/>} />
+      <Route path="/dashboard/feedback" element={<Feedback />} />
+      <Route path="/dashboard/about" element={<About />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>

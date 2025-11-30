@@ -1,4 +1,4 @@
-import { ReactNode, useState, useMemo, useEffect } from "react";
+import { ReactNode, useState, useMemo, useEffect, forwardRef } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Database, Shield, Settings, LogOut, Menu, Search, User,
@@ -41,6 +41,33 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 import { useAppStore } from "@/store/appStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
+import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
+import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps } from "react-router-dom";
+
+interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
+  children: React.ReactNode;
+  className?: string;
+  activeClassName?: string;
+}
+
+const CustomNavLink = forwardRef<HTMLAnchorElement, CustomNavLinkProps>(
+  ({ children, className = "", activeClassName = "", ...props }, ref) => {
+    return (
+      <ReactRouterNavLink
+        ref={ref}
+        className={({ isActive }) =>
+          `${className} ${isActive ? activeClassName : ""}`
+        }
+        {...props}
+      >
+        {children}
+      </ReactRouterNavLink>
+    );
+  }
+);
+CustomNavLink.displayName = "CustomNavLink";
+
 
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
@@ -198,10 +225,8 @@ function DashboardNavbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-            <Shield className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-bold text-foreground">VaultCore</span>
+          {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
+          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
         </div>
 
         <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
@@ -235,6 +260,8 @@ function DashboardNavbar() {
             )}
           </div>
         </div>
+
+        <ThemeToggle />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -273,7 +300,7 @@ function DashboardNavbar() {
   );
 }
 
-function AppSidebar() {
+function AppSidebar1() {
   const location = useLocation();
   const navigate = useNavigate();
   const isVaultContext = location.pathname.startsWith("/dashboard/vault");
@@ -441,17 +468,17 @@ function AppSidebar() {
           Upgrade to Premium
         </Button>
         {/* User Info at Bottom */}
-          <div className="flex items-center gap-3 px-2 py-3 rounded-lg bg-secondary/30 border-t border border-border">
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-primary/10 text-sm">
-                <User className="h-5 w-5 text-primary" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{user && user?.username}</p>
-              <p className="text-xs text-muted-foreground truncate">{user && user?.email}</p>
-            </div>
+        <div className="flex items-center gap-3 px-2 py-3 rounded-lg bg-secondary/30 border-t border border-border">
+          <Avatar className="h-9 w-9">
+            <AvatarFallback className="bg-primary/10 text-sm">
+              <User className="h-5 w-5 text-primary" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{user && user?.username}</p>
+            <p className="text-xs text-muted-foreground truncate">{user && user?.email}</p>
           </div>
+        </div>
       </div>
 
       {/* Upgrade Modal */}
@@ -508,6 +535,233 @@ function AppSidebar() {
     </Sidebar>
   );
 }
+function AppSidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+  const isSharedContext = location.pathname.startsWith("/dashboard/shared");
+  const { vaultContext, addFolder } = useVault();
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [isNewShareOpen, setIsNewShareOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
+  const { user } = useAuthStore();
+
+  const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
+  const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
+
+  const handleCreateFolder = () => {
+    if (newFolderName.trim()) {
+      addFolder(newFolderName);
+      setNewFolderName("");
+      setIsNewFolderOpen(false);
+    }
+  };
+
+  return (
+    <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl">
+      <SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30">
+        {(isVaultContext || isSharedContext) && (
+          <div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="w-full justify-start h-11 rounded-xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 hover:bg-white/70 dark:hover:bg-zinc-800/70 border border-zinc-200/50 dark:border-zinc-700/50 transition-all group"
+            >
+              <ArrowLeft className="mr-3 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium">Back to Dashboard</span>
+            </Button>
+          </div>
+        )}
+
+        <SidebarGroup >
+          <SidebarGroupLabel style={{marginTop: "30px"}} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+            {isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className={({ isActive }) =>
+                        `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
+                          isActive
+                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`
+                      }
+                    >
+                      <item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                      <span className="text-sm font-medium">{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {secondaryItems.length > 0 && (
+          <SidebarGroup style={{marginTop: "30px"}} >
+            <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+              {isVaultContext ? "Entry Types" : "More"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {secondaryItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className={({ isActive }) =>
+                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
+                            isActive
+                              ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`
+                        }
+                      >
+                        <item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="text-sm font-medium">{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Folders Section (Vault only) */}
+        {isVaultContext && (
+          <SidebarGroup style={{marginTop: "30px"}} >
+            <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 flex justify-between items-center bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+              <span>Folders</span>
+              <SidebarMenuButton asChild>
+                <button
+                  onClick={() => setIsNewFolderOpen(true)}
+                  className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all hover:scale-105 group"
+                >
+                  <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
+              </SidebarMenuButton>
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && vaultContext.Vault.folders.map((folder) => (
+                  <SidebarMenuItem key={folder.id}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={`/dashboard/vault/folder/${folder.id}`}
+                        className={({ isActive }) =>
+                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
+                            isActive
+                              ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`
+                        }
+                      >
+                        <Folder className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                        <span className="text-sm font-medium">{folder.name}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* New Share Button (Shared Entries only) */}
+        {isSharedContext && (
+          <div className="mt-auto p-6 bg-white/20 dark:bg-zinc-900/20 backdrop-blur-sm">
+            <Button
+              onClick={() => setIsNewShareOpen(true)}
+              className="w-full h-12 rounded-2xl bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-xl hover:shadow-[#C9A44A]/25 text-white font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Share
+            </Button>
+          </div>
+        )}
+      </SidebarContent>
+
+      {/* Premium Footer */}
+      <div className="mt-auto p-6 border-t border-zinc-200/30 dark:border-zinc-700/30 bg-gradient-to-b from-white/50 to-white/30 dark:from-zinc-900/50 dark:to-zinc-900/30 backdrop-blur-sm space-y-4">
+        <Button
+          onClick={() => setIsUpgradeOpen(true)}
+          className="w-full h-12 py-3 px-4 bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-2xl hover:shadow-[#C9A44A]/30 text-white font-semibold rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <Crown className="h-4 w-4 mr-2" />
+          Upgrade to Premium
+        </Button>
+        
+        {/* User Info */}
+        <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
+          <Avatar className="h-10 w-10 flex-shrink-0">
+            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
+              <User className="h-5 w-5 text-primary" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{user?.username}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals unchanged */}
+      <OnboardingModal open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
+      <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Folder Name</Label>
+              <Input
+                id="folder-name"
+                placeholder="e.g., Work Accounts"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateFolder();
+                }}
+                className="rounded-xl h-11"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsNewFolderOpen(false)} className="rounded-xl h-10">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className="bg-[#C9A44A] hover:bg-[#B8934A] rounded-xl h-10"
+              >
+                Create Folder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <NewShareModal
+        open={isNewShareOpen}
+        onOpenChange={setIsNewShareOpen}
+        onShareSuccess={() => {
+          setSharedEntriesRefreshKey(prev => prev + 1);
+          window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
+        }}
+      />
+    </Sidebar>
+  );
+}
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { user } = useAuthStore();
@@ -522,7 +776,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <DashboardNavbar />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto" style={{paddingRight: "25px"}}>
             {children}
           </main>
         </div>

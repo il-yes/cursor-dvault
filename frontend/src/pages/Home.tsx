@@ -63,10 +63,10 @@ const Home = () => {
             className="flex items-center gap-3 group hover:scale-105 transition-all duration-300"
           >
             <div className="w-10 h-10 backdrop-blur-sm flex items-center justify-center group-hover:shadow-xl">
-              <img src={ankhoraLogo} alt="Ankhora Logo" className="h-7 w-7 object-contain drop-shadow-md" />
+              {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-7 w-7 object-contain drop-shadow-md" /> */}
             </div>
-            <span className="text-2xl font-semibold bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight">
-              <small>ANKHORA</small>
+            <span  className="text-2xl font-semibold bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight">
+              <small style={{letterSpacing: "1.5px"}}>ANKHORA</small>
             </span>
           </button>
 
@@ -229,7 +229,7 @@ const Home = () => {
           <div className="grid lg:grid-cols-2 gap-20 items-start">
             <div>
               <h2 className="text-6xl md:text-7xl font-semibold mb-8 bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight leading-tight">
-                why <small>ANKHORA</small>?
+                <small>Why</small> <small style={{letterSpacing: "1.5px"}}>ANKHORA</small>?
               </h2>
               <p className="text-xl text-muted-foreground/90 mb-12 leading-relaxed max-w-lg backdrop-blur-sm">
                 <small>ANKHORA</small> combines the distributed permanence of IPFS with the immutable proof 

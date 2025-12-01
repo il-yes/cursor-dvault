@@ -171,7 +171,7 @@ export function GlobalSecurityInsight() {
 
         <div className="p-4 rounded-lg bg-secondary/50 border border-border">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <strong className="text-foreground">Security threats grow daily</strong> — D-Vault ensures your credentials stay sovereign and encrypted beyond global attack trends.
+            <strong className="text-foreground">Security threats grow daily</strong> — Ankhora ensures your credentials stay sovereign and encrypted beyond global attack trends.
           </p>
         </div>
       </CardContent>

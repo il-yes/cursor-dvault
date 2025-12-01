@@ -21,11 +21,13 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
 
 	if (!entry) {
 		return (
-			<div className="flex-1 flex items-center justify-center bg-gradient-to-b from-background to-secondary/20">
-				<div className="text-center text-muted-foreground">
-					<Users className="h-16 w-16 mx-auto mb-4 opacity-20" />
-					<p className="text-lg">Select a shared entry</p>
-					<p className="text-sm mt-2">Choose an entry to view its details</p>
+			<div className="flex-1 flex items-center h-full justify-center bg-gradient-to-b from-background to-secondary/20">
+				<div className="relative">
+					<div className="text-center text-muted-foreground">
+						<Users className="h-16 w-16 mx-auto mb-4 opacity-20" />
+						<p className="text-lg">Select a shared entry</p>
+						<p className="text-sm mt-2">Choose an entry to view its details</p>
+					</div>
 				</div>
 			</div>
 		);

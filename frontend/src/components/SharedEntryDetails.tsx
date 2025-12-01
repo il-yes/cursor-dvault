@@ -65,7 +65,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
 				<div className="relative">
-					<img src={ankhoraLogo} alt="Ankhora Logo" className=" w-auto" style={{ width: "11.5rem" }} />
+					<img src={ankhoraLogo} alt="Ankhora Logo" className="w-32 h-auto mx-auto"  />
 					{/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
 					{/* <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" /> */}
 				</div>

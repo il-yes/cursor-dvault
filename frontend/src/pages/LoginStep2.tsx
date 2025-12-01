@@ -15,7 +15,6 @@ import { useAppStore } from "@/store/appStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
 
-
 const LoginStep2 = () => {
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email") || "";
@@ -72,14 +71,10 @@ const LoginStep2 = () => {
 
       if (hasStellar && publicKey) {
         payload.publicKey = publicKey;
-        // TODO: Add signing logic when backend is ready
-        // payload.signedMessage = signedMessage;
-        // payload.signature = signature;
         console.log("Stellar login payload:", payload);
 
         const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
 
-        // Check if we got a valid response
         if (!res) throw new Error("SignIn failed: empty result");
 
         await handleSuccessfulAuth(res);
@@ -92,7 +87,7 @@ const LoginStep2 = () => {
         navigate("/dashboard");
       }
 
-      const response = await login(payload);  // Check if we got a valid response
+      const response = await login(payload);
       if (!response) throw new Error("SignIn failed: empty result");
 
       await handleSuccessfulAuth(response);
@@ -114,27 +109,22 @@ const LoginStep2 = () => {
     }
   };
 
-
   const handleSuccessfulAuth = async (data: any) => {
     console.log("🎉 Auth Success (raw):", data);
 
-    // Normalize backend shape into what store expects
     const normalized = normalizePreloadedVault(data);
     console.log("🎯 Normalized payload:", normalized);
 
-    // Save user
     setUser(normalized.User);
     setLoggedIn(true);
     updateOnboarding({ userId: normalized.User.id });
     localStorage.setItem("userId", JSON.stringify(normalized.User.id));
 
-    // Save tokens
     if (normalized.Tokens) {
       setJwtToken(normalized.Tokens.access_token);
       setRefreshToken(normalized.Tokens.refresh_token);
     }
 
-    // Save session data (runtime from backend)
     useAppStore.getState().setSessionData({
       user: normalized.User,
       vault_runtime_context: normalized.vault_runtime_context || null,
@@ -142,7 +132,6 @@ const LoginStep2 = () => {
       dirty: normalized.dirty,
     });
 
-    // Load vault into zustand (pass normalized)
     console.log('🚀 SignIn: About to call vaultStore.loadVault with:', {
       hasUser: !!normalized.User,
       hasVault: !!normalized.Vault,
@@ -176,43 +165,44 @@ const LoginStep2 = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-6">
+      <div className="w-full max-w-md space-y-8 animate-fadeIn">
         <Button
           variant="ghost"
           onClick={() => navigate("/login/email")}
-          className="mb-4"
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
 
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+        <div className="text-center space-y-3">
+          <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-2xl bg-white/60 dark:bg-zinc-800/50 shadow-sm backdrop-blur-sm">
             <Shield className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold">Welcome Back</h1>
-          <p className="text-muted-foreground">
-            Sign in to {email}
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome Back</h1>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Sign in to <span className="font-medium text-foreground">{email}</span>
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Enter Your Credentials</CardTitle>
-            <CardDescription>
-              Use your authentication method to sign in
-            </CardDescription>
+        <Card className="border-none shadow-md backdrop-blur-sm bg-white/70 dark:bg-zinc-900/60">
+          <CardHeader className="text-center space-y-1">
+            <CardTitle className="text-lg font-medium">Enter Credentials</CardTitle>
+            <CardDescription>Access your secure vault</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {hasPassword && (
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
+                      className="h-11 rounded-xl border-zinc-200 dark:border-zinc-700 pr-12 focus:ring-2 focus:ring-primary/30 transition-all"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -223,7 +213,7 @@ const LoginStep2 = () => {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
@@ -237,18 +227,21 @@ const LoginStep2 = () => {
               )}
 
               {hasStellar && (
-                <div className="space-y-2">
-                  <Label htmlFor="publicKey">Stellar Public Key</Label>
+                <div className="space-y-3">
+                  <Label htmlFor="publicKey" className="text-sm font-medium">
+                    Stellar Public Key
+                  </Label>
                   <Input
                     id="publicKey"
                     type="text"
+                    className="h-11 rounded-xl border-zinc-200 dark:border-zinc-700 focus:ring-2 focus:ring-primary/30 transition-all"
                     placeholder="GXXXXXX..."
                     value={publicKey}
                     onChange={(e) => setPublicKey(e.target.value)}
                     required
                     disabled={isLoading}
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     You'll be prompted to sign a message with your wallet
                   </p>
                 </div>
@@ -256,7 +249,7 @@ const LoginStep2 = () => {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-11 rounded-xl text-[15px] font-medium transition-all hover:scale-[1.01] active:scale-[0.99]"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Sign In"}
@@ -265,7 +258,7 @@ const LoginStep2 = () => {
               <Button
                 type="button"
                 variant="link"
-                className="w-full text-sm"
+                className="w-full text-xs text-muted-foreground hover:text-foreground h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800"
                 onClick={() => {
                   toast({
                     title: "Coming soon",

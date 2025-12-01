@@ -1,4 +1,4 @@
-# D-Vault — Self-Sovereign Digital Vault
+# Ankhora — Self-Sovereign Digital Vault
 
 A decentralized digital vault built on **IPFS** and **Stellar** for secure, verifiable, and self-sovereign data storage.
 
@@ -112,4 +112,4 @@ This is a frontend scaffold ready for integration with the Golang backend. All I
 
 ---
 
-**D-Vault © 2025 — Built for the Self-Sovereign Web.**
+**Ankhora © 2025 — Built for the Self-Sovereign Web.**

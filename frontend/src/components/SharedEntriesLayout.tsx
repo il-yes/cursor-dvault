@@ -5,6 +5,7 @@ import { SharedEntriesList } from "@/components/SharedEntriesList";
 import { SharedEntryOverview } from "@/components/SharedEntryOverview";
 import { SharedEntryDetails } from "@/components/SharedEntryDetails";
 import { useVaultStore } from "@/store/vaultStore";
+import "./contributionGraph/g-scrollbar.css";
 
 export function SharedEntriesLayout() {
 	const sharedEntries = useVaultStore((state) => state.shared.items);
@@ -97,7 +98,7 @@ export function SharedEntriesLayout() {
 
 			{/* Column 3: Entry Overview */}
 			<div className="hidden md:flex flex-col w-80 lg:w-96 border-r border-border overflow-hidden">
-				<div className="flex-1 overflow-y-auto">
+				<div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
 					<SharedEntryOverview
 						entry={selectedEntry}
 						onViewChange={setDetailView}
@@ -107,7 +108,7 @@ export function SharedEntriesLayout() {
 
 			{/* Column 4: Detail Panel (but visually column 3) */}
 			<div className="flex-1 hidden lg:flex flex-col overflow-hidden">
-				<div className="flex-1 overflow-y-auto">
+				<div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
 					<SharedEntryDetails
 						entry={selectedEntry}
 						view={detailView}

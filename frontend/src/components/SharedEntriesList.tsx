@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreditCard, FileText, Key, Shield, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import "./contributionGraph/g-scrollbar.css";
 
 interface SharedEntriesListProps {
   entries: SharedEntry[];
@@ -59,7 +60,7 @@ export function SharedEntriesList({
       </div>
 
       {/* Scrollable List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
         <div className="p-2 space-y-1">
           {entries.map((entry) => {
             const Icon = getEntryIcon(entry.entry_type);

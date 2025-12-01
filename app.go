@@ -25,6 +25,8 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/mapstructure"
+    "github.com/wailsapp/wails/v2/pkg/runtime"
+
 )
 
 type CoreApp interface {
@@ -157,6 +159,7 @@ func NewApp() *App {
 		},
 	})
 
+	ctx, cancel := context.WithCancel(context.Background())
 	runtimeCtx := &models.VaultRuntimeContext{
 		AppSettings: app_config.AppConfig{
 			// Load from file/env or defaults
@@ -180,7 +183,6 @@ func NewApp() *App {
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth)
 
-	ctx, cancel := context.WithCancel(context.Background())
 
 	// ⚡ Restore sessions asynchronously to speed up startup
 	go func() {
@@ -334,8 +336,93 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 	if err != nil {
 		return "", err
 	}
+	a.Vaults.Ctx = a.ctx
 	return a.Vaults.SyncVault(claims.UserID, password)
 }
+
+func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
+    claims, err := a.Auth.RequireAuth(jwtToken)
+    if err != nil {
+        return "", err
+    }
+    
+    // Emit start progress
+    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+        "percent": 0,
+        "stage":   "encrypting",
+    })
+    
+    // Real AES-256-GCM encryption with progress
+    encryptedPath, err := a.Vaults.EncryptFile(claims.UserID, []byte(fileData), password)
+    if err != nil {
+        return "", err
+    }
+    
+    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+        "percent": 70,
+        "stage":   "encrypted",
+    })
+    
+    return encryptedPath, nil
+}
+func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
+    claims, err := a.Auth.RequireAuth(jwtToken)
+    if err != nil {
+        return "", err
+    }
+    
+    // Simulate upload progress (integrate with your IPFS client for real progress)
+    current := 70
+    for i := 1; i <= 20; i++ {
+        current += 1
+        runtime.EventsEmit(a.ctx, "progress-update", current)
+        time.Sleep(50 * time.Millisecond) // Simulate; use actual IPFS progress
+    }
+    
+    cid, err := a.Vaults.UploadToIPFS(claims.UserID, filePath)
+    runtime.EventsEmit(a.ctx, "progress-update", 95) // Near complete
+	if err != nil {
+		return "", err
+	}
+    return cid, nil
+}
+func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
+    claims, err := a.Auth.RequireAuth(jwtToken)
+    if err != nil {
+        return "", err
+    }
+    
+    // Quick commit with final progress
+    runtime.EventsEmit(a.ctx, "progress-update", 100)
+    return a.Vaults.CreateStellarCommit(claims.UserID, cid)
+}
+func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
+    claims, err := a.Auth.RequireAuth(jwtToken)
+    if err != nil {
+        return "", err
+    }
+    
+    // Emit start progress
+    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+        "percent": 0,
+        "stage":   "encrypting",
+    })
+    
+    // Real AES-256-GCM encryption with progress
+    encryptedPath, err := a.Vaults.EncryptVault(claims.UserID, password)
+    if err != nil {
+        return "", err
+    }
+    
+    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+        "percent": 70,
+        "stage":   "encrypted",
+    })
+    
+    return encryptedPath, nil
+}
+
+
 type CreateShareInput struct {
     Payload handlers.CreateShareEntryPayload `json:"payload"`
     JwtToken string                                   `json:"jwtToken"`

@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Shield, Cloud, Palette, Trash2, Download, Lock, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/store/appStore";
+import "../components/contributionGraph/g-scrollbar.css";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -53,7 +54,7 @@ const Settings = () => {
 
   return (
     <DashboardLayout>
-      <div className="h-full overflow-y-auto bg-gradient-to-b from-background to-secondary/20">
+      <div className="h-full overflow-y-auto scrollbar-glassmorphism thin-scrollbar bg-gradient-to-b from-background to-secondary/20">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
           {/* Header */}
           <div className="space-y-2">

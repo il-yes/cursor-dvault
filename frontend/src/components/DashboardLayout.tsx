@@ -44,6 +44,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps } from "react-router-dom";
+import "./contributionGraph/g-scrollbar.css";
+import "./contributionGraph/g-scrollbar.css";
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;
@@ -277,6 +279,10 @@ function DashboardNavbar() {
             <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
               <User className="mr-2 h-4 w-4" />
               Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/dashboard/profile-beta")}>
+              <User className="mr-2 h-4 w-4" />
+              Profile (beta)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
               <Settings className="mr-2 h-4 w-4" />
@@ -560,10 +566,10 @@ function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl">
-      <SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30">
+    <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
+      <SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30 scrollbar-glassmorphism thin-scrollbar">
         {(isVaultContext || isSharedContext) && (
-          <div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20">
+          <div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20 ">
             <Button
               variant="ghost"
               size="sm"
@@ -776,7 +782,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <DashboardNavbar />
-          <main className="flex-1 overflow-auto" style={{paddingRight: "25px"}}>
+          <main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{paddingRight: "25px"}}>
             {children}
           </main>
         </div>

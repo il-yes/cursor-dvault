@@ -30,7 +30,6 @@ import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
 
 
-const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://localhost:4001/api';
 
 export interface VaultEntry {
   id: string;
@@ -57,7 +56,8 @@ export interface ShareEntryResponse {
 }
 
 // Backend API base URL (configure based on environment)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001/api';
+const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://localhost:4001/api';
 
 /**
  * Mock data for preview/development mode
@@ -289,7 +289,7 @@ export interface CreateVaultPayload {
 export async function createVault(payload: CreateVaultPayload): Promise<{ success: boolean; vaultContext?: any }> {
   try {
     // TODO: Replace with actual API call
-    const response = await fetch(`${API_BASE_URL}/api/vault/create`, {
+    const response = await fetch(`${CLOUD_BASE_URL}/api/vault/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -320,7 +320,7 @@ export async function createVault(payload: CreateVaultPayload): Promise<{ succes
  */
 export async function setupStellarAccount(): Promise<{ publicKey: string; privateKey: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stellar/setup`, {
+    const response = await fetch(`${CLOUD_BASE_URL}/stellar/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -341,7 +341,7 @@ export async function setupStellarAccount(): Promise<{ publicKey: string; privat
  */
 export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string }): Promise<{ plaintext: string; expires_in: number }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/entry/decrypt`, {
+    const response = await fetch(`${API_BASE_URL}/entry/decrypt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -369,7 +369,7 @@ export async function logAuditEvent(event: {
   user_id: string;
 }): Promise<void> {
   try {
-    await fetch(`${API_BASE_URL}/api/audit/log`, {
+    await fetch(`${API_BASE_URL}/audit/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(event),
@@ -391,7 +391,7 @@ export async function upgradeVaultPlan(payload: {
   };
 }): Promise<{ success: boolean }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/payment/upgrade`, {
+    const response = await fetch(`${API_BASE_URL}/payment/upgrade`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -413,7 +413,7 @@ export async function upgradeVaultPlan(payload: {
  */
 export async function getVaultContext(): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/vault`, {
+    const response = await fetch(`${API_BASE_URL}/vault`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

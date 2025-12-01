@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
 import localSovereignty from "@/assets/local-sovereignty.jpg";
 import decentralizedSync from "@/assets/decentralized-sync.jpg";
 import sovereignCloud from "@/assets/sovereign-cloud.jpg";

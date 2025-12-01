@@ -18,6 +18,7 @@ import LoginStep2 from "./pages/LoginStep2";
 import { ThemeProvider } from "@/components/theme-provider";
 import Feedback from "./pages/Feedback";
 import About from "./pages/About";
+import ProfileBeta from "./pages/ProfileBeta";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ function AppContent() {
       <Route path="/dashboard/vault/folder/:folderId" element={<Vault />} />
       <Route path="/dashboard/shared" element={<ShareEntries />} />
       <Route path="/dashboard/profile" element={<Profile />} />
+      <Route path="/dashboard/profile-beta" element={<ProfileBeta />} />
       <Route path="/dashboard/settings" element={<Settings />} />
       <Route path="/vault/offline" element={<OfflineVault />} />
       <Route path="/auth/signin" element={<SignIn />} />

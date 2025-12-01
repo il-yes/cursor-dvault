@@ -20,6 +20,12 @@ interface VaultContextValue {
 	restoreEntry: (entryId: string) => Promise<void>;
 	toggleFavorite: (entryId: string) => Promise<void>;
 	addFolder: (name: string) => Promise<void>;
+	sync: (jwtToken: string) => Promise<void>;
+	encryptFile: (jwtToken: string, filePath: Uint8Array, vaultPassword: string) => Promise<string>;
+	encryptVault: (jwtToken: string, vaultPassword: string) => Promise<string>;
+	uploadToIPFS: (jwtToken: string, filePath: string | Uint8Array) => Promise<string>;
+	createStellarCommit: (jwtToken: string, cid: string) => Promise<string>;
+	syncVault: (jwtToken: string, vaultPassword: string) => Promise<string>;
 }
 
 const VaultContextProvider = createContext<VaultContextValue | undefined>(undefined);
@@ -400,6 +406,57 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		}
 	};
 
+	const sync = async (jwtToken: string) => {
+		const { refreshVault } = useVault();
+		const { loadVault } = useVaultStore()
+
+		try {
+			const vaultPassword = "password"
+			const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
+			console.log("Vault sync success:", cid);
+
+			// 1. Reload full updated vault session from backend
+			const updatedContext = await loadVault();
+
+			// 2. Update the VaultProvider runtime with fresh session
+			// 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
+			await refreshVault();
+
+			toast({
+				title: "Success",
+				description: "Vault synced successfully!",
+			});
+		} catch (err) {
+			toast({
+				title: "Error",
+				description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
+			});
+		}
+	};
+
+
+	const encryptFile = (jwtToken: string, filePath: Uint8Array, vaultPassword: string): Promise<string> => {
+		// call backend encryptFile (sync)
+		return AppAPI.EncryptFile(jwtToken, filePath.toString(), vaultPassword || "vaultPassword");
+	}
+	// ✅ CORRECT - No hooks inside functions
+	const encryptVault = (jwtToken: string, vaultPassword: string): Promise<string> => {
+		return AppAPI.EncryptVault(jwtToken, vaultPassword);
+	};
+
+	const uploadToIPFS = (jwtToken: string, encryptedData: string): Promise<string> => {
+		return AppAPI.UploadToIPFS(jwtToken, encryptedData);
+	};
+
+	const createStellarCommit = (jwtToken: string, cid: string): Promise<string> => {
+		return AppAPI.CreateStellarCommit(jwtToken, cid);
+	};
+
+
+
+	const syncVault = (jwtToken: string, vaultPassword: string): Promise<string> => {
+		return AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
+	}	
 
 
 	return (
@@ -416,6 +473,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				restoreEntry,
 				toggleFavorite,
 				addFolder,
+				sync,
+				encryptFile,
+				encryptVault,
+				uploadToIPFS,
+				createStellarCommit,
+				syncVault
 			}}
 		>
 			{children}

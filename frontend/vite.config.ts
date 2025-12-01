@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
+      "./wailsjs/*": path.resolve(__dirname, "./wailsjs/*"),
       "@": path.resolve(__dirname, "./src"),
     },
   },

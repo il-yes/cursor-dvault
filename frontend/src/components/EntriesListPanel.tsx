@@ -3,6 +3,7 @@ import { LogIn, CreditCard, FileText, Key, UserCircle, Star, Edit, Trash2, Share
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useVault } from "@/hooks/useVault";
+import "./contributionGraph/g-scrollbar.css";
 
 interface EntriesListPanelProps {
   entries: VaultEntry[];
@@ -35,7 +36,7 @@ export function EntriesListPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Entries List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
         {entries.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground p-8">
             <div className="text-center">

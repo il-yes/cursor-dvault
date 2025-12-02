@@ -50,7 +50,6 @@ interface PreloadedVaultResponse {
   dirty?: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 const CLOUD_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001';
 const USE_MOCK = import.meta.env.VITE_MOCK_VAULT === 'true';
 
@@ -96,7 +95,7 @@ export const useVaultStore = create<VaultStoreState>()(
             await new Promise((res) => setTimeout(res, 500)); // simulate delay
           } else {
             // ✅ Fetch from backend
-            const response = await fetch(`${CLOUD_BASE_URL}/api/vault`, {
+            const response = await fetch(`${CLOUD_BASE_URL}/vault`, {
               method: 'GET',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
@@ -170,7 +169,7 @@ export const useVaultStore = create<VaultStoreState>()(
             description: `Last synced: ${new Date().toLocaleString()}`,
           });
         } catch (err) {
-          console.error('❌ Failed to load vault:', err);
+          err && console.error('❌ Failed to load vault:', err);
           set({ isLoading: false });
 
           // toast({
@@ -335,9 +334,7 @@ export const useVaultStore = create<VaultStoreState>()(
             ),
           },
         });
-      },
-
-
+      }
     }),
     {
       name: 'vault-storage',

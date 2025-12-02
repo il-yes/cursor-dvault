@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { Clock } from "lucide-react";
-
+import "./contributionGraph/g-scrollbar.css";
 
 interface EntryDetailPanelProps {
     entry: VaultEntry | null;
@@ -458,7 +458,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             </div>
 
             {/* Scrollable Glass Content */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar p-8 space-y-8">
                 {/* Metadata Glass Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">

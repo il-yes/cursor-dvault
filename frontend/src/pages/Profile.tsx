@@ -17,8 +17,9 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { useState, useRef } from "react";
+import "../components/contributionGraph/g-scrollbar.css";
 
-const Profile = () => {
+const ProfileBeta = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
@@ -133,10 +134,9 @@ const Profile = () => {
     }
   };
 
-
   return (
     <DashboardLayout>
-      <div className="h-full overflow-y-auto bg-gradient-to-b from-background to-secondary/20">
+      <div className="h-full overflow-y-auto scrollbar-glassmorphism thin-scrollbar bg-gradient-to-b from-background to-secondary/20">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
           {/* Header */}
           <div className="space-y-2">
@@ -352,4 +352,4 @@ const Profile = () => {
   );
 };
 
-export default Profile;
+export default ProfileBeta;

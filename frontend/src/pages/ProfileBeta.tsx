@@ -16,127 +16,241 @@ import { formatMonthYear } from "@/services/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Progress } from "@radix-ui/react-progress";
+import { GlassProgressBar } from "@/components/GlassProgressBar";
+import "../components/contributionGraph/g-scrollbar.css";
 
 const Profile = () => {
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
-  const { clearVault: clearVaultContext, vaultContext } = useVault();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+	const { toast } = useToast();
+	const navigate = useNavigate();
+	const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
+	const { clearVault: clearVaultContext, vaultContext } = useVault();
+	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const vaultPassword = "vaultPassword";
+	const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
+	const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
+	const usagePercent = Math.ceil((totalEntries / maxEntries) * 100);
+	const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
+	const session = useAppStore.getState().session;
+	const user = session?.vault_runtime_context?.CurrentUser
+	const [progressVisible, setProgressVisible] = useState(false);
 
-  const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
-  const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
-  const usagePercent = Math.ceil((totalEntries / maxEntries) * 100);
-  const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
-  const session = useAppStore.getState().session;
-  const user = session?.vault_runtime_context?.CurrentUser
+	const { encryptFile, uploadToIPFS, createStellarCommit, syncVault, refreshVault, hydrateVault } = useVault();
 
-   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select an image smaller than 2MB.",
-          variant: "destructive",
-        });
-        return;
-      }
+	const [progress, setProgress] = useState(0);
+	const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setAvatarUrl(e.target?.result as string);
-        toast({
-          title: "Avatar updated",
-          description: "Your profile picture has been changed.",
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+	useEffect(() => {
+		const callback = (payload: { percent: number, stage: string } | number) => {
+			if (typeof payload === 'object' && payload.percent !== undefined) {
+				setProgress(payload.percent);
+				setStage(payload.stage);
+			} else {
+				setProgress(payload as number);
+			}
+		};
 
-  const handleCopyStellarAddress = (stellarAddress: string) => {
-    navigator.clipboard.writeText(stellarAddress);
-    toast({
-      title: "Copied!",
-      description: "Stellar address copied to clipboard",
-    });
-  };
+		window.runtime?.EventsOn('progress-update', callback);
+		return () => window.runtime?.EventsOff('progress-update');
+	}, []);
 
-  const handleRotateKey = () => {
-    toast({
-      title: "Key Rotation Initiated",
-      description: "Your encryption key is being rotated. This may take a moment.",
-    });
-  };
+	// 3. Verify your VaultProvider useEffect syncs properly
+	// VaultProvider.tsx
+	useEffect(() => {
+		console.log('🔄 VaultProvider: vaultStoreData changed:', {
+			user_id: vault?.user_id,
+			dirty: vault?.Dirty,
+			lastSynced: vault?.LastSynced,
+		});
 
-  const handleSyncNow = () => {
-    toast({
-      title: "Syncing...",
-      description: "Synchronizing your vault with the blockchain.",
-    });
-  };
+		if (vault) {
+			hydrateVault(vault); // This triggers layout re-render
+		}
+	}, [vault]); // ✅ This ensures context follows store
 
-  const handleGenerateApiKey = () => {
-    toast({
-      title: "API Key Generated",
-      description: "Your new API key has been created.",
-    });
-  };
+	// Updated handleAvatarUpload
+	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		setProgressVisible(true);
+		const file = e.target.files?.[0];
+		if (file) {
+			if (file.size > 2 * 1024 * 1024) {
+				toast({
+					title: "File too large",
+					description: "Please select an image smaller than 2MB.",
+					variant: "destructive",
+				});
+				return;
+			}
+			const { jwtToken } = useAuthStore.getState();
+			setProgress(0); // Start at 0
 
-  const handleLogout = () => {
-    // Clear all stores and state
-    clearVaultStore();                   // Clear vault store (entries, vault data)
-    clearVaultContext();                 // Clear vault context provider
-    useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-    useAppStore.getState().reset();      // Clear app store (session)
+			try {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					setAvatarUrl(e.target?.result as string);
+				};
+				reader.readAsDataURL(file);
 
-    // Clear specific localStorage items (not all, to preserve settings)
-    localStorage.removeItem('userId');
-    localStorage.removeItem('vault-storage');
+				setStage('encrypting...');
+				// Pass file buffer/path to backend (adjust encrypt to accept File or ArrayBuffer)
+				const filePath = await readFileAsBuffer(file); // Helper to get buffer
+				const encryptedData = await encryptFile(jwtToken, filePath, vaultPassword); // Now async with progress events
 
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
+				setStage('uploading...');
+				const cid = await uploadToIPFS(jwtToken, encryptedData); // Progress events update UI
+				console.log({ cid });
+				setStage('committing...');
+				const stellarOp = await createStellarCommit(jwtToken, cid); // Final progress to 100
+				console.log({ stellarOp });
 
-    navigate("/auth/signin");
-  };
+				toast({
+					title: "Avatar updated",
+					description: "Your profile picture has been changed.",
+				});
+				setProgress(100);
+				setStage('complete');
+				setTimeout(() => setProgressVisible(false), 2000);
+			} catch (error) {
+				setProgressVisible(false);
+				toast({
+					title: "Upload failed",
+					description: "Please try again.",
+					variant: "destructive",
+				});
+				setProgress(0);
+			}
+		}
+	};
 
-  const handleSync = async () => {
-    const { jwtToken } = useAuthStore.getState();
-    const { refreshVault } = useVault();
+	// Helper to read file as buffer for Go
+	const readFileAsBuffer = (file: File): Promise<Uint8Array> => {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+			reader.onerror = reject;
+			reader.readAsArrayBuffer(file);
+		});
+	};
 
-    try {
-      const vaultPassword = "password"
-      const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
-      console.log("Vault sync success:", cid);
+	const handleCopyStellarAddress = (stellarAddress: string) => {
+		navigator.clipboard.writeText(stellarAddress);
+		toast({
+			title: "Copied!",
+			description: "Stellar address copied to clipboard",
+		});
+	};
 
-      // 1. Reload full updated vault session from backend
-      const updatedContext = await loadVault();
+	const handleRotateKey = () => {
+		toast({
+			title: "Key Rotation Initiated",
+			description: "Your encryption key is being rotated. This may take a moment.",
+		});
+	};
 
-      // 2. Update the VaultProvider runtime with fresh session
-      // 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
-      await refreshVault();
+	const handleSyncNow = () => {
+		toast({
+			title: "Syncing...",
+			description: "Synchronizing your vault with the blockchain.",
+		});
+	};
 
-      toast({
-        title: "Success",
-        description: "Vault synced successfully!",
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
-      });
-    }
-  };
+	const handleGenerateApiKey = () => {
+		toast({
+			title: "API Key Generated",
+			description: "Your new API key has been created.",
+		});
+	};
+
+	const handleLogout = () => {
+		// Clear all stores and state
+		clearVaultStore();                   // Clear vault store (entries, vault data)
+		clearVaultContext();                 // Clear vault context provider
+		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+		useAppStore.getState().reset();      // Clear app store (session)
+
+		// Clear specific localStorage items (not all, to preserve settings)
+		localStorage.removeItem('userId');
+		localStorage.removeItem('vault-storage');
+
+		toast({
+			title: "Logged out",
+			description: "You have been successfully logged out.",
+		});
+
+		navigate("/auth/signin");
+	};
+
+	const handleSync0 = async () => {
+		const { jwtToken } = useAuthStore.getState();
+		const { refreshVault } = useVault();
+
+		try {
+			const vaultPassword = "password"
+			const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
+			console.log("Vault sync success:", cid);
+
+			// 1. Reload full updated vault session from backend
+			const updatedContext = await loadVault();
+
+			// 2. Update the VaultProvider runtime with fresh session
+			// 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
+			await refreshVault();
+
+			toast({
+				title: "Success",
+				description: "Vault synced successfully!",
+			});
+		} catch (err) {
+			toast({
+				title: "Error",
+				description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
+			});
+		}
+	};
+
+	const handleSyncBeta = async () => {
+		setProgressVisible(true);
+		const vaultPassword = "password";
+		const { jwtToken } = useAuthStore.getState();
+		setProgress(0);
+		setStage("starting...");
+
+		try {
+			setStage("syncing vault...");
+
+			// Call new sync method that internally runs all steps with progress emits
+			const cid = await syncVault(jwtToken, vaultPassword);
+			console.log("Vault sync success:", cid);
+			setProgress(100);
+			setStage("complete");
+
+			toast({ title: "Success", description: "Vault synced successfully!" });
+
+			// Refresh vault state on frontend after sync finishes
+			await loadVault();
+			await refreshVault();
+			// 3. Give Zustand time to propagate (usually instant)
+			await new Promise(resolve => setTimeout(resolve, 100));
+
+
+			// After some delay, hide the progress bar like a toast
+			setTimeout(() => setProgressVisible(false), 2000);
+
+		} catch (error) {
+			setProgressVisible(false);
+
+			toast({ title: "Error", description: `Failed to sync vault: ${(error as Error).message}` });
+			setProgress(0);
+			setStage("error");
+		}
+	};
+
 
 	return (
 		<DashboardLayout>
-			<div className="h-full overflow-y-auto bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 backdrop-blur-xl">
+			<div className="h-full overflow-y-auto scrollbar-glassmorphism thin-scrollbar bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 backdrop-blur-xl">
 				<div className="max-w-5xl mx-auto p-8 space-y-8">
 					{/* Hero Header */}
 					<div className="text-center backdrop-blur-xl bg-white/40 dark:bg-zinc-900/40 rounded-3xl p-12 border border-white/30 dark:border-zinc-700/30 shadow-2xl">
@@ -147,6 +261,27 @@ const Profile = () => {
 							Manage your sovereign identity and vault preferences
 						</p>
 					</div>
+
+					{/* {progress > 0 && (
+						<div
+							className="fixed bottom-4 left-0 right-0 mx-auto max-w-xl px-4"
+							style={{ zIndex: 1000 }}
+						>
+							<div className="w-full bg-gray-200 rounded-full h-3 shadow">
+								<div
+									className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-in-out"
+									style={{ width: `${progress}%` }}
+								/>
+							</div>
+							<p className="text-center text-sm text-gray-600 capitalize mt-1">
+								{stage} ({Math.round(progress)}%)
+							</p>
+						</div>
+					)} */}
+					<GlassProgressBar value={progress} label={`${stage} (${Math.round(progress)}%)`} visible={progressVisible} />
+
+
+
 
 					<div className="grid lg:grid-cols-2 gap-8">
 						{/* User Info Glass Card */}
@@ -318,7 +453,7 @@ const Profile = () => {
 								<Button
 									variant="outline"
 									size="lg"
-									onClick={handleSync}
+									onClick={handleSyncBeta}
 									className="h-20 rounded-2xl backdrop-blur-xl bg-white/60 dark:bg-zinc-800/60 border-white/40 hover:bg-white/80 shadow-xl hover:shadow-2xl font-semibold group"
 								>
 									<RefreshCw className="h-6 w-6 mr-3 group-hover:rotate-180 transition-all" />

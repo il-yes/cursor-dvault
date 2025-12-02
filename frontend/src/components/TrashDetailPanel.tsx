@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { VaultEntry } from "@/types/vault";
 import { RotateCcw, Trash2, Shield, Calendar, Type } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import "./contributionGraph/g-scrollbar.css";
 
 interface TrashDetailPanelProps {
   entry: VaultEntry | null;
@@ -72,7 +73,7 @@ export function TrashDetailPanel({ entry, onRestore, onDeletePermanently }: Tras
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar p-6">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Entry Info */}
           <div className="bg-card border border-border rounded-lg p-6 space-y-4">

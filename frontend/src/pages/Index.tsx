@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Shield, Database, Activity, Users } from "lucide-react";
 import { GlobalSecurityInsight } from "@/components/GlobalSecurityInsight";
 import { useVaultStore } from "@/store/vaultStore";
-import ContributionGraph from "@/components/ContributionGraph"
+import ContributionGraph from "@/components/contributionGraph/ContributionGraph"
 
 
 const Index = () => {
@@ -124,7 +124,7 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-xl backdrop-blur-sm bg-white/60 dark:bg-zinc-900/50 lg:col-span-1">
+          <Card className="border-none shadow-xl backdrop-blur-sm bg-white/60 dark:bg-zinc-900/50 lg:col-span-1 ">
             <CardHeader>
               <CardTitle className="text-xl font-medium">Your Contributions</CardTitle>
               <CardDescription>Activity over time</CardDescription>

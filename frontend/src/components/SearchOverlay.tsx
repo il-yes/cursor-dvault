@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { VaultEntry } from "@/types/vault";
 import { LogIn, CreditCard, UserCircle, FileText, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
+import "./contributionGraph/g-scrollbar.css";
 
 interface SearchOverlayProps {
   entries: VaultEntry[];
@@ -84,7 +85,7 @@ export function SearchOverlay({ entries, searchQuery, onSelectEntry, onClose }: 
   if (!searchQuery.trim()) return null;
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto z-50 animate-fade-in">
+    <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-lg shadow-lg max-h-96 overflow-y-auto scrollbar-glassmorphism thin-scrollbar z-50 animate-fade-in">
       {!hasResults ? (
         <div className="p-4 text-center text-muted-foreground">
           No results found for "{searchQuery}"

@@ -21,6 +21,8 @@ import (
 	"vault-app/internal/registry"
 	"vault-app/internal/services"
 	"vault-app/internal/tracecore"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type VaultHandler struct {
@@ -40,6 +42,7 @@ type VaultHandler struct {
 	SessionsMu     sync.Mutex
 
 	EventDispatcher share_application_events.EventDispatcher
+	Ctx             context.Context	
 }
 
 func NewVaultHandler(
@@ -141,7 +144,7 @@ func (vh *VaultHandler) IsVaultDirty() bool {
 	return vh.vaultDirty
 }
 
-func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
+func (vh *VaultHandler) SyncVault0(userID int, password string) (string, error) {
 	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
 
 	// 1. Get session
@@ -212,6 +215,177 @@ func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
 	// utils.LogPretty("session after sync", session)
 
 	return newCID, nil
+}
+func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
+    vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+    session, err := vh.GetSession(userID)
+    if err != nil {
+        return "", fmt.Errorf("no active session: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
+    vaultBytes, err := json.Marshal(session.Vault)
+    if err != nil {
+        return "", fmt.Errorf("marshal failed: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
+    encrypted, err := blockchain.Encrypt(vaultBytes, password)
+    if err != nil {
+        return "", fmt.Errorf("encryption failed: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
+    newCID, err := vh.IPFS.AddData(encrypted)
+    if err != nil {
+        return "", fmt.Errorf("IPFS upload failed: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
+    userCfg := session.VaultRuntimeContext.CurrentUser
+    txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
+    if err != nil {
+        return "", fmt.Errorf("stellar submission failed: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
+    currentMeta, err := vh.DB.GetLatestVaultCIDByUserID(userID)
+    if err != nil {
+        return "", fmt.Errorf("failed to get vault meta: %w", err)
+    }
+    newVault := models.VaultCID{
+        Name:      currentMeta.Name,
+        Type:      currentMeta.Type,
+        UserID:    userID,
+        CID:       newCID,
+        TxHash:    txHash,
+        CreatedAt: vh.NowUTC(),
+        UpdatedAt: vh.NowUTC(),
+    }
+    if _, err := vh.DB.SaveVaultCID(newVault); err != nil {
+        return "", fmt.Errorf("failed to save vault CID: %w", err)
+    }
+
+    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
+
+    // Update session
+    session.LastCID = newCID
+    session.LastSynced = time.Now().Format(time.RFC3339)
+    session.Dirty = false
+    vh.vaultDirty = false
+
+    vh.logger.Info("✅ Vault sync complete for user %d", userID)
+    return newCID, nil
+}
+
+
+func (vh *VaultHandler) EncryptFile(userID int, filePath []byte, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+
+	// 1. Get session
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+	}
+	// ✅ Removed noisy LogPretty - too verbose for production
+	// 2. Marshal in-memory vault
+	vaultBytes, err := json.Marshal(session.Vault) // session.Vault.Sync()
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to marshal vault: %w", err)
+	}
+	vh.logger.Info("🧱 Vault marshalled (%d bytes)", len(vaultBytes))
+
+	// 3. Encrypt
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to encrypt vault: %w", err)
+	}
+	vh.logger.Info("🔐 Vault encrypted")
+
+	return string(encrypted), nil
+}
+func (vh *VaultHandler) UploadToIPFS(userID int, encrypted string) (string, error) {
+	// GetBackendPlanParamForTransaction for managing plans from remote
+
+	// Upload to IPFS
+	newCID, err := vh.IPFS.AddData([]byte(encrypted))
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to upload to IPFS: %w", err)
+	}
+	vh.logger.Info("📤 Vault uploaded to IPFS (CID: %s)", newCID)
+	return newCID, nil
+}
+func (vh *VaultHandler) CreateStellarCommit(userID int, newCID string) (string, error) {
+	// 1. Get session
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+	}
+	
+	userCfg := session.VaultRuntimeContext.CurrentUser
+	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to submit CID to Stellar: %w", err)
+	}
+	vh.logger.Info("🌐 CID submitted to Stellar (TX: %s)", txHash)
+
+	// 6. Get latest metadata
+	currentMeta, err := vh.DB.GetLatestVaultCIDByUserID(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to get current vault meta: %w", err)
+	}
+	newVault := models.VaultCID{
+		Name:      currentMeta.Name,
+		Type:      currentMeta.Type,
+		UserID:    userID,
+		CID:       newCID,
+		TxHash:    txHash,
+		CreatedAt: vh.NowUTC(),
+		UpdatedAt: vh.NowUTC(),
+	}
+	if _, err := vh.DB.SaveVaultCID(newVault); err != nil {
+		return "", fmt.Errorf("❌ failed to save new vault CID: %w", err)
+	}
+	vh.logger.Info("🗃️ VaultCID saved")
+
+	// 8. Update session
+	session.LastCID = newCID
+	session.LastSynced = time.Now().Format(time.RFC3339)
+	session.Dirty = false
+	vh.vaultDirty = false
+
+	vh.logger.Info("✅ Vault sync complete for user %d", userID)
+	// utils.LogPretty("session after sync", session)
+
+	return newCID, nil	
+}
+
+func (vh *VaultHandler) EncryptVault(userID int, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+
+	// 1. Get session
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+	}
+	// ✅ Removed noisy LogPretty - too verbose for production
+	// 2. Marshal in-memory vault
+	vaultBytes, err := json.Marshal(session.Vault) // session.Vault.Sync()
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to marshal vault: %w", err)
+	}
+	vh.logger.Info("🧱 Vault marshalled (%d bytes)", len(vaultBytes))
+
+	// 3. Encrypt
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to encrypt vault: %w", err)
+	}
+	vh.logger.Info("🔐 Vault encrypted")
+
+	return string(encrypted), nil
 }
 
 // -----------------------------

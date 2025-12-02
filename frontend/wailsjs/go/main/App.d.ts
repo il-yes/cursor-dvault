@@ -22,11 +22,17 @@ export function CreateFolder(arg1:string,arg2:string):Promise<models.VaultPayloa
 
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.ShareEntry>;
 
+export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
+
 export function DeleteFolder(arg1:number,arg2:number,arg3:string):Promise<string>;
 
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
 export function EditEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function EncryptVault(arg1:string,arg2:string):Promise<string>;
 
 export function FetchUsers():Promise<Array<models.UserDTO>>;
 
@@ -63,3 +69,5 @@ export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function UpdateFolder(arg1:number,arg2:string,arg3:boolean,arg4:string):Promise<models.Folder>;
+
+export function UploadToIPFS(arg1:string,arg2:string):Promise<string>;

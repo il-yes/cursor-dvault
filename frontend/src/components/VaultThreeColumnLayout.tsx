@@ -9,6 +9,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import { useVault } from "@/hooks/useVault";
+import "./contributionGraph/g-scrollbar.css";
 
 interface VaultThreeColumnLayoutProps {
   filter: string;
@@ -133,6 +134,12 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     return { total, synced, unsynced, favorites };
   }, [filteredEntries, vaultContext]);
 
+  useEffect(() => {
+    if (vaultContext?.Dirty) {
+      
+    }
+  }, [vaultContext]);
+
   return (
     <div className="flex h-full">
       {/* Entries List - Center Column */}
@@ -201,7 +208,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
       {isMobile ? (
         <Sheet open={!!selectedEntry} onOpenChange={(open) => !open && setSelectedEntryId(null)}>
           <SheetContent side="right" className="w-full p-0">
-            <div className="h-full overflow-y-auto">
+            <div className="h-full overflow-y-auto scrollbar-glassmorphism thin-scrollbar ">
               {filter === "trash" ? (
                 <TrashDetailPanel
                   entry={selectedEntry}
@@ -223,7 +230,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
         </Sheet>
       ) : (
         <div className="flex-1 hidden md:flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
             {filter === "trash" ? (
               <TrashDetailPanel
                 entry={selectedEntry}

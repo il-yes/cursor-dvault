@@ -30,6 +30,10 @@ export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
 }
 
+export function CreateStellarCommit(arg1, arg2) {
+  return window['go']['main']['App']['CreateStellarCommit'](arg1, arg2);
+}
+
 export function DeleteFolder(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteFolder'](arg1, arg2, arg3);
 }
@@ -40,6 +44,14 @@ export function DummyExposeEntries(arg1) {
 
 export function EditEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['EditEntry'](arg1, arg2, arg3);
+}
+
+export function EncryptFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['EncryptFile'](arg1, arg2, arg3);
+}
+
+export function EncryptVault(arg1, arg2) {
+  return window['go']['main']['App']['EncryptVault'](arg1, arg2);
 }
 
 export function FetchUsers() {
@@ -112,4 +124,8 @@ export function TrashEntry(arg1, arg2, arg3) {
 
 export function UpdateFolder(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateFolder'](arg1, arg2, arg3, arg4);
+}
+
+export function UploadToIPFS(arg1, arg2) {
+  return window['go']['main']['App']['UploadToIPFS'](arg1, arg2);
 }

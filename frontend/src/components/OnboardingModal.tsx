@@ -11,6 +11,7 @@ import { useConnectivity } from "@/hooks/useConnectivity";
 import { useVault } from "@/hooks/useVault";
 import { OfflineFallbackPanel } from "./OfflineFallbackPanel";
 import { VaultContext } from "@/types/vault";
+import "./contributionGraph/g-scrollbar.css";
 
 interface OnboardingModalProps {
   open: boolean;
@@ -171,7 +172,7 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto scrollbar-glassmorphism thin-scrollbar">
         {step === 1 && !upgradeMode ? (
           <div className="space-y-8 py-6">
             <DialogHeader>

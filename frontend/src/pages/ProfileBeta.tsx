@@ -20,6 +20,15 @@ import { useState, useRef, useEffect } from "react";
 import { Progress } from "@radix-ui/react-progress";
 import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
+import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
+import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
+
+
+const mockFile = {
+	name: "contracts.zip",
+	size: 1420000,
+	commitHash: "d1b4c0ffee-example-stellar-tx-hash",
+};
 
 const Profile = () => {
 	const { toast } = useToast();
@@ -36,6 +45,8 @@ const Profile = () => {
 	const session = useAppStore.getState().session;
 	const user = session?.vault_runtime_context?.CurrentUser
 	const [progressVisible, setProgressVisible] = useState(false);
+	const [showModal, setShowModal] = useState(false);
+	const [verif, setVerif] = useState(null);
 
 	const { encryptFile, uploadToIPFS, createStellarCommit, syncVault, refreshVault, hydrateVault } = useVault();
 
@@ -149,13 +160,6 @@ const Profile = () => {
 		});
 	};
 
-	const handleSyncNow = () => {
-		toast({
-			title: "Syncing...",
-			description: "Synchronizing your vault with the blockchain.",
-		});
-	};
-
 	const handleGenerateApiKey = () => {
 		toast({
 			title: "API Key Generated",
@@ -182,34 +186,6 @@ const Profile = () => {
 		navigate("/auth/signin");
 	};
 
-	const handleSync0 = async () => {
-		const { jwtToken } = useAuthStore.getState();
-		const { refreshVault } = useVault();
-
-		try {
-			const vaultPassword = "password"
-			const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
-			console.log("Vault sync success:", cid);
-
-			// 1. Reload full updated vault session from backend
-			const updatedContext = await loadVault();
-
-			// 2. Update the VaultProvider runtime with fresh session
-			// 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
-			await refreshVault();
-
-			toast({
-				title: "Success",
-				description: "Vault synced successfully!",
-			});
-		} catch (err) {
-			toast({
-				title: "Error",
-				description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
-			});
-		}
-	};
-
 	const handleSyncBeta = async () => {
 		setProgressVisible(true);
 		const vaultPassword = "password";
@@ -218,6 +194,10 @@ const Profile = () => {
 		setStage("starting...");
 
 		try {
+			toast({
+				title: "Syncing...",
+				description: "Synchronizing your vault with the blockchain.",
+			});
 			setStage("syncing vault...");
 
 			// Call new sync method that internally runs all steps with progress emits
@@ -234,6 +214,8 @@ const Profile = () => {
 			// 3. Give Zustand time to propagate (usually instant)
 			await new Promise(resolve => setTimeout(resolve, 100));
 
+			// TODO: fit the reesponse backend to fill the verif object
+			// setVerif(stellarOp);
 
 			// After some delay, hide the progress bar like a toast
 			setTimeout(() => setProgressVisible(false), 2000);
@@ -262,26 +244,7 @@ const Profile = () => {
 						</p>
 					</div>
 
-					{/* {progress > 0 && (
-						<div
-							className="fixed bottom-4 left-0 right-0 mx-auto max-w-xl px-4"
-							style={{ zIndex: 1000 }}
-						>
-							<div className="w-full bg-gray-200 rounded-full h-3 shadow">
-								<div
-									className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-in-out"
-									style={{ width: `${progress}%` }}
-								/>
-							</div>
-							<p className="text-center text-sm text-gray-600 capitalize mt-1">
-								{stage} ({Math.round(progress)}%)
-							</p>
-						</div>
-					)} */}
 					<GlassProgressBar value={progress} label={`${stage} (${Math.round(progress)}%)`} visible={progressVisible} />
-
-
-
 
 					<div className="grid lg:grid-cols-2 gap-8">
 						{/* User Info Glass Card */}
@@ -418,6 +381,7 @@ const Profile = () => {
 											<Input
 												value={user?.stellar_account?.private_key}
 												readOnly
+												type="password"
 												className="flex-1 h-14 font-mono text-lg bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm rounded-2xl border-destructive/30 shadow-inner font-semibold text-destructive/80"
 											/>
 											<Button
@@ -459,6 +423,21 @@ const Profile = () => {
 									<RefreshCw className="h-6 w-6 mr-3 group-hover:rotate-180 transition-all" />
 									Sync Now
 								</Button>
+
+								<div className="p-4">
+									<button onClick={() => setShowModal(true)} className="open-btn">
+										Verify Encryption
+									</button>
+
+									{showModal && (
+										<div className="modal-overlay">
+											<EncryptionVerificationModalBeta
+												file={mockFile}
+												onClose={() => setShowModal(false)}
+											/>
+										</div>
+									)}
+								</div>
 								<Button
 									variant="outline"
 									size="lg"

@@ -1,0 +1,48 @@
+/* Apple-level Glassmorphism reusable style */
+.glass-perfect {
+  background: rgba(255, 255, 255, 0.15);             /* semi-transparent white */
+  backdrop-filter: blur(16px) saturate(180%);          /* heavy blur + saturation */
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 1rem;                                 /* large rounded corners */
+  border: 1px solid rgba(255, 255, 255, 0.25);        /* subtle white border */
+  box-shadow:
+    0 4px 30px rgba(255, 255, 255, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);         /* layered white glows for depth */
+  color: #fff;                                         /* default white text */
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Optional hover effect to lightly brighten */
+.glass-perfect:hover {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 6px 40px rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.20);
+}
+
+/* Glassmorphic thin scrollbar style variant */
+.glass-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 164, 74, 0.85) rgba(255, 255, 255, 0.1);
+}
+.glass-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.glass-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+.glass-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #C9A44A, #B8934A);
+  border-radius: 10px;
+  box-shadow: 0 0 6px rgba(201, 164, 74, 0.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  opacity: 0.9;
+  transition: background-color 0.3s ease;
+}
+.glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #C9A44A;
+  opacity: 1;
+}

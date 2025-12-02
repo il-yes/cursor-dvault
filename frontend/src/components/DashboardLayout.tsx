@@ -288,6 +288,10 @@ function DashboardNavbar() {
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/dashboard/settings-beta")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings (beta)
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               Logout

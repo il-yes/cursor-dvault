@@ -1,0 +1,77 @@
+.open-btn {
+  background: black;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verification-modal {
+  background: white;
+  width: 420px;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  font-family: system-ui;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.label {
+  font-weight: 600;
+  width: 150px;
+}
+
+.value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monospace {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: #f3f3f3;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.copy-btn {
+  margin-left: 8px;
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.valid { color: green; }
+.invalid { color: red; }

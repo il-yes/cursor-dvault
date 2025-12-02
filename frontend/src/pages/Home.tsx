@@ -23,6 +23,10 @@ import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
+
+
+
+
 const Home = () => {
   const navigate = useNavigate();
   const [inputValue, setInputValue] = useState("");
@@ -45,16 +49,15 @@ const Home = () => {
     const element = document.getElementById(id);
     element?.scrollIntoView({ behavior: "smooth" });
   };
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-black">
       {/* Glass Navbar */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl ${scrolled
             ? "bg-white/80 dark:bg-zinc-900/80 shadow-xl border-b border-zinc-200/50 dark:border-zinc-700/50"
             : "bg-white/40 dark:bg-zinc-900/40"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <button
@@ -64,8 +67,8 @@ const Home = () => {
             <div className="w-10 h-10 backdrop-blur-sm flex items-center justify-center group-hover:shadow-xl">
               {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-7 w-7 object-contain drop-shadow-md" /> */}
             </div>
-            <span  className="text-2xl font-semibold bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight">
-              <small style={{letterSpacing: "1.5px"}}>ANKHORA</small>
+            <span className="text-2xl font-semibold bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight">
+              <small style={{ letterSpacing: "1.5px" }}>ANKHORA</small>
             </span>
           </button>
 
@@ -87,9 +90,9 @@ const Home = () => {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-12 w-12 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm hover:bg-white/70 dark:hover:bg-zinc-800/70 shadow-sm hover:shadow-md transition-all"
                 >
                   <UserCircle className="h-6 w-6 text-muted-foreground" />
@@ -113,20 +116,20 @@ const Home = () => {
         {/* Enhanced background orbs */}
         <div className="absolute top-1/4 left-10 w-80 h-80 bg-gradient-to-br from-primary/15 to-amber-500/10 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-gradient-to-br from-accent/10 to-primary/15 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-        
+
         <div className="relative z-10 max-w-5xl mx-auto text-center">
           {/* Hero Logo */}
           <div className="flex justify-center mb-12">
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/50 to-amber-500 rounded-3xl blur-3xl animate-pulse opacity-40 group-hover:opacity-70 transition-all" />
-                <img 
-                  src={ankhoraLogo} 
-                  alt="Ankhora Logo" 
-                  className="h-32 w-auto drop-shadow-2xl"
-                />
+              <img
+                src={ankhoraLogo}
+                alt="Ankhora Logo"
+                className="h-32 w-auto drop-shadow-2xl"
+              />
             </div>
           </div>
-          
+
           {/* Tagline */}
           <div className="mb-8">
             <div className="inline-flex items-center gap-3 px-6 py-2 bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm rounded-2xl border border-zinc-200/50 shadow-lg mb-4">
@@ -136,7 +139,7 @@ const Home = () => {
               </span>
             </div>
           </div>
-          
+
           {/* Hero Typography */}
           <h1 className="text-7xl md:text-9xl font-light mb-12 leading-[0.9] tracking-tight text-foreground">
             Your Data. <br className="md:hidden" />
@@ -145,13 +148,13 @@ const Home = () => {
             </span> <br />
             <span className="text-5xl md:text-7xl font-light text-muted-foreground/80">Forever.</span>
           </h1>
-          
+
           {/* Hero Description */}
           <p className="text-xl md:text-2xl text-muted-foreground/90 mb-20 max-w-3xl mx-auto leading-relaxed font-light backdrop-blur-sm">
-            Store sensitive information with zero-trust architecture. Encrypted on your device, 
+            Store sensitive information with zero-trust architecture. Encrypted on your device,
             backed up to IPFS, and verifiable on the blockchain.
           </p>
-          
+
           {/* Premium CTA */}
           <div className="max-w-2xl mx-auto">
             <div className="group relative">
@@ -166,7 +169,7 @@ const Home = () => {
                     className="flex-1  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl text-lg px-6 h-16 font-medium"
                     onKeyDown={(e) => e.key === "Enter" && handleGetStarted()}
                   />
-                  <Button 
+                  <Button
                     onClick={handleGetStarted}
                     className="bg-gradient-to-r from-primary ml-3 to-amber-500 hover:from-primary/90 hover:to-amber-500/90 shadow-2xl hover:shadow-primary/30 text-lg font-semibold px-10 h-16 rounded-2xl transition-all group-hover:scale-[1.02]"
                   >
@@ -177,7 +180,7 @@ const Home = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Scroll Indicator */}
           <div className="mt-32">
             <ChevronDown className="h-8 w-8 mx-auto text-primary/60 animate-bounce group-hover:text-primary/80 transition-colors" />
@@ -205,8 +208,8 @@ const Home = () => {
                 </div>
                 <div className="group relative overflow-hidden rounded-3xl shadow-xl backdrop-blur-sm bg-white/70 dark:bg-zinc-900/60 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl hover:shadow-primary/20 transition-all duration-500">
                   <div className="absolute inset-0 bg-gradient-to-t from-primary/5 to-transparent" />
-                  <img 
-                    src={feature.img} 
+                  <img
+                    src={feature.img}
                     alt={feature.title}
                     className="w-full h-80 object-cover group-hover:scale-110 transition-transform duration-700"
                   />
@@ -228,15 +231,15 @@ const Home = () => {
           <div className="grid lg:grid-cols-2 gap-20 items-start">
             <div>
               <h2 className="text-6xl md:text-7xl font-semibold mb-8 bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent tracking-tight leading-tight">
-                <small>Why</small> <small style={{letterSpacing: "1.5px"}}>ANKHORA</small>?
+                <small>Why</small> <small style={{ letterSpacing: "1.5px" }}>ANKHORA</small>?
               </h2>
               <p className="text-xl text-muted-foreground/90 mb-12 leading-relaxed max-w-lg backdrop-blur-sm">
-                <small>ANKHORA</small> combines the distributed permanence of IPFS with the immutable proof 
-                layer of Stellar blockchain. Your data stays encrypted and private, while every 
-                change is cryptographically anchored — giving you verifiable privacy without 
+                <small>ANKHORA</small> combines the distributed permanence of IPFS with the immutable proof
+                layer of Stellar blockchain. Your data stays encrypted and private, while every
+                change is cryptographically anchored — giving you verifiable privacy without
                 compromise.
               </p>
-              <Button 
+              <Button
                 onClick={() => window.location.hash = '#pricing'}
                 size="lg"
                 className="h-14 px-10 text-lg font-semibold bg-gradient-to-r from-primary to-amber-500 hover:from-primary/90 hover:to-amber-500/90 shadow-xl hover:shadow-primary/25 rounded-2xl"
@@ -283,7 +286,7 @@ const Home = () => {
                 Ankhora © 2025 — Built for the Self-Sovereign Web.
               </p>
             </div>
-            
+
             <div className="flex flex-wrap gap-8 text-sm font-medium">
               <a href="#docs" className="text-muted-foreground/80 hover:text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/50 backdrop-blur-sm">
                 Docs
@@ -298,14 +301,14 @@ const Home = () => {
                 GitHub
               </a>
             </div>
-            
+
             <div className="flex gap-4">
               {[
                 { href: "https://github.com", icon: Github },
                 { href: "https://twitter.com", icon: Twitter },
                 { href: "https://linkedin.com", icon: Linkedin }
               ].map(({ href, icon: Icon }) => (
-                <a 
+                <a
                   key={href}
                   href={href}
                   className="group p-3 rounded-2xl bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm border border-zinc-200/50 hover:bg-white/70 dark:hover:bg-zinc-800/70 shadow-sm hover:shadow-md hover:scale-110 transition-all duration-300"

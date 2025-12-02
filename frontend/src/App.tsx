@@ -19,6 +19,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Feedback from "./pages/Feedback";
 import About from "./pages/About";
 import ProfileBeta from "./pages/ProfileBeta";
+import SettingsBeta from "./pages/SettingsBeta";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ function AppContent() {
       <Route path="/dashboard/profile" element={<Profile />} />
       <Route path="/dashboard/profile-beta" element={<ProfileBeta />} />
       <Route path="/dashboard/settings" element={<Settings />} />
+      <Route path="/dashboard/settings-beta" element={<SettingsBeta />} />
       <Route path="/vault/offline" element={<OfflineVault />} />
       <Route path="/auth/signin" element={<SignIn />} />
       <Route path="/login/email" element={<EmailLookup />} />

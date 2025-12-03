@@ -1,0 +1,221 @@
+ok this is what i goot in my wails app:
+// app.tsx
+function AppContent() {
+	const loadVault = useVaultStore((state) => state.loadVault);
+
+	useEffect(() => {
+		loadVault();
+	}, []);
+
+	const [isOnboarded, setIsOnboarded] = useState(false);
+	const [walletStatus, setWalletStatus] = useState('disconnected');
+	const [ipfsStatus, setIpfsStatus] = useState('idle');
+	const [isWailsReady, setIsWailsReady] = useState(false);
+
+	// Safe Wails backend check
+	const checkWailsBackend = useCallback(async () => {
+		if (typeof window !== 'undefined' && window.go && window.go.Stellar) {
+			try {
+				const status = await window.go.Stellar.CheckWalletStatus();
+				setWalletStatus(status || 'disconnected');
+				setIsWailsReady(true);
+			} catch (error) {
+				console.warn('Wails backend not ready:', error);
+				setWalletStatus('disconnected');
+			}
+
+			try {
+				const ipfsStatus = await window.go.IPFS.CheckNodeStatus();
+				setIpfsStatus(ipfsStatus || 'idle');
+			} catch (error) {
+				console.warn('IPFS backend not ready:', error);
+			}
+		} else {
+			console.log('Wails runtime not detected - using mock data');
+			setWalletStatus('mock-connected');
+			setIpfsStatus('mock-ready');
+		}
+	}, []);
+
+	useEffect(() => {
+		checkWailsBackend();
+
+		// Poll for Wails readiness (handles hot reload)
+		const interval = setInterval(checkWailsBackend, 1000);
+		return () => clearInterval(interval);
+	}, [checkWailsBackend]);
+
+	if (!isOnboarded) {
+		return (
+			<OnboardingWizard
+				onComplete={() => {
+					setIsOnboarded(true);
+					localStorage.setItem('ankhora-onboarded', 'true');
+				}}
+			/>
+		);
+	}
+
+	return (
+		<Routes>
+			<Route path="/" element={<Home />} />
+			<Route path="/dashboard" element={<Index isOnboarded={isOnboarded} setIsOnboarded={setIsOnboarded} />} />
+			<Route path="/dashboard/vault" element={<Vault />} />
+			<Route path="/dashboard/vault/:filter" element={<Vault />} />
+			<Route path="/dashboard/vault/folder/:folderId" element={<Vault />} />
+			<Route path="/dashboard/shared" element={<ShareEntries />} />
+			<Route path="/dashboard/profile" element={<Profile />} />
+			<Route path="/dashboard/profile-beta" element={<ProfileBeta />} />
+			<Route path="/dashboard/settings" element={<Settings />} />
+			<Route path="/dashboard/settings-beta" element={<SettingsBeta />} />
+			<Route path="/vault/offline" element={<OfflineVault />} />
+			<Route path="/auth/signin" element={<SignIn />} />
+			<Route path="/login/email" element={<EmailLookup />} />
+			<Route path="/login/step2" element={<LoginStep2 />} />
+			<Route path="/dashboard/feedback" element={<Feedback />} />
+			<Route path="/dashboard/about" element={<About />} />
+			<Route path="/dashboard/on-boarding" element={<Dashboard
+				walletStatus={walletStatus}
+				ipfsStatus={ipfsStatus}
+				isWailsReady={isWailsReady}
+				onWalletConnect={() => setWalletStatus('connecting')}
+			/>} />
+			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+			<Route path="*" element={<NotFound />} />
+		</Routes>
+	);
+}
+
+const App = () => (
+	<ThemeProvider defaultTheme="light" storageKey="ankhora-theme">
+		<QueryClientProvider client={queryClient}>
+			<Toaster />
+			<Sonner />
+			<BrowserRouter>
+				<AppContent />
+			</BrowserRouter>
+		</QueryClientProvider>
+	</ThemeProvider>
+);
+
+// index.tsx
+const Index = ({ isOnboarded, setIsOnboarded }: { isOnboarded: boolean, setIsOnboarded: (value: boolean) => void }) => {
+  const { vault, lastSyncTime, loadVault } = useVaultStore();
+  const sharedEntries = useVaultStore((state) => state.shared.items);
+  const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
+
+  return (
+    <DashboardLayout isOnboarded={isOnboarded} setIsOnboarded={setIsOnboarded}>
+      <div className="space-y-8">
+        ...
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// dashboard-layout.tsx
+export function DashboardLayout({ children, isOnboarded , setIsOnboarded }: { children: ReactNode, isOnboarded: boolean, setIsOnboarded: (value: boolean) => void }) {
+  const { user } = useAuthStore();
+
+  if (!user) {
+    return <div>Loading session...</div>;
+  }
+
+	if (!isOnboarded) {
+		return (
+			<OnboardingWizard
+				onComplete={() => {
+					setIsOnboarded(true);
+					localStorage.setItem('ankhora-onboarded', 'true');
+				}}
+			/>
+		);
+	}
+  
+  return (
+    <SidebarProvider>
+      <div className="flex h-screen w-full bg-background overflow-hidden">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <DashboardNavbar />
+          <main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{paddingRight: "25px"}}>
+            {children}
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
+// onboarding.tsx
+function Dashboard({ walletStatus, ipfsStatus, isWailsReady, onWalletConnect }) {
+  const [files, setFiles] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const handleFileUpload = useCallback(async (file) => {
+    try {
+      setUploadProgress(10);
+      
+      if (isWailsReady && window.go) {
+        // REAL Wails backend flow
+        const encryptedData = await window.go.Crypto.encryptFile(file);
+        setUploadProgress(40);
+        
+        const ipfsCid = await window.go.IPFS.addFile(encryptedData, (progress) => {
+          setUploadProgress(40 + (progress * 0.4));
+        });
+        setUploadProgress(90);
+        
+        const txHash = await window.go.Stellar.logFileTransaction({
+          fileCid: ipfsCid,
+          fileName: file.name,
+          fileSize: file.size
+        });
+        
+        setFiles(prev => [...prev, { 
+          name: file.name, 
+          cid: ipfsCid, 
+          txHash,
+          status: 'verified',
+          timestamp: new Date().toISOString()
+        }]);
+      } else {
+        // MOCK flow for dev without Wails
+        setTimeout(() => {
+          setUploadProgress(100);
+          setFiles(prev => [...prev, { 
+            name: file.name, 
+            cid: `QmMock${Date.now()}`, 
+            txHash: `tx_mock_${Math.random().toString(36).slice(2)}`,
+            status: 'verified',
+            timestamp: new Date().toISOString()
+          }]);
+          setUploadProgress(0);
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploadProgress(0);
+    }
+  }, [isWailsReady]);
+
+  return (
+    // ... same JSX as before, but add Wails status indicator
+    <div className="p-8 max-w-7xl mx-auto">
+      {/* Add Wails status badge */}
+      <div className={`px-4 py-2 rounded-xl mb-4 text-sm font-medium ${
+        isWailsReady 
+          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+          : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+      }`}>
+        {isWailsReady ? '✅ Wails Backend Connected' : '🔧 Dev Mode (Mock Data)'}
+      </div>
+      
+      {/* Rest of dashboard JSX remains identical */}
+      {/* ... */}
+    </div>
+  );
+}
+
+First i(d like to set the onboarding process after the signin, not before. Second try to apply 
+the color on the Appl Glamorphism style on the onboarding process. Set the onboarding background color to white

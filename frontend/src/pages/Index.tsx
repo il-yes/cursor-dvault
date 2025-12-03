@@ -1,10 +1,10 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Database, Activity, Users } from "lucide-react";
+import { Shield, Database, Activity, Users, Section } from "lucide-react";
 import { GlobalSecurityInsight } from "@/components/GlobalSecurityInsight";
 import { useVaultStore } from "@/store/vaultStore";
-import ContributionGraph from "@/components/contributionGraph/ContributionGraph"
-
+import ContributionGraph from "@/components/ContributionGraph/ContributionGraph"
+import AccessSecurityView from "@/components/AccessSecurity/AccessSecurityView";
 
 const Index = () => {
   const { vault, lastSyncTime, loadVault } = useVaultStore();
@@ -133,6 +133,8 @@ const Index = () => {
               <ContributionGraph contributions={sampleData} />
             </CardContent>
           </Card>
+
+          <AccessSecurityView />
 
           <GlobalSecurityInsight />
         </div>

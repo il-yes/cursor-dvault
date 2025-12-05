@@ -186,6 +186,7 @@ export namespace app_config {
 	    private_key?: string;
 	    EncPassword: number[];
 	    EncNonce: number[];
+	    EncSalt: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new StellarAccountConfig(source);
@@ -197,6 +198,7 @@ export namespace app_config {
 	        this.private_key = source["private_key"];
 	        this.EncPassword = source["EncPassword"];
 	        this.EncNonce = source["EncNonce"];
+	        this.EncSalt = source["EncSalt"];
 	    }
 	}
 	

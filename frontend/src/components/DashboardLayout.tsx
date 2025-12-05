@@ -45,6 +45,8 @@ import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps } from "react-router-dom";
 import "./contributionGraph/g-scrollbar.css";
+import AvatarImg from '@/assets/7.jpg'
+import { OnboardingModalBeta } from "./OnboardingModalBeta";
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;
@@ -310,6 +312,18 @@ function DashboardNavbar() {
   );
 }
 
+
+const Avatars = [
+  {'id': 38, src: AvatarImg},
+  {'id': 37, src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg"},
+  {'id': 34, src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg'},
+  {'id': 39, src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg'}
+]
+const RenderAvatar = (id: number) => {
+  const img = Avatars.find((f: { id: any; }) => f.id === id);
+  return img ? img.src : "" 
+} 
+
 function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -333,6 +347,7 @@ function AppSidebar() {
       setIsNewFolderOpen(false);
     }
   };
+  const avatar = user && RenderAvatar(user.id)
 
   return (
     <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
@@ -480,7 +495,7 @@ function AppSidebar() {
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
           <Avatar className="h-10 w-10 flex-shrink-0">
             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
-              <User className="h-5 w-5 text-primary" />
+              {avatar ? <img src={avatar} alt="User Avatar" className="h-5 w-5" /> : <User className="h-5 w-5 text-primary" />}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
@@ -491,7 +506,7 @@ function AppSidebar() {
       </div>
 
       {/* Modals unchanged */}
-      <OnboardingModal open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
+      <OnboardingModalBeta open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
       <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

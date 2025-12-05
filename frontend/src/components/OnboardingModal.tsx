@@ -63,7 +63,7 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
   const [cardNumber, setCardNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOfflineFallback, setShowOfflineFallback] = useState(false);
-  
+
   const { isOnline, onReconnect } = useConnectivity();
   const { hydrateVault } = useVault();
 
@@ -186,18 +186,17 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
                 <button
                   key={plan.id}
                   onClick={() => setSelectedPlan(plan.id)}
-                  className={`relative p-6 rounded-2xl border-2 transition-all text-left hover:shadow-lg ${
-                    selectedPlan === plan.id
+                  className={`relative p-6 rounded-2xl border-2 transition-all text-left hover:shadow-lg ${selectedPlan === plan.id
                       ? "border-[#00cfcf] bg-[#00cfcf]/5"
                       : "border-border hover:border-[#00cfcf]/50"
-                  }`}
+                    }`}
                 >
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#FD871F] text-white text-xs rounded-full">
                       Popular
                     </div>
                   )}
-                  
+
                   {selectedPlan === plan.id && (
                     <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-[#00cfcf] flex items-center justify-center">
                       <Check className="w-4 h-4 text-white" />
@@ -206,7 +205,7 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
 
                   <h3 className="text-xl font-semibold mb-2">{plan.name}</h3>
                   <p className="text-2xl font-light text-[#00cfcf] mb-4">{plan.price}</p>
-                  
+
                   <ul className="space-y-2">
                     {plan.features.map((feature, idx) => (
                       <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
@@ -322,7 +321,7 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
               {selectedPlan !== "freemium" && (
                 <div className="space-y-6 md:border-l md:pl-8">
                   <h3 className="text-lg font-medium">Payment Details</h3>
-                  
+
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="paymentName">Full Name *</Label>
@@ -365,18 +364,11 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
 
             <div className="flex justify-between pt-4 border-t">
               <Button
-                variant="outline"
-                onClick={() => setStep(1)}
-                disabled={isSubmitting}
+                onClick={handleContinue}
+                disabled={!selectedPlan}
+                className="h-12 rounded-2xl bg-gradient-to-r from-[#C9A44A] via-amber-400 to-[#B8934A] text-black font-bold shadow-xl hover:shadow-[#C9A44A]/40 transition-all hover:scale-[1.02]"
               >
-                ← Back
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!vaultName.trim() || isSubmitting}
-                className="px-8 bg-[#00cfcf] hover:bg-[#00cfcf]/90 text-white"
-              >
-                {isSubmitting ? "Creating..." : "Create Vault"}
+                Continue →
               </Button>
             </div>
           </div>

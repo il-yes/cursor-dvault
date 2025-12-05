@@ -12,6 +12,7 @@ import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { Clock } from "lucide-react";
 import "./contributionGraph/g-scrollbar.css";
 import { Textarea } from "./ui/textarea";
+import { FileUploadWidget } from "./FileUploadWidget";
 
 interface EntryDetailPanelProps {
     entry: VaultEntry | null;
@@ -38,6 +39,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [editData, setEditData] = useState<Partial<VaultEntry>>({});
     // keep localEntry typed explicitly
     const [localEntry, setLocalEntry] = useState<VaultEntry | null>(entry ?? null);
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
     // Sync localEntry with prop changes
     useEffect(() => {
@@ -188,8 +190,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         if (!isSensitive) {
             if (!editMode) {
                 return (
-                    <div className="space-y-2">
-                        <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                        <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                             {label}
                         </Label>
                         <div className="flex gap-2">
@@ -227,8 +229,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
             // edit mode - plain editable input
             return (
-                <div className="space-y-2">
-                    <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                    <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                         {label}
                     </Label>
                     <Input
@@ -247,8 +249,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         if (!editMode) {
             // view mode for sensitive field
             return (
-                <div className="space-y-2">
-                    <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                    <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                         {label}
                         <Shield className="h-3 w-3 text-primary" />
                     </Label>
@@ -260,9 +262,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 value={isRevealed ? revealed!.value : "••••••••••••"}
                                 readOnly
                                 className={cn(
-                                    "transition-all duration-300 border-border/50",
-                                    isRevealed && "animate-revealBlur border-primary/50 shadow-sm",
-                                    isDecrypting && "animate-goldShimmer"
+                                    'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                    editMode && 'border-primary/50 shadow-primary/20',
                                 )}
                             />
                             {isDecrypting && (
@@ -304,8 +305,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         const inputValueForEdit = editValue !== "" ? editValue : (isRevealed ? revealed!.value : "");
 
         return (
-            <div className="space-y-2">
-                <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                     {label}
                     <Shield className="h-3 w-3 text-primary" />
                 </Label>
@@ -318,9 +319,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             onChange={(e) => handleFieldChange(fieldName, e.target.value)}
                             readOnly={!editMode}
                             className={cn(
-                                "transition-all duration-300 border-border/50",
-                                isRevealed && "animate-revealBlur border-primary/50 shadow-sm",
-                                isDecrypting && "animate-goldShimmer"
+                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                editMode && 'border-primary/50 shadow-primary/20',
                             )}
                         />
                         {isDecrypting && (
@@ -381,6 +381,43 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             </div>
         );
     }
+
+
+    {/* ... other types with same glass treatment */ }
+    const loginFields = [
+        { name: 'user_name', label: 'Username', isSensitive: false },
+        { name: 'password', label: 'Password', isSensitive: true },
+    ];
+    const cardFields = [
+        { name: 'owner', label: 'Owner' },
+        { name: 'number', label: 'Number' },
+        { name: 'expiration', label: 'Expiration' },
+        { name: 'cvc', label: 'CVC' },
+    ];
+    const identityFields = [
+        { name: 'first_name', label: 'First name' },
+        { name: 'second_name', label: 'Second name' },
+        { name: 'last_name', label: 'Last name' },
+        { name: 'username', label: 'Username' },
+        { name: 'company', label: 'Company' },
+        { name: 'social_security_number', label: 'Social security number' },
+        { name: 'ID_number', label: 'ID number' },
+        { name: 'driver_license', label: 'Driver license' },
+        { name: 'number', label: 'Number' },
+        { name: 'telephone  ', label: 'Telephone' },
+        { name: 'address_one', label: 'Address one' },
+        { name: 'address_two', label: 'Address two' },
+        { name: 'city', label: 'City' },
+        { name: 'state', label: 'State' },
+        { name: 'zip', label: 'Zip' },
+        { name: 'country', label: 'Country' },
+    ];
+
+    const sshkeyFields = [
+        { name: 'public_key', label: 'Public key' },
+        { name: 'private_key', label: 'Private key' },
+        { name: 'e_fingerprint', label: 'Fingerprint' },
+    ];
 
     return (
         <div className="flex flex-col h-full backdrop-blur-xl bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 border border-white/20 dark:border-zinc-700/20 shadow-2xl">
@@ -477,14 +514,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         />
                     </div>
 
-                     <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40  hover:shadow-2xl transition-all duration-500">
-                         {/* Date createdAt and updatedAt */}
-                    </div> 
+                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40  hover:shadow-2xl transition-all duration-500">
+                        {/* Date createdAt and updatedAt */}
+                    </div>
                 </div>
 
                 {/* Sensitive Fields Section */}
                 <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl p-8 border border-white/30 dark:border-zinc-700/30 ">
-                    <div className="flex items-center justify-between mb-8">
+                    {current?.type === 'login' || current?.type === 'card' || current?.type === 'identity' || current?.type === 'sshkey' && <div className="flex items-center justify-between">
                         <h3 className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-lg">
                             <Shield className="h-6 w-6" />
                             Sensitive Information
@@ -492,113 +529,129 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         <Badge className="bg-gradient-to-r to-amber-500/20 backdrop-blur-sm border-primary/30  font-semibold px-6 py-2 ">
                             End-to-End Encrypted
                         </Badge>
-                    </div>
+                    </div>}
 
                     {/* Your existing type-specific renderSensitiveField calls here - enhanced styling */}
-                    {current?.type === 'login' && (
-                        <div className="space-y-6">
-                            {renderSensitiveField('user_name', 'Username', false)}
-                            {renderSensitiveField('password', 'Password', true)}
-                            {/* ... rest unchanged but with glass styling */}
-                        </div>
-                    )}
-                    {/* ... other types with same glass treatment */}
-                    {current?.type === 'card' && (
-                        <div className="space-y-6">
-                            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
-                                <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
-                                    Owner
-                                </Label>
-                                <Input
-                                    value={editMode ? ((editData as any)?.owner ?? "") : (current?.owner ?? "")}
-                                    onChange={(e) => editMode && handleFieldChange("owner", e.target.value)}
-                                    readOnly={!editMode}
-                                    className={cn(
-                                        "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
-                                        editMode && "border-primary/50 shadow-primary/20"
-                                    )}
-                                />
-                            </div>
-                            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
-                                <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
-                                    Number
-                                </Label>
-                                <Input
-                                    value={editMode ? ((editData as any).number ?? "") : (current?.number ?? "")}
-                                    onChange={(e) => editMode && handleFieldChange("number", e.target.value)}
-                                    readOnly={!editMode}
-                                    className={cn(
-                                        "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
-                                        editMode && "border-primary/50 shadow-primary/20"
-                                    )}
-                                />
-                            </div>
-                            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
-                                <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
-                                    Expiration
-                                </Label>
-                                <Input
-                                    value={editMode ? ((editData as any).expiration ?? "") : (current?.expiration ?? "")}
-                                    onChange={(e) => editMode && handleFieldChange("expiration", e.target.value)}
-                                    readOnly={!editMode}
-                                    className={cn(
-                                        "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
-                                        editMode && "border-primary/50 shadow-primary/20"
-                                    )}
-                                />
-                            </div>
-                            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
-                                <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
-                                    Cvc
-                                </Label>
-                                <Input
-                                    value={editMode ? ((editData as any).cvc ?? "") : (current?.cvc ?? "")}
-                                    onChange={(e) => editMode && handleFieldChange("cvc", e.target.value)}
-                                    readOnly={!editMode}
-                                    className={cn(
-                                        "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
-                                        editMode && "border-primary/50 shadow-primary/20"
-                                    )}
-                                />
-                            </div>
-                            {/* ... rest unchanged but with glass styling */}
-                        </div>
-                    )}
-                    {current?.type === 'identity' && (
-                        <div className="space-y-6">
-                            {renderSensitiveField('first_name', 'First Name', true)}
-                            {renderSensitiveField('second_firstname', 'Second First Name', true)}
-                            {renderSensitiveField('lastname', 'Last Name', true)}
-                            {renderSensitiveField('username', 'Username', true)}
-                            {renderSensitiveField('company', 'Company', true)}
-                            {renderSensitiveField('social_security_number', 'Social Security Number', true)}
-                            {renderSensitiveField('ID_number', 'ID Number', true)}
-                            {renderSensitiveField('driver_license', 'Driver License', true)}
-                            {renderSensitiveField('mail', 'Mail', true)}
-                            {renderSensitiveField('telephone', 'Telephone', true)}
-                            {renderSensitiveField('address_one', 'Address One', true)}
-                            {renderSensitiveField('address_two', 'Address Two', true)}
-                            {renderSensitiveField('address_three', 'Address Three', true)}
-                            {renderSensitiveField('city', 'City', true)}
-                            {renderSensitiveField('state', 'State', true)}
-                            {renderSensitiveField('postal_code', 'Postal Code', true)}
-                            {renderSensitiveField('country', 'Country', true)}
 
-                            {/* ... rest unchanged but with glass styling */}
+                    {current?.type === 'login' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {loginFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div key={field.name}>
+                                        {renderSensitiveField(field.name, field.label, field.isSensitive)}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
+
+                    {current?.type === 'card' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {cardFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {current?.type === 'identity' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {identityFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
                     {current?.type === 'sshkey' && (
                         <div className="space-y-6">
-                            {renderSensitiveField('public_key', 'Public Key', true)}
-                            {renderSensitiveField('private_key', 'Private Key', true)}
-                            {renderSensitiveField('e_fingerprint', 'Fingerprint', true)}
-                            {/* ... rest unchanged but with glass styling */}
+                            {sshkeyFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl p-8 border border-white/30 dark:border-zinc-700/30 ">
+                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl  border border-white/30 dark:border-zinc-700/30 ">
                     <div className="space-y-6">
-                        <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                        <div className={cn(
+        "group relative rounded-3xl p-10 transition-all cursor-pointer backdrop-blur-xl",
+        "border-2 border-white/30 bg-white/50 dark:bg-zinc-900/50 shadow-2xl hover:shadow-primary/20 hover:shadow-3xl",
+        "hover:border-primary/50 hover:bg-white/70 dark:hover:bg-zinc-900/70"
+      )}>
                             <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                                 Note
                             </Label>
@@ -610,6 +663,16 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             />
                         </div>
                     </div>
+                </div>
+
+
+                {/* File Upload Widget */}
+                <div className="">
+                    <FileUploadWidget
+                        onFileSelect={setAttachedFiles}
+                        value={attachedFiles}
+                        maxFiles={5}
+                    />
                 </div>
 
                 {/* Timestamps */}

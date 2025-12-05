@@ -20,6 +20,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import "./ContributionGraph/g-scrollbar.css";
 
 interface CreateEntryDialogProps {
   open: boolean;
@@ -284,7 +285,7 @@ export function CreateEntryDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+        <form onSubmit={handleSubmit} style={{ padding: "30px" }} className="space-y-4 max-h-[70vh] overflow-y-auto scrollbar-glassmorphism thin-scrollbar pr-2">
           <div className="space-y-2">
             <Label>Entry Name</Label>
             <Input

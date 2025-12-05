@@ -45,7 +45,8 @@ import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps } from "react-router-dom";
 import "./contributionGraph/g-scrollbar.css";
-import "./contributionGraph/g-scrollbar.css";
+import AvatarImg from '@/assets/7.jpg'
+import { OnboardingModalBeta } from "./OnboardingModalBeta";
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;
@@ -75,6 +76,7 @@ const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Vault", url: "/dashboard/vault", icon: Shield },
   { title: "Shares", url: "/dashboard/shared", icon: Rocket },
+  { title: "Onboarding", url: "/dashboard/on-boarding", icon: Rocket },
 ];
 
 const dashboardSecondaryItems = [
@@ -310,241 +312,18 @@ function DashboardNavbar() {
   );
 }
 
-function AppSidebar1() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
-  const isSharedContext = location.pathname.startsWith("/dashboard/shared");
-  const { vaultContext, addFolder } = useVault();
-  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
-  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
-  const [isNewShareOpen, setIsNewShareOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
-  const { user } = useAuthStore();
 
-  const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
-  const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
+const Avatars = [
+  {'id': 38, src: AvatarImg},
+  {'id': 37, src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg"},
+  {'id': 34, src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg'},
+  {'id': 39, src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg'}
+]
+const RenderAvatar = (id: number) => {
+  const img = Avatars.find((f: { id: any; }) => f.id === id);
+  return img ? img.src : "" 
+} 
 
-  const handleCreateFolder = () => {
-    if (newFolderName.trim()) {
-      addFolder(newFolderName);
-      setNewFolderName("");
-      setIsNewFolderOpen(false);
-    }
-  };
-
-
-  return (
-    <Sidebar className="border-r border-border w-[220px]">
-      <SidebarContent>
-        {(isVaultContext || isSharedContext) && (
-          <div className="p-4 border-b border-border">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="w-full justify-start"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </div>
-        )}
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
-            {isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                        }`
-                      }
-                    >
-                      <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {secondaryItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs">
-              {isVaultContext ? "Entry Types" : "More"}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {secondaryItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                          }`
-                        }
-                      >
-                        <item.icon className="h-5 w-5" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-
-          </SidebarGroup>
-        )}
-
-        {/* Folders Section (Vault only) */}
-        {isVaultContext && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-muted-foreground uppercase tracking-wider text-xs flex justify-between">
-              <span>Folders</span>
-              <SidebarMenuButton asChild>
-                <button
-                  onClick={() => setIsNewFolderOpen(true)}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-muted-foreground hover:bg-secondary hover:text-foreground text-left"
-                  style={{ width: "auto" }}
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
-              </SidebarMenuButton>
-            </SidebarGroupLabel>
-            {/* {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && ( */}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && vaultContext.Vault.folders.map((folder) => (
-                  <SidebarMenuItem key={folder.id}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={`/dashboard/vault/folder/${folder.id}`}
-                        className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                          }`
-                        }
-                      >
-                        <Folder className="h-5 w-5" />
-                        <span>{folder.name}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-            {/* )} */}
-          </SidebarGroup>
-        )}
-
-        {/* New Share Button (Shared Entries only) */}
-        {isSharedContext && (
-          <div className="mt-auto p-4">
-            <Button
-              onClick={() => setIsNewShareOpen(true)}
-              className="w-full bg-[#C9A44A] hover:bg-[#B8934A]"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Share
-            </Button>
-          </div>
-        )}
-      </SidebarContent>
-
-      {/* Upgrade Button at Bottom */}
-      <div className="mt-auto p-4 border-t border-border space-y-3">
-        <Button
-          onClick={() => setIsUpgradeOpen(true)}
-          className=" py-3 px-4 bg-[#C9A44A] hover:bg-[#B8934A] text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <Crown className="h-4 w-4" />
-          Upgrade to Premium
-        </Button>
-        {/* User Info at Bottom */}
-        <div className="flex items-center gap-3 px-2 py-3 rounded-lg bg-secondary/30 border-t border border-border">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/10 text-sm">
-              <User className="h-5 w-5 text-primary" />
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{user && user?.username}</p>
-            <p className="text-xs text-muted-foreground truncate">{user && user?.email}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Upgrade Modal */}
-      <OnboardingModal
-        open={isUpgradeOpen}
-        onOpenChange={setIsUpgradeOpen}
-      />
-
-      {/* New Folder Dialog */}
-      <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="folder-name">Folder Name</Label>
-              <Input
-                id="folder-name"
-                placeholder="e.g., Work Accounts"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder();
-                }}
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsNewFolderOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-                className="bg-[#C9A44A] hover:bg-[#B8934A]"
-              >
-                Create Folder
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Share Modal */}
-      <NewShareModal
-        open={isNewShareOpen}
-        onOpenChange={setIsNewShareOpen}
-        onShareSuccess={() => {
-          setSharedEntriesRefreshKey(prev => prev + 1);
-          // Trigger a custom event to notify SharedEntriesLayout
-          window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
-        }}
-      />
-    </Sidebar>
-  );
-}
 function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -568,6 +347,7 @@ function AppSidebar() {
       setIsNewFolderOpen(false);
     }
   };
+  const avatar = user && RenderAvatar(user.id)
 
   return (
     <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
@@ -715,7 +495,7 @@ function AppSidebar() {
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
           <Avatar className="h-10 w-10 flex-shrink-0">
             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
-              <User className="h-5 w-5 text-primary" />
+              {avatar ? <img src={avatar} alt="User Avatar" className="h-5 w-5" /> : <User className="h-5 w-5 text-primary" />}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
@@ -726,7 +506,7 @@ function AppSidebar() {
       </div>
 
       {/* Modals unchanged */}
-      <OnboardingModal open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
+      <OnboardingModalBeta open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
       <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -112,6 +112,18 @@ func deriveKeyFromStellar(stellarSecret string) ([]byte, error) {
 	}
 	return key, nil
 }
+func deriveKeyFromStellarSecure(stellarSecret string, salt []byte) ([]byte, error) {
+	if len(salt) == 0 {
+		return nil, fmt.Errorf("salt cannot be empty")
+	}
+	hk := hkdf.New(sha256.New, []byte(stellarSecret), salt, []byte("stellar-password-wrap"))
+	key := make([]byte, 32) // AES-256
+	if _, err := io.ReadFull(hk, key); err != nil {
+		return nil, fmt.Errorf("failed to derive key: %w", err)
+	}
+	return key, nil
+}
+
 
 // EncryptPasswordWithStellar encrypts the password using the Stellar private key
 func EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error) {
@@ -134,6 +146,39 @@ func EncryptPasswordWithStellar(password, stellarSecret string) (nonce, cipherte
 	ciphertext = gcm.Seal(nil, nonce, []byte(password), nil)
 	return nonce, ciphertext, nil
 }
+func EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error) {
+	// Generate random salt (16 bytes recommended)
+	salt = make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Derive AES key from Stellar secret + salt
+	key, err := deriveKeyFromStellarSecure(stellarSecret, salt)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Create AES-GCM cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Generate nonce
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Encrypt password
+	ciphertext = gcm.Seal(nil, nonce, []byte(password), nil)
+	return salt, nonce, ciphertext, nil
+}
 
 // DecryptPasswordWithStellar decrypts the password using the Stellar private key
 func DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error) {
@@ -153,5 +198,27 @@ func DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) 
 	if err != nil {
 		return "", err
 	}
+	return string(plaintext), nil
+}
+func DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error) {
+	key, err := deriveKeyFromStellarSecure(stellarSecret, salt)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+
 	return string(plaintext), nil
 }

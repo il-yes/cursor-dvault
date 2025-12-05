@@ -62,7 +62,7 @@ type StellarAccountConfig struct {
 	PrivateKey string `json:"private_key,omitempty" yaml:"private_key,omitempty" gorm:"column:private_key"` // should be encrypted
     EncPassword []byte `gorm:"column:enc_password"` // ciphertext
     EncNonce    []byte `gorm:"column:enc_nonce"`    // AES-GCM nonce
-
+    EncSalt     []byte `gorm:"column:enc_salt"`     // salt
 }
 
 // internal/config/vault.go

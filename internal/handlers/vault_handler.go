@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	// "os"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -42,7 +43,7 @@ type VaultHandler struct {
 	SessionsMu     sync.Mutex
 
 	EventDispatcher share_application_events.EventDispatcher
-	Ctx             context.Context	
+	Ctx             context.Context
 }
 
 func NewVaultHandler(
@@ -184,6 +185,20 @@ func (vh *VaultHandler) SyncVault0(userID int, password string) (string, error) 
 	}
 	vh.logger.Info("🌐 CID submitted to Stellar (TX: %s)", txHash)
 
+	// 5. Decrypt
+	/*
+	decrypted, err := blockchain.Decrypt([]byte(userCfg.StellarAccount.PrivateKey), os.Getenv("TRACECORE_PRIVATE_KEY"))
+	if err != nil {
+		return "", fmt.Errorf("❌ failed to decrypt vault: %w", err)
+	}
+	vh.logger.Info("🔓 Vault decrypted")
+	// 6. Submit to Stellar
+	txHash, errTrx := blockchain.SubmitCID(string(decrypted), newCID)
+	if errTrx != nil {
+		return "", fmt.Errorf("❌ failed to submit CID to Stellar: %w", errTrx)
+	}
+	*/
+
 	// 6. Get latest metadata
 	currentMeta, err := vh.DB.GetLatestVaultCIDByUserID(userID)
 	if err != nil {
@@ -217,69 +232,68 @@ func (vh *VaultHandler) SyncVault0(userID int, password string) (string, error) 
 	return newCID, nil
 }
 func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
-    vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
-    session, err := vh.GetSession(userID)
-    if err != nil {
-        return "", fmt.Errorf("no active session: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("no active session: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
-    vaultBytes, err := json.Marshal(session.Vault)
-    if err != nil {
-        return "", fmt.Errorf("marshal failed: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
+	vaultBytes, err := json.Marshal(session.Vault)
+	if err != nil {
+		return "", fmt.Errorf("marshal failed: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
-    encrypted, err := blockchain.Encrypt(vaultBytes, password)
-    if err != nil {
-        return "", fmt.Errorf("encryption failed: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return "", fmt.Errorf("encryption failed: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
-    newCID, err := vh.IPFS.AddData(encrypted)
-    if err != nil {
-        return "", fmt.Errorf("IPFS upload failed: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
+	newCID, err := vh.IPFS.AddData(encrypted)
+	if err != nil {
+		return "", fmt.Errorf("IPFS upload failed: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
-    userCfg := session.VaultRuntimeContext.CurrentUser
-    txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
-    if err != nil {
-        return "", fmt.Errorf("stellar submission failed: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
+	userCfg := session.VaultRuntimeContext.CurrentUser
+	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
+	if err != nil {
+		return "", fmt.Errorf("stellar submission failed: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
-    currentMeta, err := vh.DB.GetLatestVaultCIDByUserID(userID)
-    if err != nil {
-        return "", fmt.Errorf("failed to get vault meta: %w", err)
-    }
-    newVault := models.VaultCID{
-        Name:      currentMeta.Name,
-        Type:      currentMeta.Type,
-        UserID:    userID,
-        CID:       newCID,
-        TxHash:    txHash,
-        CreatedAt: vh.NowUTC(),
-        UpdatedAt: vh.NowUTC(),
-    }
-    if _, err := vh.DB.SaveVaultCID(newVault); err != nil {
-        return "", fmt.Errorf("failed to save vault CID: %w", err)
-    }
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
+	currentMeta, err := vh.DB.GetLatestVaultCIDByUserID(userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get vault meta: %w", err)
+	}
+	newVault := models.VaultCID{
+		Name:      currentMeta.Name,
+		Type:      currentMeta.Type,
+		UserID:    userID,
+		CID:       newCID,
+		TxHash:    txHash,
+		CreatedAt: vh.NowUTC(),
+		UpdatedAt: vh.NowUTC(),
+	}
+	if _, err := vh.DB.SaveVaultCID(newVault); err != nil {
+		return "", fmt.Errorf("failed to save vault CID: %w", err)
+	}
 
-    runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
 
-    // Update session
-    session.LastCID = newCID
-    session.LastSynced = time.Now().Format(time.RFC3339)
-    session.Dirty = false
-    vh.vaultDirty = false
+	// Update session
+	session.LastCID = newCID
+	session.LastSynced = time.Now().Format(time.RFC3339)
+	session.Dirty = false
+	vh.vaultDirty = false
 
-    vh.logger.Info("✅ Vault sync complete for user %d", userID)
-    return newCID, nil
+	vh.logger.Info("✅ Vault sync complete for user %d", userID)
+	return newCID, nil
 }
-
 
 func (vh *VaultHandler) EncryptFile(userID int, filePath []byte, password string) (string, error) {
 	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
@@ -323,7 +337,7 @@ func (vh *VaultHandler) CreateStellarCommit(userID int, newCID string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
 	}
-	
+
 	userCfg := session.VaultRuntimeContext.CurrentUser
 	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
 	if err != nil {
@@ -359,7 +373,7 @@ func (vh *VaultHandler) CreateStellarCommit(userID int, newCID string) (string, 
 	vh.logger.Info("✅ Vault sync complete for user %d", userID)
 	// utils.LogPretty("session after sync", session)
 
-	return newCID, nil	
+	return newCID, nil
 }
 
 func (vh *VaultHandler) EncryptVault(userID int, password string) (string, error) {
@@ -686,7 +700,7 @@ func (vh *VaultHandler) DeleteFolder(userID int, id int) error {
 func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID int) ([]share_domain.ShareEntry, error) {
 	user, err := vh.DB.FindUserById(userID)
 	if err != nil {
-		return nil, fmt.Errorf("user not found with ID %d: %w",userID, err)
+		return nil, fmt.Errorf("user not found with ID %d: %w", userID, err)
 	}
 	utils.LogPretty("ListSharedEntries - user", user)
 
@@ -807,17 +821,17 @@ type RecipientPayload struct {
 }
 
 type CreateShareEntryPayload struct {
-	EntryName     string                     `json:"entry_name"`
-	EntryType     string                     `json:"entry_type"`
-	EntryRef      string                     `json:"entry_ref"`
-	Status        string                     `json:"status"`
-	AccessMode    string                     `json:"access_mode"`
-	Encryption    string                     `json:"encryption"`
+	EntryName  string `json:"entry_name"`
+	EntryType  string `json:"entry_type"`
+	EntryRef   string `json:"entry_ref"`
+	Status     string `json:"status"`
+	AccessMode string `json:"access_mode"`
+	Encryption string `json:"encryption"`
 	// Snapshot as JSON string from frontend
 	EntrySnapshot string `json:"entry_snapshot"`
 
-	ExpiresAt     string                     `json:"expires_at"`
-	Recipients    []RecipientPayload         `json:"recipients"`
+	ExpiresAt  string             `json:"expires_at"`
+	Recipients []RecipientPayload `json:"recipients"`
 }
 
 func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID int) (*share_domain.ShareEntry, error) {
@@ -827,7 +841,7 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 		return nil, fmt.Errorf("invalid entry_snapshot: %w", err)
 	}
 	utils.LogPretty("payload", payload)
-	
+
 	// map payload -> domain.ShareEntry
 	var s share_domain.ShareEntry
 	s.OwnerID = uint(ownerID)

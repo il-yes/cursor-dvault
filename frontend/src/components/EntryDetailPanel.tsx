@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { Clock } from "lucide-react";
 import "./contributionGraph/g-scrollbar.css";
+import { Textarea } from "./ui/textarea";
+import { FileUploadWidget } from "./FileUploadWidget";
 
 interface EntryDetailPanelProps {
     entry: VaultEntry | null;
@@ -37,6 +39,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [editData, setEditData] = useState<Partial<VaultEntry>>({});
     // keep localEntry typed explicitly
     const [localEntry, setLocalEntry] = useState<VaultEntry | null>(entry ?? null);
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
     // Sync localEntry with prop changes
     useEffect(() => {
@@ -187,8 +190,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         if (!isSensitive) {
             if (!editMode) {
                 return (
-                    <div className="space-y-2">
-                        <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                        <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                             {label}
                         </Label>
                         <div className="flex gap-2">
@@ -226,8 +229,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
             // edit mode - plain editable input
             return (
-                <div className="space-y-2">
-                    <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                    <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                         {label}
                     </Label>
                     <Input
@@ -246,8 +249,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         if (!editMode) {
             // view mode for sensitive field
             return (
-                <div className="space-y-2">
-                    <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+                <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                    <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                         {label}
                         <Shield className="h-3 w-3 text-primary" />
                     </Label>
@@ -259,9 +262,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 value={isRevealed ? revealed!.value : "••••••••••••"}
                                 readOnly
                                 className={cn(
-                                    "transition-all duration-300 border-border/50",
-                                    isRevealed && "animate-revealBlur border-primary/50 shadow-sm",
-                                    isDecrypting && "animate-goldShimmer"
+                                    'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                    editMode && 'border-primary/50 shadow-primary/20',
                                 )}
                             />
                             {isDecrypting && (
@@ -303,8 +305,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         const inputValueForEdit = editValue !== "" ? editValue : (isRevealed ? revealed!.value : "");
 
         return (
-            <div className="space-y-2">
-                <Label htmlFor={fieldName} className="flex items-center gap-2 text-sm font-medium">
+            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                     {label}
                     <Shield className="h-3 w-3 text-primary" />
                 </Label>
@@ -317,9 +319,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             onChange={(e) => handleFieldChange(fieldName, e.target.value)}
                             readOnly={!editMode}
                             className={cn(
-                                "transition-all duration-300 border-border/50",
-                                isRevealed && "animate-revealBlur border-primary/50 shadow-sm",
-                                isDecrypting && "animate-goldShimmer"
+                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                editMode && 'border-primary/50 shadow-primary/20',
                             )}
                         />
                         {isDecrypting && (
@@ -358,14 +359,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     // Use localEntry for guard (but we still use 'entry' prop for other logic)
     const current = localEntry ?? entry;
 
-    
+
     if (!current) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-12 backdrop-blur-xl bg-white/40 dark:bg-zinc-900/40 border border-white/30 dark:border-zinc-700/30 rounded-3xl shadow-2xl">
                 <div className="relative group mb-8">
                     <div className="absolute inset-0 bg-gradient-to-r  via-amber-500/30 to-primary rounded-3xl blur-xl opacity-40 group-hover:opacity-70 transition-all" />
-                        <img src={ankhoraLogo} alt="Ankhora Logo" className="w-32 h-auto mx-auto" />
-                        <Sparkles className="h-10 w-10 text-primary/50 absolute -top-4 -right-4 animate-pulse" />
+                    <img src={ankhoraLogo} alt="Ankhora Logo" className="w-32 h-auto mx-auto" />
+                    <Sparkles className="h-10 w-10 text-primary/50 absolute -top-4 -right-4 animate-pulse" />
                 </div>
                 <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent">
                     Select an entry
@@ -380,6 +381,43 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             </div>
         );
     }
+
+
+    {/* ... other types with same glass treatment */ }
+    const loginFields = [
+        { name: 'user_name', label: 'Username', isSensitive: false },
+        { name: 'password', label: 'Password', isSensitive: true },
+    ];
+    const cardFields = [
+        { name: 'owner', label: 'Owner' },
+        { name: 'number', label: 'Number' },
+        { name: 'expiration', label: 'Expiration' },
+        { name: 'cvc', label: 'CVC' },
+    ];
+    const identityFields = [
+        { name: 'first_name', label: 'First name' },
+        { name: 'second_name', label: 'Second name' },
+        { name: 'last_name', label: 'Last name' },
+        { name: 'username', label: 'Username' },
+        { name: 'company', label: 'Company' },
+        { name: 'social_security_number', label: 'Social security number' },
+        { name: 'ID_number', label: 'ID number' },
+        { name: 'driver_license', label: 'Driver license' },
+        { name: 'number', label: 'Number' },
+        { name: 'telephone  ', label: 'Telephone' },
+        { name: 'address_one', label: 'Address one' },
+        { name: 'address_two', label: 'Address two' },
+        { name: 'city', label: 'City' },
+        { name: 'state', label: 'State' },
+        { name: 'zip', label: 'Zip' },
+        { name: 'country', label: 'Country' },
+    ];
+
+    const sshkeyFields = [
+        { name: 'public_key', label: 'Public key' },
+        { name: 'private_key', label: 'Private key' },
+        { name: 'e_fingerprint', label: 'Fingerprint' },
+    ];
 
     return (
         <div className="flex flex-col h-full backdrop-blur-xl bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 border border-white/20 dark:border-zinc-700/20 shadow-2xl">
@@ -461,7 +499,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             <div className="flex-1 overflow-y-auto scrollbar-glassmorphism thin-scrollbar p-8 space-y-8">
                 {/* Metadata Glass Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
                         <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                             Entry Name
                         </Label>
@@ -477,15 +515,164 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                     </div>
 
                     <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40  hover:shadow-2xl transition-all duration-500">
-                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
-                            Entry ID
-                        </Label>
-                        <Input 
-                            value={current?.id ?? ""} 
-                            readOnly 
-                            className="h-14 font-mono text-lg  backdrop-blur-sm border-0 rounded-2xl p-4 shadow-inner text-muted-foreground/70" 
-                        />
+                        {/* Date createdAt and updatedAt */}
                     </div>
+                </div>
+
+                {/* Sensitive Fields Section */}
+                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl p-8 border border-white/30 dark:border-zinc-700/30 ">
+                    {current?.type === 'login' || current?.type === 'card' || current?.type === 'identity' || current?.type === 'sshkey' && <div className="flex items-center justify-between">
+                        <h3 className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-lg">
+                            <Shield className="h-6 w-6" />
+                            Sensitive Information
+                        </h3>
+                        <Badge className="bg-gradient-to-r to-amber-500/20 backdrop-blur-sm border-primary/30  font-semibold px-6 py-2 ">
+                            End-to-End Encrypted
+                        </Badge>
+                    </div>}
+
+                    {/* Your existing type-specific renderSensitiveField calls here - enhanced styling */}
+
+                    {current?.type === 'login' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {loginFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div key={field.name}>
+                                        {renderSensitiveField(field.name, field.label, field.isSensitive)}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {current?.type === 'card' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {cardFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {current?.type === 'identity' && (
+                        <div className="grid gap-6 lg:grid-cols-2">
+                            {identityFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {current?.type === 'sshkey' && (
+                        <div className="space-y-6">
+                            {sshkeyFields.map((field) => {
+                                const value = editMode
+                                    ? (editData as any)?.[field.name] ?? ''
+                                    : (current as any)?.[field.name] ?? '';
+
+                                return (
+                                    <div
+                                        key={field.name}
+                                        className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500"
+                                    >
+                                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                            {field.label}
+                                        </Label>
+                                        <Input
+                                            value={value}
+                                            onChange={(e) =>
+                                                editMode && handleFieldChange(field.name, e.target.value)
+                                            }
+                                            readOnly={!editMode}
+                                            className={cn(
+                                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                                editMode && 'border-primary/50 shadow-primary/20',
+                                            )}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl  border border-white/30 dark:border-zinc-700/30 ">
+                    <div className="space-y-6">
+                        <div className={cn(
+        "group relative rounded-3xl p-10 transition-all cursor-pointer backdrop-blur-xl",
+        "border-2 border-white/30 bg-white/50 dark:bg-zinc-900/50 shadow-2xl hover:shadow-primary/20 hover:shadow-3xl",
+        "hover:border-primary/50 hover:bg-white/70 dark:hover:bg-zinc-900/70"
+      )}>
+                            <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                                Note
+                            </Label>
+                            <Textarea
+                                className="min-h-[120px] h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner"
+                                value={editMode ? ((editData as any).additionnal_note ?? "") : (current?.additionnal_note ?? "")}
+                                onChange={(e) => editMode && handleFieldChange("additionnal_note", e.target.value)}
+                                readOnly={!editMode}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+
+                {/* File Upload Widget */}
+                <div className="">
+                    <FileUploadWidget
+                        onFileSelect={setAttachedFiles}
+                        value={attachedFiles}
+                        maxFiles={5}
+                    />
                 </div>
 
                 {/* Timestamps */}
@@ -495,10 +682,10 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             <Clock className="h-5 w-5" />
                             Created
                         </Label>
-                        <Input 
-                            value={current?.created_at ? new Date(current?.created_at).toLocaleString() : ""} 
-                            readOnly 
-                            className="h-14 font-mono text-lg  backdrop-blur-sm border-0 rounded-2xl p-4 shadow-inner" 
+                        <Input
+                            value={current?.created_at ? new Date(current?.created_at).toLocaleString() : ""}
+                            readOnly
+                            className="h-14 font-mono text-lg  backdrop-blur-sm border-0 rounded-2xl p-4 shadow-inner"
                         />
                     </div>
                     <div className="group backdrop-blur-xl bg-white/50 dark:bg-zinc-900/50 rounded-3xl p-6 border border-white/30 dark:border-zinc-700/30   transition-all">
@@ -506,35 +693,12 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             <Clock className="h-5 w-5" />
                             Last Updated
                         </Label>
-                        <Input 
-                            value={current?.updated_at ? new Date(current?.updated_at).toLocaleString() : ""} 
-                            readOnly 
-                            className="h-14 font-mono text-lg  backdrop-blur-sm border-0 rounded-2xl p-4 shadow-inner" 
+                        <Input
+                            value={current?.updated_at ? new Date(current?.updated_at).toLocaleString() : ""}
+                            readOnly
+                            className="h-14 font-mono text-lg  backdrop-blur-sm border-0 rounded-2xl p-4 shadow-inner"
                         />
                     </div>
-                </div>
-
-                {/* Sensitive Fields Section */}
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl p-8 border border-white/30 dark:border-zinc-700/30 ">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-lg">
-                            <Shield className="h-6 w-6" />
-                            Sensitive Information
-                        </h3>
-                        <Badge className="bg-gradient-to-r to-amber-500/20 backdrop-blur-sm border-primary/30  font-semibold px-6 py-2 ">
-                            End-to-End Encrypted
-                        </Badge>
-                    </div>
-
-                    {/* Your existing type-specific renderSensitiveField calls here - enhanced styling */}
-                    {current?.type === 'login' && (
-                        <div className="space-y-6">
-                            {renderSensitiveField('user_name', 'Username', false)}
-                            {renderSensitiveField('password', 'Password', true)}
-                            {/* ... rest unchanged but with glass styling */}
-                        </div>
-                    )}
-                    {/* ... other types with same glass treatment */}
                 </div>
 
                 {/* Zero-Knowledge Footer */}

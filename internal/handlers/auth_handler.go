@@ -15,7 +15,7 @@ import (
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
-
+	// "os"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -173,7 +173,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
 			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
 			ah.TracecoreClient.Token = cloudLoginResponse.Token
-			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)	
+			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)
 		}
 
 		return &LoginResponse{
@@ -213,7 +213,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
 			storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
 			ah.TracecoreClient.Token = cloudLoginResponse.Token
-			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)	
+			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)
 		}
 		ah.logger.Info("🔄 Restored session for user %d from DB", user.ID)
 
@@ -633,6 +633,7 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 	// -----------------------------
 	// 5. (Optional) Stellar account
 	// -----------------------------
+	 
 	var stellarAccount *app_config.StellarAccountConfig
 	if template.StellarAccount.Enabled {
 		pub, secret, txID, err := blockchain.CreateStellarAccount()
@@ -649,6 +650,41 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 			ah.logger.Info("✅ Stellar account created: %s -  tx:", stellarAccount.PublicKey, txID)
 		}
 	}
+	/*
+	var stellarAccount *app_config.StellarAccountConfig
+	if template.StellarAccount.Enabled {
+		pub, secret, txID, err := blockchain.CreateStellarAccount()
+		if err != nil {
+			ah.logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		} else {
+			// Encrypt the user password with Stellar secret
+			salt, nonce, ct, err := blockchain.EncryptPasswordWithStellarSecure(setup.Password, secret)
+			if err != nil {
+				ah.logger.Warn("⚠️ Failed to encrypt password with Stellar secret: %v", err)
+			}
+
+			// TODO: encrypt the Stellar private key before storing (server-side master key or KMS)
+			anchorSecret := os.Getenv("ANCHOR_SECRET")
+			if anchorSecret == "" {
+				ah.logger.Warn("⚠️ Anchor secret not found")
+				return nil, errors.New("anchor secret not found")
+			}
+			encryptedSecret, err := blockchain.Encrypt([]byte(secret), anchorSecret)
+			if err != nil {
+				ah.logger.Warn("⚠️ Failed to encrypt Stellar private key: %v", err)
+			}
+
+			stellarAccount = &app_config.StellarAccountConfig{
+				PublicKey:   pub,
+				PrivateKey:  string(encryptedSecret),
+				EncSalt:     salt,
+				EncNonce:    nonce,
+				EncPassword: ct,
+			}
+			ah.logger.Info("✅ Stellar account created: %s - txID: %s", stellarAccount.PublicKey, txID)
+		}
+	}
+	*/	
 
 	// -----------------------------
 	// 6. JWT token generation

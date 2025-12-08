@@ -8,6 +8,7 @@ import {
     SetupPaymentAndActivate,
     GetTierFeatures,
 } from '../services/api';
+import StellarKeyImport from './ImportStellarKey';
 
 
 type Tier = 'free' | 'pro' | 'pro_plus' | 'business' | string;
@@ -48,6 +49,8 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     const [tierFeatures, setTierFeatures] = useState<TierFeatures>({});
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
+    const [stellarKeyImported, setStellarKeyImported] = useState<boolean>(false);
+    const [importedStellarKey, setImportedStellarKey] = useState<string | null>(null);
 
     // Load tier features on mount
     useEffect(() => {
@@ -94,11 +97,34 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 setStep(3); // skip use cases, go to tier selection
             } else {
                 setIsAnonymous(false);
-                setStep(2);
+                setStep(1.5);
             }
         },
         [],
     );
+
+    // Step 1.5: Stellar key backup
+    const handleStellarKeyComplete = (data) => {
+        if (data.stellar_key_imported) {
+            setStellarKeyImported(true);
+            setImportedStellarKey(data.stellar_secret_key);
+
+            // If importing for Pro Plus anonymous account, skip email/password
+            if (identity === 'anonymous') {
+                setIsAnonymous(true);
+            }
+        }
+
+        // Continue to use case selection
+        setStep(2);
+    }
+
+    function handleStellarKeySkip() {
+        setStellarKeyImported(false);
+
+        // Continue to use case selection
+        setStep(2);
+    }
 
     // Step 2: Use cases (optional)
     const confirmUseCases = useCallback(() => {
@@ -195,10 +221,10 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         }
     }
 
- 
-    
 
-    
+
+
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-3xl p-6">
             <div className="w-full max-w-4xl rounded-3xl bg-white/70 shadow-2xl border border-white/40 p-8 flex flex-col gap-6">
@@ -246,6 +272,14 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                             </button>
                         </div>
                     </div>
+                )}
+
+                {/* STEP 1.5: Stellar key backup */}
+                {step === 1.5 && (
+                    <StellarKeyImport
+                        onComplete={handleStellarKeyComplete}
+                        onSkip={handleStellarKeySkip}
+                    />
                 )}
 
                 {/* STEP 2: Use cases (optional) */}

@@ -73,7 +73,7 @@ function AppContent() {
 
 	if (!isOnboarded) {
 		return (
-			<OnboardingWizard
+			<OnboardingWizardBeta
 				onComplete={() => {
 					setIsOnboarded(true);
 					localStorage.setItem('ankhora-onboarded', 'true');

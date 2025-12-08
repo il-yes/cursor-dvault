@@ -755,4 +755,64 @@ export const GetStorageUsage = async (): Promise<AuthResponse> => {
   }
 
   return response.json();
-};  
+};
+type CheckStellarKeyForVaultPayload = {
+
+}
+type CheckStellarResponse = {
+  vault_exists: boolean;
+  vault_data?: {
+    id: string;
+    created_at: string;
+    subscription_tier?: string;
+    storage_used_gb?: number;
+    last_synced_at?: string;
+  };
+}
+type RecoverVaultResponse = {
+  vault_id: string;
+}
+type ImportStellarKeyResponse = {
+  vault_id: string;
+}
+export const CheckStellarKeyForVault = async (payload: CheckStellarKeyForVaultPayload): Promise<CheckStellarResponse> => {
+  const response = await fetch(`${API_BASE_URL}/check-stellar-key-for-vault`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to check stellar key for vault: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const RecoverVault = async (stellar_key: string): Promise<RecoverVaultResponse> => {
+  const response = await fetch(`${API_BASE_URL}/recover-vault`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({stellar_key}),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to recover vault: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const ImportStellarKey = async (stellar_key: string): Promise<ImportStellarKeyResponse> => {
+  const response = await fetch(`${API_BASE_URL}/import-stellar-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({stellar_key}),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to import stellar key: ${response.statusText}`);
+  }
+
+  return response.json();
+};

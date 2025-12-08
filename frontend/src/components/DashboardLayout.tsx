@@ -41,12 +41,11 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 import { useAppStore } from "@/store/appStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import ankhoraLogoColored from "@/assets/ankhora-logo-colored-latest.png";
-import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps } from "react-router-dom";
 import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
+import OnboardingWizardBeta from "./onBoardingWizardBeta";
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;

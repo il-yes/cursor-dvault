@@ -21,6 +21,7 @@ import About from "./pages/About";
 import ProfileBeta from "./pages/ProfileBeta";
 import SettingsBeta from "./pages/SettingsBeta";
 import OnboardingWizard from "./components/OnboardingWizard";
+import OnboardingWizardBeta from "./components/onBoardingWizardBeta";
 
 
 const queryClient = new QueryClient();

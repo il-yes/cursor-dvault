@@ -12,7 +12,6 @@ import { useConnectivity } from "@/hooks/useConnectivity";
 import { useVault } from "@/hooks/useVault";
 import { OfflineFallbackPanel } from "./OfflineFallbackPanel";
 import { VaultContext } from "@/types/vault";
-import "./contributionGraph/g-scrollbar.css";
 
 type Plan = "freemium" | "pro" | "organization";
 

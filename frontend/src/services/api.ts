@@ -546,6 +546,18 @@ export interface AuthResponse {
   vault_runtime_context: any;
   last_cid: string;
   dirty: boolean;
+  tier?: string;
+  price?: any;
+  method_billing?: string;
+  payment_method?: string;
+  next_billing_date?: string;
+  next_payment_date?: string;
+  subscription?: any;
+  status?: string;
+  features?: any;
+  used_gb?: number;
+  quota_gb?: number;
+  percentage?: number;
 }
 
 export const login = async (payload: LoginRequest): Promise<handlers.LoginResponse> => {
@@ -587,3 +599,160 @@ export async function getSharedEntry(id: string) {
 
   return await res.json();
 }
+
+export const GetRecommendedTier = async () => {
+  const res = await fetch(`${API_BASE_URL}/get-recommended-tier`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch recommended tier");
+
+  return await res.json();
+}
+type CreateAccountPayload = {
+  email: string;
+  name: string;
+  password: string;
+  org?: string;
+  country?: string;
+  tier: string;
+  is_anonymous: boolean;
+}
+type SetupPaymentAndActivatePayload = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+}
+type TierFeaturesResponse = {
+  [tier: string]: {
+    name: string;
+    description?: string;
+    features?: string[];
+  };
+}
+export const CreateAccount = async (payload: CreateAccountPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/create-account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create account: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const SetupPaymentAndActivate = async (payload: SetupPaymentAndActivatePayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/setup-payment-and-activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to setup payment and activate: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const GetTierFeatures = async (tier: string): Promise<TierFeaturesResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get tier features: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+type UpgradeSubscriptionPayload = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+}
+type CancelSubscriptionPayload = {
+  user_id: string;
+  reason: string;
+}
+type BillingHistoryResponse = {
+  history: {
+    id: string;
+    created_at: string;
+    description: string;
+    amount: number;
+    status: string;
+    stellar_tx_hash?: string;
+    stripe_intent_id?: string;
+  }[];
+}
+export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/upgrade-subscription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const CancelSubscription = async (payload: CancelSubscriptionPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/cancel-subscription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to cancel subscription: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const GetBillingHistory = async (): Promise<BillingHistoryResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-billing-history`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get billing history: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+export const GetSubscriptionDetails = async (): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-subscription-details`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get subscription details: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+export const GetStorageUsage = async (): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-storage-usage`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get storage usage: ${response.statusText}`);
+  }
+
+  return response.json();
+};  

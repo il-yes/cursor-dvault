@@ -28,6 +28,8 @@ import { handlers, main } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
+import { Keypair } from "stellar-sdk";
+import { Buffer } from "buffer";  
 
 
 
@@ -756,44 +758,41 @@ export const GetStorageUsage = async (): Promise<AuthResponse> => {
 
   return response.json();
 };
-type CheckStellarKeyForVaultPayload = {
 
-}
-type CheckStellarResponse = {
-  vault_exists: boolean;
-  vault_data?: {
-    id: string;
-    created_at: string;
-    subscription_tier?: string;
-    storage_used_gb?: number;
-    last_synced_at?: string;
-  };
-}
 type RecoverVaultResponse = {
   vault_id: string;
 }
 type ImportStellarKeyResponse = {
   vault_id: string;
 }
-export const CheckStellarKeyForVault = async (payload: CheckStellarKeyForVaultPayload): Promise<CheckStellarResponse> => {
-  const response = await fetch(`${API_BASE_URL}/check-stellar-key-for-vault`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
 
-  if (!response.ok) {
-    throw new Error(`Failed to check stellar key for vault: ${response.statusText}`);
+export const CheckStellarKeyForVault = async (payload: string): Promise<main.CheckKeyResponse> => {
+  const response = await AppAPI.CheckStellarKeyForVault(payload);
+
+  if (!response.ok) { // note capital Ok
+    throw new Error(`Failed to check stellar key for vault`);
   }
+  console.log(response)
+  return response;
+};
 
-  return response.json();
+export const ConnectWithStellar = async (payload: LoginRequest): Promise<main.CheckKeyResponse> => {
+  try {
+    const response = await AppAPI.ConnectWithStellar(payload);
+    console.log(response)
+
+    return response;
+  } catch (error) {
+    console.log(error)
+    throw new Error(`Failed to connect with stellar: ${error.message}`);
+  }
 };
 
 export const RecoverVault = async (stellar_key: string): Promise<RecoverVaultResponse> => {
   const response = await fetch(`${API_BASE_URL}/recover-vault`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({stellar_key}),
+    body: JSON.stringify({ stellar_key }),
   });
 
   if (!response.ok) {
@@ -807,7 +806,7 @@ export const ImportStellarKey = async (stellar_key: string): Promise<ImportStell
   const response = await fetch(`${API_BASE_URL}/import-stellar-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({stellar_key}),
+    body: JSON.stringify({ stellar_key }),
   });
 
   if (!response.ok) {
@@ -816,3 +815,19 @@ export const ImportStellarKey = async (stellar_key: string): Promise<ImportStell
 
   return response.json();
 };
+
+export const StellarAsksForChallenge = async (stellarKey: string) => {
+  // 1. Generate keypair
+  const keypair = Keypair.fromSecret(stellarKey);
+  const publicKey = keypair.publicKey();
+
+  // 2. Request challenge from backend
+  const { challenge } = await AppAPI.RequestChallenge({ public_key: publicKey });
+
+  // 3. Sign challenge
+  const signature = Buffer.from(
+    keypair.sign(Buffer.from(challenge))
+  ).toString("base64");
+
+  return { publicKey, signature, challenge };
+}

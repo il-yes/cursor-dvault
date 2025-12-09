@@ -22,6 +22,14 @@ export function CheckSession(arg1) {
   return window['go']['main']['App']['CheckSession'](arg1);
 }
 
+export function CheckStellarKeyForVault(arg1) {
+  return window['go']['main']['App']['CheckStellarKeyForVault'](arg1);
+}
+
+export function ConnectWithStellar(arg1) {
+  return window['go']['main']['App']['ConnectWithStellar'](arg1);
+}
+
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -70,6 +78,10 @@ export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }
 
+export function ImportVaultWithKey(arg1) {
+  return window['go']['main']['App']['ImportVaultWithKey'](arg1);
+}
+
 export function IsVaultDirty(arg1) {
   return window['go']['main']['App']['IsVaultDirty'](arg1);
 }
@@ -80,6 +92,10 @@ export function ListReceivedShares(arg1) {
 
 export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
+}
+
+export function RecoverVaultWithKey(arg1) {
+  return window['go']['main']['App']['RecoverVaultWithKey'](arg1);
 }
 
 export function RefreshToken(arg1) {

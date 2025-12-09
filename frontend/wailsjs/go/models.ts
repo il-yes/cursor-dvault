@@ -394,8 +394,8 @@ export namespace handlers {
 		}
 	}
 	export class LoginRequest {
-	    email: string;
-	    password: string;
+	    email?: string;
+	    password?: string;
 	    publicKey?: string;
 	    privateKey?: string;
 	    signedMessage?: string;
@@ -522,6 +522,28 @@ export namespace handlers {
 
 export namespace main {
 	
+	export class CheckKeyResponse {
+	    id: string;
+	    created_at: string;
+	    subscription_tier: string;
+	    storage_used_gb: number;
+	    last_synced_at: string;
+	    ok: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckKeyResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.created_at = source["created_at"];
+	        this.subscription_tier = source["subscription_tier"];
+	        this.storage_used_gb = source["storage_used_gb"];
+	        this.last_synced_at = source["last_synced_at"];
+	        this.ok = source["ok"];
+	    }
+	}
 	export class CreateShareInput {
 	    payload: handlers.CreateShareEntryPayload;
 	    jwtToken: string;
@@ -1261,6 +1283,196 @@ export namespace share_domain {
 		    return a;
 		}
 	}
+
+}
+
+export namespace stellar_recovery_domain {
+	
+	export class ImportedKey {
+	    StellarPublic: string;
+	    StellarSecret: string;
+	    CanCreate: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportedKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.StellarPublic = source["StellarPublic"];
+	        this.StellarSecret = source["StellarSecret"];
+	        this.CanCreate = source["CanCreate"];
+	    }
+	}
+	export class Subscription {
+	    ID: string;
+	    UserID: string;
+	    Status: string;
+	    Tier: string;
+	    // Go type: time
+	    CreatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.UserID = source["UserID"];
+	        this.Status = source["Status"];
+	        this.Tier = source["Tier"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Vault {
+	    ID: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    StorageUsedGB: number;
+	    StorageQuotaGB: number;
+	    // Go type: time
+	    LastSyncedAt?: any;
+	    IPFSNodeID: string;
+	    PinataPinID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.StorageUsedGB = source["StorageUsedGB"];
+	        this.StorageQuotaGB = source["StorageQuotaGB"];
+	        this.LastSyncedAt = this.convertValues(source["LastSyncedAt"], null);
+	        this.IPFSNodeID = source["IPFSNodeID"];
+	        this.PinataPinID = source["PinataPinID"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class User {
+	    ID: string;
+	    Email: string;
+	    IsAnonymous: boolean;
+	    StellarPublicKey: string;
+	    EncryptedSecretKey: string;
+	    SubscriptionTier: string;
+	    SubscriptionID?: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Email = source["Email"];
+	        this.IsAnonymous = source["IsAnonymous"];
+	        this.StellarPublicKey = source["StellarPublicKey"];
+	        this.EncryptedSecretKey = source["EncryptedSecretKey"];
+	        this.SubscriptionTier = source["SubscriptionTier"];
+	        this.SubscriptionID = source["SubscriptionID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RecoveredVault {
+	    User?: User;
+	    Vault?: Vault;
+	    Subscription?: Subscription;
+	    SessionToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecoveredVault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.User = this.convertValues(source["User"], User);
+	        this.Vault = this.convertValues(source["Vault"], Vault);
+	        this.Subscription = this.convertValues(source["Subscription"], Subscription);
+	        this.SessionToken = source["SessionToken"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 
 }
 

@@ -237,8 +237,8 @@ export interface Folder {
 }
 
 export interface LoginRequest {
-  email: string;
-  password: string;
+  email?: string;
+  password?: string;
   publicKey?: string;
   signedMessage?: string;
   signature?: string;

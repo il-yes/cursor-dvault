@@ -17,6 +17,14 @@ import (
 	"vault-app/internal/handlers"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/registry"
+	shared "vault-app/internal/shared/stellar"
+	stellar_recovery_usecase "vault-app/internal/stellar_recovery/application/use_case"
+	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
+	stellar "vault-app/internal/stellar_recovery/infrastructure"
+	"vault-app/internal/stellar_recovery/infrastructure/events"
+	stellar_recovery_persistence "vault-app/internal/stellar_recovery/infrastructure/persistence"
+	"vault-app/internal/stellar_recovery/infrastructure/token"
+	stellar_recovery_ui_api "vault-app/internal/stellar_recovery/ui/api"
 	"vault-app/internal/tracecore"
 
 	// "vault-app/internal/logger/logger"
@@ -25,8 +33,7 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/mapstructure"
-    "github.com/wailsapp/wails/v2/pkg/runtime"
-
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type CoreApp interface {
@@ -63,11 +70,14 @@ type App struct {
 	DB       models.DBModel
 	ctx      context.Context
 	sessions map[int]*models.VaultSession
+	NowUTC   func() string
 
 	// Core handlers
-	Vaults        *handlers.VaultHandler
-	Auth          *handlers.AuthHandler
-	EntryRegistry *registry.EntryRegistry
+	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
+	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
+	Vaults                    *handlers.VaultHandler
+	Auth                      *handlers.AuthHandler
+	EntryRegistry             *registry.EntryRegistry
 
 	// New: Global state
 	RuntimeContext *models.VaultRuntimeContext
@@ -183,6 +193,26 @@ func NewApp() *App {
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth)
 
+	// Recovery context implementations
+	userRepo := stellar_recovery_persistence.NewGormUserRepository(db.DB)
+	vaultRepo := stellar_recovery_persistence.NewGormVaultRepository(db.DB)
+	subRepo := stellar_recovery_persistence.NewGormSubscriptionRepository(db.DB)
+	verifier := stellar.NewStellarKeyAdapter()
+	eventDisp := events.NewLocalDispatcher()
+	tokenGen := token.NewSimpleTokenGen()
+
+	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultRepo, subRepo, verifier)
+	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultRepo, subRepo, verifier, eventDisp, tokenGen)
+	importUC := stellar_recovery_usecase.NewImportKeyUseCase(userRepo, verifier)
+	loginAdapter := shared.NewStellarLoginAdapter(db)
+
+	connectUC := stellar_recovery_usecase.NewConnectWithStellarUseCase(
+		loginAdapter,
+		vaultRepo,
+		subRepo,
+	)
+
+	stellarHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
 
 	// ⚡ Restore sessions asynchronously to speed up startup
 	go func() {
@@ -213,17 +243,79 @@ func NewApp() *App {
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
-		config:         cfg,
-		version:        version,
-		DB:             *db,
-		Vaults:         vaults,
-		Auth:           auth,
-		Logger:         *appLogger,
-		EntryRegistry:  reg,
-		sessions:       sessions,
-		RuntimeContext: runtimeCtx,
-		cancel:         cancel,
+		config:                    cfg,
+		version:                   version,
+		DB:                        *db,
+		StellarRecoveryHandler:    stellarHandler,
+		Vaults:                    vaults,
+		Auth:                      auth,
+		Logger:                    *appLogger,
+		EntryRegistry:             reg,
+		sessions:                  sessions,
+		RuntimeContext:            runtimeCtx,
+		cancel:                    cancel,
+		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
+		ConnectWithStellarHandler: stellarHandler,
 	}
+}
+
+type CheckKeyResponse struct {
+	ID               string  `json:"id"`
+	CreatedAt        string  `json:"created_at"`
+	SubscriptionTier string  `json:"subscription_tier"`
+	StorageUsedGB    float64 `json:"storage_used_gb"`
+	LastSyncedAt     string  `json:"last_synced_at"`
+	Ok               bool    `json:"ok"` // exported!
+}
+
+func (a *App) CheckStellarKeyForVault(stellarKey string) (*CheckKeyResponse, error) {
+	res, err := a.StellarRecoveryHandler.CheckVault(context.Background(), stellarKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil {
+		return &CheckKeyResponse{Ok: false}, nil
+	}
+
+	return &CheckKeyResponse{
+		ID:               res.ID,
+		CreatedAt:        res.CreatedAt,
+		SubscriptionTier: res.SubscriptionTier,
+		StorageUsedGB:    res.StorageUsedGB,
+		LastSyncedAt:     res.LastSyncedAt,
+		Ok:               true,
+	}, nil
+}
+
+func (a *App) RecoverVaultWithKey(stellarKey string) (*stellar_recovery_domain.RecoveredVault, error) {
+	return a.StellarRecoveryHandler.RecoverVault(context.Background(), stellarKey)
+}
+
+func (a *App) ImportVaultWithKey(stellarKey string) (*stellar_recovery_domain.ImportedKey, error) {
+	return a.StellarRecoveryHandler.ImportKey(context.Background(), stellarKey)
+}
+// in waiting for applying full ddd above
+func (a *App) ConnectWithStellar(req handlers.LoginRequest) (*CheckKeyResponse, error) {
+	response, err := a.StellarRecoveryHandler.ConnectWithStellar(context.Background(), req)
+	fmt.Println("ConnectWithStellar req", response)
+	if err != nil {
+		return nil, err
+	}
+	if response == nil {
+		return nil, nil // means no vault found
+	}
+
+	res := &CheckKeyResponse{
+		ID:               response.ID,
+		CreatedAt:        response.CreatedAt,
+		SubscriptionTier: response.SubscriptionTier,
+		StorageUsedGB:    response.StorageUsedGB,
+		LastSyncedAt:     response.LastSyncedAt,
+		Ok:               true,
+	}
+	utils.LogPretty("ConnectWithStellar res", res)
+	return res, nil
 }
 
 // -----------------------------
@@ -341,100 +433,99 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 }
 
 func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
-    claims, err := a.Auth.RequireAuth(jwtToken)
-    if err != nil {
-        return "", err
-    }
-    
-    // Emit start progress
-    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-        "percent": 0,
-        "stage":   "encrypting",
-    })
-    
-    // Real AES-256-GCM encryption with progress
-    encryptedPath, err := a.Vaults.EncryptFile(claims.UserID, []byte(fileData), password)
-    if err != nil {
-        return "", err
-    }
-    
-    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-        "percent": 70,
-        "stage":   "encrypted",
-    })
-    
-    return encryptedPath, nil
-}
-func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
-    claims, err := a.Auth.RequireAuth(jwtToken)
-    if err != nil {
-        return "", err
-    }
-    
-    // Simulate upload progress (integrate with your IPFS client for real progress)
-    current := 70
-    for i := 1; i <= 20; i++ {
-        current += 1
-        runtime.EventsEmit(a.ctx, "progress-update", current)
-        time.Sleep(50 * time.Millisecond) // Simulate; use actual IPFS progress
-    }
-    
-    cid, err := a.Vaults.UploadToIPFS(claims.UserID, filePath)
-    runtime.EventsEmit(a.ctx, "progress-update", 95) // Near complete
+	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
-    return cid, nil
+
+	// Emit start progress
+	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+		"percent": 0,
+		"stage":   "encrypting",
+	})
+
+	// Real AES-256-GCM encryption with progress
+	encryptedPath, err := a.Vaults.EncryptFile(claims.UserID, []byte(fileData), password)
+	if err != nil {
+		return "", err
+	}
+
+	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+		"percent": 70,
+		"stage":   "encrypted",
+	})
+
+	return encryptedPath, nil
+}
+func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return "", err
+	}
+
+	// Simulate upload progress (integrate with your IPFS client for real progress)
+	current := 70
+	for i := 1; i <= 20; i++ {
+		current += 1
+		runtime.EventsEmit(a.ctx, "progress-update", current)
+		time.Sleep(50 * time.Millisecond) // Simulate; use actual IPFS progress
+	}
+
+	cid, err := a.Vaults.UploadToIPFS(claims.UserID, filePath)
+	runtime.EventsEmit(a.ctx, "progress-update", 95) // Near complete
+	if err != nil {
+		return "", err
+	}
+	return cid, nil
 }
 func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
-    claims, err := a.Auth.RequireAuth(jwtToken)
-    if err != nil {
-        return "", err
-    }
-    
-    // Quick commit with final progress
-    runtime.EventsEmit(a.ctx, "progress-update", 100)
-    return a.Vaults.CreateStellarCommit(claims.UserID, cid)
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return "", err
+	}
+
+	// Quick commit with final progress
+	runtime.EventsEmit(a.ctx, "progress-update", 100)
+	return a.Vaults.CreateStellarCommit(claims.UserID, cid)
 }
 func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
-    claims, err := a.Auth.RequireAuth(jwtToken)
-    if err != nil {
-        return "", err
-    }
-    
-    // Emit start progress
-    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-        "percent": 0,
-        "stage":   "encrypting",
-    })
-    
-    // Real AES-256-GCM encryption with progress
-    encryptedPath, err := a.Vaults.EncryptVault(claims.UserID, password)
-    if err != nil {
-        return "", err
-    }
-    
-    runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-        "percent": 70,
-        "stage":   "encrypted",
-    })
-    
-    return encryptedPath, nil
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return "", err
+	}
+
+	// Emit start progress
+	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+		"percent": 0,
+		"stage":   "encrypting",
+	})
+
+	// Real AES-256-GCM encryption with progress
+	encryptedPath, err := a.Vaults.EncryptVault(claims.UserID, password)
+	if err != nil {
+		return "", err
+	}
+
+	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+		"percent": 70,
+		"stage":   "encrypted",
+	})
+
+	return encryptedPath, nil
 }
 
-
 type CreateShareInput struct {
-    Payload handlers.CreateShareEntryPayload `json:"payload"`
-    JwtToken string                                   `json:"jwtToken"`
+	Payload  handlers.CreateShareEntryPayload `json:"payload"`
+	JwtToken string                           `json:"jwtToken"`
 }
 
 func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, error) {
-    claims, err := a.Auth.RequireAuth(input.JwtToken)
-    if err != nil {
-        return nil, err
-    }
+	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	if err != nil {
+		return nil, err
+	}
 	userID := int(claims.UserID)
-    return a.Vaults.CreateShareEntry(context.Background(),input.Payload, userID )
+	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID)
 }
 
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
@@ -442,7 +533,7 @@ func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, er
 	if err != nil {
 		return nil, fmt.Errorf("ListSharedEntries - auth failed: %w", err)
 	}
-	utils.LogPretty("ListSharedEntries - claims", claims)	
+	utils.LogPretty("ListSharedEntries - claims", claims)
 
 	entries, err := a.Vaults.ListSharedEntries(context.Background(), int(claims.UserID))
 	if err != nil {

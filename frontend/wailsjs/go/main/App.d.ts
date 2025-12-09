@@ -4,9 +4,10 @@ import {json} from '../models';
 import {share_application_use_cases} from '../models';
 import {blockchain} from '../models';
 import {handlers} from '../models';
-import {models} from '../models';
 import {main} from '../models';
+import {models} from '../models';
 import {share_domain} from '../models';
+import {stellar_recovery_domain} from '../models';
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -17,6 +18,10 @@ export function AuthVerify(arg1:blockchain.SignatureVerification):Promise<string
 export function CheckEmail(arg1:string):Promise<handlers.CheckEmailResponse>;
 
 export function CheckSession(arg1:number):Promise<string>;
+
+export function CheckStellarKeyForVault(arg1:string):Promise<main.CheckKeyResponse>;
+
+export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<models.VaultPayload>;
 
@@ -42,11 +47,15 @@ export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<models.
 
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_domain.ShareAcceptData>;
 
+export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
+
 export function IsVaultDirty(arg1:string):Promise<boolean>;
 
 export function ListReceivedShares(arg1:string):Promise<any>;
 
 export function ListSharedEntries(arg1:string):Promise<any>;
+
+export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain.RecoveredVault>;
 
 export function RefreshToken(arg1:number):Promise<string>;
 

@@ -3,8 +3,9 @@
 import React, { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { CheckStellarKeyForVault, RecoverVault, ImportStellarKey } from '../services/api'; // Adjust path
+import { CheckStellarKeyForVault, RecoverVault, ImportStellarKey, ConnectWithStellar, StellarAsksForChallenge } from '../services/api'; // Adjust path
 import { cn } from '@/lib/utils';
+import { LoginRequest } from '@/types/vault';
 
 interface VaultFoundData {
   id: string;
@@ -46,11 +47,19 @@ const StellarKeyImport: React.FC<StellarKeyImportProps> = ({ onComplete, onSkip 
     setVaultFound(null);
 
     try {
-      const result = await CheckStellarKeyForVault(stellarSecretKey);
+      // Ask for challenge First for privacy  
+      const { publicKey, signature, challenge } = await StellarAsksForChallenge(stellarSecretKey);
+      const payload: LoginRequest = {
+        publicKey: publicKey,
+        signature: signature,
+        signedMessage: challenge
+      } 
+      const result = await CheckStellarKeyForVault(publicKey);
+      // const result = await ConnectWithStellar(payload);
       setKeyValidated(true);
       
-      if (result.vault_exists) {
-        setVaultFound(result?.vault_data);
+      if (result && result.ok) {
+        setVaultFound(result);
       } else {
         setVaultFound(null);
       }

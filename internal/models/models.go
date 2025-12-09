@@ -56,7 +56,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&share_infrastructure.ShareEntryModel{},
 		&share_infrastructure.RecipientModel{},
 		&share_domain.AuditLog{},	
-
+		
 	)
 }
 

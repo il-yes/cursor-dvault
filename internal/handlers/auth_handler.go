@@ -47,8 +47,8 @@ func NewAuthHandler(db models.DBModel, vaults *VaultHandler, ipfs *blockchain.IP
 // Sign In
 // -----------------------------
 type LoginRequest struct {
-	Email         string `json:"email"`
-	Password      string `json:"password"`
+	Email         string `json:"email,omitempty"`
+	Password      string `json:"password,omitempty"`
 	PublicKey     string `json:"publicKey,omitempty"`     // optional
 	PrivateKey    string `json:"privateKey,omitempty"`    // optional
 	SignedMessage string `json:"signedMessage,omitempty"` // optional

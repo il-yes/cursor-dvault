@@ -703,8 +703,11 @@ func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID int) ([]sh
 		return nil, fmt.Errorf("user not found with ID %d: %w", userID, err)
 	}
 	utils.LogPretty("ListSharedEntries - user", user)
-
-	existingSession, ok := vh.Sessions[user.ID]
+	id, err := strconv.Atoi(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
+	}
+	existingSession, ok := vh.Sessions[id]
 	if !ok {
 		return nil, fmt.Errorf("no active session for user %d", userID)
 	}
@@ -712,7 +715,7 @@ func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID int) ([]sh
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	entries, err := uc.ListSharedEntries(ctx, uint(user.ID), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
+	entries, err := uc.ListSharedEntries(ctx, uint(id), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
 	}
@@ -727,8 +730,11 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]s
 	}
 
 	utils.LogPretty("ListReceivedEntries - user", user)
-
-	existingSession, ok := vh.Sessions[user.ID]
+	id, err := strconv.Atoi(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
+	}
+	existingSession, ok := vh.Sessions[id]
 	if !ok {
 		return nil, fmt.Errorf("no active session for user %d", userID)
 	}
@@ -736,7 +742,7 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]s
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	entries, err := uc.ListReceivedShares(ctx, uint(user.ID), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
+	entries, err := uc.ListReceivedShares(ctx, uint(id), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
 	}
@@ -771,8 +777,11 @@ func (vh *VaultHandler) AcceptShare(ctx context.Context, userID int, shareID uin
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-
-	result, err := usecase.AcceptShare(ctx, shareID, uint(user.ID))
+	id, err := strconv.Atoi(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
+	}
+	result, err := usecase.AcceptShare(ctx, shareID, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -788,8 +797,11 @@ func (vh *VaultHandler) RejectShare(ctx context.Context, userID int, shareID uin
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-
-	result, err := usecase.RejectShare(ctx, shareID, uint(user.ID))
+	id, err := strconv.Atoi(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
+	}
+	result, err := usecase.RejectShare(ctx, shareID, uint(id))
 	if err != nil {
 		return nil, err
 	}
@@ -805,8 +817,11 @@ func (vh *VaultHandler) AddReceiver(ctx context.Context, userID int, in share_ap
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-
-	result, err := usecase.AddReceiver(ctx, uint(user.ID), in)
+	id, err := strconv.Atoi(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
+	}
+	result, err := usecase.AddReceiver(ctx, uint(id), in)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,13 @@ import (
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
+	identity_domain "vault-app/internal/identity/domain"
 	"vault-app/internal/logger/logger"
+	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
+	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_infrastructure_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	"vault-app/internal/registry"
 	shared "vault-app/internal/shared/stellar"
 	stellar_recovery_usecase "vault-app/internal/stellar_recovery/application/use_case"
@@ -25,6 +31,10 @@ import (
 	stellar_recovery_persistence "vault-app/internal/stellar_recovery/infrastructure/persistence"
 	"vault-app/internal/stellar_recovery/infrastructure/token"
 	stellar_recovery_ui_api "vault-app/internal/stellar_recovery/ui/api"
+	subscription_usecase "vault-app/internal/subscription/application/usecase"
+	subscription_domain "vault-app/internal/subscription/domain"
+	subscription_infrastructure "vault-app/internal/subscription/infrastructure"
+	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	"vault-app/internal/tracecore"
 
 	// "vault-app/internal/logger/logger"
@@ -74,6 +84,7 @@ type App struct {
 
 	// Core handlers
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
+	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
 	Vaults                    *handlers.VaultHandler
 	Auth                      *handlers.AuthHandler
@@ -212,8 +223,17 @@ func NewApp() *App {
 		subRepo,
 	)
 
-	stellarHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
 
+	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)
+	userSubRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
+	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
+	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: db.DB}
+	memoryBus := onboarding_infrastructure_eventbus.NewMemoryBus()	
+	stellarService := blockchain.StellarService{}	
+	createAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, memoryBus, appLogger)
+	stellarHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
+	setupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubRepo,subscriptionSubRepo, memoryBus, *tcClient)	
+	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, createAccountUC, setupPaymentUseCase)
 	// ⚡ Restore sessions asynchronously to speed up startup
 	go func() {
 		appLogger.Info("🔄 Restoring sessions in background...")
@@ -236,6 +256,24 @@ func NewApp() *App {
 		appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
 	}()
 
+
+	// Event bus (single memory bus for subscription domain)
+	subscriptionBus := subscription_persistence.NewMemoryBus()
+	subscriptionService := subscription_infrastructure.NewSubscriptionService()
+	// ===== New: core activator (business logic) =====
+	// Note: pass a Stellar port implementation if you have one, otherwise nil
+	activator := subscription_usecase.NewSubscriptionActivator(
+		subscriptionSubRepo,            // repo
+		subscriptionBus,
+		subscriptionService,   // vault port (implements ActivationVaultPort)
+	)
+
+
+	// ===== New: listener which only forwards SubscriptionCreated -> activator =====
+	createdListener := subscription_usecase.NewSubscriptionCreatedListener(appLogger, activator, subscriptionBus)
+	go createdListener.Listen(ctx)
+
+
 	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
 
@@ -247,6 +285,7 @@ func NewApp() *App {
 		version:                   version,
 		DB:                        *db,
 		StellarRecoveryHandler:    stellarHandler,
+		OnBoardingHandler:         onBoardingHandler,
 		Vaults:                    vaults,
 		Auth:                      auth,
 		Logger:                    *appLogger,
@@ -259,6 +298,9 @@ func NewApp() *App {
 	}
 }
 
+// -----------------------------
+// OnBoarding
+// -----------------------------
 type CheckKeyResponse struct {
 	ID               string  `json:"id"`
 	CreatedAt        string  `json:"created_at"`
@@ -316,6 +358,45 @@ func (a *App) ConnectWithStellar(req handlers.LoginRequest) (*CheckKeyResponse, 
 	}
 	utils.LogPretty("ConnectWithStellar res", res)
 	return res, nil
+}
+type OnboardingStep1Response struct {
+    Identity identity_domain.IdentityChoice `json:"identity"`
+}
+func (a *App) GetRecommendedTier(identity identity_domain.IdentityChoice) (OnboardingStep1Response, error) {
+	
+	choice := a.OnBoardingHandler.GetRecommendedTier(identity)
+	return OnboardingStep1Response{Identity: identity_domain.IdentityChoice(choice)}, nil
+}
+
+// 0. Get Tier Features
+func (a *App) GetTierFeatures() (map[string]onboarding_domain.SubscriptionFeatures, error) {
+	return a.OnBoardingHandler.GetTierFeatures(), nil
+}
+
+// Step 2: Use Case (conditional based on Step 1)
+type UseCaseResponse struct {
+    UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
+}
+
+// Step 3: Tier Selection
+// type TierSelectionResponse struct {
+//     Tier          services.SubscriptionTier `json:"tier"`
+//     PaymentMethod services.PaymentMethod    `json:"payment_method"`
+// }
+
+
+
+func (a *App) CreateAccount(req onboarding_usecase.AccountCreationRequest) (*onboarding_ui_wails.AccountCreationResponse, error) {
+	response, err := a.OnBoardingHandler.CreateAccount(req)	
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest) (*subscription_domain.Subscription, error) {
+	utils.LogPretty("SetupPaymentAndActivate req", req)
+	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
 }
 
 // -----------------------------

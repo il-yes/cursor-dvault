@@ -2,7 +2,6 @@ package stellar_recovery_usecase
 
 import (
 	"context"
-	"strconv"
 	"vault-app/internal/handlers"
 	"vault-app/internal/models"
 	shared "vault-app/internal/shared/stellar"
@@ -52,9 +51,8 @@ func (uc *ConnectWithStellarUseCase) Execute(ctx context.Context, req handlers.L
         return nil, err
     }
 
-	id := strconv.Itoa(user.ID)
-    vault, _ := uc.VaultRepo.GetByUserID(ctx, id)
-    sub, _ := uc.SubRepo.GetActiveByUserID(ctx, id)
+    vault, _ := uc.VaultRepo.GetByUserID(ctx, user.ID)
+    sub, _ := uc.SubRepo.GetActiveByUserID(ctx, user.ID)
 
     return &ConnectWithStellarResult{
         Password:     password,

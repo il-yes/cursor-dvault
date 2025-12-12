@@ -11,6 +11,8 @@ import (
 	app_config "vault-app/internal/config"
 	share_domain "vault-app/internal/domain/shared"
 	share_infrastructure "vault-app/internal/infrastructure/share"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	"vault-app/internal/tracecore"
 
 	"gorm.io/gorm"
@@ -55,8 +57,12 @@ func AutoMigrate(db *gorm.DB) error {
 		// Sharing
 		&share_infrastructure.ShareEntryModel{},
 		&share_infrastructure.RecipientModel{},
-		&share_domain.AuditLog{},	
+		&share_domain.AuditLog{},
 		
+		// Onboarding
+		&onboarding_persistence.UserDB{},
+		&subscription_persistence.SubscriptionMapper{},
+		&subscription_persistence.UserSubscriptionMapper{},
 	)
 }
 
@@ -67,7 +73,7 @@ type VaultEntry interface {
 }
 
 type User struct {
-	ID              int       `json:"id" gorm:"primaryKey"`
+	ID              string       `json:"id" gorm:"primaryKey"`
 	Username        string    `gorm:"column:username" json:"username"`
 	Email           string    `gorm:"column:email" json:"email"`
 	Password        string    `gorm:"column:password" json:"password"`
@@ -77,7 +83,7 @@ type User struct {
 	LastConnectedAt time.Time `json:"last_connected_at" gorm:"last_connected_at"`
 }
 type UserDTO struct {
-	ID              int    `json:"id"`
+	ID              string    `json:"id"`
 	Email           string `json:"email"`
 	Role            string `json:"role"`
 	CreatedAt       string `json:"created_at"`

@@ -8,6 +8,16 @@ import (
 	"gorm.io/gorm"
 )
 
+type IdentityChoice string
+
+const (
+    IdentityPersonal    IdentityChoice = "personal"
+    IdentityAnonymous   IdentityChoice = "anonymous"
+    IdentityTeam        IdentityChoice = "team"
+    IdentityCompliance  IdentityChoice = "compliance"
+)
+
+
 // User aggregate
 type User struct {
 	ID               string

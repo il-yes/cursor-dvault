@@ -30,6 +30,10 @@ export function ConnectWithStellar(arg1) {
   return window['go']['main']['App']['ConnectWithStellar'](arg1);
 }
 
+export function CreateAccount(arg1) {
+  return window['go']['main']['App']['CreateAccount'](arg1);
+}
+
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -74,8 +78,16 @@ export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
 }
 
+export function GetRecommendedTier(arg1) {
+  return window['go']['main']['App']['GetRecommendedTier'](arg1);
+}
+
 export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
+}
+
+export function GetTierFeatures() {
+  return window['go']['main']['App']['GetTierFeatures']();
 }
 
 export function ImportVaultWithKey(arg1) {
@@ -112,6 +124,10 @@ export function RequestChallenge(arg1) {
 
 export function RestoreEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2, arg3);
+}
+
+export function SetupPaymentAndActivate(arg1) {
+  return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
 }
 
 export function SignIn(arg1) {

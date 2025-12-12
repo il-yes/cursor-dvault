@@ -5,9 +5,14 @@ import {share_application_use_cases} from '../models';
 import {blockchain} from '../models';
 import {handlers} from '../models';
 import {main} from '../models';
+import {onboarding_usecase} from '../models';
+import {onboarding_ui_wails} from '../models';
 import {models} from '../models';
 import {share_domain} from '../models';
+import {identity_domain} from '../models';
+import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
+import {subscription_domain} from '../models';
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -22,6 +27,8 @@ export function CheckSession(arg1:number):Promise<string>;
 export function CheckStellarKeyForVault(arg1:string):Promise<main.CheckKeyResponse>;
 
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
+
+export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<models.VaultPayload>;
 
@@ -45,7 +52,11 @@ export function FlushAllSessions():Promise<void>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<models.Folder>>;
 
+export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
+
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_domain.ShareAcceptData>;
+
+export function GetTierFeatures():Promise<Record<string, onboarding_domain.SubscriptionFeatures>>;
 
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
@@ -64,6 +75,8 @@ export function RejectShare(arg1:string,arg2:number):Promise<share_application_u
 export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
 export function SignIn(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 

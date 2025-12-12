@@ -608,3 +608,6 @@ Here’s how to think about it:
 ```
 
 
+
+
+1. implement stellar service fitting interfaces

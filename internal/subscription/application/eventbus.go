@@ -1,17 +1,30 @@
-package subscription_eventbus
+package subscription_application_eventbus
 
-import (
-	"context"
-	"sync"
-	subscription_domain "vault-app/internal/subscription/domain"
-)
+import "context"
+// Fired when a subscription is created (persisted)
+type SubscriptionCreated struct {
+	SubscriptionID string
+	UserID         string
+	Tier           string
+	TxHash         string
+	OccurredAt     int64
+}
 
-var (
-	subscriptionCreatedHandlersMu sync.RWMutex
-	subscriptionCreatedHandlers   []func(context.Context, subscription_domain.SubscriptionCreated)
-)
+// Fired when a subscription becomes active and tier features are enabled
+type SubscriptionActivated struct {
+	SubscriptionID string
+	UserID         string
+	Tier           string
+	TxHash         string
+	Ledger         int32
+	OccurredAt     int64
+}
 
-type EventBus interface {
-	PublishSubscriptionCreated(ctx context.Context, e subscription_domain.SubscriptionCreated) error
-	SubscribeToSubscriptionCreated(handler func(context.Context, subscription_domain.SubscriptionCreated)) error
+// Event bus interface with domain-friendly wording
+type SubscriptionEventBus interface {
+	PublishActivated(ctx context.Context, event SubscriptionActivated) error
+	PublishCreated(ctx context.Context, event SubscriptionCreated) error
+
+	SubscribeToActivation(handler func(ctx context.Context, event SubscriptionActivated)) error
+	SubscribeToCreation(handler func(ctx context.Context, event SubscriptionCreated)) error
 }

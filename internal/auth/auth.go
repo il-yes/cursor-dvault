@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ type Auth struct {
 }
 
 type JwtUser struct {
-	ID       int    `json:"id"`
+	ID       string    `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
 }
@@ -44,8 +45,12 @@ type Claims struct {
 // GenerateTokenPair generates both access & refresh tokens
 func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
     // --- Access Token ---
+    id, err := strconv.Atoi(user.ID)
+    if err != nil {
+        return TokenPairs{}, err
+    }
     accessClaims := &Claims{
-        UserID:   user.ID,
+        UserID:   id,
         Username: user.Username,
         Email:    user.Email,
         RegisteredClaims: jwt.RegisteredClaims{
@@ -65,7 +70,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
 
     // --- Refresh Token (simpler claims) ---
     refreshClaims := &Claims{
-        UserID: user.ID,
+        UserID: id,
         RegisteredClaims: jwt.RegisteredClaims{
             Subject:   fmt.Sprint(user.ID),
             IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -83,7 +88,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
     return TokenPairs{
         Token:        signedAccessToken,
         RefreshToken: signedRefreshToken,
-        UserID:       user.ID,
+        UserID:       id,
     }, nil
 }
 

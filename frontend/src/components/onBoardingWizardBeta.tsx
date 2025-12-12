@@ -51,6 +51,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     const [error, setError] = useState<string>('');
     const [stellarKeyImported, setStellarKeyImported] = useState<boolean>(false);
     const [importedStellarKey, setImportedStellarKey] = useState<string | null>(null);
+    const [cardNumber, setCardNumber] = useState<string>('');
+    const [exp, setExp] = useState<string>('');
+    const [cvc, setCvc] = useState<string>(''); 
 
     // Load tier features on mount
     useEffect(() => {
@@ -59,6 +62,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
             try {
                 const features = await GetTierFeatures('free');
                 if (isMounted) {
+                    console.log("Tier features:", {features});
                     setTierFeatures(features);
                 }
             } catch (err: any) {
@@ -86,7 +90,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         async (choice: string) => {
             setIdentity(choice);
             try {
-                const recommended = (await GetRecommendedTier()) as Tier;
+                const recommended = await GetRecommendedTier(choice);
                 setSelectedTier(recommended);
             } catch (err: any) {
                 console.error('GetRecommendedTier failed', err);
@@ -114,13 +118,6 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 setIsAnonymous(true);
             }
         }
-
-        // Continue to use case selection
-        setStep(2);
-    }
-
-    function handleStellarKeySkip() {
-        setStellarKeyImported(false);
 
         // Continue to use case selection
         setStep(2);
@@ -188,7 +185,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
     // Step 5: Payment setup
     const setupPayment = useCallback(
-        async (paymentData: Record<string, any>) => {
+        async () => {
             setLoading(true);
             setError('');
             try {
@@ -196,7 +193,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                     user_id: userId,
                     tier: selectedTier,
                     payment_method: paymentMethod,
-                    ...paymentData,
+                    card_number:cardNumber,
+                    exp: exp,
+                    cvc: cvc,
                 });
                 setStep(6);
                 onComplete?.();
@@ -207,8 +206,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 setLoading(false);
             }
         },
-        [userId, selectedTier, paymentMethod, onComplete],
+        [userId, selectedTier, paymentMethod, onComplete, cardNumber, exp, cvc],
     );
+    
 
     // 14-day trial date string
     const trialEndDate = new Date(
@@ -221,9 +221,12 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         }
     }
 
+    function handleStellarKeySkip() {
+        setStellarKeyImported(false);
 
-
-
+        // Continue to use case selection
+        setStep(2);
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-3xl p-6">
@@ -507,15 +510,12 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                                 <p>Your card details are encrypted with your vault key and stored locally.</p>
                                 <p>We never see your payment information—only you can decrypt it.</p>
                                 {/* Replace with real form fields */}
+                                <input type="text" placeholder="Card number" onChange={(e) => setCardNumber(e.target.value)} />
+                                <input type="text" placeholder="Expiration date" onChange={(e) => setExp(e.target.value)} />
+                                <input type="text" placeholder="CVV" onChange={(e) => setCvc(e.target.value)} /> 
                                 <button
                                     disabled={loading}
-                                    onClick={() =>
-                                        setupPayment({
-                                            card_number: '4242 4242 4242 4242',
-                                            exp: '12/30',
-                                            cvc: '123',
-                                        })
-                                    }
+                                    onClick={() => setupPayment()}
                                     className="mt-2 px-5 py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold shadow hover:shadow-lg disabled:opacity-60 transition"
                                 >
                                     {loading ? 'Processing…' : `Start ${selectedTier} for $${getTierPrice(selectedTier)}/mo`}

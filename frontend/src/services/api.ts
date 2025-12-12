@@ -24,12 +24,13 @@
  */
 import { LoginRequest, User, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
 import { Keypair } from "stellar-sdk";
-import { Buffer } from "buffer";  
+import { Buffer } from "buffer";
+
 
 
 
@@ -601,25 +602,17 @@ export async function getSharedEntry(id: string) {
 
   return await res.json();
 }
+type GetRecommendedTierPayload = string;
 
-export const GetRecommendedTier = async () => {
-  const res = await fetch(`${API_BASE_URL}/get-recommended-tier`, {
-    method: "GET",
-    credentials: "include",
-  });
-
-  if (!res.ok) throw new Error("Failed to fetch recommended tier");
-
-  return await res.json();
-}
-type CreateAccountPayload = {
-  email: string;
-  name: string;
-  password: string;
-  org?: string;
-  country?: string;
-  tier: string;
-  is_anonymous: boolean;
+export const GetRecommendedTier = async (payload: GetRecommendedTierPayload) => {
+  try {
+    const { identity } = await AppAPI.GetRecommendedTier(payload);
+    console.log("Recommended tier:", { identity });
+    return identity;
+  } catch (error) {
+    console.error("Failed to fetch recommended tier", error);
+    return null;
+  }
 }
 type SetupPaymentAndActivatePayload = {
   user_id: string;
@@ -633,46 +626,82 @@ type TierFeaturesResponse = {
     features?: string[];
   };
 }
-export const CreateAccount = async (payload: CreateAccountPayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/create-account`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+type CreateAccountPayload = {
+  email: string;
+  name: string;
+  password: string;
+  org?: string;
+  country?: string;
+  tier: string;
+  is_anonymous: boolean;
+}
+type AccountCreationResponse = {
+  user_id: string;
+  stellar_key?: string;
+  secret_key?: string;
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to create account: ${response.statusText}`);
+export const CreateAccount = async (payload: CreateAccountPayload): Promise<AccountCreationResponse> => {
+  try {
+
+    const response = await AppAPI.CreateAccount(payload);
+    console.log("CreateAccountResponse:", response);
+    return response as AccountCreationResponse;
+  } catch (error) {
+    console.error("Failed to create account", error);
+    throw error;
   }
 
-  return response.json();
+
+
+
 };
 
-export const SetupPaymentAndActivate = async (payload: SetupPaymentAndActivatePayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/setup-payment-and-activate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+type PaymentSetupRequest = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+  stripe_payment_method_id?: string;
+  encrypted_payment_data?: string;
+  stellar_public_key?: string;
+  card_number: string;
+  exp: string;
+  cvc: string;
+}
+type PaymentSetupResponse = {
+  user_id: string;
+  stellar_key?: string;
+  secret_key?: string;
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to setup payment and activate: ${response.statusText}`);
+export const SetupPaymentAndActivate = async (payload: PaymentSetupRequest): Promise<subscription_domain.Subscription> => {
+  console.log("SetupPaymentAndActivate payload:", { payload });
+
+  try {
+    const response = await AppAPI.SetupPaymentAndActivate(payload);
+    console.log("SetupPaymentAndActivateResponse:", response);
+    return response;
+  } catch (error) {
+    console.error("Failed to setup payment and activate", error);
+    throw error;
   }
 
-  return response.json();
 };
 
 export const GetTierFeatures = async (tier: string): Promise<TierFeaturesResponse> => {
-  const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get tier features: ${response.statusText}`);
+  // const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
+  //   method: 'GET',
+  //   headers: { 'Content-Type': 'application/json' },
+  // });
+  try {
+    const response = await AppAPI.GetTierFeatures();
+    console.log("Tier features:", { response });
+    return response;
+  } catch (error) {
+    console.error("Failed to fetch tier features", error);
+    return {};
   }
-
-  return response.json();
-};
+}
 
 type UpgradeSubscriptionPayload = {
   user_id: string;

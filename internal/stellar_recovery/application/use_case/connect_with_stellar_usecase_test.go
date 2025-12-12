@@ -85,7 +85,7 @@ func TestConnectWithStellarUseCase_Execute(t *testing.T) {
 	t.Run("✔ RecoverPassword succeeds, vault + subscription exist", func(t *testing.T) {
 
 		user := &models.User{
-			ID: 42,
+			ID: "42",
 		}
 
 		vault := &stellar_recovery_domain.Vault{
@@ -138,7 +138,7 @@ func TestConnectWithStellarUseCase_Execute(t *testing.T) {
 	//
 	t.Run("✔ RecoverPassword succeeds, but no vault or subscription", func(t *testing.T) {
 
-		user := &models.User{ID: 99}
+		user := &models.User{ID: "99"}
 
 		uc := stellar_recovery_usecase.ConnectWithStellarUseCase{
 			StellarPort: &mockStellarPort{

@@ -1,4 +1,4 @@
-package persistence
+package subscription_infrastructure_eventbus
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 )
 
 type MemorySubscriptionRepository struct {
-	mu sync.RWMutex
-	byID map[string]*subscription_domain.Subscription
+	mu     sync.RWMutex
+	byID   map[string]*subscription_domain.Subscription
 	byUser map[string]*subscription_domain.Subscription
 }
 
@@ -35,4 +35,14 @@ func (r *MemorySubscriptionRepository) FindByUserID(ctx context.Context, userID 
 	return s, nil
 }
 
-var _ subscription_domain.Repository = (*MemorySubscriptionRepository)(nil)
+func (r *MemorySubscriptionRepository) GetByID(ctx context.Context, id string) (*subscription_domain.Subscription, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s, ok := r.byID[id]
+	if !ok {
+		return nil, subscription_domain.ErrSubscriptionNotFound
+	}
+	return s, nil
+}
+
+var _ subscription_domain.SubscriptionRepository = (*MemorySubscriptionRepository)(nil)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	subscription_application_eventbus "vault-app/internal/subscription/application"
 	sub_uc "vault-app/internal/subscription/application/usecase"
 	sub_domain "vault-app/internal/subscription/domain"
 )
@@ -30,22 +31,48 @@ func (r *fakeRepo) FindByUserID(ctx context.Context, userID string) (*sub_domain
 	return r.saved, nil
 }
 
+func (r *fakeRepo) GetByID(ctx context.Context, id string) (*sub_domain.Subscription, error) {
+	return r.saved, nil
+}
 /* ---------------------------------------------------
    FAKE EVENT BUS
 ---------------------------------------------------*/
 
 type fakeBus struct {
 	called bool
-	event  sub_domain.SubscriptionCreated
+	event  subscription_application_eventbus.SubscriptionCreated
+	event2 subscription_application_eventbus.SubscriptionActivated
 }
 
-func (b *fakeBus) PublishSubscriptionCreated(ctx context.Context, e sub_domain.SubscriptionCreated) error {
+func (b *fakeBus) PublishSubscriptionCreated(ctx context.Context, e subscription_application_eventbus.SubscriptionCreated) error {
 	b.called = true
 	b.event = e
 	return nil
 }
 
-func (b *fakeBus) SubscribeToSubscriptionCreated(handler func(context.Context, sub_domain.SubscriptionCreated)) error {
+func (b *fakeBus) SubscribeToSubscriptionCreated(handler func(context.Context, subscription_application_eventbus.SubscriptionCreated)) error {
+	// Not needed for these tests
+	return nil
+}
+func (b *fakeBus) PublishActivated(ctx context.Context, e subscription_application_eventbus.SubscriptionActivated) error {
+	b.called = true
+	b.event2 = e
+	return nil
+}
+func (b *fakeBus) PublishCreated(ctx context.Context, e subscription_application_eventbus.SubscriptionCreated) error {
+	b.called = true
+	b.event = e
+	return nil
+}
+func (b *fakeBus) SubscribeToSubscriptionActivated(handler func(context.Context, subscription_application_eventbus.SubscriptionActivated)) error {
+	// Not needed for these tests
+	return nil
+}
+func (b *fakeBus) SubscribeToActivation(handler func(context.Context, subscription_application_eventbus.SubscriptionActivated)) error {
+	// Not needed for these tests
+	return nil
+}
+func (b *fakeBus) SubscribeToCreation(handler func(context.Context, subscription_application_eventbus.SubscriptionCreated)) error {
 	// Not needed for these tests
 	return nil
 }
@@ -93,7 +120,7 @@ func TestCreateSubscription_Success(t *testing.T) {
 	if repo.saved.UserID != userID {
 		t.Errorf("wrong userID")
 	}
-	if repo.saved.Tier != tier {
+	if repo.saved.Tier != string(tier) {
 		t.Errorf("wrong tier")
 	}
 	if !repo.saved.Active {
@@ -112,7 +139,7 @@ func TestCreateSubscription_Success(t *testing.T) {
 	if ev.UserID != userID {
 		t.Errorf("wrong event userID")
 	}
-	if ev.Tier != tier {
+	if ev.Tier != string(tier) {
 		t.Errorf("wrong event tier")
 	}
 

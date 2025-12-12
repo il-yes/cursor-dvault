@@ -576,6 +576,18 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class OnboardingStep1Response {
+	    identity: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OnboardingStep1Response(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identity = source["identity"];
+	    }
+	}
 
 }
 
@@ -860,7 +872,7 @@ export namespace models {
 	
 	
 	export class User {
-	    id: number;
+	    id: string;
 	    username: string;
 	    email: string;
 	    password: string;
@@ -907,7 +919,7 @@ export namespace models {
 		}
 	}
 	export class UserDTO {
-	    id: number;
+	    id: string;
 	    email: string;
 	    role: string;
 	    created_at: string;
@@ -1005,6 +1017,78 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace onboarding_ui_wails {
+	
+	export class AccountCreationResponse {
+	    user_id: string;
+	    stellar_key?: string;
+	    secret_key?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountCreationResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.stellar_key = source["stellar_key"];
+	        this.secret_key = source["secret_key"];
+	    }
+	}
+
+}
+
+export namespace onboarding_usecase {
+	
+	export class AccountCreationRequest {
+	    email?: string;
+	    password?: string;
+	    is_anonymous: boolean;
+	    stellar_key?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountCreationRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.email = source["email"];
+	        this.password = source["password"];
+	        this.is_anonymous = source["is_anonymous"];
+	        this.stellar_key = source["stellar_key"];
+	    }
+	}
+	export class PaymentSetupRequest {
+	    user_id: string;
+	    tier: string;
+	    payment_method: string;
+	    stripe_payment_method_id?: string;
+	    encrypted_payment_data?: string;
+	    stellar_public_key?: string;
+	    card_number?: string;
+	    exp?: string;
+	    cvc?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentSetupRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.tier = source["tier"];
+	        this.payment_method = source["payment_method"];
+	        this.stripe_payment_method_id = source["stripe_payment_method_id"];
+	        this.encrypted_payment_data = source["encrypted_payment_data"];
+	        this.stellar_public_key = source["stellar_public_key"];
+	        this.card_number = source["card_number"];
+	        this.exp = source["exp"];
+	        this.cvc = source["cvc"];
+	    }
 	}
 
 }
@@ -1473,6 +1557,172 @@ export namespace stellar_recovery_domain {
 	}
 	
 	
+
+}
+
+export namespace subscription_domain {
+	
+	export class SubscriptionFeatures {
+	    subscription_id: string;
+	    StorageGB: number;
+	    StorageType: string;
+	    CloudBackup: boolean;
+	    MobileApps: boolean;
+	    SharingLimit: number;
+	    UnlimitedSharing: boolean;
+	    VersionHistory: boolean;
+	    VersionHistoryDays: number;
+	    StellarVerification: boolean;
+	    Telemetry: boolean;
+	    AnonymousAccount: boolean;
+	    CryptoPayments: boolean;
+	    EncryptedPayments: boolean;
+	    Support: string;
+	    APIAccess: boolean;
+	    Tracecore: boolean;
+	    SSO: boolean;
+	    TeamFeatures: boolean;
+	    payment_method: string;
+	    payment_intent: string;
+	    browser_extension: boolean;
+	    threat_detection: boolean;
+	    priority_stellar: boolean;
+	    team_size: number;
+	    git_cli: boolean;
+	    custom_stellar: boolean;
+	    on_premise: boolean;
+	    multi_cloud: boolean;
+	    custom_integrations: boolean;
+	    ai_sovereignty: boolean;
+	    compliance: string[];
+	    sla: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionFeatures(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subscription_id = source["subscription_id"];
+	        this.StorageGB = source["StorageGB"];
+	        this.StorageType = source["StorageType"];
+	        this.CloudBackup = source["CloudBackup"];
+	        this.MobileApps = source["MobileApps"];
+	        this.SharingLimit = source["SharingLimit"];
+	        this.UnlimitedSharing = source["UnlimitedSharing"];
+	        this.VersionHistory = source["VersionHistory"];
+	        this.VersionHistoryDays = source["VersionHistoryDays"];
+	        this.StellarVerification = source["StellarVerification"];
+	        this.Telemetry = source["Telemetry"];
+	        this.AnonymousAccount = source["AnonymousAccount"];
+	        this.CryptoPayments = source["CryptoPayments"];
+	        this.EncryptedPayments = source["EncryptedPayments"];
+	        this.Support = source["Support"];
+	        this.APIAccess = source["APIAccess"];
+	        this.Tracecore = source["Tracecore"];
+	        this.SSO = source["SSO"];
+	        this.TeamFeatures = source["TeamFeatures"];
+	        this.payment_method = source["payment_method"];
+	        this.payment_intent = source["payment_intent"];
+	        this.browser_extension = source["browser_extension"];
+	        this.threat_detection = source["threat_detection"];
+	        this.priority_stellar = source["priority_stellar"];
+	        this.team_size = source["team_size"];
+	        this.git_cli = source["git_cli"];
+	        this.custom_stellar = source["custom_stellar"];
+	        this.on_premise = source["on_premise"];
+	        this.multi_cloud = source["multi_cloud"];
+	        this.custom_integrations = source["custom_integrations"];
+	        this.ai_sovereignty = source["ai_sovereignty"];
+	        this.compliance = source["compliance"];
+	        this.sla = source["sla"];
+	    }
+	}
+	export class Subscription {
+	    id: string;
+	    wallet?: string;
+	    user_id: string;
+	    tier: string;
+	    expires_at: number;
+	    rail: string;
+	    tx_hash?: string;
+	    active: boolean;
+	    activated_at: number;
+	    months: number;
+	    payment_method: string;
+	    payment_intent: string;
+	    // Go type: time
+	    started_at: any;
+	    features: SubscriptionFeatures;
+	    ledger: number;
+	    billing_cycle: string;
+	    trial_ends_at: number;
+	    next_billing_date: number;
+	    price: number;
+	    stripe_subscription_id: string;
+	    stellar_payment_address: string;
+	    payment_flow_type: string;
+	    stellar_schedule_id: string;
+	    status: string;
+	    ended_at: number;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.wallet = source["wallet"];
+	        this.user_id = source["user_id"];
+	        this.tier = source["tier"];
+	        this.expires_at = source["expires_at"];
+	        this.rail = source["rail"];
+	        this.tx_hash = source["tx_hash"];
+	        this.active = source["active"];
+	        this.activated_at = source["activated_at"];
+	        this.months = source["months"];
+	        this.payment_method = source["payment_method"];
+	        this.payment_intent = source["payment_intent"];
+	        this.started_at = this.convertValues(source["started_at"], null);
+	        this.features = this.convertValues(source["features"], SubscriptionFeatures);
+	        this.ledger = source["ledger"];
+	        this.billing_cycle = source["billing_cycle"];
+	        this.trial_ends_at = source["trial_ends_at"];
+	        this.next_billing_date = source["next_billing_date"];
+	        this.price = source["price"];
+	        this.stripe_subscription_id = source["stripe_subscription_id"];
+	        this.stellar_payment_address = source["stellar_payment_address"];
+	        this.payment_flow_type = source["payment_flow_type"];
+	        this.stellar_schedule_id = source["stellar_schedule_id"];
+	        this.status = source["status"];
+	        this.ended_at = source["ended_at"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

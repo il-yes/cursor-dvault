@@ -16,10 +16,10 @@ import (
 
 type SetupPaymentAndActivateUseCase struct {
 	// subscriptionService subscription_domain.SubscriptionService
-	UserOnboardingRepo         onboarding_domain.UserRepository
+	UserOnboardingRepo   onboarding_domain.UserRepository
 	UserSubscriptionRepo subscription_domain.UserRepository
-	SubscriptionRepo subscription_domain.SubscriptionRepository
-	Bus              onboarding_application_events.OnboardingEventBus
+	SubscriptionRepo     subscription_domain.SubscriptionRepository
+	Bus                  onboarding_application_events.OnboardingEventBus
 	// CloudAPI         cloud.CloudAPI
 	TracecoreClient *tracecore.TracecoreClient
 }
@@ -32,24 +32,34 @@ func NewSetupPaymentAndActivateUseCase(
 	tracecoreClient tracecore.TracecoreClient,
 ) *SetupPaymentAndActivateUseCase {
 	return &SetupPaymentAndActivateUseCase{
-		UserOnboardingRepo:         userRepo,
+		UserOnboardingRepo:   userRepo,
 		UserSubscriptionRepo: userSubscriptionRepo,
-		SubscriptionRepo: subscriptionRepo,
-		Bus:              bus,
-		TracecoreClient:  &tracecoreClient,
+		SubscriptionRepo:     subscriptionRepo,
+		Bus:                  bus,
+		TracecoreClient:      &tracecoreClient,
 	}
-}	
+}
 
 type PaymentSetupRequest struct {
 	UserID                string                               `json:"user_id"`
 	Tier                  subscription_domain.SubscriptionTier `json:"tier"`
-	PaymentMethod         subscription_domain.PaymentMethod    `json:"payment_method"`
+
 	StripePaymentMethodID string                               `json:"stripe_payment_method_id,omitempty"`
 	EncryptedPaymentData  string                               `json:"encrypted_payment_data,omitempty"` // Encrypted client-side
 	StellarPublicKey      string                               `json:"stellar_public_key,omitempty"`
-	CardNumber            string                               `json:"card_number,omitempty"`
 	Exp                   string                               `json:"exp,omitempty"`
-	CVC                   string                               `json:"cvc,omitempty"`	
+
+	CardNumber            string                               `json:"card_number,omitempty"`
+	CardBrand             string                               `json:"card_brand"`
+	ExpiryMonth           string                                  `json:"exp_month"`
+	ExpiryYear            string                                  `json:"exp_year"`
+	LastFour              string                               `json:"last_four"`
+	Currency              string                               `json:"currency"`
+	Amount                string                               `json:"amount"`
+	PaymentMethodID       string                               `json:"payment_method_id"`
+	CVC                   string                               `json:"cvc,omitempty"`
+	Plan                  string                               `json:"plan"`
+	ProductID             string                               `json:"product_id"`
 }
 
 // SetupPaymentAndActivate handles payment setup and subscription activation (Step 5)
@@ -73,18 +83,29 @@ func (a *SetupPaymentAndActivateUseCase) Execute(req PaymentSetupRequest) (*subs
 		Month:           1,
 		TxHash:          "", // confirmation Stellar payment hash
 
-		UserID: user.ID,
-		Email:  user.Email,
-		FirstName: user.Email,
-		LastName: user.Email,
-		LastFour: "4242",
-		CardNumber: req.CardNumber,
-		Exp: req.Exp,
-		CVC: req.CVC,
+		// Strripe payload
+		UserID:     user.ID,
+		Email:      user.Email,
+		FirstName:  user.Email,
+		LastName:   user.Email,
 
+		CardBrand:  "visa",
+		ExpiryMonth: "1",
+		ExpiryYear:  "2027",
+		LastFour:    "4242",
+
+		Currency: "usd",
+		Amount:   "100",	
+		PaymentMethod: subscription_domain.PaymentMethod(req.PaymentMethodID),
+		Plan: "pro",
+		ProductID: "pro",	
+		CardNumber: req.CardNumber,
+		Exp:        req.Exp,
+		CVC:        req.CVC,
+
+		// Stellar payload
 		StellarPublicKey:      user.StellarPublicKey,
 		Tier:                  req.Tier,
-		PaymentMethod:         req.PaymentMethod,
 		StripePaymentMethodID: req.StripePaymentMethodID,
 		EncryptedPaymentData:  req.EncryptedPaymentData,
 	}

@@ -14,7 +14,7 @@ type UserSubscriptionMapper struct {
 	Role            string    `gorm:"column:role" json:"role"`
 	CreatedAt       time.Time `json:"created_at" gorm:"varchar(100)"`
 	UpdatedAt       time.Time `json:"updated_at" gorm:"varchar(100)"`
-	LastConnectedAt time.Time `json:"last_connected_at" gorm:"last_connected_at"`
+	LastConnectedAt time.Time `json:"last_connected_at"`
 }
 
 func (s *UserSubscriptionMapper) ToDomain() *subscription_domain.UserSubscription {
@@ -43,9 +43,14 @@ func UserSubscriptionToDB(s *subscription_domain.UserSubscription) *UserSubscrip
 	}
 }	
 
+func (UserSubscriptionMapper) TableName() string {
+	return "user_subscriptions"
+}
+
 
 type SubscriptionMapper struct {
 	ID            string        `json:"id"`
+	Email         string        `json:"email"`
 	Wallet        string        `json:"wallet,omitempty"` // only filled for crypto billing
 	UserID        string        `json:"user_id"`          // optional, not required for crypto validation
 	Tier          string        `json:"tier"`
@@ -135,4 +140,7 @@ func SubscriptionToDB(s *subscription_domain.Subscription) *SubscriptionMapper {
 		CreatedAt:             s.CreatedAt,
 		UpdatedAt:             s.UpdatedAt,
 	}
+}
+func (SubscriptionMapper) TableName() string {
+	return "subscriptions"
 }

@@ -17,16 +17,16 @@ import (
 var assets embed.FS
 
 func main() {
-	app := NewApp()
 	errEnv := godotenv.Load(".env")
 	if errEnv != nil {
 		log.Fatal("❌ Error loading .env file:", errEnv)
 	}
-	privateKey := os.Getenv("STELLAR_PRIVATE_KEY")
+	privateKey := os.Getenv("STELLAR_SECRET")
 	if privateKey == "" {
-		fmt.Println("❌ STELLAR_PRIVATE_KEY is empty")
+		fmt.Println("❌ STELLAR_SECRET is empty")
 	}
 
+	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:  "ANKHORA",
 		Width:  924,
@@ -36,6 +36,19 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		// Mac: &mac.Options{
+		// 	OnUrlOpen: app.OnOpenURL,
+		// },
+		// SingleInstanceLock: &options.SingleInstanceLock{
+		// 	OnSecondInstanceLaunch: func(data options.SecondInstanceData) {
+		// 		for _, arg := range data.Args {
+		// 			if strings.HasPrefix(arg, "ankhora://") {
+		// 				app.OnOpenURL(arg)
+		// 			}
+		// 		}
+		// 	},
+		// },
+
 		OnShutdown: func(ctx context.Context) {
 			app.Logger.Info("🛑 App shutting down, flushing sessions...")
 			app.FlushAllSessions()

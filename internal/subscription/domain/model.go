@@ -41,6 +41,7 @@ const (
 
 type Subscription struct {
 	ID            string        `json:"id"`
+	Email         string        `json:"email"`
 	Wallet        string        `json:"wallet,omitempty"` // only filled for crypto billing
 	UserID        string        `json:"user_id"`          // optional, not required for crypto validation
 	Tier          string        `json:"tier"`

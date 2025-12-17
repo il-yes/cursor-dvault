@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	utils "vault-app/internal"
 	subscription_application_eventbus "vault-app/internal/subscription/application"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
@@ -70,34 +71,7 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
     if err != nil {
         return err
     }
-    
-
-    // Already active?
-    if sub.Active {
-        return nil
-    }
-
-    // Reset – prevent inheritance bugs
-    sub.Features = subscription_domain.SubscriptionFeatures{
-        SubscriptionID: sub.ID,
-        Compliance:     []string{},
-    }
-
-    // Apply tier features + storage + upgrade logic
-    s.applyTierFeatures(ctx, sub)
-    fmt.Printf("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d", sub.ID, sub.UserID, sub.Tier, sub.Ledger)  
-
-    // Mark it active
-    sub.Active = true
-    sub.ActivatedAt = time.Now().Unix()
-
-    // Compute next billing date
-    s.computeBillingCycle(sub)
-
-    // Save updated subscription
-    if err := s.repo.Save(ctx, sub); err != nil {
-        return err
-    }
+    utils.LogPretty("Subscription Activated", sub)
 
     // Optional: log into Stellar ledger
     var ledger int32 = 0
@@ -120,64 +94,3 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
     return nil
 }
 
-// ------------------------------------------------------
-// Apply all feature flags based on tier
-// ------------------------------------------------------
-
-func (s *SubscriptionActivator) applyTierFeatures(ctx context.Context, sub *subscription_domain.Subscription) {  
-    
-    
-    switch sub.Tier {
-
-    case "free":
-        sub.Features.StorageGB = 5
-
-    case "pro":
-        sub.Features.StorageGB = 100
-        sub.Features.CloudBackup = true
-
-    case "pro_plus":    
-        sub.Features.StorageGB = 200
-        sub.Features.CloudBackup = true
-        sub.Features.VersionHistory = true
-        sub.Features.VersionHistoryDays = 30
-
-    case "business":
-        sub.Features.StorageGB = 1024
-        sub.Features.CloudBackup = true
-        sub.Features.VersionHistory = true
-        sub.Features.VersionHistoryDays = 90
-        sub.Features.Tracecore = true
-
-    case "enterprise":
-        sub.Features.StorageGB = 20480
-        sub.Features.CloudBackup = true
-        sub.Features.VersionHistory = true
-        sub.Features.VersionHistoryDays = 365
-        sub.Features.Tracecore = true
-    }
-}
-
-// ------------------------------------------------------
-// Compute billing cycle: trial, expiration, next billing
-// ------------------------------------------------------
-
-func (s *SubscriptionActivator) computeBillingCycle(sub *subscription_domain.Subscription) {
-    fmt.Println("precessing to compute billing cycle ...")  
-    // Trial? (only if defined in config or domain)
-    if sub.TrialEndsAt > 0 {
-        sub.NextBillingDate = sub.TrialEndsAt
-    }
-    
-    // Normal paid plan
-    if sub.Months > 0 {
-        sub.NextBillingDate = time.Now().AddDate(0, sub.Months, 0).Unix()
-        sub.BillingCycle = "monthly"
-    }
-
-    // Enterprise yearly billing?
-    if sub.Tier == "enterprise" {
-        sub.NextBillingDate = time.Now().AddDate(1, 0, 0).Unix()
-        sub.BillingCycle = "yearly"
-    }
-}

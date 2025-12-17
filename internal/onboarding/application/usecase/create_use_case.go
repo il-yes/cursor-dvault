@@ -11,6 +11,7 @@ import (
 	onboarding_domain "vault-app/internal/onboarding/domain"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type StellarServiceInterface interface {
@@ -97,12 +98,20 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
             TxID: txID,
 		}, nil
 	}
+		// -----------------------------
+	// 2. Hash password & create user
+	// -----------------------------
+	utils.LogPretty("Plain password", req.Password)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("❌ failed to hash password: %w", err)
+	}
 
 	// Standard email/password account
 	user := &onboarding_domain.User{
         ID: uuid.New().String(),
 		Email:     req.Email,
-        Password: req.Password,
+        Password: string(hashedPassword),
 		CreatedAt: time.Now(),
 	}
 
@@ -110,10 +119,11 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("createdUser", createdUser)
 
 	// Fire creation event
 	accountCreatedEvent := onboarding_application_events.AccountCreatedEvent{
-		UserID:     createdUser.ID,
+		UserID:     user.ID,
 		OccurredAt: time.Now(),
 	}
 
@@ -122,6 +132,6 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	}
 
 	return &AccountCreationResponse{
-		UserID: createdUser.ID,
+		UserID: user.ID,
 	}, nil
 }

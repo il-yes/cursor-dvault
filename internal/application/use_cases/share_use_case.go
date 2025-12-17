@@ -62,7 +62,7 @@ func (uc *ShareUseCase) CreateShare(ctx context.Context, s share_domain.ShareEnt
 // ------------------------------------------------
 // Use case: list shared entries for a user
 // ------------------------------------------------
-func (s *ShareUseCase) ListSharedEntries(ctx context.Context, userID uint, cloudToken string) ([]share_domain.ShareEntry, error) {
+func (s *ShareUseCase) ListSharedEntries(ctx context.Context, userID string, cloudToken string) ([]share_domain.ShareEntry, error) {
 	utils.LogPretty("share - ListSharedEntries", userID)
 	s.tc.SetToken(cloudToken)
 	// Mirror to cloud if client available
@@ -78,7 +78,7 @@ func (s *ShareUseCase) ListSharedEntries(ctx context.Context, userID uint, cloud
 // ------------------------------------------------
 // Use case: fetch shares *received* by the user
 // ------------------------------------------------
-func (s *ShareUseCase) ListReceivedShares(ctx context.Context, userID uint, cloudToken string) ([]share_domain.ShareEntry, error) {
+func (s *ShareUseCase) ListReceivedShares(ctx context.Context, userID string, cloudToken string) ([]share_domain.ShareEntry, error) {
 	utils.LogPretty("share - ListSharedEntries", userID)
 	s.tc.SetToken(cloudToken)
 	// Mirror to cloud if client available
@@ -94,7 +94,7 @@ func (s *ShareUseCase) ListReceivedShares(ctx context.Context, userID uint, clou
 func (uc *ShareUseCase) GetShareForAccept(
 	ctx context.Context,
 	shareID string,
-	recipientUserID uint,
+	recipientUserID string,
 ) (*share_domain.ShareAcceptData, error) {
 
 	share, recipient, blob, err :=
@@ -120,10 +120,10 @@ type AcceptShareResult struct {
 // ---------------------------------------------------------
 // Accept Share Invitation
 // ---------------------------------------------------------
-func (uc *ShareUseCase) AcceptShare(ctx context.Context, shareID uint, userID uint) (*AcceptShareResult, error) {
+func (uc *ShareUseCase) AcceptShare(ctx context.Context, shareID string, userID string) (*AcceptShareResult, error) {
 
 	// 1. Load share entry + recipient-specific data
-	share, recipient, err := uc.repo.GetShareAndRecipient(ctx, strconv.FormatUint(uint64(shareID), 10), userID)
+	share, recipient, err := uc.repo.GetShareAndRecipient(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -147,18 +147,18 @@ func (uc *ShareUseCase) AcceptShare(ctx context.Context, shareID uint, userID ui
 }
 
 type RejectShareResult struct {
-	ShareID     uint
-	RecipientID uint
+	ShareID     string
+	RecipientID string
 	Message     string
 }
 
 // ---------------------------------------------------------
 // Reject Share Invitation
 // ---------------------------------------------------------
-func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID uint, userID uint) (*RejectShareResult, error) {
+func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID string, userID string) (*RejectShareResult, error) {
 
 	// Load share + recipient
-	_, recipient, err := uc.repo.GetShareAndRecipient(ctx, strconv.FormatUint(uint64(shareID), 10), userID)
+	_, recipient, err := uc.repo.GetShareAndRecipient(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID uint, userID ui
 
 	return &RejectShareResult{
 		ShareID:     shareID,
-		RecipientID: stringToUint(recipient.ID),
+		RecipientID: recipient.ID,
 		Message:     "Share invitation rejected",
 	}, nil
 }
@@ -179,22 +179,22 @@ func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID uint, userID ui
 // Add Receiver
 // ---------------------------------------------------------
 type AddReceiverInput struct {
-	ShareID uint
+	ShareID string
 	Name    string
 	Email   string
 	Role    string
 }
 
 type AddReceiverResult struct {
-	ShareID     uint
-	RecipientID uint
+	ShareID     string
+	RecipientID string
 	Message     string
 }
 
-func (uc *ShareUseCase) AddReceiver(ctx context.Context, requesterID uint, in AddReceiverInput) (*AddReceiverResult, error) {
+func (uc *ShareUseCase) AddReceiver(ctx context.Context, requesterID string, in AddReceiverInput) (*AddReceiverResult, error) {
 
 	// Load share
-	share, err := uc.repo.GetShareByID(ctx, strconv.FormatUint(uint64(in.ShareID), 10))
+	share, err := uc.repo.GetShareByID(ctx, in.ShareID)
 
 	if err != nil {
 		return nil, fmt.Errorf("share not found: %w", err)
@@ -207,7 +207,7 @@ func (uc *ShareUseCase) AddReceiver(ctx context.Context, requesterID uint, in Ad
 
 	// Create new recipient
 	newRecipient := &share_domain.Recipient{
-		ShareID:   strconv.FormatUint(uint64(in.ShareID	), 10),
+		ShareID:   in.ShareID,
 		Name:      in.Name,
 		Email:     in.Email,
 		Role:      in.Role,
@@ -219,11 +219,6 @@ func (uc *ShareUseCase) AddReceiver(ctx context.Context, requesterID uint, in Ad
 	if err := uc.repo.CreateRecipient(ctx, newRecipient); err != nil {
 		return nil, fmt.Errorf("failed to add recipient: %w", err)
 	}
-	u64, err := strconv.ParseUint(newRecipient.ID, 10, 32)
-	if err != nil {
-		fmt.Println(err)
-	}
-	wd := uint(u64)
 	// share_domain.RecipientAdded event
 	uc.dispatcher.Dispatch(share_domain.RecipientAdded{
 		BaseEvent: share_domain.BaseEvent{
@@ -237,7 +232,7 @@ func (uc *ShareUseCase) AddReceiver(ctx context.Context, requesterID uint, in Ad
 
 	return &AddReceiverResult{
 		ShareID:     in.ShareID,
-		RecipientID: wd,
+		RecipientID: newRecipient.ID,
 		Message:     "Recipient added successfully",
 	}, nil
 }

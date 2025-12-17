@@ -3,8 +3,6 @@ package share_infrastructure
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"time"
 	share_domain "vault-app/internal/domain/shared"
 
@@ -24,7 +22,7 @@ func NewGormShareRepository(db *gorm.DB) *GormShareRepository {
 // ------------------------------
 type ShareEntryModel struct {
 	ID            string `gorm:"primaryKey"`
-	OwnerID       uint
+	OwnerID       string
 	EntryRef      string
 	EntryName     string
 	EntryType     string
@@ -111,7 +109,7 @@ func (RecipientModel) TableName() string { return "recipients" }
 // Repository implementation
 // ------------------------------
 
-func (r *GormShareRepository) ListByUser(userID uint) ([]share_domain.ShareEntry, error) {
+func (r *GormShareRepository) ListByUser(userID string) ([]share_domain.ShareEntry, error) {
 	var models []ShareEntryModel
 	if err := r.db.Preload("Recipients").
 		Where("owner_id = ?", userID).
@@ -126,7 +124,7 @@ func (r *GormShareRepository) ListByUser(userID uint) ([]share_domain.ShareEntry
 // ----------------------------------------------
 // Returns shares where the user is a recipient
 // ----------------------------------------------
-func (r *GormShareRepository) ListReceivedByUser(recipientID uint) ([]share_domain.ShareEntry, error) {
+func (r *GormShareRepository) ListReceivedByUser(recipientID string) ([]share_domain.ShareEntry, error) {
 	var shares []share_domain.ShareEntry
 
 	err := r.db.
@@ -144,7 +142,7 @@ func (r *GormShareRepository) ListReceivedByUser(recipientID uint) ([]share_doma
 
 func (r *GormShareRepository) GetShareForAccept(
 	shareID string,
-	recipientUserID uint,
+	recipientUserID string,
 ) (*share_domain.ShareEntry, *share_domain.Recipient, []byte, error) {
 
 	var share ShareEntryModel
@@ -176,7 +174,7 @@ func (r *GormShareRepository) GetShareForAccept(
 // ---------------------------------------------------------
 // Load share + recipient (with encrypted blob)
 // ---------------------------------------------------------
-func (r *GormShareRepository) GetShareAndRecipient(ctx context.Context, shareID string, userID uint) (*share_domain.ShareEntry, *share_domain.Recipient, error) {
+func (r *GormShareRepository) GetShareAndRecipient(ctx context.Context, shareID string, userID string) (*share_domain.ShareEntry, *share_domain.Recipient, error) {
 
 	var share share_domain.ShareEntry
 	if err := r.db.
@@ -188,14 +186,7 @@ func (r *GormShareRepository) GetShareAndRecipient(ctx context.Context, shareID 
 
 	// Find matching recipient
 	for _, rcpt := range share.Recipients {
-		u64, err := strconv.ParseUint(rcpt.ID, 10, 32)
-		if err != nil {
-			fmt.Println(err)
-		}
-		wd := uint(u64)
-		fmt.Println(wd)
-
-		if wd == userID {
+		if rcpt.ID == userID {
 			return &share, &rcpt, nil
 		}
 	}

@@ -1,13 +1,14 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "ANKHORA",
+  "name": "Ankhora",
+  "bundleid": "com.wails.ankhora",
   "outputfilename": "ANKHORA",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
-    "install": "npm install",
-    "build": "npm run build",
+  "install": "npm install",
+  "build": "npm run build",
   "author": {
     "name": "il-yes",
     "email": "manuelvincentsully@gmail.com"

@@ -11,7 +11,7 @@ import (
 // -----------------------
 type ShareEntry struct {
 	ID            string		`json:"id"`
-	OwnerID       uint `json:"owner_id"`
+	OwnerID       string `json:"owner_id"`
 	EntryName     string `json:"entry_name"`	
 	EntryType     string `json:"entry_type"`
 	EntryRef      string	 `json:"entry_ref"`

@@ -25,9 +25,9 @@ func (r *UserSubscriptionRepository) Save(ctx context.Context, us *subscription_
 	return nil
 }
 
-func (r *UserSubscriptionRepository) FindByUserID(ctx context.Context, userID string) (*subscription_domain.UserSubscription, error) {
+func (r *UserSubscriptionRepository) FindByEmail(ctx context.Context, email string) (*subscription_domain.UserSubscription, error) {
 	var s subscription_domain.UserSubscription
-	if err := r.DB.Where("user_id = ?", userID).First(&s).Error; err != nil {
+	if err := r.DB.Where("email = ?", email).First(&s).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil

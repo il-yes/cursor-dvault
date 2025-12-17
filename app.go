@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"time"
 	utils "vault-app/internal"
@@ -31,18 +33,25 @@ import (
 	stellar_recovery_persistence "vault-app/internal/stellar_recovery/infrastructure/persistence"
 	"vault-app/internal/stellar_recovery/infrastructure/token"
 	stellar_recovery_ui_api "vault-app/internal/stellar_recovery/ui/api"
+	payments "vault-app/internal/stripe"
 	subscription_usecase "vault-app/internal/subscription/application/usecase"
 	subscription_domain "vault-app/internal/subscription/domain"
 	subscription_infrastructure "vault-app/internal/subscription/infrastructure"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
+	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
 
 	// "vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/mapstructure"
+	"github.com/stripe/stripe-go/v74"
+	"github.com/stripe/stripe-go/v74/checkout/session"
+	"github.com/stripe/stripe-go/v74/paymentintent"
+	"github.com/stripe/stripe-go/v74/webhook"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -79,13 +88,14 @@ type App struct {
 	version  string
 	DB       models.DBModel
 	ctx      context.Context
-	sessions map[int]*models.VaultSession
+	sessions map[string]*models.VaultSession
 	NowUTC   func() string
 
 	// Core handlers
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
+	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
 	Vaults                    *handlers.VaultHandler
 	Auth                      *handlers.AuthHandler
 	EntryRegistry             *registry.EntryRegistry
@@ -115,6 +125,11 @@ func NewApp() *App {
 	if dsn == "" {
 		dsn = "sqlite3.db"
 	}
+	cfg.stripe.secret = os.Getenv("STRIPE_SECRET")
+	cfg.stripe.key = os.Getenv("STRIPE_SECRET")
+	stripe.Key = os.Getenv("STRIPE_SECRET")
+	appLogger.Info("✅ Stripe Key from env: ", stripe.Key)
+	appLogger.Info("✅ Stripe Key hardcoded: ", stripe.Key)
 
 	// read from command line
 	// flag.StringVar(&dsn, "dsn", "host=localhost port=5432 user=postgres password=postgres dbname=movies sslmode=disable timezone=UTC connect_timeout=5", "Postgres connection string")
@@ -145,7 +160,7 @@ func NewApp() *App {
 	ipfs := blockchain.NewIPFSClient("localhost:5001")
 	appLogger.Info("✅ IPFS client initialized (connection will be tested on first use)")
 
-	sessions := make(map[int]*models.VaultSession)
+	sessions := make(map[string]*models.VaultSession)
 
 	appLogger.Info("🔧 Initializing Tracecore client...")
 	tcClient := tracecore.NewTracecoreClient(os.Getenv("ANKHORA_URL"), os.Getenv("TRACECORE_TOKEN"))
@@ -202,7 +217,8 @@ func NewApp() *App {
 		LoadedEntries:  []models.VaultEntry{},
 	}
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
-	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth)
+	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
+	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth, onboardingUserRepo)
 
 	// Recovery context implementations
 	userRepo := stellar_recovery_persistence.NewGormUserRepository(db.DB)
@@ -223,17 +239,30 @@ func NewApp() *App {
 		subRepo,
 	)
 
-
 	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)
 	userSubRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
-	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
 	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: db.DB}
-	memoryBus := onboarding_infrastructure_eventbus.NewMemoryBus()	
-	stellarService := blockchain.StellarService{}	
+	memoryBus := onboarding_infrastructure_eventbus.NewMemoryBus()
+	stellarService := blockchain.StellarService{}
 	createAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, memoryBus, appLogger)
 	stellarHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
-	setupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubRepo,subscriptionSubRepo, memoryBus, *tcClient)	
+	setupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubRepo, subscriptionSubRepo, memoryBus, *tcClient)
 	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, createAccountUC, setupPaymentUseCase)
+	subscriptionBus := subscription_persistence.NewMemoryBus()
+	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
+	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
+
+	// Stripe webhook listener
+	go func() {
+		port := "4242" // your webhook port
+		http.HandleFunc("/stripe-webhook", payments.WebhookHandler)
+
+		log.Printf("🚀 Stripe webhook listener running on port %s", port)
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatalf("❌ Stripe webhook server failed: %v", err)
+		}
+	}()
+
 	// ⚡ Restore sessions asynchronously to speed up startup
 	go func() {
 		appLogger.Info("🔄 Restoring sessions in background...")
@@ -256,23 +285,23 @@ func NewApp() *App {
 		appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
 	}()
 
-
 	// Event bus (single memory bus for subscription domain)
-	subscriptionBus := subscription_persistence.NewMemoryBus()
 	subscriptionService := subscription_infrastructure.NewSubscriptionService()
 	// ===== New: core activator (business logic) =====
 	// Note: pass a Stellar port implementation if you have one, otherwise nil
 	activator := subscription_usecase.NewSubscriptionActivator(
-		subscriptionSubRepo,            // repo
+		subscriptionSubRepo, // repo
 		subscriptionBus,
-		subscriptionService,   // vault port (implements ActivationVaultPort)
+		subscriptionService, // vault port (implements ActivationVaultPort)
 	)
-
 
 	// ===== New: listener which only forwards SubscriptionCreated -> activator =====
 	createdListener := subscription_usecase.NewSubscriptionCreatedListener(appLogger, activator, subscriptionBus)
 	go createdListener.Listen(ctx)
 
+	// ===== New: monitor for post-activation side effects (email, metrics...) =====
+	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(appLogger, subscriptionBus, onboardingUserRepo, *db)
+	go activationMonitor.Listen(ctx)
 
 	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
@@ -286,6 +315,7 @@ func NewApp() *App {
 		DB:                        *db,
 		StellarRecoveryHandler:    stellarHandler,
 		OnBoardingHandler:         onBoardingHandler,
+		SubscriptionHandler:       subscriptionHandler,
 		Vaults:                    vaults,
 		Auth:                      auth,
 		Logger:                    *appLogger,
@@ -296,6 +326,281 @@ func NewApp() *App {
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
 		ConnectWithStellarHandler: stellarHandler,
 	}
+
+}
+
+func (a *App) CheckPaymentOnResume() {
+	// status, err := a.SubscriptionRepo.GetStatusForUser()
+	// if err != nil {
+	// 	return
+	// }
+
+	// if status == "active" {
+	// 	runtime.EventsEmit(a.ctx, "payment:success")
+	// }
+}
+
+// GetCheckoutURL returns the cloud backend checkout page URL
+func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
+	sessionID := uuid.New().String()
+
+	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
+	url := baseURL + sessionID
+	fmt.Println("Checkout URL - backend:", url)
+	res := CreateCheckoutResponse{
+		SessionID: sessionID,
+		URL:       url,
+	}
+	return res, nil
+}
+
+func (a *App) OpenURL(rawURL string) error {
+	log.Println("🔗 Deep link received:", rawURL)
+
+	fmt.Println("Deep link received:", rawURL)
+
+	runtime.BrowserOpenURL(a.ctx, rawURL)
+
+	// business logic
+	// runtime.EventsEmit(a.ctx, "payment:success", subID)
+	return nil
+}
+
+// Simple method to open a URL in the system browser
+func (a *App) OpenGoogle() {
+	if a.ctx == nil {
+		log.Println("❌ Context not set!")
+		return
+	}
+
+	// Opens default browser to Google
+	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
+}
+
+// Poll backend for payment status
+func (a *App) PollPaymentStatus(sessionID string) (string, error) {
+	fmt.Println("🔁 Polling session:", sessionID)
+
+	url := "http://localhost:4001/api/payment-status/" + sessionID
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("poll failed %d: %s", resp.StatusCode, string(body))
+	}
+
+	var r struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return "", err
+	}
+
+	if r.Status == "paid" {
+		go func() {
+			if err := a.OnPaymentConfirmation(sessionID); err != nil {
+				a.Logger.Error("Payment confirmation failed:", err)
+			}
+		}()
+		return "paid", nil
+	}
+
+	return "unpaid", nil
+
+}
+
+func (a *App) OnPaymentConfirmation(sessionID string) error {
+	log.Println("Deep link received:", sessionID)
+
+	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	a.Logger.Info("✅ Subscription created successfully: %v", response)
+
+	// Notify frontend
+	runtime.EventsEmit(a.ctx, "payment:success", response.Subscription)
+	return nil
+}
+
+
+
+
+func (a *App) NotifyPaymentSuccess(subID string) {
+	a.Logger.Info("✅ Subscription created successfully: %v", subID)
+	runtime.EventsEmit(a.ctx, "payment:success", subID)
+}
+
+// Example helper: Wait for payment completion
+func (a *App) WaitForPayment(sessionID string, interval time.Duration, maxAttempts int) string {
+	for i := 0; i < maxAttempts; i++ {
+		status, err := a.PollPaymentStatus(sessionID)
+		if err != nil {
+			log.Println("Error polling payment:", err)
+			break
+		}
+		if status == "paid" {
+			return "paid"
+		}
+		time.Sleep(interval)
+	}
+	return "unpaid"
+}
+
+// Payload for creating checkout
+type CreateCheckoutPayload struct {
+	Amount          int64  `json:"amount"`
+	Currency        string `json:"currency"`
+	SuccessRedirect string `json:"successRedirect"`
+	CancelRedirect  string `json:"cancelRedirect"`
+}
+
+// Response with session ID
+type CreateCheckoutResponse struct {
+	SessionID string `json:"sessionId"`
+	URL       string `json:"url"`
+}
+
+// Initialize Stripe secret key
+func (a *App) InitStripe() {
+	stripe.Key = os.Getenv("STRIPE_SECRET")
+	if stripe.Key == "" {
+		log.Fatal("❌ STRIPE_SECRET missing in .env")
+	}
+	log.Println("✅ Stripe initialized")
+}
+
+// Create Stripe Checkout session and open system browser
+func (a *App) CreateCheckoutSessionAndOpen(ctx context.Context, p CreateCheckoutPayload) (*CreateCheckoutResponse, error) {
+	params := &stripe.CheckoutSessionParams{
+		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
+		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					Currency: stripe.String(p.Currency),
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+						Name: stripe.String("App Purchase"),
+					},
+					UnitAmount: stripe.Int64(p.Amount),
+				},
+				Quantity: stripe.Int64(1),
+			},
+		},
+		SuccessURL: stripe.String(p.SuccessRedirect),
+		CancelURL:  stripe.String(p.CancelRedirect),
+	}
+
+	sess, err := session.New(params)
+	if err != nil {
+		log.Println("Stripe error:", err)
+		return nil, err
+	}
+
+	// Open in system browser via Wails runtime
+	runtime.BrowserOpenURL(ctx, sess.URL)
+
+	return &CreateCheckoutResponse{
+		SessionID: sess.ID,
+	}, nil
+}
+
+// Optional polling (fallback)
+func (a *App) GetCheckoutSessionStatus(sessionID string) (string, error) {
+	sess, err := session.Get(sessionID, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(sess.PaymentStatus), nil
+}
+
+// Stripe webhook handler
+
+func (a *App) CreateCheckoutSession(p CreateCheckoutPayload) (*CreateCheckoutResponse, error) {
+	params := &stripe.CheckoutSessionParams{
+		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
+		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
+		SuccessURL:         stripe.String(p.SuccessRedirect),
+		CancelURL:          stripe.String(p.CancelRedirect),
+		LineItems: []*stripe.CheckoutSessionLineItemParams{
+			{
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					Currency: stripe.String(p.Currency),
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+						Name: stripe.String("App Purchase"),
+					},
+					UnitAmount: stripe.Int64(p.Amount),
+				},
+				Quantity: stripe.Int64(1),
+			},
+		},
+	}
+
+	sess, err := session.New(params)
+	if err != nil {
+		log.Println("Stripe error:", err)
+		return nil, err
+	}
+
+	return &CreateCheckoutResponse{
+		URL:       sess.URL,
+		SessionID: sess.ID,
+	}, nil
+}
+
+type SessionStatus struct {
+	Status string `json:"status"`
+}
+
+func (a *App) OpenStripeCheckout(url string) {
+	if a.ctx == nil {
+		log.Println("❌ Wails context not set!")
+		return
+	}
+	runtime.BrowserOpenURL(a.ctx, url) // ✅ now works
+}
+
+func (a *App) CreateCheckoutSessionBackend(payload CreateCheckoutPayload) error {
+	params := &stripe.PaymentIntentParams{
+		Amount:   stripe.Int64(payload.Amount),
+		Currency: stripe.String(payload.Currency),
+	}
+	_, err := paymentintent.New(params)
+	if err != nil {
+		log.Println("Stripe create payment error:", err)
+		return err
+	}
+
+	// Backend waits for Stripe webhook to notify success
+	return nil
+}
+
+// Webhook endpoint
+func (a *App) StripeWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	const MaxBodyBytes = int64(65536)
+	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+	payload, _ := io.ReadAll(r.Body)
+
+	sig := r.Header.Get("Stripe-Signature")
+	event, err := webhook.ConstructEvent(payload, sig, os.Getenv("STRIPE_WEBHOOK_SECRET"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if event.Type == "payment_intent.succeeded" {
+		var pi stripe.PaymentIntent
+		_ = json.Unmarshal(event.Data.Raw, &pi)
+
+		// Notify frontend
+		runtime.EventsEmit(a.ctx, "stripe-paid", pi.ID)
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // -----------------------------
@@ -337,6 +642,7 @@ func (a *App) RecoverVaultWithKey(stellarKey string) (*stellar_recovery_domain.R
 func (a *App) ImportVaultWithKey(stellarKey string) (*stellar_recovery_domain.ImportedKey, error) {
 	return a.StellarRecoveryHandler.ImportKey(context.Background(), stellarKey)
 }
+
 // in waiting for applying full ddd above
 func (a *App) ConnectWithStellar(req handlers.LoginRequest) (*CheckKeyResponse, error) {
 	response, err := a.StellarRecoveryHandler.ConnectWithStellar(context.Background(), req)
@@ -359,11 +665,13 @@ func (a *App) ConnectWithStellar(req handlers.LoginRequest) (*CheckKeyResponse, 
 	utils.LogPretty("ConnectWithStellar res", res)
 	return res, nil
 }
+
 type OnboardingStep1Response struct {
-    Identity identity_domain.IdentityChoice `json:"identity"`
+	Identity identity_domain.IdentityChoice `json:"identity"`
 }
+
 func (a *App) GetRecommendedTier(identity identity_domain.IdentityChoice) (OnboardingStep1Response, error) {
-	
+
 	choice := a.OnBoardingHandler.GetRecommendedTier(identity)
 	return OnboardingStep1Response{Identity: identity_domain.IdentityChoice(choice)}, nil
 }
@@ -375,7 +683,7 @@ func (a *App) GetTierFeatures() (map[string]onboarding_domain.SubscriptionFeatur
 
 // Step 2: Use Case (conditional based on Step 1)
 type UseCaseResponse struct {
-    UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
+	UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
 }
 
 // Step 3: Tier Selection
@@ -384,10 +692,8 @@ type UseCaseResponse struct {
 //     PaymentMethod services.PaymentMethod    `json:"payment_method"`
 // }
 
-
-
 func (a *App) CreateAccount(req onboarding_usecase.AccountCreationRequest) (*onboarding_ui_wails.AccountCreationResponse, error) {
-	response, err := a.OnBoardingHandler.CreateAccount(req)	
+	response, err := a.OnBoardingHandler.CreateAccount(req)
 	if err != nil {
 		return nil, err
 	}
@@ -412,11 +718,11 @@ func (a *App) SignInWithStellar(req handlers.LoginRequest) (*handlers.LoginRespo
 func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
 	return a.Auth.OnBoarding(setup)
 }
-func (a *App) SignOut(userID int, cid string, password string) {
+func (a *App) SignOut(userID string, cid string, password string) {
 	a.Vaults.EndSession(userID)
 	a.Auth.Logout(userID)
 }
-func (a *App) CheckSession(userID int) (string, error) {
+func (a *App) CheckSession(userID string) (string, error) {
 	return a.Auth.RefreshToken(userID) // same logic you already wrote
 }
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
@@ -426,7 +732,7 @@ func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 // -----------------------------
 // JWT Token
 // -----------------------------
-func (a *App) RefreshToken(userID int) (string, error) {
+func (a *App) RefreshToken(userID string) (string, error) {
 	token, err := a.Auth.RefreshToken(userID)
 	if err != nil {
 		return "", err
@@ -489,14 +795,14 @@ func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]models.Fold
 	}
 	return a.Vaults.GetFoldersByVault(vaultCID)
 }
-func (a *App) UpdateFolder(id int, newName string, isDraft bool, jwtToken string) (*models.Folder, error) {
+func (a *App) UpdateFolder(id string, newName string, isDraft bool, jwtToken string) (*models.Folder, error) {
 	_, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 	return a.Vaults.UpdateFolder(id, newName, isDraft)
 }
-func (a *App) DeleteFolder(userID int, id int, jwtToken string) (string, error) {
+func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, error) {
 	_, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
@@ -605,7 +911,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 	if err != nil {
 		return nil, err
 	}
-	userID := int(claims.UserID)
+	userID := claims.UserID
 	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID)
 }
 
@@ -616,7 +922,7 @@ func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, er
 	}
 	utils.LogPretty("ListSharedEntries - claims", claims)
 
-	entries, err := a.Vaults.ListSharedEntries(context.Background(), int(claims.UserID))
+	entries, err := a.Vaults.ListSharedEntries(context.Background(), claims.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +935,7 @@ func (a *App) ListReceivedShares(jwtToken string) (*[]share_domain.ShareEntry, e
 		return nil, err
 	}
 
-	entries, err := a.Vaults.ListReceivedShares(context.Background(), int(claims.UserID))
+	entries, err := a.Vaults.ListReceivedShares(context.Background(), claims.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -644,17 +950,17 @@ func (a *App) GetShareForAccept(jwt, shareID string) (*share_domain.ShareAcceptD
 
 	return a.Vaults.GetShareForAccept(
 		context.Background(),
-		int(claims.UserID),
+		claims.UserID,
 		shareID,
 	)
 }
-func (a *App) RejectShare(jwtToken string, shareID uint) (*share_application.RejectShareResult, error) {
+func (a *App) RejectShare(jwtToken string, shareID string) (*share_application.RejectShareResult, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 
-	return a.Vaults.RejectShare(context.Background(), int(claims.UserID), shareID)
+	return a.Vaults.RejectShare(context.Background(), claims.UserID, shareID)
 }
 func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiverInput) (*share_application.AddReceiverResult, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -663,7 +969,7 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 		return nil, err
 	}
 
-	return a.Vaults.AddReceiver(context.Background(), int(claims.UserID), payload)
+	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
 }
 
 // FlushAllSessions persists and clears all active sessions.
@@ -722,4 +1028,10 @@ func loadConfig() config {
 func (a *App) startup(ctx context.Context) {
 	fmt.Println("App has started.")
 	a.ctx = ctx
+	a.InitStripe()
+	// Fired every time the app regains focus
+	runtime.EventsOn(ctx, "wails:window:focus", func(_ ...interface{}) {
+		go a.CheckPaymentOnResume()
+	})
+
 }

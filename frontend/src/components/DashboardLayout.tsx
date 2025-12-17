@@ -45,7 +45,6 @@ import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps 
 import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
-import OnboardingWizardBeta from "./onBoardingWizardBeta";
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;

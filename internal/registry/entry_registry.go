@@ -8,10 +8,10 @@ import (
 )
 
 type EntryHandler interface {
-	Add(userID int, entry any) (*any, error)
-	Edit(userID int, entry any) (*any, error)
-	Trash(userID int, entryID string) error
-	Restore(userID int, entryID string) error
+	Add(userID string, entry any) (*any, error)
+	Edit(userID string, entry any) (*any, error)
+	Trash(userID string, entryID string) error
+	Restore(userID string, entryID string) error
 }
 
 type EntryRegistry struct {

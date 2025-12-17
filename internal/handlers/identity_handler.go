@@ -16,10 +16,10 @@ type IdentityHandler struct {
 	ipfs       blockchain.IPFSClient
 	logger     *logger.Logger
 	NowUTC     func() string
-	sessions   map[int]*models.VaultSession
+	sessions   map[string]*models.VaultSession
 }
 
-func NewIdentityHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[int]*models.VaultSession, log *logger.Logger) *IdentityHandler {
+func NewIdentityHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[string]*models.VaultSession, log *logger.Logger) *IdentityHandler {
 	return &IdentityHandler{
 		db:       db,
 		ipfs:     ipfs,
@@ -29,7 +29,7 @@ func NewIdentityHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions 
 	}
 }
 
-func (h *IdentityHandler) GetSession(userID int) (*models.VaultSession, error) {
+func (h *IdentityHandler) GetSession(userID string) (*models.VaultSession, error) {
 	session, ok := h.sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")
@@ -37,10 +37,10 @@ func (h *IdentityHandler) GetSession(userID int) (*models.VaultSession, error) {
 	return session, nil
 }
 
-func (h *IdentityHandler) Add(userID int, anEntry any) (*any, error) {
+func (h *IdentityHandler) Add(userID string, anEntry any) (*any, error) {
 	session, ok := h.GetSession(userID)
 	if ok != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	entry, err := anEntry.(*models.IdentityEntry)
 	if !err {
@@ -57,10 +57,10 @@ func (h *IdentityHandler) Add(userID int, anEntry any) (*any, error) {
 	return &result, nil
 
 }
-func (h *IdentityHandler) Edit(userID int, entry any) (*any, error) {
+func (h *IdentityHandler) Edit(userID string, entry any) (*any, error) {
 	session, err := h.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	updatedEntry, ok := entry.(*models.IdentityEntry)
 	if !ok {
@@ -80,26 +80,26 @@ func (h *IdentityHandler) Edit(userID int, entry any) (*any, error) {
 	}
 
 	if !updated {
-		return nil, fmt.Errorf("entry with ID %s not found for user %d", updatedEntry.ID, userID)
+		return nil, fmt.Errorf("entry with ID %s not found for user %s", updatedEntry.ID, userID)
 	}
 
 	session.Vault.Entries.Identity = entries
 	// h.MarkDirty(userID)
 
 
-	h.logger.Info("✏️ Updated identity entry for user %d: %s\n", userID, updatedEntry.EntryName)
+	h.logger.Info("✏️ Updated identity entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
 	var result any = updatedEntry
 	return &result, nil
 }
-func (h *IdentityHandler) Trash(userID int, entryID string) error {
+func (h *IdentityHandler) Trash(userID string, entryID string) error {
 	return h.TrashIdentityEntryAction(userID, entryID, true)
 }
-func (h *IdentityHandler) Restore(userID int, entryID string) error {
+func (h *IdentityHandler) Restore(userID string, entryID string) error {
 	return h.TrashIdentityEntryAction(userID, entryID, false)
 }
-func (h *IdentityHandler) TrashIdentityEntryAction(userID int, entryID string, trashed bool) error {
+func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string, trashed bool) error {
 	session, err := h.GetSession(userID)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID int, entryID string, t
 			if trashed {
 				state = "trashed"
 			}
-			h.logger.Info("🗑️ %s identity entry %s for user %d", state, entryID, userID)
+			h.logger.Info("🗑️ %s identity entry %s for user %s", state, entryID, userID)
 
 			return nil
 		}

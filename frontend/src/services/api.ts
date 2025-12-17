@@ -31,6 +31,21 @@ import { buildEntrySnapshot } from "@/lib/utils";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
 
+export interface CheckoutPayload {
+  amount: number;
+  currency: string;
+  successRedirect: string;
+  cancelRedirect: string;
+}
+
+export const createCheckout = async (payload: CheckoutPayload) => {
+  return await AppAPI.CreateCheckoutSession(payload);
+};
+
+export const getCheckoutStatus = async (sessionId: string) => {
+  return await AppAPI.GetCheckoutSessionStatus(sessionId);
+};
+
 
 
 
@@ -621,7 +636,7 @@ type SetupPaymentAndActivatePayload = {
 }
 type TierFeaturesResponse = {
   [tier: string]: {
-    name: string;
+    name?: string;
     description?: string;
     features?: string[];
   };
@@ -665,8 +680,17 @@ type PaymentSetupRequest = {
   encrypted_payment_data?: string;
   stellar_public_key?: string;
   card_number: string;
+  card_brand: string;
+  payment_method_id: string;
   exp: string;
   cvc: string;
+  exp_month: string;
+  exp_year: string; 
+  last_four: string;  
+  currency: string;
+  amount: string;
+  plan: string;
+  product_id: string;
 }
 type PaymentSetupResponse = {
   user_id: string;

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
@@ -89,11 +88,7 @@ func (a *StellarLoginAdapter) RecoverPassword(ctx context.Context, input Recover
 		return "", nil, errors.New("stellar: signature verification failed")
 	}
 	utils.LogPretty("user", user)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return "", nil, fmt.Errorf("stellar: failed to convert user ID to int: %w", err)
-	}
-	userCfg, err := a.DB.GetUserConfigByUserID(id)
+	userCfg, err := a.DB.GetUserConfigByUserID(user.ID)
 	if err != nil {
 		return "", nil, fmt.Errorf("stellar: failed to load user config: %w", err)
 	}

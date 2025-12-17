@@ -20,6 +20,10 @@ func (u *UserDB) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+func (u *UserDB) TableName() string {
+	return "user_onboarding"
+}
+
 func (u *UserDB) ToUser() *onboarding_domain.User {
 	return &onboarding_domain.User{
 		ID: u.ID,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"vault-app/internal/blockchain"
 	"vault-app/internal/models"
 
@@ -87,11 +86,7 @@ func (a *StellarLoginAdapter) RecoverPassword(ctx context.Context, input Recover
 	}
 
 	// 3️⃣ Fetch user's Stellar account config
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return "", nil, fmt.Errorf("stellar: failed to convert user ID to int: %w", err)
-	}
-	userCfg, err := a.DB.GetUserConfigByUserID(id)
+	userCfg, err := a.DB.GetUserConfigByUserID(user.ID)
 	if err != nil {
 		return "", nil, fmt.Errorf("stellar: failed to load user config: %w", err)
 	}

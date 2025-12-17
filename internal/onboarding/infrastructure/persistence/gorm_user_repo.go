@@ -57,3 +57,15 @@ func (r *GormUserRepository) Update(user *onboarding_domain.User) error {
 func (r *GormUserRepository) Delete(id string) error {
 	return r.db.Delete(&UserDB{ID: id}).Error
 }
+func (r *GormUserRepository) FindByEmail(email string) (*onboarding_domain.User, error) {
+	var userDB UserDB // ← correct GORM model
+    if err := r.db.First(&userDB, "email = ?", email).Error; err != nil {
+        return nil, err
+    }
+    user := userDB.ToUser()
+	return user, nil
+}	
+
+func (r *GormUserRepository) FindUserByEmail(email string) (*onboarding_domain.User, error) {
+	return r.FindByEmail(email)
+}

@@ -16,10 +16,10 @@ type NoteHandler struct {
 	ipfs       blockchain.IPFSClient
 	logger     *logger.Logger
 	NowUTC     func() string
-	sessions   map[int]*models.VaultSession
+	sessions   map[string]*models.VaultSession
 }
 
-func NewNoteHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[int]*models.VaultSession, log *logger.Logger) *NoteHandler {
+func NewNoteHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[string]*models.VaultSession, log *logger.Logger) *NoteHandler {
 	return &NoteHandler{
 		db:       db,
 		ipfs:     ipfs,
@@ -29,7 +29,7 @@ func NewNoteHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[
 	}
 }
 
-func (h *NoteHandler) GetSession(userID int) (*models.VaultSession, error) {
+func (h *NoteHandler) GetSession(userID string) (*models.VaultSession, error) {
 	session, ok := h.sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")
@@ -37,10 +37,10 @@ func (h *NoteHandler) GetSession(userID int) (*models.VaultSession, error) {
 	return session, nil
 }
 
-func (h *NoteHandler) Add(userID int, anEntry any) (*any, error) {
+func (h *NoteHandler) Add(userID string, anEntry any) (*any, error) {
 	session, ok := h.GetSession(userID)
 	if ok != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	entry, err := anEntry.(*models.NoteEntry)
 	if !err {
@@ -57,10 +57,10 @@ func (h *NoteHandler) Add(userID int, anEntry any) (*any, error) {
 	return &result, nil
 
 }
-func (h *NoteHandler) Edit(userID int, entry any) (*any, error) {
+func (h *NoteHandler) Edit(userID string, entry any) (*any, error) {
 	session, err := h.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	updatedEntry, ok := entry.(*models.NoteEntry)
 	if !ok {
@@ -80,26 +80,26 @@ func (h *NoteHandler) Edit(userID int, entry any) (*any, error) {
 	}
 
 	if !updated {
-		return nil, fmt.Errorf("entry with ID %s not found for user %d", updatedEntry.ID, userID)
+		return nil, fmt.Errorf("entry with ID %s not found for user %s", updatedEntry.ID, userID)
 	}
 
 	session.Vault.Entries.Note = entries
 	// h.MarkDirty(userID)
 
 
-	h.logger.Info("✏️ Updated note entry for user %d: %s\n", userID, updatedEntry.EntryName)
+	h.logger.Info("✏️ Updated note entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
 	var result any = updatedEntry
 	return &result, nil
 }
-func (h *NoteHandler) Trash(userID int, entryID string) error {
+func (h *NoteHandler) Trash(userID string, entryID string) error {
 	return h.TrashNoteEntryAction(userID, entryID, true)
 }
-func (h *NoteHandler) Restore(userID int, entryID string) error {
+func (h *NoteHandler) Restore(userID string, entryID string) error {
 	return h.TrashNoteEntryAction(userID, entryID, false)
 }
-func (h *NoteHandler) TrashNoteEntryAction(userID int, entryID string, trashed bool) error {
+func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashed bool) error {
 	session, err := h.GetSession(userID)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (h *NoteHandler) TrashNoteEntryAction(userID int, entryID string, trashed b
 			if trashed {
 				state = "trashed"
 			}
-			h.logger.Info("🗑️ %s note entry %s for user %d", state, entryID, userID)
+			h.logger.Info("🗑️ %s note entry %s for user %s", state, entryID, userID)
 
 			return nil
 		}

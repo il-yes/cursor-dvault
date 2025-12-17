@@ -8,6 +8,7 @@ import (
 	subscription_application_eventbus "vault-app/internal/subscription/application"
 	sub_uc "vault-app/internal/subscription/application/usecase"
 	sub_domain "vault-app/internal/subscription/domain"
+	subscription_domain "vault-app/internal/subscription/domain"
 )
 
 /* ---------------------------------------------------
@@ -15,7 +16,7 @@ import (
 ---------------------------------------------------*/
 
 type fakeRepo struct {
-	saved    *sub_domain.Subscription
+	saved     *sub_domain.Subscription
 	returnErr error
 }
 
@@ -34,6 +35,7 @@ func (r *fakeRepo) FindByUserID(ctx context.Context, userID string) (*sub_domain
 func (r *fakeRepo) GetByID(ctx context.Context, id string) (*sub_domain.Subscription, error) {
 	return r.saved, nil
 }
+
 /* ---------------------------------------------------
    FAKE EVENT BUS
 ---------------------------------------------------*/
@@ -84,6 +86,15 @@ func (b *fakeBus) SubscribeToCreation(handler func(context.Context, subscription
 func fakeIDGen() string {
 	return "sub-123"
 }
+/* ---------------------------------------------------
+   FAKE AnkhoraClient
+---------------------------------------------------*/
+type fakeTCClient struct {
+	
+}
+func (tc *fakeTCClient) GetSubscriptionBySessionID(ctx context.Context, sessionID string) (*subscription_domain.Subscription, error) {
+	return &subscription_domain.Subscription{}, nil
+}
 
 /* ---------------------------------------------------
    TESTS
@@ -96,14 +107,18 @@ func TestCreateSubscription_Success(t *testing.T) {
 
 	repo := &fakeRepo{}
 	bus := &fakeBus{}
+	tcClient := &fakeTCClient{}
 
-	uc := sub_uc.NewCreateSubscriptionUseCase(repo, bus, fakeIDGen)
+	uc := sub_uc.NewCreateSubscriptionUseCase(repo, bus, tcClient)
 
 	userID := "user-999"
 	tier := sub_domain.TierPro
 
+	// Create content for request
+	req := "12345" // sub ID
+
 	t.Log("📩 Executing use case")
-	sub, err := uc.Execute(ctx, userID, tier)
+	sub, err := uc.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}
@@ -123,8 +138,8 @@ func TestCreateSubscription_Success(t *testing.T) {
 	if repo.saved.Tier != string(tier) {
 		t.Errorf("wrong tier")
 	}
-	if !repo.saved.Active {
-		t.Errorf("expected Active=true")
+	if repo.saved.Active {
+		t.Errorf("expected Active=false")
 	}
 
 	// Validate event bus publish
@@ -153,9 +168,12 @@ func TestCreateSubscription_SaveFails(t *testing.T) {
 
 	repo := &fakeRepo{returnErr: errors.New("save-fail")}
 	bus := &fakeBus{}
-	uc := sub_uc.NewCreateSubscriptionUseCase(repo, bus, fakeIDGen)
+	uc := sub_uc.NewCreateSubscriptionUseCase(repo, bus, &fakeTCClient{})
 
-	_, err := uc.Execute(ctx, "u", sub_domain.TierFree)
+	// Create content for request
+	req := "12345"
+
+	_, err := uc.Execute(ctx, req)
 	if err == nil || err.Error() != "save-fail" {
 		t.Fatalf("❌ expected save-fail, got %v", err)
 	}
@@ -174,9 +192,12 @@ func TestCreateSubscription_NoEventBus(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &fakeRepo{}
-	uc := sub_uc.NewCreateSubscriptionUseCase(repo, nil, fakeIDGen)
+	uc := sub_uc.NewCreateSubscriptionUseCase(repo, nil, &fakeTCClient{})
 
-	_, err := uc.Execute(ctx, "user42", sub_domain.TierPro)
+	// Create content for request
+	req := "12345"
+
+	_, err := uc.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}

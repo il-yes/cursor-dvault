@@ -13,8 +13,8 @@ import (
 func TestLoginHandlerAddSuccess(t *testing.T) {
 	t.Parallel()
 
-	userID := 101
-	sessions := map[int]*models.VaultSession{
+	userID := "101"
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, nil),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -43,10 +43,10 @@ func TestLoginHandlerAddSuccess(t *testing.T) {
 func TestLoginHandlerAddNoSession(t *testing.T) {
 	t.Parallel()
 
-	handler := newTestLoginHandler(map[int]*models.VaultSession{})
+	handler := newTestLoginHandler(map[string]*models.VaultSession{})
 	entry := &models.LoginEntry{}
 
-	result, err := handler.Add(55, entry)
+	result, err := handler.Add("55", entry)
 	require.Error(t, err)
 	require.Nil(t, result)
 	require.Contains(t, err.Error(), "no active session for user 55")
@@ -55,8 +55,8 @@ func TestLoginHandlerAddNoSession(t *testing.T) {
 func TestLoginHandlerAddInvalidType(t *testing.T) {
 	t.Parallel()
 
-	userID := 7
-	sessions := map[int]*models.VaultSession{
+	userID := "7"
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, nil),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -72,7 +72,7 @@ func TestLoginHandlerAddInvalidType(t *testing.T) {
 func TestLoginHandlerEditSuccess(t *testing.T) {
 	t.Parallel()
 
-	userID := 88
+	userID := "88"
 	existingEntry := models.LoginEntry{
 		BaseEntry: models.BaseEntry{
 			ID:        "entry-1",
@@ -81,7 +81,7 @@ func TestLoginHandlerEditSuccess(t *testing.T) {
 		UserName: "old@example.com",
 	}
 
-	sessions := map[int]*models.VaultSession{
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, []models.LoginEntry{existingEntry}),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -110,8 +110,8 @@ func TestLoginHandlerEditSuccess(t *testing.T) {
 func TestLoginHandlerEditEntryNotFound(t *testing.T) {
 	t.Parallel()
 
-	userID := 90
-	sessions := map[int]*models.VaultSession{
+	userID := "90"
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, nil),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -132,8 +132,8 @@ func TestLoginHandlerEditEntryNotFound(t *testing.T) {
 func TestLoginHandlerEditInvalidType(t *testing.T) {
 	t.Parallel()
 
-	userID := 43
-	sessions := map[int]*models.VaultSession{
+	userID := "43"
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, nil),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -147,7 +147,7 @@ func TestLoginHandlerEditInvalidType(t *testing.T) {
 func TestLoginHandlerTrashAndRestore(t *testing.T) {
 	t.Parallel()
 
-	userID := 11
+	userID := 	"11"
 	entry := models.LoginEntry{
 		BaseEntry: models.BaseEntry{
 			ID:        "entry-trashed",
@@ -155,7 +155,7 @@ func TestLoginHandlerTrashAndRestore(t *testing.T) {
 		},
 	}
 
-	sessions := map[int]*models.VaultSession{
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, []models.LoginEntry{entry}),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -172,8 +172,8 @@ func TestLoginHandlerTrashAndRestore(t *testing.T) {
 func TestLoginHandlerTrashEntryNotFound(t *testing.T) {
 	t.Parallel()
 
-	userID := 12
-	sessions := map[int]*models.VaultSession{
+	userID := 	"12"
+	sessions := map[string]*models.VaultSession{
 		userID: newVaultSession(userID, nil),
 	}
 	handler := newTestLoginHandler(sessions)
@@ -183,7 +183,7 @@ func TestLoginHandlerTrashEntryNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), "entry with ID does-not-exist not found")
 }
 
-func newTestLoginHandler(sessions map[int]*models.VaultSession) *LoginHandler {
+func newTestLoginHandler(sessions map[string]*models.VaultSession) *LoginHandler {
 	return NewLoginHandler(
 		models.DBModel{},
 		blockchain.IPFSClient{},
@@ -192,7 +192,7 @@ func newTestLoginHandler(sessions map[int]*models.VaultSession) *LoginHandler {
 	)
 }
 
-func newVaultSession(userID int, entries []models.LoginEntry) *models.VaultSession {
+func newVaultSession(userID string, entries []models.LoginEntry) *models.VaultSession {
 	loginEntries := append([]models.LoginEntry(nil), entries...)
 	return &models.VaultSession{
 		UserID: userID,

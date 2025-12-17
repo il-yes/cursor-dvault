@@ -1,6 +1,6 @@
 // OnboardingWizardBeta.tsx (React version)
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 // Adjust import path to your generated Wails bindings
 import {
     GetRecommendedTier,
@@ -9,6 +9,10 @@ import {
     GetTierFeatures,
 } from '../services/api';
 import StellarKeyImport from './ImportStellarKey';
+import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import StripePayButton from './StripePayButton';
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { Button } from './ui/button';
 
 
 type Tier = 'free' | 'pro' | 'pro_plus' | 'business' | string;
@@ -16,7 +20,7 @@ type PaymentMethod = 'card' | 'stellar' | string;
 
 interface TierFeatures {
     [tier: string]: {
-        name: string;
+        name?: string;
         description?: string;
         features?: string[];
     };
@@ -36,6 +40,8 @@ interface OnboardingWizardBetaProps {
 }
 
 const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete }) => {
+    const stripe = useStripe();
+    const elements = useElements();
     const [step, setStep] = useState<number>(1);
     const [identity, setIdentity] = useState<string>('');
     const [useCases, setUseCases] = useState<string[]>([]);
@@ -53,7 +59,22 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     const [importedStellarKey, setImportedStellarKey] = useState<string | null>(null);
     const [cardNumber, setCardNumber] = useState<string>('');
     const [exp, setExp] = useState<string>('');
-    const [cvc, setCvc] = useState<string>(''); 
+    const [cvc, setCvc] = useState<string>('');
+    const [firstName, setFirstName] = useState<string>('');
+    const [lastName, setLastName] = useState<string>('');
+
+    const [cardError, setCardError] = useState<string | null>(null);
+    const [cardLoading, setCardLoading] = useState(false);
+
+
+    // ✅ Add these refs + types at top of component (after hooks):
+    const formRef = useRef<HTMLFormElement>(null);
+    const emailRef = useRef<HTMLInputElement>(null);
+    const firstNameRef = useRef<HTMLInputElement>(null);
+    const lastNameRef = useRef<HTMLInputElement>(null);
+
+    // const cardElement = elements?.getElement(CardElement);
+
 
     // Load tier features on mount
     useEffect(() => {
@@ -62,11 +83,12 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
             try {
                 const features = await GetTierFeatures('free');
                 if (isMounted) {
-                    console.log("Tier features:", {features});
+                    console.log("Tier features:", { features });
                     setTierFeatures(features);
                 }
             } catch (err: any) {
                 console.error('Failed to load tier features', err);
+                if (isMounted) setTierFeatures({});
             }
         })();
         return () => {
@@ -185,17 +207,21 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
     // Step 5: Payment setup
     const setupPayment = useCallback(
-        async () => {
+        async (paymentData: any) => {
             setLoading(true);
             setError('');
+
+            console.log(({
+                user_id: userId,
+                tier: selectedTier,
+                ...paymentData
+            }))
+
             try {
                 await SetupPaymentAndActivate({
                     user_id: userId,
                     tier: selectedTier,
-                    payment_method: paymentMethod,
-                    card_number:cardNumber,
-                    exp: exp,
-                    cvc: cvc,
+                    ...paymentData
                 });
                 setStep(6);
                 onComplete?.();
@@ -206,9 +232,26 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 setLoading(false);
             }
         },
-        [userId, selectedTier, paymentMethod, onComplete, cardNumber, exp, cvc],
+        [userId, selectedTier, onComplete],
     );
-    
+
+    const handleCardPayment = async () => {
+        if (!cardNumber || cardNumber.length < 13 || !exp || !cvc) {
+            setCardError('Please enter valid card details');
+            return;
+        }
+
+        setCardLoading(true);
+        // Mock payment method ID for testing
+        await setupPayment({
+            payment_method_id: 'pm_mock_' + Date.now(), // Your backend handles this
+            card_number: cardNumber.replace(/\s/g, ''),
+            exp_month: exp.split('/')[0],
+            exp_year: exp.split('/')[1],
+            cvc: cvc,
+        });
+    };
+
 
     // 14-day trial date string
     const trialEndDate = new Date(
@@ -227,6 +270,110 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         // Continue to use case selection
         setStep(2);
     }
+
+    const cardElement = elements?.getElement(CardElement);
+
+    // Form submit handler - IDENTICAL TO YOUR JS
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        const form = formRef.current;
+        if (!form || !form.checkValidity()) {  // ✅ formRef.current = HTMLFormElement
+            e.stopPropagation();
+            form?.classList.add("was-validated");
+            return;
+        }
+
+        form.classList.add("was-validated");
+
+        if (!stripe || !cardElement) {
+            setCardError('Stripe not loaded');
+            return;
+        }
+
+        stripe.createPaymentMethod({
+            type: 'card',
+            card: cardElement,
+            billing_details: {
+                email: emailRef.current?.value || '',
+            },
+        }).then(stripePaymentMethodHandler);
+    };
+
+
+    // YOUR JS → React (IDENTICAL)
+    const val = () => {
+        console.log("🚀 val() appelée");
+
+        const cardElement = elements.getElement(CardElement);
+        if (!cardElement) {
+            console.log("❌ CardElement vide");
+            return;
+        }
+
+
+        const form = document.getElementById("charge_form") as HTMLFormElement;
+        if (!form.checkValidity()) {
+            form.classList.add("was-validated");
+            return;
+        }
+        console.log("✅ Création payment_method...");
+
+        stripe!.createPaymentMethod({
+            type: 'card',
+            card: elements!.getElement(CardElement)!,
+            billing_details: {
+                email: (document.getElementById("cardholder-email") as HTMLInputElement).value,
+            },
+        }).then(stripePaymentMethodHandler);
+    };
+
+    const stripePaymentMethodHandler = async (result) => {
+        if (result.error) {
+            setError(result.error.message);
+            return;
+        }
+
+        // REAL STRIPE payment_method.id - NO MOCK
+        const payload = {
+            product_id: "pro",
+            plan: selectedTier,
+            payment_method: result.paymentMethod.id,  // pm_1ABC123 - REAL
+            email: (document.getElementById("cardholder-email") as HTMLInputElement).value,
+            last_four: result.paymentMethod.card.last4,
+            card_brand: result.paymentMethod.card.brand,
+            exp_month: result.paymentMethod.card.exp_month,
+            exp_year: result.paymentMethod.card.exp_year,
+            first_name: (document.getElementById("first_name") as HTMLInputElement).value,
+            last_name: (document.getElementById("last_name") as HTMLInputElement).value,
+            amount: getTierPrice(selectedTier),
+        };
+
+        const response = await fetch("/api/create-customer-and-subscribe-to-plan", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (!data.error) {
+            setStep(6);
+        }
+    };
+
+
+    const handleClick = async () => {
+        await AppAPI.OpenGoogle();
+    };
+
+    const onPaymentSuccess = () => {
+        setStep(6);
+    };
+
+    const handleSkip = () => {
+        setStep(6);
+    };
+
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-3xl p-6">
@@ -274,6 +421,14 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                                 </div>
                             </button>
                         </div>
+
+                        <Button
+                            onClick={handleSkip}
+                            size="lg"
+                            className="h-14 px-12 text-lg bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg hover:shadow-xl transition-all font-semibold"
+                        >
+                            Continue with New Account
+                        </Button>
                     </div>
                 )}
 
@@ -494,54 +649,40 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 )}
 
                 {/* STEP 5: Payment setup (card / Stellar) */}
+
                 {step === 5 && (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-semibold text-foreground">
                             Set up your subscription
                         </h2>
                         <p className="text-sm text-muted-foreground">
-                            14-day free trial • Cancel anytime. You will not be charged until {trialEndDate}.
+                            14-day free trial • Cancel anytime
                         </p>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Left: Card payment explanation */}
-                            <div className="space-y-3 text-sm text-muted-foreground">
-                                <h3 className="font-semibold text-foreground">Pay with card</h3>
-                                <p>Your card details are encrypted with your vault key and stored locally.</p>
-                                <p>We never see your payment information—only you can decrypt it.</p>
-                                {/* Replace with real form fields */}
-                                <input type="text" placeholder="Card number" onChange={(e) => setCardNumber(e.target.value)} />
-                                <input type="text" placeholder="Expiration date" onChange={(e) => setExp(e.target.value)} />
-                                <input type="text" placeholder="CVV" onChange={(e) => setCvc(e.target.value)} /> 
-                                <button
-                                    disabled={loading}
-                                    onClick={() => setupPayment()}
-                                    className="mt-2 px-5 py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold shadow hover:shadow-lg disabled:opacity-60 transition"
-                                >
-                                    {loading ? 'Processing…' : `Start ${selectedTier} for $${getTierPrice(selectedTier)}/mo`}
-                                </button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* CARD - WRITABLE INPUTS */}
+                            <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
+                                <h3 className="text-xl font-bold mb-4">💳 Card Payment</h3>
+
+                                <StripePayButton onComplete={onPaymentSuccess} />
                             </div>
 
-                            {/* Right: Stellar payment explanation */}
-                            <div className="space-y-3 text-sm text-muted-foreground">
-                                <h3 className="font-semibold text-foreground">Pay with Stellar</h3>
-                                <p>Connect your Stellar wallet to pay with USDC or Bitcoin.</p>
-                                <p>All transactions are verified on-chain with blockchain receipts.</p>
-                                <button
-                                    type="button"
-                                    className="mt-2 px-5 py-2 rounded-xl border border-amber-300 text-amber-900 bg-amber-50/80 hover:bg-amber-100 transition"
-                                // hook up to your Stellar connect flow
-                                >
+
+                            {/* STELLAR */}
+                            <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
+                                <h3 className="text-xl font-bold mb-4">⭐ Stellar Wallet</h3>
+                                <button className="w-full h-14 border border-amber-300 bg-amber-50 hover:bg-amber-100">
                                     Connect Stellar Wallet
                                 </button>
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    Automatic monthly payments of ${getTierPrice(selectedTier)} USDC. You can cancel
-                                    anytime from your vault settings.
-                                </p>
                             </div>
                         </div>
                     </div>
                 )}
+
+
+
+
+
 
                 {/* STEP 6: Done */}
                 {step === 6 && (
@@ -569,7 +710,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

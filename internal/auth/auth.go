@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,12 +29,12 @@ type JwtUser struct {
 type TokenPairs struct {
     Token        string `gorm:"column:token;type:text" json:"access_token"`
     RefreshToken string `gorm:"column:refresh_token;type:text" json:"refresh_token"`
-    UserID       int    `gorm:"column:user_id" json:"user_id"`
+    UserID       string    `gorm:"column:user_id" json:"user_id"`
 }
 
 
 type Claims struct {
-    UserID   int    `json:"user_id"`
+    UserID       string    `json:"user_id"`
     Username string `json:"username"`
     Email    string `json:"email"`
 
@@ -45,12 +44,8 @@ type Claims struct {
 // GenerateTokenPair generates both access & refresh tokens
 func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
     // --- Access Token ---
-    id, err := strconv.Atoi(user.ID)
-    if err != nil {
-        return TokenPairs{}, err
-    }
     accessClaims := &Claims{
-        UserID:   id,
+        UserID:   user.ID,
         Username: user.Username,
         Email:    user.Email,
         RegisteredClaims: jwt.RegisteredClaims{
@@ -70,7 +65,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
 
     // --- Refresh Token (simpler claims) ---
     refreshClaims := &Claims{
-        UserID: id,
+        UserID: user.ID,
         RegisteredClaims: jwt.RegisteredClaims{
             Subject:   fmt.Sprint(user.ID),
             IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -88,7 +83,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
     return TokenPairs{
         Token:        signedAccessToken,
         RefreshToken: signedRefreshToken,
-        UserID:       id,
+        UserID:         user.ID,
     }, nil
 }
 

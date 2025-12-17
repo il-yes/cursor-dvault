@@ -2,28 +2,57 @@ package subscription_usecase
 
 import (
 	"context"
+	"fmt"
+	"time"
+	utils "vault-app/internal"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 )
 
 type CreateSubscriptionUseCase struct {
-	repo subscription_domain.SubscriptionRepository
-	bus  subscription_eventbus.SubscriptionEventBus
-	idGen func() string
+	repo  subscription_domain.SubscriptionRepository
+	bus   subscription_eventbus.SubscriptionEventBus
+	AnkhorClient AnkhoraClient
 }
 
-func NewCreateSubscriptionUseCase(repo subscription_domain.SubscriptionRepository, bus subscription_eventbus.SubscriptionEventBus, idGen func() string) *CreateSubscriptionUseCase {
-	return &CreateSubscriptionUseCase{repo: repo, bus: bus, idGen: idGen}
-}	
+func NewCreateSubscriptionUseCase(repo subscription_domain.SubscriptionRepository, bus subscription_eventbus.SubscriptionEventBus, ankhorClient AnkhoraClient) *CreateSubscriptionUseCase {
+	return &CreateSubscriptionUseCase{repo: repo, bus: bus, AnkhorClient: ankhorClient}
+}
 
-func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, userID string, tier subscription_domain.SubscriptionTier) (*subscription_domain.Subscription, error) {
-	id := uc.idGen()
-	s := &subscription_domain.Subscription{ID: id, UserID: userID, Tier: string(tier), Active: true}
-	if err := uc.repo.Save(ctx, s); err != nil {
+type AnkhoraClient interface {
+	GetSubscriptionBySessionID(ctx context.Context, sessionID string) (*subscription_domain.Subscription, error)
+}
+type TraditionalSubscriptionResponse struct {
+	Subscription *subscription_domain.Subscription `json:"subscription"`
+	OccurredAt     int64  `json:"occurred_at"`
+}
+
+func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string) (*subscription_domain.Subscription, error) {
+	// fetch subscription from payment from Ankhora cloud
+	subscriptionFromPayment, err := uc.AnkhorClient.GetSubscriptionBySessionID(ctx, subID)
+	if err != nil {
 		return nil, err
 	}
-	if uc.bus != nil {
-		_ = uc.bus.PublishCreated(ctx, subscription_eventbus.SubscriptionCreated{SubscriptionID: id, UserID: userID, Tier: string(tier)})
+	utils.LogPretty("Subscription from payment:", subscriptionFromPayment)
+
+	if err := subscriptionFromPayment.Validate(); err != nil {
+		return nil, err
 	}
-	return s, nil
+	fmt.Println("Subscription from payment validated:", subscriptionFromPayment.Validate())
+
+	if err := uc.repo.Save(ctx, subscriptionFromPayment); err != nil {
+		return nil, err
+	}
+
+	// Fire event immediately after saving
+	if uc.bus != nil {
+		_ = uc.bus.PublishCreated(ctx, subscription_eventbus.SubscriptionCreated{
+			SubscriptionID: subscriptionFromPayment.ID,
+			UserID:         subscriptionFromPayment.UserID,
+			Tier:           subscriptionFromPayment.Tier,
+			OccurredAt:     time.Now().Unix(),
+		})
+	}
+
+	return subscriptionFromPayment, nil
 }

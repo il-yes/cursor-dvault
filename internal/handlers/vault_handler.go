@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+
 	// "os"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"time"
 	utils "vault-app/internal"
@@ -23,11 +23,12 @@ import (
 	"vault-app/internal/services"
 	"vault-app/internal/tracecore"
 
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type VaultHandler struct {
-	Sessions            map[int]*models.VaultSession
+	Sessions            map[string]*models.VaultSession
 	IPFS                *blockchain.IPFSClient
 	DB                  models.DBModel
 	vaultDirty          bool
@@ -39,7 +40,7 @@ type VaultHandler struct {
 
 	pendingMu sync.Mutex
 	// optionally keep in-memory pending commits per user
-	pendingCommits map[int][]tracecore.CommitEnvelope
+	pendingCommits map[string][]tracecore.CommitEnvelope
 	SessionsMu     sync.Mutex
 
 	EventDispatcher share_application_events.EventDispatcher
@@ -50,7 +51,7 @@ func NewVaultHandler(
 	db models.DBModel,
 	ipfs *blockchain.IPFSClient,
 	registry *registry.EntryRegistry,
-	Sessions map[int]*models.VaultSession,
+	Sessions map[string]*models.VaultSession,
 	logger *logger.Logger,
 	tc *tracecore.TracecoreClient,
 	runtimeCtx models.VaultRuntimeContext,
@@ -68,7 +69,7 @@ func NewVaultHandler(
 		EntryRegistry:       registry,
 		TracecoreClient:     tc,
 		VaultRuntimeContext: runtimeCtx,
-		pendingCommits:      make(map[int][]tracecore.CommitEnvelope),
+		pendingCommits:      make(map[string][]tracecore.CommitEnvelope),
 		EventDispatcher:     share_infrastructure.InitializeEventDispatcher(),
 	}
 }
@@ -76,7 +77,7 @@ func NewVaultHandler(
 // -----------------------------
 // Vault - Session
 // -----------------------------
-func (vh *VaultHandler) StartSession(userID int, vault models.VaultPayload, lastCID string, ctx *models.VaultRuntimeContext) {
+func (vh *VaultHandler) StartSession(userID string, vault models.VaultPayload, lastCID string, ctx *models.VaultRuntimeContext) {
 	now := time.Now().Format(time.RFC3339)
 	vh.Sessions[userID] = &models.VaultSession{
 		UserID:              userID,
@@ -88,27 +89,27 @@ func (vh *VaultHandler) StartSession(userID int, vault models.VaultPayload, last
 		VaultRuntimeContext: *ctx,
 	}
 }
-func (vh *VaultHandler) GetSession(userID int) (*models.VaultSession, error) {
+func (vh *VaultHandler) GetSession(userID string) (*models.VaultSession, error) {
 	session, ok := vh.Sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")
 	}
 	return session, nil
 }
-func (vh *VaultHandler) EndSession(userID int) {
+func (vh *VaultHandler) EndSession(userID string) {
 	if session, ok := vh.Sessions[userID]; ok {
 		// utils.LogPretty("ssession saved", session)
 		// Persist before deleting
 		if err := vh.DB.SaveSession(userID, session); err != nil {
-			vh.logger.Error("❌ failed to save session for user %d: %v", userID, err)
+			vh.logger.Error("❌ failed to save session for user %s: %v", userID, err)
 		} else {
-			vh.logger.Info("💾 Session saved for user %d", userID)
+			vh.logger.Info("💾 Session saved for user %s", userID)
 		}
 	}
 
 	delete(vh.Sessions, userID)
 }
-func (vh *VaultHandler) LogoutUser(userID int) error {
+func (vh *VaultHandler) LogoutUser(userID string) error {
 	vh.SessionsMu.Lock()
 	session, ok := vh.Sessions[userID]
 	vh.SessionsMu.Unlock()
@@ -130,11 +131,11 @@ func (vh *VaultHandler) LogoutUser(userID int) error {
 	delete(vh.Sessions, userID)
 	vh.SessionsMu.Unlock()
 
-	vh.logger.Info("👋 User %d logged out and session saved", userID)
+	vh.logger.Info("👋 User %s logged out and session saved", userID)
 	return nil
 }
 
-func (vh *VaultHandler) MarkDirty(userID int) {
+func (vh *VaultHandler) MarkDirty(userID string) {
 	if session, err := vh.GetSession(userID); err == nil {
 		session.LastUpdated = utils.NowUTCString()
 		session.Dirty = true
@@ -145,13 +146,13 @@ func (vh *VaultHandler) IsVaultDirty() bool {
 	return vh.vaultDirty
 }
 
-func (vh *VaultHandler) SyncVault0(userID int, password string) (string, error) {
-	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+func (vh *VaultHandler) SyncVault0(userID string, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
 
 	// 1. Get session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)	
 	}
 	// ✅ Removed noisy LogPretty - too verbose for production
 	// 2. Marshal in-memory vault
@@ -231,8 +232,8 @@ func (vh *VaultHandler) SyncVault0(userID int, password string) (string, error) 
 
 	return newCID, nil
 }
-func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
-	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+func (vh *VaultHandler) SyncVault(userID string, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
 
 	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
 	session, err := vh.GetSession(userID)
@@ -295,8 +296,8 @@ func (vh *VaultHandler) SyncVault(userID int, password string) (string, error) {
 	return newCID, nil
 }
 
-func (vh *VaultHandler) EncryptFile(userID int, filePath []byte, password string) (string, error) {
-	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+func (vh *VaultHandler) EncryptFile(userID string, filePath []byte, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
 
 	// 1. Get session
 	session, err := vh.GetSession(userID)
@@ -320,7 +321,7 @@ func (vh *VaultHandler) EncryptFile(userID int, filePath []byte, password string
 
 	return string(encrypted), nil
 }
-func (vh *VaultHandler) UploadToIPFS(userID int, encrypted string) (string, error) {
+func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, error) {
 	// GetBackendPlanParamForTransaction for managing plans from remote
 
 	// Upload to IPFS
@@ -331,11 +332,11 @@ func (vh *VaultHandler) UploadToIPFS(userID int, encrypted string) (string, erro
 	vh.logger.Info("📤 Vault uploaded to IPFS (CID: %s)", newCID)
 	return newCID, nil
 }
-func (vh *VaultHandler) CreateStellarCommit(userID int, newCID string) (string, error) {
+func (vh *VaultHandler) CreateStellarCommit(userID string, newCID string) (string, error) {
 	// 1. Get session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)
 	}
 
 	userCfg := session.VaultRuntimeContext.CurrentUser
@@ -376,7 +377,7 @@ func (vh *VaultHandler) CreateStellarCommit(userID int, newCID string) (string, 
 	return newCID, nil
 }
 
-func (vh *VaultHandler) EncryptVault(userID int, password string) (string, error) {
+func (vh *VaultHandler) EncryptVault(userID string, password string) (string, error) {
 	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
 
 	// 1. Get session
@@ -406,7 +407,7 @@ func (vh *VaultHandler) EncryptVault(userID int, password string) (string, error
 // Vault - Crud
 // -----------------------------
 // AddEntryFor: resilient behaviour: will always add the entry; Tracecore commit best-effort
-func (vh *VaultHandler) AddEntryFor(userID int, entry any) (*any, error) {
+func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*any, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			vh.logger.Error("🔥 Panic in AddEntryFor: %v\nStack:\n%s", r, debug.Stack())
@@ -459,12 +460,12 @@ func (vh *VaultHandler) AddEntryFor(userID int, entry any) (*any, error) {
 	created, err := handler.Add(userID, entry)
 	var result any = created
 
-	vh.logger.Info("✅ Created %s entry for user %d", entryType, userID)
+	vh.logger.Info("✅ Created %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)
 
 	return &result, err
 }
-func (vh *VaultHandler) AddEntry(userID int, entryType string, raw json.RawMessage) (any, error) {
+func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		vh.logger.Error("❌ Failed to unmarshal %s entry for user %d: %v", entryType, userID, err)
@@ -477,7 +478,7 @@ func (vh *VaultHandler) AddEntry(userID int, entryType string, raw json.RawMessa
 
 	return vh.AddEntryFor(userID, parsed)
 }
-func (vh *VaultHandler) UpdateEntryFor(userID int, entry any) (any, error) {
+func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (any, error) {
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
@@ -494,19 +495,19 @@ func (vh *VaultHandler) UpdateEntryFor(userID int, entry any) (any, error) {
 		return nil, err
 	}
 
-	vh.logger.Info("✅ Updated %s entry for user %d", entryType, userID)
+	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)
 
 	return updated, nil
 }
-func (vh *VaultHandler) UpdateEntry(userID int, entryType string, raw json.RawMessage) (any, error) {
+func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
 	}
 	return vh.UpdateEntryFor(userID, parsed)
 }
-func (vh *VaultHandler) TrashEntryFor(userID int, entry any) error {
+func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
@@ -519,12 +520,12 @@ func (vh *VaultHandler) TrashEntryFor(userID int, entry any) error {
 		return fmt.Errorf("failed to find an entryRgistry for %s: %w", entryType, err)
 	}
 	err = handler.Trash(userID, entryID)
-	vh.logger.Info("✅ trashed %s entry for user %d", entryType, userID)
+	vh.logger.Info("✅ trashed %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)
 
 	return err
 }
-func (vh *VaultHandler) RestoreEntryFor(userID int, entry any) error {
+func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) error {
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
@@ -538,12 +539,12 @@ func (vh *VaultHandler) RestoreEntryFor(userID int, entry any) error {
 	}
 	err = handler.Restore(userID, entryID)
 
-	vh.logger.Info("✅ restored %s entry for user %d", entryType, userID)
+	vh.logger.Info("✅ restored %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)
 
 	return err
 }
-func (vh *VaultHandler) TrashEntry(userID int, entryType string, raw json.RawMessage) (any, error) {
+func (vh *VaultHandler) TrashEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
@@ -554,7 +555,7 @@ func (vh *VaultHandler) TrashEntry(userID int, entryType string, raw json.RawMes
 	}
 	return parsed, nil // Return the restored entry
 }
-func (vh *VaultHandler) RestoreEntry(userID int, entryType string, raw json.RawMessage) (any, error) {
+func (vh *VaultHandler) RestoreEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
@@ -566,14 +567,14 @@ func (vh *VaultHandler) RestoreEntry(userID int, entryType string, raw json.RawM
 	return parsed, nil // Return the restored entry
 }
 
-func (vh *VaultHandler) CreateFolder(userID int, name string) (*models.VaultPayload, error) {
+func (vh *VaultHandler) CreateFolder(userID string, name string) (*models.VaultPayload, error) {
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 
 	folder := &models.Folder{
-		ID:        utils.RandRange(1, 100000000000),
+		ID:        uuid.New().String(),
 		Name:      name,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		UpdatedAt: time.Now().Format(time.RFC3339),
@@ -588,7 +589,7 @@ func (vh *VaultHandler) CreateFolder(userID int, name string) (*models.VaultPayl
 	vault := session.Vault
 	vault.Folders = append(vault.Folders, *newFolder)
 
-	vh.logger.Info("✅ Added %s folder for user %d", newFolder.Name, userID)
+	vh.logger.Info("✅ Added %s folder for user %s", newFolder.Name, userID)
 	vh.MarkDirty(userID)
 
 	return vault, nil
@@ -596,7 +597,7 @@ func (vh *VaultHandler) CreateFolder(userID int, name string) (*models.VaultPayl
 func (vh *VaultHandler) GetFoldersByVault(vaultCID string) ([]models.Folder, error) {
 	return vh.DB.GetFoldersByVault(vaultCID)
 }
-func (vh *VaultHandler) UpdateFolder(id int, newName string, isDraft bool) (*models.Folder, error) {
+func (vh *VaultHandler) UpdateFolder(id string, newName string, isDraft bool) (*models.Folder, error) {
 	folder, err := vh.DB.GetFolderById(id)
 	if err != nil {
 		return nil, err
@@ -612,10 +613,10 @@ func (vh *VaultHandler) UpdateFolder(id int, newName string, isDraft bool) (*mod
 	}
 	return saved, nil
 }
-func (vh *VaultHandler) DeleteFolder(userID int, id int) error {
+func (vh *VaultHandler) DeleteFolder(userID string, id string) error {	
 	session, ok := vh.GetSession(userID)
 	if ok != nil {
-		return fmt.Errorf("no active session for user %d", userID)
+		return fmt.Errorf("no active session for user %s", userID)
 	}
 
 	// 1. Find the folder
@@ -626,7 +627,7 @@ func (vh *VaultHandler) DeleteFolder(userID int, id int) error {
 
 	// 2. Move entries in this folder to unsorted
 	vault := session.Vault
-	moved := vault.MoveEntriesToUnsorted(strconv.Itoa(folder.ID))
+	moved := vault.MoveEntriesToUnsorted(folder.ID)
 
 	// 3. Persist updates (keeping type safety)
 	for _, e := range moved.Login {
@@ -697,32 +698,28 @@ func (vh *VaultHandler) DeleteFolder(userID int, id int) error {
 	return nil
 }
 
-func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID int) ([]share_domain.ShareEntry, error) {
+func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID string) ([]share_domain.ShareEntry, error) {
 	user, err := vh.DB.FindUserById(userID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found with ID %d: %w", userID, err)
 	}
 	utils.LogPretty("ListSharedEntries - user", user)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
-	}
-	existingSession, ok := vh.Sessions[id]
+	existingSession, ok := vh.Sessions[userID]
 	if !ok {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	entries, err := uc.ListSharedEntries(ctx, uint(id), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
+	entries, err := uc.ListSharedEntries(ctx, userID, existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
 	}
 
 	return entries, nil
 }
-func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]share_domain.ShareEntry, error) {
+func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID string) ([]share_domain.ShareEntry, error) {
 
 	user, err := vh.DB.FindUserById(userID)
 	if err != nil {
@@ -730,19 +727,15 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]s
 	}
 
 	utils.LogPretty("ListReceivedEntries - user", user)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
-	}
-	existingSession, ok := vh.Sessions[id]
+	existingSession, ok := vh.Sessions[user.ID]
 	if !ok {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", user.ID)
 	}
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	entries, err := uc.ListReceivedShares(ctx, uint(id), existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
+	entries, err := uc.ListReceivedShares(ctx, userID, existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
 	}
@@ -754,7 +747,7 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID int) ([]s
 
 func (vh *VaultHandler) GetShareForAccept(
 	ctx context.Context,
-	userID int,
+	userID string,
 	shareID string,
 ) (*share_domain.ShareAcceptData, error) {
 
@@ -766,62 +759,33 @@ func (vh *VaultHandler) GetShareForAccept(
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
 
-	return uc.GetShareForAccept(ctx, shareID, uint(userID))
+	return uc.GetShareForAccept(ctx, shareID, userID)
 }
-func (vh *VaultHandler) AcceptShare(ctx context.Context, userID int, shareID uint) (*share_application_use_cases.AcceptShareResult, error) {
-	// Load user
-	user, err := vh.DB.FindUserById(userID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-
+func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.AcceptShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
-	}
-	result, err := usecase.AcceptShare(ctx, shareID, uint(id))
+	result, err := usecase.AcceptShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
-func (vh *VaultHandler) RejectShare(ctx context.Context, userID int, shareID uint) (*share_application_use_cases.RejectShareResult, error) {
-	// Load user
-	user, err := vh.DB.FindUserById(userID)
-	if err != nil {
-		return nil, fmt.Errorf("user not found: %w", err)
-	}
-
+func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.RejectShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
-	}
-	result, err := usecase.RejectShare(ctx, shareID, uint(id))
+	result, err := usecase.RejectShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
-func (vh *VaultHandler) AddReceiver(ctx context.Context, userID int, in share_application_use_cases.AddReceiverInput) (*share_application_use_cases.AddReceiverResult, error) {
-
-	user, err := vh.DB.FindUserById(userID)
-	if err != nil {
-		return nil, err
-	}
+func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share_application_use_cases.AddReceiverInput) (*share_application_use_cases.AddReceiverResult, error) {
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
-	id, err := strconv.Atoi(user.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert user ID to int: %w", err)
-	}
-	result, err := usecase.AddReceiver(ctx, uint(id), in)
+	result, err := usecase.AddReceiver(ctx, userID, in)
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +813,7 @@ type CreateShareEntryPayload struct {
 	Recipients []RecipientPayload `json:"recipients"`
 }
 
-func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID int) (*share_domain.ShareEntry, error) {
+func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID string) (*share_domain.ShareEntry, error) {
 	// Convert JSON string -> domain struct
 	var snapshot share_domain.EntrySnapshot
 	if err := json.Unmarshal([]byte(payload.EntrySnapshot), &snapshot); err != nil {
@@ -859,7 +823,7 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 
 	// map payload -> domain.ShareEntry
 	var s share_domain.ShareEntry
-	s.OwnerID = uint(ownerID)
+	s.OwnerID = ownerID
 	s.EntryName = payload.EntryName
 	s.EntryRef = payload.EntryRef
 	s.EntryType = payload.EntryType
@@ -910,11 +874,11 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 // Tracecore - connexion
 // -----------------------------
 // PrepareTracecoreEnvelope builds and signs envelope; returns nil,nil if not enabled/needed
-func (vh *VaultHandler) PrepareTracecoreEnvelope(userID int, entry models.VaultEntry, options map[string]interface{}) (*tracecore.CommitEnvelope, error) {
+func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.VaultEntry, options map[string]interface{}) (*tracecore.CommitEnvelope, error) {
 	// load session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+		return nil, fmt.Errorf("❌ no active session for user %s: %w", userID, err)
 	}
 	log.Printf("🔍 Options in PrepareTracecoreEnvelope ---------- : %+v", options)
 
@@ -1001,13 +965,13 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID int, entry models.VaultE
 // Tracecore - Pending Commits
 // -----------------------------
 // Add a commit to the user's pending list and persist session
-func (vh *VaultHandler) QueuePendingCommits(userID int, commit tracecore.CommitEnvelope) error {
+func (vh *VaultHandler) QueuePendingCommits(userID string, commit tracecore.CommitEnvelope) error {
 	vh.SessionsMu.Lock()
 	defer vh.SessionsMu.Unlock()
 
 	session, ok := vh.Sessions[userID]
 	if !ok {
-		return fmt.Errorf("no active session for user %d", userID)
+		return fmt.Errorf("no active session for user %s", userID)
 	}
 
 	session.PendingCommits = append(session.PendingCommits, commit)
@@ -1019,7 +983,7 @@ func (vh *VaultHandler) QueuePendingCommits(userID int, commit tracecore.CommitE
 
 	return nil
 }
-func (vh *VaultHandler) EnqueuePendingCommit(userID int, env tracecore.CommitEnvelope) {
+func (vh *VaultHandler) EnqueuePendingCommit(userID string, env tracecore.CommitEnvelope) {
 	vh.pendingMu.Lock()
 	defer vh.pendingMu.Unlock()
 	vh.pendingCommits[userID] = append(vh.pendingCommits[userID], env)
@@ -1027,9 +991,9 @@ func (vh *VaultHandler) EnqueuePendingCommit(userID int, env tracecore.CommitEnv
 	if s, ok := vh.Sessions[userID]; ok {
 		s.PendingCommits = append(s.PendingCommits, env)
 	}
-	vh.logger.Info("🔁 Enqueued pending commit for user %d (total pending: %d)", userID, len(vh.pendingCommits[userID]))
+	vh.logger.Info("🔁 Enqueued pending commit for user %s (total pending: %d)", userID, len(vh.pendingCommits[userID]))
 }
-func (vh *VaultHandler) RetryPendingCommits(userID int) {
+func (vh *VaultHandler) RetryPendingCommits(userID string) {
 	vh.pendingMu.Lock()
 	pending := vh.pendingCommits[userID]
 	vh.pendingMu.Unlock()
@@ -1070,7 +1034,7 @@ func (vh *VaultHandler) RetryPendingCommits(userID int) {
 func (vh *VaultHandler) StartPendingCommitWorker(ctx context.Context, interval time.Duration) {
 	go func() {
 		vh.logger.Info("🚀 PendingCommitWorker started (interval: %s)", interval)
-		backoff := make(map[int]time.Duration) // userID -> backoff duration
+		backoff := make(map[string]time.Duration) // userID -> backoff duration
 
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -1082,7 +1046,7 @@ func (vh *VaultHandler) StartPendingCommitWorker(ctx context.Context, interval t
 				return
 			case <-ticker.C:
 				vh.pendingMu.Lock()
-				userIDs := make([]int, 0, len(vh.pendingCommits))
+				userIDs := make([]string, 0, len(vh.pendingCommits))
 				for uid := range vh.pendingCommits {
 					userIDs = append(userIDs, uid)
 				}
@@ -1097,8 +1061,8 @@ func (vh *VaultHandler) StartPendingCommitWorker(ctx context.Context, interval t
 
 					// Try retrying (only log if there are actually pending commits)
 					before := len(vh.pendingCommits[uid])
-					if before > 0 {
-						vh.logger.Info("ℹ️ Retrying %d pending commits for user %d", before, uid)
+					if before > 0 {	
+						vh.logger.Info("ℹ️ Retrying %d pending commits for user %s", before, uid)
 					}
 					vh.RetryPendingCommits(uid)
 					after := len(vh.pendingCommits[uid])

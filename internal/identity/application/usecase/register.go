@@ -1,4 +1,4 @@
-package identity
+package identity_usecase
 
 import (
 	"context"
@@ -6,17 +6,15 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 )
 
-// Simple ID generator function type for tests/DI
-type IDGen func() string
 
 // RegisterStandardUserUseCase registers a non-anonymous user
 type RegisterStandardUserUseCase struct {
-	repo  identity_domain.Repository
+	repo  identity_domain.UserRepository
 	bus   identity_eventbus.EventBus
 	idGen IDGen
 }
 
-func NewRegisterStandardUserUseCase(repo identity_domain.Repository, bus identity_eventbus.EventBus, idGen IDGen) *RegisterStandardUserUseCase {
+func NewRegisterStandardUserUseCase(repo identity_domain.UserRepository, bus identity_eventbus.EventBus, idGen IDGen) *RegisterStandardUserUseCase {
 	return &RegisterStandardUserUseCase{repo: repo, bus: bus, idGen: idGen}
 }
 
@@ -46,12 +44,12 @@ func (uc *RegisterStandardUserUseCase) Execute(ctx context.Context, email, passw
 
 // RegisterAnonymousUserUseCase registers an anonymous user with stellar key
 type RegisterAnonymousUserUseCase struct {
-	repo  identity_domain.Repository
+	repo  identity_domain.UserRepository
 	bus   identity_eventbus.EventBus
 	idGen IDGen
 }
 
-func NewRegisterAnonymousUserUseCase(repo identity_domain.Repository, bus identity_eventbus.EventBus, idGen IDGen) *RegisterAnonymousUserUseCase {
+func NewRegisterAnonymousUserUseCase(repo identity_domain.UserRepository, bus identity_eventbus.EventBus, idGen IDGen) *RegisterAnonymousUserUseCase {
 	return &RegisterAnonymousUserUseCase{repo: repo, bus: bus, idGen: idGen}
 }
 

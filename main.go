@@ -21,9 +21,9 @@ func main() {
 	if errEnv != nil {
 		log.Fatal("❌ Error loading .env file:", errEnv)
 	}
-	privateKey := os.Getenv("STELLAR_SECRET")
+	privateKey := os.Getenv("STELLAR_PRIVATE_KEY")
 	if privateKey == "" {
-		fmt.Println("❌ STELLAR_SECRET is empty")
+		fmt.Println("❌ STELLAR_PRIVATE_KEY is empty")
 	}
 
 	app := NewApp()

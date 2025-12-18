@@ -64,6 +64,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		if err != nil {
 			return nil, err
 		}
+				
 		// Create user with Stellar key as identifier
 		user := &onboarding_domain.User{
 			IsAnonymous:      true,

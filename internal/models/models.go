@@ -9,10 +9,6 @@ import (
 	"time"
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
-	share_domain "vault-app/internal/domain/shared"
-	share_infrastructure "vault-app/internal/infrastructure/share"
-	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
-	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	"vault-app/internal/tracecore"
 
 	"gorm.io/gorm"
@@ -32,38 +28,6 @@ func NewModels(db *gorm.DB) Models {
 	return Models{
 		DB: DBModel{DB: db},
 	}
-}
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&User{},
-		&Folder{},
-		&VaultCID{},
-		&VaultContent{},
-		&LoginEntry{},
-		&CardEntry{},
-		&IdentityEntry{},
-		&NoteEntry{},
-		&SSHKeyEntry{},
-
-		// App & User Configs
-		&app_config.AppConfig{},
-		&app_config.CommitRule{},
-		&app_config.UserConfig{},
-		&app_config.SharingRule{},
-		&app_config.SharingConfig{}, // if used for advanced sharing
-		&UserSession{},
-		&auth.TokenPairs{},
-
-		// Sharing
-		&share_infrastructure.ShareEntryModel{},
-		&share_infrastructure.RecipientModel{},
-		&share_domain.AuditLog{},
-		
-		// Onboarding
-		&onboarding_persistence.UserDB{},
-		&subscription_persistence.SubscriptionMapper{},
-		&subscription_persistence.UserSubscriptionMapper{},
-	)
 }
 
 
@@ -155,6 +119,7 @@ type BaseVaultContent struct {
 	UpdatedAt string   `json:"updated_at" gorm:"varchar(100)"`
 }
 
+	
 // For vault initialization (signup)
 type VaultPayload struct {
 	Version string `json:"version"`

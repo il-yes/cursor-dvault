@@ -22,6 +22,7 @@ import (
 	"vault-app/internal/registry"
 	"vault-app/internal/services"
 	"vault-app/internal/tracecore"
+	vault_session "vault-app/internal/vault/application/session"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -36,7 +37,7 @@ type VaultHandler struct {
 	NowUTC              func() string
 	EntryRegistry       *registry.EntryRegistry
 	TracecoreClient     *tracecore.TracecoreClient
-	VaultRuntimeContext models.VaultRuntimeContext
+	VaultRuntimeContext vault_session.RuntimeContext
 
 	pendingMu sync.Mutex
 	// optionally keep in-memory pending commits per user
@@ -54,7 +55,7 @@ func NewVaultHandler(
 	Sessions map[string]*models.VaultSession,
 	logger *logger.Logger,
 	tc *tracecore.TracecoreClient,
-	runtimeCtx models.VaultRuntimeContext,
+	runtimeCtx vault_session.RuntimeContext,
 ) *VaultHandler {
 	if tc == nil {
 		logger.Error("❌ TracecoreClient is nil when initializing VaultHandler!")

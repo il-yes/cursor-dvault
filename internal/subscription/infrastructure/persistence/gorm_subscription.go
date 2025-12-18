@@ -17,6 +17,7 @@ func NewSubscriptionRepository(db *gorm.DB, logger *logger.Logger) *Subscription
 	return &SubscriptionRepository{DB: db, Logger: logger}	
 }
 
+
 func (r *SubscriptionRepository) Save(ctx context.Context, s *subscription_domain.Subscription) error {
 	sDB := SubscriptionToDB(s)
 	if err := r.DB.Create(sDB).Error; err != nil {

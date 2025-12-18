@@ -1,4 +1,4 @@
-package persistence
+package identity_persistence
 
 import (
 	"context"
@@ -51,4 +51,4 @@ func (r *MemoryUserRepository) FindByEmail(ctx context.Context, email string) (*
 }
 
 // Ensure interface satisfaction at compile-time
-var _ identity_domain.Repository = (*MemoryUserRepository)(nil)
+var _ identity_domain.UserRepository = (*MemoryUserRepository)(nil)

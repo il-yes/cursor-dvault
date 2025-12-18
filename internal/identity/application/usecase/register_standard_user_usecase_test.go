@@ -1,4 +1,4 @@
-package identity_test
+package identity_usecase_test
 
 import (
 	"context"
@@ -46,11 +46,13 @@ func (r *fakeRepo) FindByEmail(ctx context.Context, email string) (*identity_dom
 --------------------------------*/
 type fakeEventBus struct {
 	published []identity_app.UserRegistered
+	publishedLogins []identity_app.UserLoggedIn
 }
 
 func newFakeEventBus() *fakeEventBus {
 	return &fakeEventBus{
 		published: []identity_app.UserRegistered{},
+		publishedLogins: []identity_app.UserLoggedIn{},
 	}
 }
 
@@ -60,6 +62,14 @@ func (b *fakeEventBus) PublishUserRegistered(ctx context.Context, e identity_app
 }
 
 func (b *fakeEventBus) SubscribeToUserRegistered(handler identity_app.UserRegisteredHandler) error {
+	return nil
+}
+
+func (b *fakeEventBus) PublishUserLoggedIn(ctx context.Context, e identity_app.UserLoggedIn) error {
+	return nil
+}
+
+func (b *fakeEventBus) SubscribeToUserLoggedIn(handler identity_app.UserLoggedInHandler) error {
 	return nil
 }
 

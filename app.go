@@ -12,12 +12,19 @@ import (
 	utils "vault-app/internal"
 	share_application "vault-app/internal/application/use_cases"
 	"vault-app/internal/auth"
+	auth_usecases "vault-app/internal/auth/application/use_cases"
+	auth_domain "vault-app/internal/auth/domain"
+	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
+	identity_commands "vault-app/internal/identity/application/commands"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
+	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
@@ -40,6 +47,10 @@ import (
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
+	vault_commands "vault-app/internal/vault/application/commands"
+	vault_session "vault-app/internal/vault/application/session"
+	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
+	vault_ui "vault-app/internal/vault/ui"
 
 	// "vault-app/internal/logger/logger"
 	"vault-app/internal/models"
@@ -49,9 +60,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/mapstructure"
 	"github.com/stripe/stripe-go/v74"
-	"github.com/stripe/stripe-go/v74/checkout/session"
-	"github.com/stripe/stripe-go/v74/paymentintent"
-	"github.com/stripe/stripe-go/v74/webhook"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -93,6 +101,8 @@ type App struct {
 
 	// Core handlers
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
+	Identity                  *identity_ui.IdentityHandler
+	Vault                     *vault_ui.VaultHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
 	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
@@ -101,7 +111,8 @@ type App struct {
 	EntryRegistry             *registry.EntryRegistry
 
 	// New: Global state
-	RuntimeContext *models.VaultRuntimeContext
+	// RuntimeContext *models.VaultRuntimeContext
+	RuntimeContext *vault_session.RuntimeContext	
 	cancel         context.CancelFunc
 }
 
@@ -196,8 +207,8 @@ func NewApp() *App {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	runtimeCtx := &models.VaultRuntimeContext{
-		AppSettings: app_config.AppConfig{
+	runtimeCtx := &vault_session.RuntimeContext{
+		AppConfig: app_config.AppConfig{
 			// Load from file/env or defaults
 			Branch:           "main",
 			EncryptionPolicy: "AES-256-GCM",
@@ -214,7 +225,7 @@ func NewApp() *App {
 			},
 		},
 		SessionSecrets: make(map[string]string),
-		LoadedEntries:  []models.VaultEntry{},
+		// LoadedEntries:  []models.VaultEntry{},
 	}
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
@@ -222,20 +233,20 @@ func NewApp() *App {
 
 	// Recovery context implementations
 	userRepo := stellar_recovery_persistence.NewGormUserRepository(db.DB)
-	vaultRepo := stellar_recovery_persistence.NewGormVaultRepository(db.DB)
+	vaultStellarRepo := stellar_recovery_persistence.NewGormVaultRepository(db.DB)
 	subRepo := stellar_recovery_persistence.NewGormSubscriptionRepository(db.DB)
 	verifier := stellar.NewStellarKeyAdapter()
 	eventDisp := events.NewLocalDispatcher()
 	tokenGen := token.NewSimpleTokenGen()
 
-	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultRepo, subRepo, verifier)
-	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultRepo, subRepo, verifier, eventDisp, tokenGen)
+	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultStellarRepo, subRepo, verifier)
+	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultStellarRepo, subRepo, verifier, eventDisp, tokenGen)
 	importUC := stellar_recovery_usecase.NewImportKeyUseCase(userRepo, verifier)
 	loginAdapter := shared.NewStellarLoginAdapter(db)
 
 	connectUC := stellar_recovery_usecase.NewConnectWithStellarUseCase(
 		loginAdapter,
-		vaultRepo,
+		vaultStellarRepo,
 		subRepo,
 	)
 
@@ -251,6 +262,46 @@ func NewApp() *App {
 	subscriptionBus := subscription_persistence.NewMemoryBus()
 	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
 	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
+
+
+
+	// runtimeCtxV2 := &vault_session.RuntimeContext{
+	// 	AppConfig: app_config.AppConfig{
+	// 		// Load from file/env or defaults
+	// 		Branch:           "main",
+	// 		EncryptionPolicy: "AES-256-GCM",
+	// 		Blockchain: app_config.BlockchainConfig{
+	// 			Stellar: app_config.StellarConfig{
+	// 				Network:    "testnet",
+	// 				HorizonURL: "https://horizon-testnet.stellar.org",
+	// 				Fee:        100,
+	// 			},
+	// 			IPFS: app_config.IPFSConfig{
+	// 				APIEndpoint: "http://localhost:5001",
+	// 				GatewayURL:  "https://ipfs.io/ipfs/",
+	// 			},
+	// 		},
+	// 	},
+	// 	SessionSecrets: make(map[string]string),
+	// }
+	
+	// Identity
+	identityRepo := identity_persistence.NewGormUserRepository(db.DB)
+	sessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
+	vaultRepo := vaults_persistence.NewGormVaultRepository(db.DB)
+	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, appLogger, ctx, ipfs)
+	authRepo := auth_persistence.NewGormAuthRepository(db.DB)	
+	tokenService := auth_usecases.NewTokenService(auth_domain.Auth{}, authRepo, db.DB)
+	IDmemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
+	loginCommandHandler := identity_commands.NewLoginCommandHandler(onboardingUserRepo, identityRepo, tokenService, sessionManager, IDmemoryBus)
+	loginHandler := identity_ui.NewLoginHandler(loginCommandHandler)
+	identityHandler := identity_ui.NewIdentityHandler(loginHandler)
+
+	// Vault
+	cryptoService := blockchain.CryptoService{}
+	openVaultHandler := vault_ui.NewOpenVaultHandler(vault_commands.NewOpenVaultCommandHandler(vaultRepo, sessionManager, ipfs, &cryptoService))
+	vaultHandler := vault_ui.NewVaultHandler(openVaultHandler)
+
 
 	// Stripe webhook listener
 	go func() {
@@ -314,6 +365,8 @@ func NewApp() *App {
 		version:                   version,
 		DB:                        *db,
 		StellarRecoveryHandler:    stellarHandler,
+		Identity:                  identityHandler,
+		Vault:                     vaultHandler,
 		OnBoardingHandler:         onBoardingHandler,
 		SubscriptionHandler:       subscriptionHandler,
 		Vaults:                    vaults,
@@ -322,6 +375,7 @@ func NewApp() *App {
 		EntryRegistry:             reg,
 		sessions:                  sessions,
 		RuntimeContext:            runtimeCtx,
+		// RuntimeContextV2:          runtimeCtxV2,
 		cancel:                    cancel,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
 		ConnectWithStellarHandler: stellarHandler,
@@ -340,129 +394,10 @@ func (a *App) CheckPaymentOnResume() {
 	// }
 }
 
-// GetCheckoutURL returns the cloud backend checkout page URL
-func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
-	sessionID := uuid.New().String()
-
-	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
-	url := baseURL + sessionID
-	fmt.Println("Checkout URL - backend:", url)
-	res := CreateCheckoutResponse{
-		SessionID: sessionID,
-		URL:       url,
-	}
-	return res, nil
-}
-
-func (a *App) OpenURL(rawURL string) error {
-	log.Println("🔗 Deep link received:", rawURL)
-
-	fmt.Println("Deep link received:", rawURL)
-
-	runtime.BrowserOpenURL(a.ctx, rawURL)
-
-	// business logic
-	// runtime.EventsEmit(a.ctx, "payment:success", subID)
-	return nil
-}
-
-// Simple method to open a URL in the system browser
-func (a *App) OpenGoogle() {
-	if a.ctx == nil {
-		log.Println("❌ Context not set!")
-		return
-	}
-
-	// Opens default browser to Google
-	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
-}
-
-// Poll backend for payment status
-func (a *App) PollPaymentStatus(sessionID string) (string, error) {
-	fmt.Println("🔁 Polling session:", sessionID)
-
-	url := "http://localhost:4001/api/payment-status/" + sessionID
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("poll failed %d: %s", resp.StatusCode, string(body))
-	}
-
-	var r struct {
-		Status string `json:"status"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return "", err
-	}
-
-	if r.Status == "paid" {
-		go func() {
-			if err := a.OnPaymentConfirmation(sessionID); err != nil {
-				a.Logger.Error("Payment confirmation failed:", err)
-			}
-		}()
-		return "paid", nil
-	}
-
-	return "unpaid", nil
-
-}
-
-func (a *App) OnPaymentConfirmation(sessionID string) error {
-	log.Println("Deep link received:", sessionID)
-
-	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID)
-	if err != nil {
-		return err
-	}
-	a.Logger.Info("✅ Subscription created successfully: %v", response)
-
-	// Notify frontend
-	runtime.EventsEmit(a.ctx, "payment:success", response.Subscription)
-	return nil
-}
-
-
-
 
 func (a *App) NotifyPaymentSuccess(subID string) {
 	a.Logger.Info("✅ Subscription created successfully: %v", subID)
 	runtime.EventsEmit(a.ctx, "payment:success", subID)
-}
-
-// Example helper: Wait for payment completion
-func (a *App) WaitForPayment(sessionID string, interval time.Duration, maxAttempts int) string {
-	for i := 0; i < maxAttempts; i++ {
-		status, err := a.PollPaymentStatus(sessionID)
-		if err != nil {
-			log.Println("Error polling payment:", err)
-			break
-		}
-		if status == "paid" {
-			return "paid"
-		}
-		time.Sleep(interval)
-	}
-	return "unpaid"
-}
-
-// Payload for creating checkout
-type CreateCheckoutPayload struct {
-	Amount          int64  `json:"amount"`
-	Currency        string `json:"currency"`
-	SuccessRedirect string `json:"successRedirect"`
-	CancelRedirect  string `json:"cancelRedirect"`
-}
-
-// Response with session ID
-type CreateCheckoutResponse struct {
-	SessionID string `json:"sessionId"`
-	URL       string `json:"url"`
 }
 
 // Initialize Stripe secret key
@@ -474,133 +409,10 @@ func (a *App) InitStripe() {
 	log.Println("✅ Stripe initialized")
 }
 
-// Create Stripe Checkout session and open system browser
-func (a *App) CreateCheckoutSessionAndOpen(ctx context.Context, p CreateCheckoutPayload) (*CreateCheckoutResponse, error) {
-	params := &stripe.CheckoutSessionParams{
-		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
-		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{
-				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-					Currency: stripe.String(p.Currency),
-					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String("App Purchase"),
-					},
-					UnitAmount: stripe.Int64(p.Amount),
-				},
-				Quantity: stripe.Int64(1),
-			},
-		},
-		SuccessURL: stripe.String(p.SuccessRedirect),
-		CancelURL:  stripe.String(p.CancelRedirect),
-	}
-
-	sess, err := session.New(params)
-	if err != nil {
-		log.Println("Stripe error:", err)
-		return nil, err
-	}
-
-	// Open in system browser via Wails runtime
-	runtime.BrowserOpenURL(ctx, sess.URL)
-
-	return &CreateCheckoutResponse{
-		SessionID: sess.ID,
-	}, nil
-}
-
-// Optional polling (fallback)
-func (a *App) GetCheckoutSessionStatus(sessionID string) (string, error) {
-	sess, err := session.Get(sessionID, nil)
-	if err != nil {
-		return "", err
-	}
-	return string(sess.PaymentStatus), nil
-}
-
-// Stripe webhook handler
-
-func (a *App) CreateCheckoutSession(p CreateCheckoutPayload) (*CreateCheckoutResponse, error) {
-	params := &stripe.CheckoutSessionParams{
-		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
-		Mode:               stripe.String(string(stripe.CheckoutSessionModePayment)),
-		SuccessURL:         stripe.String(p.SuccessRedirect),
-		CancelURL:          stripe.String(p.CancelRedirect),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{
-				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-					Currency: stripe.String(p.Currency),
-					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name: stripe.String("App Purchase"),
-					},
-					UnitAmount: stripe.Int64(p.Amount),
-				},
-				Quantity: stripe.Int64(1),
-			},
-		},
-	}
-
-	sess, err := session.New(params)
-	if err != nil {
-		log.Println("Stripe error:", err)
-		return nil, err
-	}
-
-	return &CreateCheckoutResponse{
-		URL:       sess.URL,
-		SessionID: sess.ID,
-	}, nil
-}
-
-type SessionStatus struct {
-	Status string `json:"status"`
-}
-
-func (a *App) OpenStripeCheckout(url string) {
-	if a.ctx == nil {
-		log.Println("❌ Wails context not set!")
-		return
-	}
-	runtime.BrowserOpenURL(a.ctx, url) // ✅ now works
-}
-
-func (a *App) CreateCheckoutSessionBackend(payload CreateCheckoutPayload) error {
-	params := &stripe.PaymentIntentParams{
-		Amount:   stripe.Int64(payload.Amount),
-		Currency: stripe.String(payload.Currency),
-	}
-	_, err := paymentintent.New(params)
-	if err != nil {
-		log.Println("Stripe create payment error:", err)
-		return err
-	}
-
-	// Backend waits for Stripe webhook to notify success
-	return nil
-}
-
-// Webhook endpoint
-func (a *App) StripeWebhookHandler(w http.ResponseWriter, r *http.Request) {
-	const MaxBodyBytes = int64(65536)
-	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
-	payload, _ := io.ReadAll(r.Body)
-
-	sig := r.Header.Get("Stripe-Signature")
-	event, err := webhook.ConstructEvent(payload, sig, os.Getenv("STRIPE_WEBHOOK_SECRET"))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if event.Type == "payment_intent.succeeded" {
-		var pi stripe.PaymentIntent
-		_ = json.Unmarshal(event.Data.Raw, &pi)
-
-		// Notify frontend
-		runtime.EventsEmit(a.ctx, "stripe-paid", pi.ID)
-	}
-
-	w.WriteHeader(http.StatusOK)
+// Response with session ID
+type CreateCheckoutResponse struct {
+	SessionID string `json:"sessionId"`
+	URL       string `json:"url"`
 }
 
 // -----------------------------
@@ -671,7 +483,6 @@ type OnboardingStep1Response struct {
 }
 
 func (a *App) GetRecommendedTier(identity identity_domain.IdentityChoice) (OnboardingStep1Response, error) {
-
 	choice := a.OnBoardingHandler.GetRecommendedTier(identity)
 	return OnboardingStep1Response{Identity: identity_domain.IdentityChoice(choice)}, nil
 }
@@ -686,29 +497,99 @@ type UseCaseResponse struct {
 	UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
 }
 
-// Step 3: Tier Selection
-// type TierSelectionResponse struct {
-//     Tier          services.SubscriptionTier `json:"tier"`
-//     PaymentMethod services.PaymentMethod    `json:"payment_method"`
-// }
-
-func (a *App) CreateAccount(req onboarding_usecase.AccountCreationRequest) (*onboarding_ui_wails.AccountCreationResponse, error) {
-	response, err := a.OnBoardingHandler.CreateAccount(req)
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
 func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest) (*subscription_domain.Subscription, error) {
 	utils.LogPretty("SetupPaymentAndActivate req", req)
 	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
 }
 
+
+// -----------------------------
+// OnBoarding - V2
+// -----------------------------
+// GetCheckoutURL returns the cloud backend checkout page URL
+func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
+	sessionID := uuid.New().String()
+
+	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
+	url := baseURL + sessionID
+	fmt.Println("Checkout URL - backend:", url)
+	res := CreateCheckoutResponse{
+		SessionID: sessionID,
+		URL:       url,
+	}
+	return res, nil
+}
+
+func (a *App) OpenURL(rawURL string) error {
+	log.Println("🔗 Deep link received:", rawURL)
+	runtime.BrowserOpenURL(a.ctx, rawURL)
+	return nil
+}
+
+// Poll backend for payment status
+func (a *App) PollPaymentStatus(sessionID string) (string, error) {
+	fmt.Println("🔁 Polling session:", sessionID)
+
+	url := "http://localhost:4001/api/payment-status/" + sessionID
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("poll failed %d: %s", resp.StatusCode, string(body))
+	}
+
+	var r struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return "", err
+	}
+
+	if r.Status == "paid" {
+		go func() {
+			if err := a.OnPaymentConfirmation(sessionID); err != nil {
+				a.Logger.Error("Payment confirmation failed:", err)
+			}
+		}()
+		return "paid", nil
+	}
+
+	return "unpaid", nil
+
+}
+
+func (a *App) OnPaymentConfirmation(sessionID string) error {
+	log.Println("Deep link received:", sessionID)
+
+	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	a.Logger.Info("✅ Subscription created successfully: %v", response)
+
+	// Notify frontend
+	runtime.EventsEmit(a.ctx, "payment:success", response.Subscription)
+	return nil
+}
+
+// Simple method to open a URL in the system browser
+func (a *App) OpenGoogle() {
+	if a.ctx == nil {
+		log.Println("❌ Context not set!")
+		return
+	}
+
+	// Opens default browser to Google
+	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
+}
 // -----------------------------
 // Connexion
 // -----------------------------
-func (a *App) SignIn(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
+func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
 	return a.Auth.Login(req)
 }
 func (a *App) SignInWithStellar(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
@@ -727,6 +608,63 @@ func (a *App) CheckSession(userID string) (string, error) {
 }
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
+}
+
+// -----------------------------
+// Connexion (identity) - V2
+// -----------------------------
+func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
+	cmd := identity_commands.LoginCommand{
+		Email:         req.Email,
+		Password:      req.Password,
+		PublicKey:     req.PublicKey,
+		SignedMessage: req.SignedMessage,
+		Signature:     req.Signature,
+	}
+
+	result, err := a.Identity.LoginHandler.Handle(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := auth.TokenPairs{
+		Token:        result.Tokens.Token,
+		RefreshToken: result.Tokens.RefreshToken,
+		UserID:       result.Tokens.UserID,
+	}
+	vaultRes, err := a.Vault.OpenVaultHandler.OpenVault(
+		context.Background(),
+		vault_commands.OpenVaultCommand{
+			UserID:   result.Tokens.UserID,
+			Password: req.Password,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	var formerVault *models.VaultPayload
+	if vaultRes.Content != nil {
+		formerVault = vaultRes.Content.ToFormerVaultPayload()
+	}
+
+	var formerRuntimeContext *models.VaultRuntimeContext
+	if vaultRes.RuntimeContext != nil {
+		formerRuntimeContext = vaultRes.RuntimeContext.ToFormerRuntimeContext()
+	}
+
+	utils.LogPretty("SignInWithIdentity - formerVault", formerVault)
+
+	loginRes := &handlers.LoginResponse{
+		User:                *result.User.ToFormerUser(),
+		Tokens:              &tokens,
+		SessionID:           result.SessionID,
+		Vault:               *formerVault,
+		VaultRuntimeContext: formerRuntimeContext,
+		LastCID:             vaultRes.LastCID,
+		Dirty:               vaultRes.Session.Dirty,
+	}
+	utils.LogPretty("SignInWithIdentity - loginRes", loginRes)
+	return loginRes, nil
 }
 
 // -----------------------------

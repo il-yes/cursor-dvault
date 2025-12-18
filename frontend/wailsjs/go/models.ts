@@ -423,6 +423,7 @@ export namespace handlers {
 	    vault_runtime_context?: models.VaultRuntimeContext;
 	    last_cid: string;
 	    dirty: boolean;
+	    session_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoginResponse(source);
@@ -437,6 +438,7 @@ export namespace handlers {
 	        this.vault_runtime_context = this.convertValues(source["vault_runtime_context"], models.VaultRuntimeContext);
 	        this.last_cid = source["last_cid"];
 	        this.dirty = source["dirty"];
+	        this.session_id = source["session_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

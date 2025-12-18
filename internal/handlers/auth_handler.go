@@ -57,6 +57,7 @@ type LoginRequest struct {
 	SignedMessage string `json:"signedMessage,omitempty"` // optional
 	Signature     string `json:"signature,omitempty"`     // optional
 }
+
 type LoginResponse struct {
 	User                models.User                 `json:"User"`
 	Vault               models.VaultPayload         `json:"Vault"`
@@ -65,6 +66,7 @@ type LoginResponse struct {
 	VaultRuntimeContext *models.VaultRuntimeContext `json:"vault_runtime_context"`
 	LastCID             string                      `json:"last_cid"`
 	Dirty               bool                        `json:"dirty"`
+	SessionID           string                      `json:"session_id"`
 	// SharedEntries      []share_domain.ShareEntry `json:"share_domain_entries"`
 }
 
@@ -481,7 +483,7 @@ type CheckEmailResponse struct {
 
 func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
 
-	// user, err := ah.TracecoreClient.GetUserByEmail(ctx, email)
+	/* user, err := ah.TracecoreClient.GetUserByEmail(ctx, email)
 	user, err := ah.DB.GetUserByEmail(email)
 	utils.LogPretty("user in checkemail", user)
 	// ----------------------------
@@ -502,11 +504,13 @@ func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
 	// ----------------------------
 	// Case 2: User exists
 	// ----------------------------
+	*/
 	authMethods := []string{"password"}
 
 	// if user.PublicKey != "" {
 	// 	authMethods = append(authMethods, "stellar")
 	// }
+	
 
 	return &CheckEmailResponse{
 		Status:      "EXISTS",

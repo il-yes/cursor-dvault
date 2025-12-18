@@ -107,7 +107,9 @@ export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promi
 
 export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
-export function SignIn(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
+export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
+
+export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 

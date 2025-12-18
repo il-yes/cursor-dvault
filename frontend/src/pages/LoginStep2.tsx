@@ -73,7 +73,7 @@ const LoginStep2 = () => {
         payload.publicKey = publicKey;
         console.log("Stellar login payload:", payload);
 
-        const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+        const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
 
         if (!res) throw new Error("SignIn failed: empty result");
 

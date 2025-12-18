@@ -46,9 +46,6 @@ export const getCheckoutStatus = async (sessionId: string) => {
   return await AppAPI.GetCheckoutSessionStatus(sessionId);
 };
 
-
-
-
 export interface VaultEntry {
   id: string;
   title: string;
@@ -580,7 +577,7 @@ export interface AuthResponse {
 
 export const login = async (payload: LoginRequest): Promise<handlers.LoginResponse> => {
   console.log("Password login payload:", payload);
-  const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+  const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
   console.log("LoginResponse:", res);
 
   return res;

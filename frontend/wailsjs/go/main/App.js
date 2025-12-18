@@ -182,8 +182,12 @@ export function SetupPaymentAndActivate(arg1) {
   return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
 }
 
-export function SignIn(arg1) {
-  return window['go']['main']['App']['SignIn'](arg1);
+export function Sign(arg1) {
+  return window['go']['main']['App']['Sign'](arg1);
+}
+
+export function SignInWithIdentity(arg1) {
+  return window['go']['main']['App']['SignInWithIdentity'](arg1);
 }
 
 export function SignInWithStellar(arg1) {

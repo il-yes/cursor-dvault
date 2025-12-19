@@ -15,17 +15,20 @@ import (
 	auth_usecases "vault-app/internal/auth/application/use_cases"
 	auth_domain "vault-app/internal/auth/domain"
 	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
+	billing_usecase "vault-app/internal/billing/application/usecase"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
 	identity_commands "vault-app/internal/identity/application/commands"
+	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
+	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_infrastructure_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
@@ -351,7 +354,28 @@ func NewApp() *App {
 	go createdListener.Listen(ctx)
 
 	// ===== New: monitor for post-activation side effects (email, metrics...) =====
-	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(appLogger, subscriptionBus, onboardingUserRepo, *db)
+	identityPort := identity_usecase.NewRegisterIdentityUseCase(
+		identity_usecase.NewRegisterStandardUserUseCase(
+			identity_persistence.NewGormUserRepository(db.DB),
+			identity_infrastructure_eventbus.NewMemoryEventBus(),
+			identity_usecase.IDGenerator{},
+		),
+		identity_usecase.NewRegisterAnonymousUserUseCase(
+			identity_persistence.NewGormUserRepository(db.DB),
+			identity_infrastructure_eventbus.NewMemoryEventBus(),
+			identity_usecase.IDGenerator{},
+		),
+	)
+
+	billingRepo := billing_persistence.NewGormBillingRepository(db.DB)
+	billingPort := billing_usecase.NewAddPaymentMethodUseCase()
+	subscriptionPort := subscription_usecase.NewSubscriptionPort()
+	userSubscriptionPort := subscription_domain.UserRepository()
+	vaultPort := onboarding_usecase.NewVaultPort()
+	// stellarService := onboarding_usecase.NewStellarServiceInterface()
+	userService 	:= onboarding_usecase.NewUserServiceInterface()
+	busOnboarding := onboarding_application_events.NewOnboardingEventBus()
+	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(appLogger, subscriptionBus, onboardingUserRepo, *db, identityPort, billingPort, subscriptionPort, userSubscriptionPort, vaultPort, &stellarService, userService, busOnboarding)
 	go activationMonitor.Listen(ctx)
 
 	// Start pending commit worker

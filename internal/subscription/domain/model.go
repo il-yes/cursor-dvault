@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-	utils "vault-app/internal"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -89,7 +88,6 @@ func (f *SubscriptionFeatures) Scan(value interface{}) error {
 
 func (s *Subscription) Validate() error {
 	if s.ID == "" || s.Tier == "" || s.Rail == "" {
-		utils.LogPretty("ErrInvalidSubscription", s)
 		return ErrInvalidSubscription
 	}
 	return nil

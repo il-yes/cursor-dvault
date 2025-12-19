@@ -12,4 +12,5 @@ type SubscriptionRepository interface {
 type UserRepository interface {
 	Save(ctx context.Context, s *UserSubscription) error
 	FindByEmail(ctx context.Context, email string) (*UserSubscription, error)
+	FindByUserID(ctx context.Context, userID string) (*UserSubscription, error)
 }

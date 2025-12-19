@@ -73,16 +73,16 @@ func TestAddPaymentMethod_Success(t *testing.T) {
 	//
 	// Assertions
 	//
-	if result.ID != "pm-123" {
-		t.Fatalf("expected ID pm-123, got %s", result.ID)
+	if result.Instrument.ID != "pm-123" {
+		t.Fatalf("expected ID pm-123, got %s", result.Instrument.ID)
 	}
-	if result.UserID != "user-111" {
-		t.Fatalf("wrong user: %s", result.UserID)
+	if result.Instrument.UserID != "user-111" {
+		t.Fatalf("wrong user: %s", result.Instrument.UserID)
 	}
-	if result.Type != billing_domain.PaymentCard {
-		t.Fatalf("wrong payment method: %s", result.Type)
+	if result.Instrument.Type != billing_domain.PaymentCard {
+		t.Fatalf("wrong payment method: %s", result.Instrument.Type)
 	}
-	if result.EncryptedPayload != "encrypted-abc" {
+	if result.Instrument.EncryptedPayload != "encrypted-abc" {
 		t.Fatalf("wrong encrypted payload")
 	}
 
@@ -142,8 +142,8 @@ func TestAddPaymentMethod_NoEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result.ID != "pm-333" {
-		t.Fatalf("expected ID pm-333, got %s", result.ID)
+	if result.Instrument.ID != "pm-333" {
+		t.Fatalf("expected ID pm-333, got %s", result.Instrument.ID)
 	}
 
 	if repo.saved == nil {

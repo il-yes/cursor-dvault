@@ -5,268 +5,268 @@ import (
 	"errors"
 	"testing"
 
-	onboard "vault-app/internal/onboarding/application/usecase"
+	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
+	"vault-app/internal/blockchain"
+	identity_domain "vault-app/internal/identity/domain"
+	identity_ui "vault-app/internal/identity/ui"
+	onboarding_application_events "vault-app/internal/onboarding/application/events"
+	onboarding_events "vault-app/internal/onboarding/application/events"
+	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
+	onboarding_domain "vault-app/internal/onboarding/domain"
+
+	"vault-app/internal/logger/logger"
 )
 
-/* ---------------------------------------------------
-   FAKE PORTS (minimal behavior + call logging)
----------------------------------------------------*/
-
 type fakeIdentity struct {
-	registerStandardCalled  bool
-	registerAnonymousCalled bool
-
-	returnUserID     string
-	returnSecret     string
-	returnError      error
-
-	lastEmail        string
-	lastPasswordHash string
-	lastStellarKey   string
+	called bool
+	err    error
 }
-
-func (f *fakeIdentity) RegisterStandard(ctx context.Context, email, passwordHash string) (string, error) {
-	f.registerStandardCalled = true
-	f.lastEmail = email
-	f.lastPasswordHash = passwordHash
-	return f.returnUserID, f.returnError
-}
-
-func (f *fakeIdentity) RegisterAnonymous(ctx context.Context, stellarPublicKey string) (string, string, error) {
-	f.registerAnonymousCalled = true
-	f.lastStellarKey = stellarPublicKey
-	return f.returnUserID, f.returnSecret, f.returnError
-}
-
-type fakeBilling struct {
-	called            bool
-	userID            string
-	method            string
-	payload           string
-	returnPaymentID   string
-	returnError       error
-}
-
-func (f *fakeBilling) AddPaymentMethod(ctx context.Context, userID string, method string, encryptedPayload string) (string, error) {
+func (f *fakeIdentity) Registers(
+	ctx context.Context, req identity_ui.OnboardRequest) (*identity_domain.User, error) {
 	f.called = true
-	f.userID = userID
-	f.method = method
-	f.payload = encryptedPayload
-	return f.returnPaymentID, f.returnError
-}
-
-type fakeSubscription struct {
-	called      bool
-	userID      string
-	tier        string
-	returnSubID string
-	returnError error
-}
-
-func (f *fakeSubscription) CreateSubscription(ctx context.Context, userID string, tier string) (string, error) {
-	f.called = true
-	f.userID = userID
-	f.tier = tier
-	return f.returnSubID, f.returnError
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &identity_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
 }
 
 type fakeVault struct {
-	called    bool
-	userID    string
-	returnErr error
+	called bool
+	err    error
 }
 
 func (f *fakeVault) CreateVault(ctx context.Context, userID string) error {
 	f.called = true
-	f.userID = userID
-	return f.returnErr
+	return f.err
 }
 
-/* ---------------------------------------------------
-   TESTS
----------------------------------------------------*/
+type fakeBilling struct {
+	called bool
+	err    error
+}
+func (f *fakeBilling) Onboard(ctx context.Context,	
+	req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error) {
+	f.called = true
+	return &billing_ui_handlers.AddPaymentMethodResponse{}, f.err
+}	
+func (f *fakeBilling) AddPaymentMethod(
+	ctx context.Context,
+	userID string,
+	method string,
+	payload string,
+) (string, error) {
+	f.called = true
+	return "pay-123", f.err
+}
+type fakeUserRepo struct{}
 
-func TestOnboard_StandardUser_Success(t *testing.T) {
-	t.Log("➡️ START: TestOnboard_StandardUser_Success")
-
-	ctx := context.Background()
-
-	id := &fakeIdentity{returnUserID: "uid-123"}
-	billing := &fakeBilling{returnPaymentID: "pay-001"}
-	sub := &fakeSubscription{returnSubID: "sub-001"}
-	vault := &fakeVault{}
-
-	uc := onboard.NewOnboardUseCase(id, billing, sub, vault)
-
-	req := onboard.OnboardRequest{
-		Email:              "user@example.com",
-		Password:           "hashedpw",
-		IsAnonymous:        false,
-		Tier:               "premium",
-		PaymentMethod:      "visa",
-		EncryptedPaymentData: "enc123",
-	}
-
-	t.Log("📩 Executing use case")
-	res, err := uc.Execute(ctx, req)
-	if err != nil {
-		t.Fatalf("❌ expected success, got %v", err)
-	}
-
-	t.Logf("📦 Result: %+v", res)
-
-	// Identity
-	if !id.registerStandardCalled {
-		t.Errorf("❌ RegisterStandard should have been called")
-	}
-	if id.lastEmail != "user@example.com" {
-		t.Errorf("wrong email passed to identity")
-	}
-
-	// Vault
-	if !vault.called {
-		t.Errorf("❌ vault should have been created")
-	}
-	if vault.userID != "uid-123" {
-		t.Errorf("vault created with wrong userID")
-	}
-
-	// Billing
-	if !billing.called {
-		t.Errorf("❌ payment method should have been added")
-	}
-	if billing.method != "visa" {
-		t.Errorf("wrong payment method")
-	}
-
-	// Subscription
-	if !sub.called {
-		t.Fatalf("❌ subscription should have been created")
-	}
-
-	if res.SubscriptionID != "sub-001" {
-		t.Errorf("subscription ID wrong")
-	}
-
-	t.Log("🎉 PASSED")
+func (f *fakeUserRepo) Create(u *onboarding_domain.User) (*onboarding_domain.User, error) {
+	return u, nil
+}
+func (f *fakeUserRepo) Update(u *onboarding_domain.User) error {
+	return nil
+}	
+func (f *fakeUserRepo) FindByID(id string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}	
+func (f *fakeUserRepo) Delete(id string) error {
+	return nil
+}	
+func (f *fakeUserRepo) FindByEmail(email string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeUserRepo) GetByID(id string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeUserRepo) GetByEmail(email string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeUserRepo) List() ([]onboarding_domain.User, error) {
+	return []onboarding_domain.User{
+		{
+			ID:    "user-123",
+			Email: "user@example.com",
+		},
+	}, nil
 }
 
-func TestOnboard_AnonymousUser_Success(t *testing.T) {
-	t.Log("➡️ START: TestOnboard_AnonymousUser_Success")
+type fakeStellarService struct{}
 
-	ctx := context.Background()
-
-	id := &fakeIdentity{
-		returnUserID: "anon-123",
-		returnSecret: "secret-xyz",
-	}
-	billing := &fakeBilling{}
-	sub := &fakeSubscription{returnSubID: "sub-002"}
-	vault := &fakeVault{}
-
-	uc := onboard.NewOnboardUseCase(id, billing, sub, vault)
-
-	req := onboard.OnboardRequest{
-		IsAnonymous:       true,
-		StellarPublicKey:  "GABC",
-		Tier:              "free",
-	}
-
-	res, err := uc.Execute(ctx, req)
-	if err != nil {
-		t.Fatalf("❌ expected success, got %v", err)
-	}
-
-	t.Logf("📦 Result: %+v", res)
-
-	if !id.registerAnonymousCalled {
-		t.Fatalf("❌ RegisterAnonymous should have been called")
-	}
-
-	if res.StellarKey != "secret-xyz" {
-		t.Errorf("wrong returned stellar secret")
-	}
-
-	t.Log("🎉 PASSED")
+func (f *fakeStellarService) GenerateKeypair() (string, string, error) {
+	return "PUB", "SECRET", nil
+}
+func (f *fakeStellarService) CreateAccount(stellarPublicKey string)(*blockchain.CreateAccountRes, error)	 {
+	return &blockchain.CreateAccountRes{}, nil
+}
+func (f *fakeStellarService) GetPublicKey() (string, error) {
+	return "PUB", nil
+}
+func (f *fakeStellarService) CreateKeypair() (string, string, string, error) {
+	return "PUB", "SECRET", "", nil
+}	
+type fakeUserService struct{}
+func (f *fakeUserService) Create(*onboarding_domain.User) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+type fakeBus struct {
+	called bool
 }
 
-func TestOnboard_AnonymousMissingStellarKey(t *testing.T) {
+func (f *fakeBus) PublishCreated(ctx context.Context, event onboarding_application_events.AccountCreatedEvent) error {
+	f.called = true
+	return nil
+}
+func (f *fakeBus) Publish(event onboarding_events.OnboardingEventBus) {
+	f.called = true
+}
+func (f *fakeBus) PublishSubscriptionActivated(ctx context.Context, event onboarding_application_events.SubscriptionActivatedEvent) error {
+	f.called = true
+	return nil
+}	
+func (f *fakeBus) SubscribeToAccountCreation(func(onboarding_application_events.AccountCreatedEvent)) error {
+	f.called = true
+	return nil
+}
+func (f *fakeBus) SubscribeToSubscriptionActivated(onboarding_application_events.SubscriptionActivatedEvent) error {
+	f.called = true
+	return nil
+}
+func (f *fakeBus) SubscribeToSubscriptionActivation(func(onboarding_application_events.SubscriptionActivatedEvent)) error {
+	f.called = true
+	return nil
+}	
+
+func TestOnboardUseCase_Success(t *testing.T) {
 	ctx := context.Background()
 
-	uc := onboard.NewOnboardUseCase(&fakeIdentity{}, &fakeBilling{}, &fakeSubscription{}, &fakeVault{})
+	uc := onboarding_usecase.NewOnboardUseCase(
+		&fakeVault{},
+		&fakeStellarService{},
+		&fakeUserService{},
+		&fakeBus{},
+		&logger.Logger{},
+		&fakeIdentity{},
+		&fakeBilling{},
+	)
 
-	_, err := uc.Execute(ctx, onboard.OnboardRequest{
-		IsAnonymous: true,
-		StellarPublicKey: "",
+	res, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
+		Email:    "user@example.com",
+		Password: "pw",
+		Tier:     "pro",
 	})
-	if err == nil {
-		t.Fatalf("❌ expected error for missing stellar key")
+
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+
+	if res.UserID != "user-123" {
+		t.Fatalf("wrong userID")
 	}
 }
 
-func TestOnboard_IdentityFails(t *testing.T) {
+func TestOnboardUseCase_AnonymousMissingKey(t *testing.T) {
 	ctx := context.Background()
 
-	id := &fakeIdentity{returnError: errors.New("identity-fail")}
-	uc := onboard.NewOnboardUseCase(id, &fakeBilling{}, &fakeSubscription{}, &fakeVault{})
+	uc := onboarding_usecase.NewOnboardUseCase(
+		&fakeVault{},
+		&fakeStellarService{},
+		&fakeUserService{},
+		&fakeBus{},
+		&logger.Logger{},
+		&fakeIdentity{},
+		&fakeBilling{},
+	)
 
-	_, err := uc.Execute(ctx, onboard.OnboardRequest{
-		Email: "x@x.com", Password: "pw",
+	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
+		IsAnonymous: true,
+	})
+
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestOnboardUseCase_IdentityFails(t *testing.T) {
+	ctx := context.Background()
+
+	uc := onboarding_usecase.NewOnboardUseCase(
+		&fakeVault{},
+		&fakeStellarService{},
+		&fakeUserService{},
+		&fakeBus{},
+		&logger.Logger{},
+		&fakeIdentity{err: errors.New("identity-fail")},
+		&fakeBilling{},
+	)
+
+	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
+		Email: "x@x.com",
 	})
 
 	if err == nil || err.Error() != "identity-fail" {
-		t.Fatalf("❌ expected identity-fail, got %v", err)
+		t.Fatalf("expected identity-fail")
 	}
 }
 
-func TestOnboard_VaultFails(t *testing.T) {
+func TestOnboardUseCase_VaultFails(t *testing.T) {
 	ctx := context.Background()
 
-	id := &fakeIdentity{returnUserID: "uid-1"}
-	vault := &fakeVault{returnErr: errors.New("vault-fail")}
-	uc := onboard.NewOnboardUseCase(id, &fakeBilling{}, &fakeSubscription{}, vault)
+	uc := onboarding_usecase.NewOnboardUseCase(
+		&fakeVault{err: errors.New("vault-fail")},
+		&fakeStellarService{},
+		&fakeUserService{},
+		&fakeBus{},
+		&logger.Logger{},
+		&fakeIdentity{},
+		&fakeBilling{},
+	)
 
-	_, err := uc.Execute(ctx, onboard.OnboardRequest{
-		Email: "x@x.com", Password: "pw",
+	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
+		Email: "x@x.com",
 	})
 
 	if err == nil || err.Error() != "vault-fail" {
-		t.Fatalf("❌ expected vault-fail, got %v", err)
+		t.Fatalf("expected vault-fail")
 	}
 }
-
-func TestOnboard_PaymentFails(t *testing.T) {
+func TestOnboardUseCase_BillingFails(t *testing.T) {
 	ctx := context.Background()
 
-	id := &fakeIdentity{returnUserID: "uid-9"}
-	billing := &fakeBilling{returnError: errors.New("payment-fail")}
-	uc := onboard.NewOnboardUseCase(id, billing, &fakeSubscription{}, &fakeVault{})
+	uc := onboarding_usecase.NewOnboardUseCase(
+		&fakeVault{},
+		&fakeStellarService{},
+		&fakeUserService{},
+		&fakeBus{},
+		&logger.Logger{},
+		&fakeIdentity{},
+		&fakeBilling{err: errors.New("billing-fail")},
+	)
 
-	_, err := uc.Execute(ctx, onboard.OnboardRequest{
-		Email: "x@x.com", Password: "pw",
-		Tier: "pro",
-		PaymentMethod: "visa",
+	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
+		Email:                "x@x.com",
+		PaymentMethod:        "card",
 		EncryptedPaymentData: "enc",
 	})
 
-	if err == nil || err.Error() != "payment-fail" {
-		t.Fatalf("❌ expected payment-fail, got %v", err)
-	}
-}
-
-func TestOnboard_SubscriptionFails(t *testing.T) {
-	ctx := context.Background()
-
-	id := &fakeIdentity{returnUserID: "uid-3"}
-	sub := &fakeSubscription{returnError: errors.New("sub-fail")}
-	uc := onboard.NewOnboardUseCase(id, &fakeBilling{}, sub, &fakeVault{})
-
-	_, err := uc.Execute(ctx, onboard.OnboardRequest{
-		Email: "x@x.com", Password: "pw",
-		Tier: "premium",
-	})
-
-	if err == nil || err.Error() != "sub-fail" {
-		t.Fatalf("❌ expected sub-fail, got %v", err)
+	if err == nil || err.Error() != "billing-fail" {
+		t.Fatalf("expected billing-fail")
 	}
 }

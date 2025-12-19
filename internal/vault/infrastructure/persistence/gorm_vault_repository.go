@@ -44,4 +44,4 @@ func (r *GormVaultRepository) GetLatestByUserID(id string) (*vaults_domain.Vault
 	}
 	return record.ToDomain(), nil
 }
-
+	

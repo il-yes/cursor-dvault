@@ -3,6 +3,7 @@ package onboarding_domain
 import (
 	"time"
 
+	"github.com/google/uuid"
 )
 
 
@@ -18,7 +19,18 @@ type User struct {
 	Email string `json:"email"`
 	Password string `json:"password"`	
 }
-
+func NewUser(isAnonymous bool, email string, password string) User {
+	return User{
+		ID: uuid.New().String(),
+		IsAnonymous: isAnonymous,
+		CreatedAt: time.Now(),
+		Email: email,
+		Password: password,
+	}
+}
+func (u *User) AttachStellarPublicKey(publicKey string) {
+	u.StellarPublicKey = publicKey
+}
 
 type SubscriptionFeatures struct {
     // Storage

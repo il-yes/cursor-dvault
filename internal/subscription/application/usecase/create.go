@@ -2,9 +2,7 @@ package subscription_usecase
 
 import (
 	"context"
-	"fmt"
 	"time"
-	utils "vault-app/internal"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 )
@@ -33,12 +31,12 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string) 
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("Subscription from payment:", subscriptionFromPayment)
+	// utils.LogPretty("Subscription from payment:", subscriptionFromPayment)
 
 	if err := subscriptionFromPayment.Validate(); err != nil {
 		return nil, err
 	}
-	fmt.Println("Subscription from payment validated:", subscriptionFromPayment.Validate())
+	// fmt.Println("Subscription from payment validated:", subscriptionFromPayment.Validate())
 
 	if err := uc.repo.Save(ctx, subscriptionFromPayment); err != nil {
 		return nil, err

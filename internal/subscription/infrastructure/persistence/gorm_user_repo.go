@@ -32,3 +32,12 @@ func (r *UserSubscriptionRepository) FindByEmail(ctx context.Context, email stri
 	}
 	return &s, nil
 }
+
+func (r *UserSubscriptionRepository) FindByUserID(ctx context.Context, userID string) (*subscription_domain.UserSubscription, error) {
+	var s subscription_domain.UserSubscription
+	if err := r.DB.Where("user_id = ?", userID).First(&s).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+	

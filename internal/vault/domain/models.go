@@ -17,23 +17,37 @@ type Vault struct {
 	Type      string `json:"type" gorm:"column:type"`
 	UserID    string `json:"user_id" gorm:"column:user_id"`
 	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
-	TxHash    string `json:"tx_hash" gorm:"column:tx_hash"`
-	CreatedAt string `json:"created_at" gorm:"column:created_at"`
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"`
+	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
+	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
 }
 
-func NewVault(userID string) *Vault {
+func NewVault(userID string, name string) *Vault {
+	if name == "" {
+		name = "New Vault"
+	}
+
 	return &Vault{
 		ID:        uuid.New().String(),
-		Name:      "New Vault",
+		Name:      name,
 		Type:      "default",
 		UserID:    userID,
-		CID:       "",
-		TxHash:    "",
 		CreatedAt: time.Now().Format(time.RFC3339),
 		UpdatedAt: time.Now().Format(time.RFC3339),
 	}
 }
+func (v *Vault) AttachCID(cid string) {
+    v.CID = cid
+    v.UpdatedAt = time.Now().Format(time.RFC3339)
+}
+func (v *Vault) AttachTxHash(txHash string) {
+    v.TxHash = txHash
+    v.UpdatedAt = time.Now().Format(time.RFC3339)
+}	
+func (v *Vault) BuildInitialPayload(version string) *VaultPayload {
+	return InitEmptyVaultPayload(v.Name, version)
+}
+
 
 type VaultContentInterface interface {
 	GetFolder(folderID string) (Folder, Entries)
@@ -63,7 +77,22 @@ type VaultPayload struct {
 	Name    string `json:"name"`
 	BaseVaultContent
 }
+func InitEmptyVaultPayload(name string, version string) *VaultPayload {
+	var vp VaultPayload
+	if version != "" {
+		vp.Version = version
+	} else {
+		vp.Version = "1.0"
+	}
+	if name != "" {
+		vp.Name = name
+	} else {
+		vp.Name = "New Vault"
+	}
+	vp.InitBaseVaultContent()	
 
+	return &vp
+}
 func (v *VaultPayload) GetFolder(folderID string) (Folder, Entries) {
 	var folder Folder
 	for _, f := range v.Folders {
@@ -145,6 +174,19 @@ func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 	}
 
 	return moved
+}
+func (v *VaultPayload) InitFolders() {	
+	v.Folders = []Folder{}
+}
+func (v *VaultPayload) InitEntries() {
+	v.Entries = Entries{}
+}
+func (v *VaultPayload) InitBaseVaultContent() {
+	v.InitFolders()
+	v.InitEntries()
+}
+func (v *VaultPayload) GetContentBytes() ([]byte, error) {
+	return json.MarshalIndent(v, "", "  ")
 }
 
 

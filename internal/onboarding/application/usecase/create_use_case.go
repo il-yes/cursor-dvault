@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
@@ -57,6 +56,7 @@ type AccountCreationResponse struct {
 
 
 // CreateAccount handles account creation (Step 4)
+// TODO: handle non-anonymous accounts with their own stellar keypair
 func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCreationResponse, error) {
 	if req.IsAnonymous {
 		// Create Stellar account for anonymous or user account (included encrypted password)
@@ -64,14 +64,14 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		if err != nil {
 			return nil, err
 		}
-				
+
 		// Create user with Stellar key as identifier
 		user := &onboarding_domain.User{
 			IsAnonymous:      true,
 			StellarPublicKey: pub,
 			CreatedAt:        time.Now(),
 		}
-        utils.LogPretty("user", user)
+        // utils.LogPretty("user", user)
 
 		createdUser, err := a.UserService.Create(user)
 		if err != nil {
@@ -84,7 +84,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 			StellarPublicKey: pub,
 			OccurredAt:       time.Now(),
 		}
-        utils.LogPretty("accountCreatedEvent", accountCreatedEvent)
+        // utils.LogPretty("accountCreatedEvent", accountCreatedEvent)
         fmt.Println("accountCreatedEvent", accountCreatedEvent)
         // a.Logger.Info("accountCreatedEvent", accountCreatedEvent)   
 
@@ -102,7 +102,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		// -----------------------------
 	// 2. Hash password & create user
 	// -----------------------------
-	utils.LogPretty("Plain password", req.Password)
+	// utils.LogPretty("Plain password", req.Password)
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to hash password: %w", err)
@@ -112,6 +112,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	user := &onboarding_domain.User{
         ID: uuid.New().String(),
 		Email:     req.Email,
+		IsAnonymous: false,
         Password: string(hashedPassword),
 		CreatedAt: time.Now(),
 	}

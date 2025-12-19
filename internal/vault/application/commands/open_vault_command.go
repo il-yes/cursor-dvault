@@ -82,7 +82,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	if err != nil {
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
 			// 3️⃣ Create minimal vault
-			vault = vault_domain.NewVault(cmd.UserID)
+			vault = vault_domain.NewVault(cmd.UserID, "New Vault")
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
 				return nil, err
 			}

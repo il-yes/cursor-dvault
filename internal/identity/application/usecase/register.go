@@ -71,3 +71,29 @@ func (uc *RegisterAnonymousUserUseCase) Execute(ctx context.Context, stellarPubl
 	}
 	return u, nil
 }
+
+
+type RegisterRequest struct {
+	Email string
+	Password string
+	IsAnonymous bool
+	StellarPublicKey string
+}
+
+
+type RegisterIdentityUseCase struct {
+	StandardUC *RegisterStandardUserUseCase
+	AnonymousUC *RegisterAnonymousUserUseCase
+}
+
+func NewRegisterIdentityUseCase(std *RegisterStandardUserUseCase, anon *RegisterAnonymousUserUseCase) *RegisterIdentityUseCase {
+	return &RegisterIdentityUseCase{StandardUC: std, AnonymousUC: anon}
+}	
+
+func (uc *RegisterIdentityUseCase) Execute(ctx context.Context, req RegisterRequest) (*identity_domain.User, error) {
+	if req.IsAnonymous {
+		return uc.AnonymousUC.Execute(ctx, req.StellarPublicKey)
+	}
+	return uc.StandardUC.Execute(ctx, req.Email, req.Password)
+}
+	

@@ -13,12 +13,12 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/models"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_usecase "vault-app/internal/subscription/application/usecase"
 	subscription_domain "vault-app/internal/subscription/domain"
+	vault_commands "vault-app/internal/vault/application/commands"
 )
 
 /* ---------------------------------------------------
@@ -85,11 +85,14 @@ type fakeUserSubscriptionRepo struct {
 func (f *fakeUserSubscriptionRepo) FindByUserID(
 	ctx context.Context,
 	userID string,
-) (*subscription_domain.UserSubscription, error) {
+) (*subscription_domain.Subscription, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.sub, nil
+	return &subscription_domain.Subscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
 }
 
 func (f *fakeUserSubscriptionRepo) FindByEmail(
@@ -109,14 +112,17 @@ func (f *fakeUserSubscriptionRepo) Save(
 	f.sub = sub
 	return nil
 }
+func (f *fakeUserSubscriptionRepo) Create(*onboarding_domain.User) (*onboarding_domain.User, error) {
+	return nil, nil
+}
 
 type fakeVault struct {
 	called bool
 }
 
-func (f *fakeVault) CreateVault(ctx context.Context, userID string) error {
+func (f *fakeVault) CreateVault(v vault_commands.CreateVaultCommand) (*vault_commands.CreateVaultResult, error) {
 	f.called = true
-	return nil
+	return &vault_commands.CreateVaultResult{}, nil
 }
 
 type fakeIdentityHandler struct {
@@ -157,6 +163,12 @@ type fakeUserService struct{}
 func (f *fakeUserService) Create(user *onboarding_domain.User) (*onboarding_domain.User, error) {
 	return user, nil
 }
+func (f *fakeUserService) FindByEmail(email string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
 
 type fakeOnboardingBus struct{}
 
@@ -173,6 +185,94 @@ func (f *fakeOnboardingBus) SubscribeToSubscriptionActivation(handler func(event
 	return nil
 }
 
+type fakeSubRepo struct {
+	err error
+	sub *subscription_domain.Subscription
+}
+
+func (f *fakeSubRepo) FindByUserID(
+	ctx context.Context,
+	userID string,
+) (*subscription_domain.Subscription, error) {
+	if f.err != nil {
+		return nil, f.err // ✅ THIS is missing
+	}
+
+	return &subscription_domain.Subscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeSubRepo) GetByID(
+	ctx context.Context,
+	id string,
+) (*subscription_domain.Subscription, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	return &subscription_domain.Subscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeSubRepo) Save(
+	ctx context.Context,
+	sub *subscription_domain.Subscription,
+) error {
+	return nil
+}
+func (f *fakeSubRepo) Update(
+	ctx context.Context,
+	sub *subscription_domain.Subscription,
+) error {
+	return nil
+}
+type fakeUserSubRepo struct {
+	err error
+}
+
+func (f *fakeUserSubRepo) FindByUserID(
+	ctx context.Context,
+	userID string,
+) (*subscription_domain.UserSubscription, error) {
+	if f.err != nil {
+		return nil, f.err // ✅ THIS is missing
+	}
+	return &subscription_domain.UserSubscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeUserSubRepo) Save(
+	ctx context.Context,
+	sub *subscription_domain.UserSubscription,
+) error {
+	return nil
+}
+func (f *fakeUserSubRepo) GetByID(
+	ctx context.Context,
+	id string,
+) (*subscription_domain.UserSubscription, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	return &subscription_domain.UserSubscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+func (f *fakeUserSubRepo) FindByEmail(
+	ctx context.Context,
+	email string,
+) (*subscription_domain.UserSubscription, error) {
+	return &subscription_domain.UserSubscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+
 /* ---------------------------------------------------
    TESTS
 ---------------------------------------------------*/
@@ -182,12 +282,10 @@ func TestSubscriptionActivationMonitor_Success(t *testing.T) {
 	defer cancel()
 
 	bus := &fakeSubscriptionBus{}
-	repo := &fakeUserSubscriptionRepo{
-		sub: &subscription_domain.UserSubscription{
-			ID:               "user-123",
-			Email:            "user@example.com",
-			Password:         "pw",
-			StellarPublicKey: "PUB",
+	repo := &fakeSubRepo{
+		sub: &subscription_domain.Subscription{
+			ID:    "user-123",
+			Email: "user@example.com",
 		},
 	}
 
@@ -198,9 +296,7 @@ func TestSubscriptionActivationMonitor_Success(t *testing.T) {
 	monitor := subscription_usecase.NewSubscriptionActivationMonitor(
 		&logger.Logger{},
 		bus,
-		models.DBModel{},
-		nil,
-		nil,
+		&fakeUserSubRepo{},
 		repo,
 		vault,
 		&fakeStellarService{},
@@ -232,25 +328,24 @@ func TestSubscriptionActivationMonitor_SubscriptionLookupFails(t *testing.T) {
 	defer cancel()
 
 	bus := &fakeSubscriptionBus{}
-	repo := &fakeUserSubscriptionRepo{
+	vault := &fakeVault{}
+	subRepo := &fakeSubRepo{
 		err: errors.New("db-fail"),
 	}
 
-	vault := &fakeVault{}
+	userSubRepo := &fakeUserSubRepo{}
 
 	monitor := subscription_usecase.NewSubscriptionActivationMonitor(
 		&logger.Logger{},
 		bus,
-		models.DBModel{},
-		nil,
-		nil,
-		repo,
+		userSubRepo, // ✅ THIS must fail
+		subRepo,
 		vault,
 		&fakeStellarService{},
 		&fakeUserService{},
 		&fakeOnboardingBus{},
-		nil,
-		nil,
+		&fakeIdentityHandler{},
+		&fakeBillingHandler{},
 	)
 
 	go monitor.Listen(ctx)
@@ -274,8 +369,8 @@ func TestSubscriptionActivationMonitor_UnknownTierDoesNotFail(t *testing.T) {
 	defer cancel()
 
 	bus := &fakeSubscriptionBus{}
-	repo := &fakeUserSubscriptionRepo{
-		sub: &subscription_domain.UserSubscription{
+	repo := &fakeSubRepo{
+		sub: &subscription_domain.Subscription{
 			ID:    "user-123",
 			Email: "user@example.com",
 		},
@@ -288,9 +383,7 @@ func TestSubscriptionActivationMonitor_UnknownTierDoesNotFail(t *testing.T) {
 	monitor := subscription_usecase.NewSubscriptionActivationMonitor(
 		&logger.Logger{},
 		bus,
-		models.DBModel{},
-		nil,
-		nil,
+		&fakeUserSubRepo{},
 		repo,
 		vault,
 		&fakeStellarService{},

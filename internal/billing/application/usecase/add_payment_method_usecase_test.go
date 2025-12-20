@@ -20,8 +20,8 @@ type fakeBillingRepo struct {
 	saved       *billing_domain.BillingInstrument
 	saveError   error
 }
-func (b *fakeBillingRepo) FindByUserID(_ context.Context, _ string) ([]*billing_domain.BillingInstrument, error) {
-	return []*billing_domain.BillingInstrument{}, nil
+func (b *fakeBillingRepo) FindByUserID(_ context.Context, _ string) (*billing_domain.BillingInstrument, error) {
+	return &billing_domain.BillingInstrument{}, nil
 }
 func (r *fakeBillingRepo) Save(_ context.Context, b *billing_domain.BillingInstrument) error {
 	if r.saveError != nil {
@@ -32,15 +32,15 @@ func (r *fakeBillingRepo) Save(_ context.Context, b *billing_domain.BillingInstr
 }
 
 type fakeEventBus struct {
-	received []billing_eventbus.PaymentMethodAdded
+	received []billing_eventbus.PaymentMethodAddedEvent
 }
 
-func (b *fakeEventBus) PublishPaymentMethodAdded(_ context.Context, e billing_eventbus.PaymentMethodAdded) error {
+func (b *fakeEventBus) PublishPaymentMethodAdded(_ context.Context, e billing_eventbus.PaymentMethodAddedEvent) error {
 	b.received = append(b.received, e)
 	return nil
 }
 
-func (b *fakeEventBus) SubscribeToPaymentMethodAdded(_ billing_eventbus.PaymentMethodAddedHandler) error {
+func (b *fakeEventBus) SubscribeToPaymentMethodAdded(_ func(context.Context, billing_eventbus.PaymentMethodAddedEvent)) error {
 	return nil
 }
 
@@ -62,7 +62,7 @@ func TestAddPaymentMethod_Success(t *testing.T) {
 	uc := billing_usecase.NewAddPaymentMethodUseCase(repo, bus, idGen)
 
 	t.Log("📩 Executing use case")
-	result, err := uc.Execute(ctx, "user-111", billing_domain.PaymentCard, "encrypted-abc")
+	result, err := uc.AddPaymentMethod(ctx, "user-111", billing_domain.PaymentCard, "encrypted-abc")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -113,7 +113,7 @@ func TestAddPaymentMethod_SaveFails(t *testing.T) {
 
 	uc := billing_usecase.NewAddPaymentMethodUseCase(repo, bus, func() string { return "pm-x" })
 
-	_, err := uc.Execute(ctx, "user-890", billing_domain.PaymentCard, "payload")
+	_, err := uc.AddPaymentMethod(ctx, "user-890", billing_domain.PaymentCard, "payload")
 	if err == nil {
 		t.Fatalf("expected a failure, got nil")
 	}
@@ -137,7 +137,7 @@ func TestAddPaymentMethod_NoEventBus(t *testing.T) {
 
 	uc := billing_usecase.NewAddPaymentMethodUseCase(repo, bus, idGen)
 
-	result, err := uc.Execute(ctx, "user-555", billing_domain.PaymentCard, "enc-777")
+	result, err := uc.AddPaymentMethod(ctx, "user-555", billing_domain.PaymentCard, "enc-777")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

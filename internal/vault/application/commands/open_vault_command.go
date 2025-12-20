@@ -3,6 +3,7 @@ package vault_commands
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	utils "vault-app/internal"
@@ -80,22 +81,30 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 2️⃣ Load latest vault metadata
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
+		log.Println("OpenVaultCommandHandler - Error loading vault, go for minimal vault", err)
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
+			log.Println("OpenVaultCommandHandler - Create minimal vault")
 			// 3️⃣ Create minimal vault
 			vault = vault_domain.NewVault(cmd.UserID, "New Vault")
+			utils.LogPretty("OpenVaultCommandHandler - new minimal vault", vault)
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
+				log.Println("OpenVaultCommandHandler - Error saving minimal vault", err)
 				return nil, err
 			}
 		} else {
+			log.Println("OpenVaultCommandHandler - Error loading vault no minimal vault", err)
 			return nil, err
 		}
 	}
+	utils.LogPretty("OpenVaultCommandHandler - vault", vault)
 
 	// 4️⃣ Fetch encrypted vault payload
 	encrypted, err := h.ipfs.GetData(vault.CID)
 	if err != nil {
+		log.Println("OpenVaultCommandHandler - Error fetching encrypted vault payload", err)
 		return nil, err
 	}
+	utils.LogPretty("OpenVaultCommandHandler - encrypted", encrypted)
 
 	// 5️⃣ Decrypt vault
 	decrypted, err := h.crypto.Decrypt(encrypted, cmd.Password)
@@ -105,9 +114,11 @@ func (h *OpenVaultCommandHandler) Handle(
 
 	// 6️⃣ Parse vault payload
 	payload := vault_domain.ParseVaultPayload(decrypted)
+	log.Println("OpenVaultCommandHandler - payload", payload)
 
 	// 7️⃣ Create runtime context
 	runtimeCtx := vault_session.NewRuntimeContext()
+	log.Println("OpenVaultCommandHandler - Initialize new runtimeCtx")
 
 	// 8️⃣ Start session
 	session := h.sessionMgr.StartSession(
@@ -116,6 +127,7 @@ func (h *OpenVaultCommandHandler) Handle(
 		vault.CID,
 		runtimeCtx,	
 	)
+	log.Println("OpenVaultCommandHandler - Start new session")
 	utils.LogPretty("payload", payload)
 
 	return &OpenVaultResult{

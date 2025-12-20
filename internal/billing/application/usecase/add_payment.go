@@ -27,14 +27,14 @@ func NewAddPaymentMethodUseCase(repo billing_domain.Repository, bus billing_even
 	return &AddPaymentMethodUseCase{repo: repo, bus: bus, idGen: idGen}
 }
 
-func (uc *AddPaymentMethodUseCase) Execute(ctx context.Context, userID string, method billing_domain.PaymentMethod, encryptedPayload string) (*AddPaymentMethodResponse, error) {
+func (uc *AddPaymentMethodUseCase) AddPaymentMethod(ctx context.Context, userID string, method billing_domain.PaymentMethod, encryptedPayload string) (*AddPaymentMethodResponse, error) {
 	id := uc.idGen()
 	b := &billing_domain.BillingInstrument{ID: id, UserID: userID, Type: method, EncryptedPayload: encryptedPayload}
 	if err := uc.repo.Save(ctx, b); err != nil {
 		return nil, err
 	}
 	if uc.bus != nil {
-		_ = uc.bus.PublishPaymentMethodAdded(ctx, billing_eventbus.PaymentMethodAdded{InstrumentID: id, UserID: userID, Method: string(method)})
+		_ = uc.bus.PublishPaymentMethodAdded(ctx, billing_eventbus.PaymentMethodAddedEvent{InstrumentID: id, UserID: userID, Method: string(method)})
 	}
 	return &AddPaymentMethodResponse{Instrument: *b}, nil
 }

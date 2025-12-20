@@ -14,11 +14,15 @@ import (
 // ---------- MOCKS ----------
 type MockUserService struct {
 	CreateFunc func(u *onboarding_domain.User) (*onboarding_domain.User, error)	
+	FindByEmailFunc func(email string) (*onboarding_domain.User, error)
 }
 
 func (m *MockUserService) Create(u *onboarding_domain.User) (*onboarding_domain.User, error) {
 	return m.CreateFunc(u)
 }
+func (m *MockUserService) FindByEmail(email string) (*onboarding_domain.User, error) {
+	return m.FindByEmailFunc(email)
+}	
 
 type MockStellarService struct {
 	CreateKeypairFunc func() (string, string, string, error)
@@ -79,7 +83,7 @@ func TestCreateAccount_Anonymous_Success(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserService:    mockUser,
+		UserRepo:    mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -128,7 +132,7 @@ func TestCreateAccount_Regular_Success(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserService:    mockUser,
+		UserRepo:    mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -178,7 +182,7 @@ func TestCreateAccount_StellarFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserService:    mockUser,
+		UserRepo:    mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -216,7 +220,7 @@ func TestCreateAccount_UserServiceFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserService:    mockUser,
+		UserRepo:    mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -252,7 +256,7 @@ func TestCreateAccount_EventBusFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserService:    mockUser,
+		UserRepo:    mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}

@@ -2,23 +2,32 @@ package identity_persistence
 
 import (
 	"context"
+	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
+type IDGen struct {
+}
+
+func (g *IDGen) Generate() string {
+	return uuid.New().String()
+}
+func NewIDGenerator() identity_usecase.IDGen {
+	var idGen IDGen
+	return idGen.Generate
+}
+
 type GormUserRepository struct {
 	db *gorm.DB
-}
+}	
 
 func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 	return &GormUserRepository{db: db}
 }
 
-
-func (GormUserRepository) TableName() string {
-	return "identity_users"
-}
 
 func (r *GormUserRepository) Save(ctx context.Context, u *identity_domain.User) error {
 	return r.db.Create(u).Error
@@ -31,6 +40,10 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id string) (*identity
 	}
 	return &u, nil
 }
+
+func (r *GormUserRepository) Update(ctx context.Context, u *identity_domain.User) error {
+	return r.db.Save(u).Error
+}	
 
 func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*identity_domain.User, error) {
 	var u identity_domain.User

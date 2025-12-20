@@ -17,22 +17,23 @@ type StellarServiceInterface interface {
 	CreateAccount(plainPassword string) (*blockchain.CreateAccountRes, error)
 	CreateKeypair() (string, string, string, error)
 }
-
+// OnBoardingUserRepository
 type UserServiceInterface interface {
 	Create(user *onboarding_domain.User) (*onboarding_domain.User, error)
+	FindByEmail(email string) (*onboarding_domain.User, error)
 }
 
 type CreateAccountUseCase struct {
 	StellarService StellarServiceInterface
-	UserService    UserServiceInterface
+	UserRepo    UserServiceInterface
 	Bus            onboarding_application_events.OnboardingEventBus
     Logger         *logger.Logger
 }
 
-func NewCreateAccountUseCase(stellarService StellarServiceInterface, userService UserServiceInterface, eventBus onboarding_application_events.OnboardingEventBus, logger *logger.Logger) *CreateAccountUseCase {
+func NewCreateAccountUseCase(stellarService StellarServiceInterface, userRepo UserServiceInterface, eventBus onboarding_application_events.OnboardingEventBus, logger *logger.Logger) *CreateAccountUseCase {
 	return &CreateAccountUseCase{
 		StellarService: stellarService,
-		UserService:    userService,    
+		UserRepo:    userRepo,    
 		Bus:            eventBus,
 	    Logger:         logger,
 	}
@@ -73,7 +74,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		}
         // utils.LogPretty("user", user)
 
-		createdUser, err := a.UserService.Create(user)
+		createdUser, err := a.UserRepo.Create(user)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +118,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		CreatedAt: time.Now(),
 	}
 
-	createdUser, err := a.UserService.Create(user)
+	createdUser, err := a.UserRepo.Create(user)
 	if err != nil {
 		return nil, err
 	}

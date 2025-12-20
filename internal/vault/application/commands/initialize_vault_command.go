@@ -2,6 +2,7 @@ package vault_commands
 
 import (
 	"fmt"
+	utils "vault-app/internal"
 	vault_domain "vault-app/internal/vault/domain"
 )
 
@@ -43,9 +44,11 @@ func (h *InitializeVaultCommandHandler) Execute(cmd InitializeVaultCommand) (*In
 	// 3. Init empty vault - idempotency	
 	existing, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
     if err == nil && existing != nil {
+		utils.LogPretty("InitializeVaultCommandHandler - vault found", existing)
 
         return &InitializeVaultResult{Vault: existing}, nil
     }
+	utils.LogPretty("InitializeVaultCommandHandler - vault not found", cmd)
 
 	// -----------------------------
 	// 2. Save vault metadata to DB
@@ -53,7 +56,8 @@ func (h *InitializeVaultCommandHandler) Execute(cmd InitializeVaultCommand) (*In
 	newVault := vault_domain.NewVault(cmd.UserID, cmd.VaultName)
 	if err := h.vaultRepo.SaveVault(newVault); err != nil {
 		return nil, fmt.Errorf("❌ failed to persist vault metadata: %w", err)
-	}
+	}	
+	utils.LogPretty("InitializeVaultCommandHandler - vault saved", newVault)
 	
 	return &InitializeVaultResult{Vault: newVault}, nil
 }	

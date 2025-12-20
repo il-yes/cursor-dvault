@@ -28,11 +28,25 @@ func (r *fakeRepo) Save(ctx context.Context, s *sub_domain.Subscription) error {
 	return nil
 }
 
+func (r *fakeRepo) Update(ctx context.Context, s *sub_domain.Subscription) error {
+	if r.returnErr != nil {
+		return r.returnErr
+	}
+	r.saved = s
+	return nil
+}
+
 func (r *fakeRepo) FindByUserID(ctx context.Context, userID string) (*sub_domain.Subscription, error) {
+	if r.returnErr != nil {
+		return nil, r.returnErr // ✅ THIS is missing
+	}
 	return r.saved, nil
 }
 
 func (r *fakeRepo) GetByID(ctx context.Context, id string) (*sub_domain.Subscription, error) {
+	if r.returnErr != nil {
+		return nil, r.returnErr
+	}
 	return r.saved, nil
 }
 
@@ -123,6 +137,7 @@ func validCreateSubscriptionRequest() CreateSubscriptionRequest {
 		ID:            "sub-123",
 		UserID:        "user-123",
 		Email:         "user@example.com",
+		Password:      "password",
 		Tier:          "pro",
 		Months:        12,
 		Price:         1999,
@@ -135,6 +150,7 @@ type CreateSubscriptionRequest struct {
 	ID            string
 	UserID        string
 	Email         string
+	Password      string
 	Tier          string
 	Months        int
 	Price         int
@@ -159,7 +175,7 @@ func TestCreateSubscription_Success(t *testing.T) {
 	req := validCreateSubscriptionRequest()
 
 	t.Log("📩 Executing use case")
-	sub, err := uc.Execute(ctx, req.ID)
+	sub, err := uc.Execute(ctx, req.ID, req.Password)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}
@@ -213,7 +229,7 @@ func TestCreateSubscription_SaveFails(t *testing.T) {
 
 	req := validCreateSubscriptionRequest()
 
-	_, err := uc.Execute(ctx, req.ID)
+	_, err := uc.Execute(ctx, req.ID, req.Password)
 	if err == nil || err.Error() != "save-fail" {
 		t.Fatalf("❌ expected save-fail, got %v", err)
 	}
@@ -236,7 +252,7 @@ func TestCreateSubscription_NoEventBus(t *testing.T) {
 
 	req := validCreateSubscriptionRequest()
 
-	_, err := uc.Execute(ctx, req.ID)
+	_, err := uc.Execute(ctx, req.ID, req.Password)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}

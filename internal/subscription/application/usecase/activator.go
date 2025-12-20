@@ -71,7 +71,6 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
     if err != nil {
         return err
     }
-    utils.LogPretty("Subscription Activated", sub)
 
     // Optional: log into Stellar ledger
     var ledger int32 = 0
@@ -79,10 +78,20 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
         _, _ = s.stellar.LogSubscriptionActivated(ctx, sub.UserID, sub.Tier)
     }
 
+    // Update subscription status
+    sub.Active = true
+    sub.ActivatedAt = time.Now().Unix()
+    if err := s.repo.Update(ctx, sub); err != nil {
+        return err
+    }
+    utils.LogPretty("Subscription Activated", sub)
+    
+
     // Emit SubscriptionActivated event
     activated := subscription_application_eventbus.SubscriptionActivated{
         SubscriptionID: sub.ID,
         UserID:         sub.UserID,
+        Password:       evt.Password,
         Tier:           sub.Tier,
         TxHash:         sub.TxHash,
         Ledger:         ledger,

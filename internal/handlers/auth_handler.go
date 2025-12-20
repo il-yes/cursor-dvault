@@ -862,12 +862,13 @@ func (ah *AuthHandler) VerifyToken(token string) (*auth.Claims, error) {
 // - return ONLY new access token to the frontend
 // AuthHandler.go
 func (ah *AuthHandler) RefreshToken(userID string) (string, error) {
+	utils.LogPretty("RefreshToken - userID", userID)
 	// 1) Get refresh token from DB
 	tokenPair, err := ah.DB.GetJwtTokenByUserId(userID)
 	if err != nil || tokenPair.RefreshToken == "" {
 		return "", errors.New("no active session")
 	}
-	utils.LogPretty("tokenpair", tokenPair)
+	utils.LogPretty("RefreshToken - tokenpair", tokenPair)
 
 	// 2) Validate refresh token string
 	claims, err := ah.auth.VerifyToken(tokenPair.RefreshToken)
@@ -887,7 +888,7 @@ func (ah *AuthHandler) RefreshToken(userID string) (string, error) {
 	// 3) Load user
 	user, err := ah.DB.FindUserById(userID)
 	if err != nil {
-		return "", fmt.Errorf("user not found: %w", err)
+		return "", fmt.Errorf("RefreshToken - user not found: %w", err)
 	}
 
 	u := auth.JwtUser{ID: user.ID, Username: user.Username, Email: user.Email}
@@ -925,9 +926,7 @@ func (ah *AuthHandler) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	fmt.Println("UserID:", claims.UserID)     // int
-	fmt.Println("Username:", claims.Username) // string
-	fmt.Println("Email:", claims.Email)       // string
+	utils.LogPretty("claims", claims)
 	return claims, nil
 }
 

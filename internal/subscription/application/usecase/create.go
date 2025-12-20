@@ -25,7 +25,7 @@ type TraditionalSubscriptionResponse struct {
 	OccurredAt     int64  `json:"occurred_at"`
 }
 
-func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string) (*subscription_domain.Subscription, error) {
+func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string, plainPassword string) (*subscription_domain.Subscription, error) {
 	// fetch subscription from payment from Ankhora cloud
 	subscriptionFromPayment, err := uc.AnkhorClient.GetSubscriptionBySessionID(ctx, subID)
 	if err != nil {
@@ -47,6 +47,7 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string) 
 		_ = uc.bus.PublishCreated(ctx, subscription_eventbus.SubscriptionCreated{
 			SubscriptionID: subscriptionFromPayment.ID,
 			UserID:         subscriptionFromPayment.UserID,
+			Password:       plainPassword,
 			Tier:           subscriptionFromPayment.Tier,
 			OccurredAt:     time.Now().Unix(),
 		})

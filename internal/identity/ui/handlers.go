@@ -27,6 +27,13 @@ func (h *LoginHandler) Handle(cmd identity_commands.LoginCommand) (*identity_com
 type RegistrationHandler struct {
 	RegisterIdentityUC *identity_usecase.RegisterIdentityUseCase
 }
+func NewRegistrationHandler(
+	RegisterIdentityUC *identity_usecase.RegisterIdentityUseCase,
+) *RegistrationHandler {
+	return &RegistrationHandler{
+		RegisterIdentityUC: RegisterIdentityUC,
+	}
+}	
 type OnboardRequest struct {
 	Identity             string
 	Email                string
@@ -49,7 +56,7 @@ func (h *RegistrationHandler) Registers(ctx context.Context, req OnboardRequest)
 		IsAnonymous:      req.IsAnonymous,
 		StellarPublicKey: publicKey,
 	}
-	identity_user, err := h.RegisterIdentityUC.Execute(ctx, registerRequest)
+	identity_user, err := h.RegisterIdentityUC.RegisterIdentity(ctx, registerRequest)
 	if err != nil {
 		return nil, err
 	}

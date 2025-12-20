@@ -2,6 +2,7 @@ package auth_domain
 
 import (
 	"time"
+	"vault-app/internal/auth"
 
 	"github.com/golang-jwt/jwt/v4"
 )
@@ -40,7 +41,13 @@ type TokenPairs struct {
     RefreshToken string `gorm:"column:refresh_token;type:text" json:"refresh_token"`
     UserID       string    `gorm:"column:user_id" json:"user_id"`
 }
-
+func (t *TokenPairs) ToFormerModel() *auth.TokenPairs {
+	return &auth.TokenPairs{
+		Token:        t.Token,
+		RefreshToken: t.RefreshToken,
+		UserID:       t.UserID,
+	}
+}
 
 type Claims struct {
     UserID       string    `json:"user_id"`

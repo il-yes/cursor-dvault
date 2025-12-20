@@ -38,13 +38,13 @@ export interface CheckoutPayload {
   cancelRedirect: string;
 }
 
-export const createCheckout = async (payload: CheckoutPayload) => {
-  return await AppAPI.CreateCheckoutSession(payload);
-};
+// export const createCheckout = async (payload: CheckoutPayload) => {
+//   return await AppAPI.CreateCheckoutSession(payload);
+// };
 
-export const getCheckoutStatus = async (sessionId: string) => {
-  return await AppAPI.GetCheckoutSessionStatus(sessionId);
-};
+// export const getCheckoutStatus = async (sessionId: string) => {
+//   return await AppAPI.GetCheckoutSessionStatus(sessionId);
+// };
 
 export interface VaultEntry {
   id: string;

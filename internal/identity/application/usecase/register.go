@@ -2,10 +2,10 @@ package identity_usecase
 
 import (
 	"context"
+	utils "vault-app/internal"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
 )
-
 
 // RegisterStandardUserUseCase registers a non-anonymous user
 type RegisterStandardUserUseCase struct {
@@ -39,6 +39,7 @@ func (uc *RegisterStandardUserUseCase) Execute(ctx context.Context, email, passw
 		}
 		_ = uc.bus.PublishUserRegistered(ctx, appEvent)
 	}
+	utils.LogPretty("User registered", u)
 	return u, nil
 }
 
@@ -90,7 +91,7 @@ func NewRegisterIdentityUseCase(std *RegisterStandardUserUseCase, anon *Register
 	return &RegisterIdentityUseCase{StandardUC: std, AnonymousUC: anon}
 }	
 
-func (uc *RegisterIdentityUseCase) Execute(ctx context.Context, req RegisterRequest) (*identity_domain.User, error) {
+func (uc *RegisterIdentityUseCase) RegisterIdentity(ctx context.Context, req RegisterRequest) (*identity_domain.User, error) {
 	if req.IsAnonymous {
 		return uc.AnonymousUC.Execute(ctx, req.StellarPublicKey)
 	}

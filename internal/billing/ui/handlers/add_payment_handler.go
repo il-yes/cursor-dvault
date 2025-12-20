@@ -25,7 +25,7 @@ func NewAddPaymentHandler(addPaymentMethodUseCase *billing_usecase.AddPaymentMet
 }
 
 func (h *AddPaymentHandler) AddPaymentMethod(ctx context.Context, req AddPaymentMethodRequest) (*AddPaymentMethodResponse, error) {
-	resp, err := h.AddPaymentMethodUseCase.Execute(ctx, req.UserID, billing_domain.PaymentMethod(req.Method), req.EncryptedPayload)
+	resp, err := h.AddPaymentMethodUseCase.AddPaymentMethod(ctx, req.UserID, billing_domain.PaymentMethod(req.Method), req.EncryptedPayload)
 	if err != nil {
 		return nil, err
 	}

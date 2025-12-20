@@ -50,5 +50,15 @@ func (r *MemoryUserRepository) FindByEmail(ctx context.Context, email string) (*
 	return u, nil
 }
 
+func (r *MemoryUserRepository) Update(ctx context.Context, u *identity_domain.User) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.byID[u.ID] = u
+	if u.Email != "" {
+		r.byEmail[u.Email] = u
+	}
+	return nil
+}	
+
 // Ensure interface satisfaction at compile-time
 var _ identity_domain.UserRepository = (*MemoryUserRepository)(nil)

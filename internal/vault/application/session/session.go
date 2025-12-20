@@ -9,6 +9,13 @@ import (
 	"gorm.io/gorm"
 )
 
+type SessionState string
+
+const (
+    SessionPrepared SessionState = "prepared"
+    SessionVaultOpen SessionState = "vault_open"
+)
+
 
 type Session struct {
     UserID   string

@@ -40,3 +40,11 @@ func (r *SubscriptionRepository) GetByID(ctx context.Context, id string) (*subsc
 	}
 	return &s, nil
 }	
+
+func (r *SubscriptionRepository) Update(ctx context.Context, s *subscription_domain.Subscription) error {
+	sDB := SubscriptionToDB(s)
+	if err := r.DB.Save(sDB).Error; err != nil {
+		return err
+	}
+	return nil
+}	

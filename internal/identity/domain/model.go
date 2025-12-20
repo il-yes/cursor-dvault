@@ -20,14 +20,19 @@ const (
 
 // User aggregate
 type User struct {
-	ID               string
-	Email            string
-	PasswordHash     string
+	ID               string    `gorm:"primaryKey"`
+	Email            string    `gorm:"uniqueIndex;not null"`
+	PasswordHash     string    `gorm:"not null"`
 	IsAnonymous      bool
 	StellarPublicKey string
 	CreatedAt        time.Time
-	LastConnectedAt  string
+	LastConnectedAt  time.Time
 }
+
+func (User) TableName() string {
+	return "identity_users"
+}
+
 
 func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
 	u.ID = uuid.New().String()
@@ -45,7 +50,7 @@ func (u *User) ToJwtUser() *auth_domain.JwtUser {
 }
 func (u *User) ToFormerUser() *models.User {
 	return &models.User{
-		ID:       u.ID,
+		ID:       u.ID,	
 		Username: u.Email,
 		Email:    u.Email,
 		Password: u.PasswordHash,
@@ -58,7 +63,7 @@ func NewAnonymousUser(id, stellarPublicKey string) *User {
 }
 
 func NewStandardUser(id, email, passwordHash string) *User {
-	return &User{ID: id, Email: email, PasswordHash: passwordHash, CreatedAt: time.Now(), LastConnectedAt: time.Now().Format(time.RFC3339)}
+	return &User{ID: id, Email: email, PasswordHash: passwordHash, CreatedAt: time.Now(), LastConnectedAt: time.Now()}
 }
 
 
@@ -69,3 +74,5 @@ type UserLoggedIn struct {
 	OccurredAt time.Time
 }
 
+
+		

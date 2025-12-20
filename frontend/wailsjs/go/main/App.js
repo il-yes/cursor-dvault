@@ -38,18 +38,6 @@ export function CreateAccount(arg1) {
   return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
-export function CreateCheckoutSession(arg1) {
-  return window['go']['main']['App']['CreateCheckoutSession'](arg1);
-}
-
-export function CreateCheckoutSessionAndOpen(arg1, arg2) {
-  return window['go']['main']['App']['CreateCheckoutSessionAndOpen'](arg1, arg2);
-}
-
-export function CreateCheckoutSessionBackend(arg1) {
-  return window['go']['main']['App']['CreateCheckoutSessionBackend'](arg1);
-}
-
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -88,10 +76,6 @@ export function FetchUsers() {
 
 export function FlushAllSessions() {
   return window['go']['main']['App']['FlushAllSessions']();
-}
-
-export function GetCheckoutSessionStatus(arg1) {
-  return window['go']['main']['App']['GetCheckoutSessionStatus'](arg1);
 }
 
 export function GetCheckoutURL(arg1) {
@@ -138,24 +122,20 @@ export function NotifyPaymentSuccess(arg1) {
   return window['go']['main']['App']['NotifyPaymentSuccess'](arg1);
 }
 
-export function OnPaymentConfirmation(arg1) {
-  return window['go']['main']['App']['OnPaymentConfirmation'](arg1);
+export function OnPaymentConfirmation(arg1, arg2) {
+  return window['go']['main']['App']['OnPaymentConfirmation'](arg1, arg2);
 }
 
 export function OpenGoogle() {
   return window['go']['main']['App']['OpenGoogle']();
 }
 
-export function OpenStripeCheckout(arg1) {
-  return window['go']['main']['App']['OpenStripeCheckout'](arg1);
-}
-
 export function OpenURL(arg1) {
   return window['go']['main']['App']['OpenURL'](arg1);
 }
 
-export function PollPaymentStatus(arg1) {
-  return window['go']['main']['App']['PollPaymentStatus'](arg1);
+export function PollPaymentStatus(arg1, arg2) {
+  return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2);
 }
 
 export function RecoverVaultWithKey(arg1) {
@@ -202,10 +182,6 @@ export function SignUp(arg1) {
   return window['go']['main']['App']['SignUp'](arg1);
 }
 
-export function StripeWebhookHandler(arg1, arg2) {
-  return window['go']['main']['App']['StripeWebhookHandler'](arg1, arg2);
-}
-
 export function SynchronizeVault(arg1, arg2) {
   return window['go']['main']['App']['SynchronizeVault'](arg1, arg2);
 }
@@ -220,8 +196,4 @@ export function UpdateFolder(arg1, arg2, arg3, arg4) {
 
 export function UploadToIPFS(arg1, arg2) {
   return window['go']['main']['App']['UploadToIPFS'](arg1, arg2);
-}
-
-export function WaitForPayment(arg1, arg2, arg3) {
-  return window['go']['main']['App']['WaitForPayment'](arg1, arg2, arg3);
 }

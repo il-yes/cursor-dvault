@@ -71,7 +71,9 @@ func (f *fakeIdentityRepo) Save(ctx context.Context, u *identity_domain.User) er
 	f.user = u
 	return f.saveErr
 }
-
+func (f *fakeIdentityRepo) Update(ctx context.Context, u *identity_domain.User) error {
+	return nil
+}
 type fakeTokenService struct {
 	generateErr error
 	persistErr  error

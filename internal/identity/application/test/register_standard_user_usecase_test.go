@@ -32,7 +32,9 @@ func (r *fakeRepo) Save(ctx context.Context, u *identity_domain.User) error {
 	}
 	return nil
 }
-
+func (r *fakeRepo) Update(ctx context.Context, u *identity_domain.User) error {
+	return nil
+}
 func (r *fakeRepo) FindByID(ctx context.Context, id string) (*identity_domain.User, error) {
 	return r.usersByID[id], nil
 }

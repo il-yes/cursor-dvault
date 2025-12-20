@@ -16,9 +16,9 @@ func NewSubscriptionHandler(createUC subscription_usecase.CreateSubscriptionUseC
 	return &SubscriptionHandler{CreateUC: createUC, SubscriptionRepository: subscriptionRepository}
 }
 
-func (h *SubscriptionHandler) CreateSubscription(ctx context.Context, id string) (*subscription_usecase.TraditionalSubscriptionResponse, error) {
+func (h *SubscriptionHandler) CreateSubscription(ctx context.Context, id string, plainPassword string) (*subscription_usecase.TraditionalSubscriptionResponse, error) {
 	// create subscription
-	response, err := h.CreateUC.Execute(ctx, id)
+	response, err := h.CreateUC.Execute(ctx, id, plainPassword)
 	if err != nil {
 		return nil, err
 	}

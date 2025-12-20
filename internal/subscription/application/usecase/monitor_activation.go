@@ -3,12 +3,12 @@ package subscription_usecase
 
 import (
 	"context"
+	utils "vault-app/internal"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/models"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	subscription_eventbus "vault-app/internal/subscription/application"
@@ -31,25 +31,24 @@ type BillingHandlerInterface interface {
 
 // ----------- Struct -----------
 type SubscriptionActivationMonitor struct {
-	Logger               *logger.Logger
-	Bus                  subscription_eventbus.SubscriptionEventBus
-	UserSubscriptionPort subscription_domain.UserRepository
-	VaultPort            onboarding_usecase.VaultPort
-	StellarService       onboarding_usecase.StellarServiceInterface
-	UserService          onboarding_usecase.UserServiceInterface
-	BusOnboarding        onboarding_application_events.OnboardingEventBus
-	IdentityHandler      IdentityHandlerInterface
-	BillingHandler       BillingHandlerInterface
+	Logger                     *logger.Logger
+	Bus                        subscription_eventbus.SubscriptionEventBus
+	UserSubscriptionRepository subscription_domain.UserRepository
+	SubscriptionRepository     subscription_domain.SubscriptionRepository
+	VaultPort                  onboarding_usecase.VaultPort
+	StellarService             onboarding_usecase.StellarServiceInterface
+	OnBoardingUserRepository   onboarding_usecase.UserServiceInterface
+	BusOnboarding              onboarding_application_events.OnboardingEventBus
+	IdentityHandler            IdentityHandlerInterface
+	BillingHandler             BillingHandlerInterface
 }
 
 // ----------- Constructor -----------
 func NewSubscriptionActivationMonitor(
 	log *logger.Logger,
 	bus subscription_eventbus.SubscriptionEventBus,
-	db models.DBModel,
-	identityPort IdentityPortInterface,
-	billingPort onboarding_usecase.BillingPort,
-	userSubscriptionPort subscription_domain.UserRepository,
+	userSubRepo subscription_domain.UserRepository,
+	subRepo subscription_domain.SubscriptionRepository,
 	vaultPort onboarding_usecase.VaultPort,
 	stellarService onboarding_usecase.StellarServiceInterface,
 	userService onboarding_usecase.UserServiceInterface,
@@ -58,26 +57,76 @@ func NewSubscriptionActivationMonitor(
 	billingHandler BillingHandlerInterface,
 ) *SubscriptionActivationMonitor {
 	return &SubscriptionActivationMonitor{
-		Logger:               log,
-		Bus:                  bus,
-		UserSubscriptionPort: userSubscriptionPort,
-		VaultPort:            vaultPort,
-		StellarService:       stellarService,
-		UserService:          userService,
-		BusOnboarding:        busOnboarding,
-		IdentityHandler:      identityHandler,
-		BillingHandler:       billingHandler,
+		Logger:                     log,
+		Bus:                        bus,
+		UserSubscriptionRepository: userSubRepo,
+		SubscriptionRepository:     subRepo,
+		VaultPort:                  vaultPort,
+		StellarService:             stellarService,
+		OnBoardingUserRepository:   userService,
+		BusOnboarding:              busOnboarding,
+		IdentityHandler:            identityHandler,
+		BillingHandler:             billingHandler,
 	}
 }
+
 
 func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 	m.Logger.Info("🛰️ Listening for subscription activations")
 
 	m.Bus.SubscribeToActivation(func(ctx context.Context, event subscription_eventbus.SubscriptionActivated) {
-		m.Logger.Info("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d",
-			event.SubscriptionID, event.UserID, event.Tier, event.Ledger)
+		m.Logger.Info("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d password=%s",
+			event.SubscriptionID, event.UserID, event.Tier, event.Ledger, event.Password)
 
-		// Tier side effects (emails, notifications)
+		// 1. ------------ I. Subscription Register User (user_dbs) ------------
+		userSubscription := subscription_domain.UserSubscription{
+			ID:    event.SubscriptionID,
+			Email: event.UserID,
+			Role:  "user",
+		}
+		if err := m.UserSubscriptionRepository.Save(ctx, &userSubscription); err != nil {
+			m.Logger.Error("Monitor - Failed to create user subscription: %v", err)
+			return
+		}
+		utils.LogPretty("Monitor - User subscription created:", userSubscription)
+		// 2. ------------ update subscription ------------
+		subscription, err := m.SubscriptionRepository.GetByID(ctx, event.SubscriptionID)
+		if err != nil {
+			m.Logger.Error("Monitor - Failed to retrieve subscription: %v", err)
+			return
+		}
+		subscription.UserID = userSubscription.ID
+		if err := m.SubscriptionRepository.Update(ctx, subscription); err != nil {
+			m.Logger.Error("Monitor - Failed to update subscription: %v", err)
+			return
+		}
+		utils.LogPretty("Monitor - Subscription updated:", subscription)
+		m.Logger.Info("Monitor - User subscription retrieved and updated with user ID %s: %v", userSubscription.ID, subscription)
+
+		// 3. ------------ II. Close Onboarding ------------
+		onboardingUC := onboarding_usecase.NewOnboardUseCase(
+			m.VaultPort,
+			m.StellarService,
+			m.OnBoardingUserRepository,
+			m.BusOnboarding,
+			m.Logger,
+			m.IdentityHandler,
+			m.BillingHandler,
+		)
+		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
+			Identity:             event.UserID,
+			Email:                userSubscription.Email,
+			IsAnonymous:          false,
+			Password:             event.Password,
+			Tier:                 event.Tier,
+			PaymentMethod:        "",
+			EncryptedPaymentData: "",
+			SubscriptionID:       event.SubscriptionID,
+		}); err != nil {
+			m.Logger.Error("Onboarding failed for user=%s: %v", event.UserID, err)
+		}
+
+		// 4. ------------ III. Tier side effects (emails, notifications) ------------		
 		switch event.Tier {
 		case "free":
 			m.Logger.Info("🧊 Free tier enabled")
@@ -88,43 +137,8 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 		default:
 			m.Logger.Warn("⚠️ Unknown tier=%s", event.Tier)
 		}
-
-		// 1. retrieve user subscription (user_dbs)
-		userSubscription, err := m.UserSubscriptionPort.FindByUserID(ctx, event.UserID)
-		if err != nil {
-			m.Logger.Error("Monitor - Failed to retrieve user subscription: %v", err)
-			return
-		}
-		// fmt.Println("Monitor - User subscription retrieved: %v", userSubscription)
-
-		// 2. complete onboarding
-		onboardingUC := onboarding_usecase.NewOnboardUseCase(
-			m.VaultPort,
-			m.StellarService,
-			m.UserService,
-			m.BusOnboarding,
-			m.Logger,
-			m.IdentityHandler,
-			m.BillingHandler,
-		)
-		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
-			Identity:             event.UserID,
-			Email:                userSubscription.Email,
-			Password:             userSubscription.Password,
-			IsAnonymous:          false,
-			StellarPublicKey:     userSubscription.StellarPublicKey,
-			Tier:                 event.Tier,
-			PaymentMethod:        "",
-			EncryptedPaymentData: "",
-			SubscriptionID:       event.SubscriptionID,
-		}); err != nil {
-			m.Logger.Error("Onboarding failed for user=%s: %v", event.UserID, err)
-		}
-
-		// 3. Admin notification
 		m.Logger.Info("📧 Email queued for user=%s", event.UserID)
 		m.Logger.Info("✅ Activation complete for subscription=%s", event.SubscriptionID)
-
 	})
 
 	<-ctx.Done()

@@ -103,14 +103,15 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 	}
 	utils.LogPretty("Authenticated bcrypt checked", "true")
 	// 3. Load identity user
+	utils.LogPretty("Loading identity user by email", creds.Email)
 	user, err := h.userRepo.FindByEmail(context.Background(), creds.Email)
 	if err != nil {
 		return nil, err
 	}
 	utils.LogPretty("Loaded identity user", user)
 	// 4. Update last connection (write)
-	user.LastConnectedAt = h.NowUTC()
-	if err := h.userRepo.Save(context.Background(), user); err != nil {
+	user.LastConnectedAt = time.Now()
+	if err := h.userRepo.Update(context.Background(), user); err != nil {
 		return nil, err
 	}
 

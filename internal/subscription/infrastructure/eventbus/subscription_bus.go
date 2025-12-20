@@ -1,4 +1,4 @@
-package subscription_persistence
+package subscription_infrastructure_eventbus
 
 import (
 	"context"

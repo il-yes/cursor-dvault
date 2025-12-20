@@ -13,6 +13,7 @@ import (
 	onboarding_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
+	vault_commands "vault-app/internal/vault/application/commands"
 
 	"vault-app/internal/logger/logger"
 )
@@ -38,9 +39,9 @@ type fakeVault struct {
 	err    error
 }
 
-func (f *fakeVault) CreateVault(ctx context.Context, userID string) error {
+func (f *fakeVault) CreateVault(v vault_commands.CreateVaultCommand) (*vault_commands.CreateVaultResult, error) {
 	f.called = true
-	return f.err
+	return &vault_commands.CreateVaultResult{}, f.err
 }
 
 type fakeBilling struct {
@@ -126,6 +127,12 @@ func (f *fakeUserService) Create(*onboarding_domain.User) (*onboarding_domain.Us
 		Email: "user@example.com",
 	}, nil
 }
+func (f *fakeUserService) FindByEmail(email string) (*onboarding_domain.User, error) {
+	return &onboarding_domain.User{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}	
 type fakeBus struct {
 	called bool
 }
@@ -169,7 +176,6 @@ func TestOnboardUseCase_Success(t *testing.T) {
 
 	res, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
 		Email:    "user@example.com",
-		Password: "pw",
 		Tier:     "pro",
 	})
 

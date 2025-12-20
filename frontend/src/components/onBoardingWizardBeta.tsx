@@ -254,9 +254,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
 
     // 14-day trial date string
-    const trialEndDate = new Date(
-        Date.now() + 14 * 24 * 60 * 60 * 1000,
-    ).toLocaleDateString();
+    const trialEndDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString();
 
     function prevStep() {
         if (step > 1) {
@@ -664,7 +662,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                             <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
                                 <h3 className="text-xl font-bold mb-4">💳 Card Payment</h3>
 
-                                <StripePayButton onComplete={onPaymentSuccess} />
+                                <StripePayButton onComplete={onPaymentSuccess} plainPassword={password} />
                             </div>
 
 
@@ -678,11 +676,6 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                         </div>
                     </div>
                 )}
-
-
-
-
-
 
                 {/* STEP 6: Done */}
                 {step === 6 && (

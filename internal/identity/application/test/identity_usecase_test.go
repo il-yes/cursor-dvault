@@ -36,6 +36,10 @@ func (f *fakeRepoHandler) Save(ctx context.Context, u *identity_domain.User) err
 	f.user = u
 	return f.saveErr
 }
+func (f *fakeRepoHandler) Update(ctx context.Context, u *identity_domain.User) error {
+	f.user = u
+	return nil
+}
 
 type fakeBusHandler struct {
 	published bool

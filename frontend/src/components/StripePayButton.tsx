@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as AppAPI from "../../wailsjs/go/main/App";
 
-export default function StripePayButton({ onComplete }: { onComplete: () => void }) {
+export default function StripePayButton({ onComplete, plainPassword }: { onComplete: () => void, plainPassword: string }) {
   const [loading, setLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const intervalRef = useRef<number | null>(null);
@@ -16,7 +16,7 @@ export default function StripePayButton({ onComplete }: { onComplete: () => void
 
     intervalRef.current = window.setInterval(async () => {
       try {
-        const status = await AppAPI.PollPaymentStatus(url.sessionId);
+        const status = await AppAPI.PollPaymentStatus(url.sessionId, plainPassword);
         console.log("STATUS:", status);
 
         if (status === "paid") {

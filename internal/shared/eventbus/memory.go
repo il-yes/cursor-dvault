@@ -3,7 +3,6 @@ package eventbus
 import (
 	"context"
 	"sync"
-	billing_eventbus "vault-app/internal/billing/application"
 	identity_eventbus "vault-app/internal/identity/application"
 	subscription "vault-app/internal/subscription/domain"
 )
@@ -57,25 +56,4 @@ func SubscribeToSubscriptionCreated(handler func(context.Context, subscription.S
 	return nil
 }
 
-// billing handlers
-var (
-	paymentMethodAddedHandlersMu sync.RWMutex
-	paymentMethodAddedHandlers   []func(context.Context, billing_eventbus.PaymentMethodAdded)
-)
 
-func PublishPaymentMethodAdded(ctx context.Context, e billing_eventbus.PaymentMethodAdded) error {
-	paymentMethodAddedHandlersMu.RLock()
-	hs := append([]func(context.Context, billing_eventbus.PaymentMethodAdded){}, paymentMethodAddedHandlers...)
-	paymentMethodAddedHandlersMu.RUnlock()
-	for _, h := range hs {
-		h(ctx, e)
-	}
-	return nil
-}
-
-func SubscribeToPaymentMethodAdded(handler func(context.Context, billing_eventbus.PaymentMethodAdded)) error {
-	paymentMethodAddedHandlersMu.Lock()
-	defer paymentMethodAddedHandlersMu.Unlock()
-	paymentMethodAddedHandlers = append(paymentMethodAddedHandlers, handler)
-	return nil
-}

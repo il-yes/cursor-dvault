@@ -1,4 +1,4 @@
-package persistence
+package billing_persistence
 
 import (
 	"context"
@@ -24,10 +24,10 @@ func (r *MemoryBillingRepository) Save(ctx context.Context, b *billing_domain.Bi
 	return nil
 }
 
-func (r *MemoryBillingRepository) FindByUserID(ctx context.Context, userID string) ([]*billing_domain.BillingInstrument, error) {
+func (r *MemoryBillingRepository) FindByUserID(ctx context.Context, userID string) (*billing_domain.BillingInstrument, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.byUser[userID], nil
+	return r.byUser[userID][0], nil
 }
 
 var _ billing_domain.Repository = (*MemoryBillingRepository)(nil)

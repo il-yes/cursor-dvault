@@ -3,12 +3,15 @@ package onboarding_usecase
 import (
 	"context"
 	"errors"
+	billing_usecase "vault-app/internal/billing/application/usecase"
+	billing_domain "vault-app/internal/billing/domain"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
+	vault_commands "vault-app/internal/vault/application/commands"
 )
 
 type IdentityHandlerInterface interface {
@@ -36,7 +39,7 @@ type IdentityRegisterPort interface {
 }
 
 type BillingPort interface {
-	AddPaymentMethod(ctx context.Context, userID string, method string, encryptedPayload string) (string, error)
+	AddPaymentMethod(ctx context.Context, userID string, method billing_domain.PaymentMethod, encryptedPayload string) (*billing_usecase.AddPaymentMethodResponse, error)
 }
 
 type SubscriptionPort interface {
@@ -44,7 +47,7 @@ type SubscriptionPort interface {
 }
 
 type VaultPort interface {
-	CreateVault(ctx context.Context, userID string) error
+	CreateVault(v vault_commands.CreateVaultCommand) (*vault_commands.CreateVaultResult, error)
 }
 
 // ----------- UseCase Request -----------
@@ -53,7 +56,6 @@ type OnboardRequest struct {
 	Email                string
 	Password             string
 	IsAnonymous          bool
-	StellarPublicKey     string
 	Tier                 string
 	PaymentMethod        string
 	EncryptedPaymentData string
@@ -69,7 +71,7 @@ type OnboardResult struct {
 
 type OnboardUseCase struct {
 	StellarService  StellarServiceInterface
-	UserService     UserServiceInterface
+	OnBoardingUserRepository     UserServiceInterface
 	Bus             onboarding_application_events.OnboardingEventBus
 	Logger          *logger.Logger
 	IdentityHandler IdentityHandlerInterface
@@ -89,7 +91,7 @@ func NewOnboardUseCase(
 	return &OnboardUseCase{
 		Vault:           v,
 		StellarService:  stellarService,
-		UserService:     userService,
+		OnBoardingUserRepository:     userService,
 		Bus:             eventBus,
 		Logger:          logger,
 		IdentityHandler: identityHandler,
@@ -98,34 +100,43 @@ func NewOnboardUseCase(
 }
 
 func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*OnboardResult, error) {
-	if req.IsAnonymous && req.StellarPublicKey == "" {
+	if(req.SubscriptionID == "") {
+		return nil, errors.New("subscription ID is required")
+	}
+	if req.IsAnonymous {
 		return nil, errors.New("anonymous requested but no stellar public key provided")
 	}
 	var secretKey string
 	var err error
 
-	// 1. ------------- Onboarding registration ------------------
-	accountCreationResponse, err := uc.RegistrationOnboard(ctx, req)
+	// 1. ------------- Fetch onboarded account ------------------
+	onboardUser, err := uc.OnBoardingUserRepository.FindByEmail(req.Email)
 	if err != nil {
 		return nil, err
-	}
-	uc.Logger.Info("accountCreationResponse", accountCreationResponse)
+	}		
+	uc.Logger.Info("onboardUser", onboardUser)
 
 	// 2. ------------- Identity registration ------------------
 	userIdentity, err := uc.IdentityHandler.Registers(ctx, identity_ui.OnboardRequest{
 		Email:            req.Email,
-		Password:         req.Password,
+		Password:         onboardUser.Password,
 		IsAnonymous:      req.IsAnonymous,
-		StellarPublicKey: req.StellarPublicKey,
+		StellarPublicKey: onboardUser.StellarPublicKey,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// 3. ------------- Vault creation ------------------
-	if err := uc.Vault.CreateVault(ctx, userIdentity.ID); err != nil {
+	result, err := uc.Vault.CreateVault(vault_commands.CreateVaultCommand{
+		UserID:    userIdentity.ID,
+		VaultName: "Default Vault",
+		Password:  req.Password,
+	})
+	if err != nil {
 		return nil, err
 	}
+	uc.Logger.Info("vault created", result)
 
 	// 4. ------------- Billing registration optional) ------------------
 	if req.PaymentMethod != "" {
@@ -136,7 +147,6 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		}); err != nil {
 			return nil, err
 		}
-
 	}
 
 	// 5. ------------- (Optional event...) ------------------
@@ -144,17 +154,4 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil
 }
 
-func (uc *OnboardUseCase) RegistrationOnboard(ctx context.Context, req OnboardRequest) (*AccountCreationResponse, error) {
-	createUC := NewCreateAccountUseCase(uc.StellarService, uc.UserService, uc.Bus, uc.Logger)
-	accountCreationResponse, err := createUC.Execute(AccountCreationRequest{
-		Email:       req.Email,
-		Password:    req.Password,
-		IsAnonymous: req.IsAnonymous,
-		StellarKey:  req.StellarPublicKey,
-	})
-	if err != nil {
-		return nil, err
-	}
-	// utils.LogPretty("accountCreationResponse", accountCreationResponse)
-	return accountCreationResponse, nil
-}
+

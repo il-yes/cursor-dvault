@@ -98,7 +98,7 @@ func TestCreateVault_Success(t *testing.T) {
 		Password:  "secret",
 	}
 
-	result, err := handler.Execute(cmd)
+	result, err := handler.CreateVault(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -124,7 +124,7 @@ func TestCreateVault_FailsIfInitializeFails(t *testing.T) {
 		UserID: "user-1",
 	}
 
-	result, err := handler.Execute(cmd)
+	result, err := handler.CreateVault(cmd)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -158,7 +158,7 @@ func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
 		Password: "secret",
 	}
 
-	result, err := handler.Execute(cmd)
+	result, err := handler.CreateVault(cmd)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -184,7 +184,7 @@ func TestCreateVault_AttachesCIDToVault(t *testing.T) {
 		Password: "secret",
 	}
 
-	result, err := handler.Execute(cmd)
+	result, err := handler.CreateVault(cmd)
 
 	require.NoError(t, err)
 	// We expect cid-123 because fakeIPFSService returns it.

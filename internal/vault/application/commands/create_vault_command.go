@@ -1,6 +1,10 @@
 package vault_commands
 
-import vault_domain "vault-app/internal/vault/domain"
+import (
+	"log"
+	utils "vault-app/internal"
+	vault_domain "vault-app/internal/vault/domain"
+)
 
 // -------- COMMAND query --------
 type CreateVaultCommand struct {
@@ -53,7 +57,7 @@ func NewCreateVaultCommandHandler(
 	}
 }
 
-func (h *CreateVaultCommandHandler) Execute(cmd CreateVaultCommand) (*CreateVaultResult, error) {
+func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*CreateVaultResult, error) {
 	// -----------------------------
 	// 1. Initialize vault
 	// -----------------------------
@@ -61,6 +65,7 @@ func (h *CreateVaultCommandHandler) Execute(cmd CreateVaultCommand) (*CreateVaul
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
 
 	// -----------------------------
 	// 2. Create IPFS payload
@@ -69,14 +74,17 @@ func (h *CreateVaultCommandHandler) Execute(cmd CreateVaultCommand) (*CreateVaul
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("CreateVaultCommandHandler - ipfsRecord", ipfsRecord)
 
 	// -----------------------------
 	// 3. Update vault with IPFS CID
 	// -----------------------------
 	vault.Vault.AttachCID(ipfsRecord.CID)
-	if err := h.vaultRepo.SaveVault(vault.Vault); err != nil {
+	log.Println("CreateVaultCommandHandler - vault attached CID", vault)
+	if err := h.vaultRepo.UpdateVault(vault.Vault); err != nil {
 		return nil, err
 	}
+	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
 
 	// -----------------------------
 	// 4. (Optional) Return event "VaultCreated"

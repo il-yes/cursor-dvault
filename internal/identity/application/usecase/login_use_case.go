@@ -64,8 +64,8 @@ func (uc *LoginUseCase) Execute(
 	}
 
 	// 5️⃣ Update last connected timestamp
-	user.LastConnectedAt = time.Now().Format(time.RFC3339)
-	if err := uc.repo.Save(ctx, user); err != nil {
+	user.LastConnectedAt = time.Now()
+	if err := uc.repo.Update(ctx, user); err != nil {
 		return nil, err
 	}
 

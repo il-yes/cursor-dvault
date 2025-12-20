@@ -161,6 +161,7 @@ function DashboardNavbar() {
     try {
       // Debug: Check if jwtToken is available
       console.log("🔑 JWT Token:", jwtToken);
+      
 
       if (!jwtToken) {
         toast({

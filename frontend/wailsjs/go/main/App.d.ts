@@ -7,15 +7,12 @@ import {handlers} from '../models';
 import {main} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
-import {context} from '../models';
 import {models} from '../models';
 import {share_domain} from '../models';
 import {identity_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {subscription_domain} from '../models';
-import {http} from '../models';
-import {time} from '../models';
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -34,12 +31,6 @@ export function CheckStellarKeyForVault(arg1:string):Promise<main.CheckKeyRespon
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
-
-export function CreateCheckoutSession(arg1:main.CreateCheckoutPayload):Promise<main.CreateCheckoutResponse>;
-
-export function CreateCheckoutSessionAndOpen(arg1:context.Context,arg2:main.CreateCheckoutPayload):Promise<main.CreateCheckoutResponse>;
-
-export function CreateCheckoutSessionBackend(arg1:main.CreateCheckoutPayload):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<models.VaultPayload>;
 
@@ -60,8 +51,6 @@ export function EncryptVault(arg1:string,arg2:string):Promise<string>;
 export function FetchUsers():Promise<Array<models.UserDTO>>;
 
 export function FlushAllSessions():Promise<void>;
-
-export function GetCheckoutSessionStatus(arg1:string):Promise<string>;
 
 export function GetCheckoutURL(arg1:string):Promise<main.CreateCheckoutResponse>;
 
@@ -85,15 +74,13 @@ export function ListSharedEntries(arg1:string):Promise<any>;
 
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
 
-export function OnPaymentConfirmation(arg1:string):Promise<void>;
+export function OnPaymentConfirmation(arg1:string,arg2:string):Promise<void>;
 
 export function OpenGoogle():Promise<void>;
 
-export function OpenStripeCheckout(arg1:string):Promise<void>;
-
 export function OpenURL(arg1:string):Promise<void>;
 
-export function PollPaymentStatus(arg1:string):Promise<string>;
+export function PollPaymentStatus(arg1:string,arg2:string):Promise<string>;
 
 export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain.RecoveredVault>;
 
@@ -117,8 +104,6 @@ export function SignOut(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResponse>;
 
-export function StripeWebhookHandler(arg1:http.ResponseWriter,arg2:http.Request):Promise<void>;
-
 export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
@@ -126,5 +111,3 @@ export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise
 export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<models.Folder>;
 
 export function UploadToIPFS(arg1:string,arg2:string):Promise<string>;
-
-export function WaitForPayment(arg1:string,arg2:time.Duration,arg3:number):Promise<string>;

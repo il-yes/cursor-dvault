@@ -16,6 +16,10 @@ import (
 	auth_domain "vault-app/internal/auth/domain"
 	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	billing_usecase "vault-app/internal/billing/application/usecase"
+	billing_infrastructure_eventbus "vault-app/internal/billing/infrastructure/eventbus"
+	billing_persistence "vault-app/internal/billing/infrastructure/persistence"
+	billing_ui "vault-app/internal/billing/ui"
+	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	share_domain "vault-app/internal/domain/shared"
@@ -28,7 +32,6 @@ import (
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
-	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_infrastructure_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
@@ -47,6 +50,7 @@ import (
 	subscription_usecase "vault-app/internal/subscription/application/usecase"
 	subscription_domain "vault-app/internal/subscription/domain"
 	subscription_infrastructure "vault-app/internal/subscription/infrastructure"
+	subscription_infrastructure_eventbus "vault-app/internal/subscription/infrastructure/eventbus"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
@@ -237,32 +241,32 @@ func NewApp() *App {
 	// Recovery context implementations
 	userRepo := stellar_recovery_persistence.NewGormUserRepository(db.DB)
 	vaultStellarRepo := stellar_recovery_persistence.NewGormVaultRepository(db.DB)
-	subRepo := stellar_recovery_persistence.NewGormSubscriptionRepository(db.DB)
+	stellarRecoverySubRepo := stellar_recovery_persistence.NewGormSubscriptionRepository(db.DB)
 	verifier := stellar.NewStellarKeyAdapter()
 	eventDisp := events.NewLocalDispatcher()
 	tokenGen := token.NewSimpleTokenGen()
 
-	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultStellarRepo, subRepo, verifier)
-	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultStellarRepo, subRepo, verifier, eventDisp, tokenGen)
+	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultStellarRepo, stellarRecoverySubRepo, verifier)
+	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultStellarRepo, stellarRecoverySubRepo, verifier, eventDisp, tokenGen)
 	importUC := stellar_recovery_usecase.NewImportKeyUseCase(userRepo, verifier)
 	loginAdapter := shared.NewStellarLoginAdapter(db)
 
 	connectUC := stellar_recovery_usecase.NewConnectWithStellarUseCase(
 		loginAdapter,
 		vaultStellarRepo,
-		subRepo,
+		stellarRecoverySubRepo,
 	)
 
 	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)
-	userSubRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
+	userSubscriptionRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
 	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: db.DB}
-	memoryBus := onboarding_infrastructure_eventbus.NewMemoryBus()
+	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
 	stellarService := blockchain.StellarService{}
-	createAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, memoryBus, appLogger)
-	stellarHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
-	setupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubRepo, subscriptionSubRepo, memoryBus, *tcClient)
-	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, createAccountUC, setupPaymentUseCase)
-	subscriptionBus := subscription_persistence.NewMemoryBus()
+	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, onboardingBus, appLogger)
+	stellarRecoveryHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
+	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient)
+	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, onboardingCreateAccountUC, onboardingSetupPaymentUseCase)
+	subscriptionBus := subscription_infrastructure_eventbus.NewMemoryBus()
 	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
 	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
 
@@ -287,22 +291,33 @@ func NewApp() *App {
 	// 	},
 	// 	SessionSecrets: make(map[string]string),
 	// }
+
+
+	cryptoService := blockchain.CryptoService{}
 	
 	// Identity
-	identityRepo := identity_persistence.NewGormUserRepository(db.DB)
-	sessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
+	identityUserRepo := identity_persistence.NewGormUserRepository(db.DB)
+	vaultSessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db.DB)
-	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, appLogger, ctx, ipfs)
+	vaultSessionManager := vault_session.NewManager(vaultSessionRepo, vaultRepo, appLogger, ctx, ipfs)
 	authRepo := auth_persistence.NewGormAuthRepository(db.DB)	
-	tokenService := auth_usecases.NewTokenService(auth_domain.Auth{}, authRepo, db.DB)
-	IDmemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
-	loginCommandHandler := identity_commands.NewLoginCommandHandler(onboardingUserRepo, identityRepo, tokenService, sessionManager, IDmemoryBus)
-	loginHandler := identity_ui.NewLoginHandler(loginCommandHandler)
-	identityHandler := identity_ui.NewIdentityHandler(loginHandler)
+	authTokenService := auth_usecases.NewTokenService(auth_domain.Auth{}, authRepo, db.DB)
+	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
+	identityLoginCommandHandler := identity_commands.NewLoginCommandHandler(onboardingUserRepo, identityUserRepo, authTokenService, vaultSessionManager, identityMemoryBus)
+	identityLoginHandler := identity_ui.NewLoginHandler(identityLoginCommandHandler)
+	identityIdGen := identity_persistence.NewIDGenerator()
+	registerStandardUserUseCase := identity_usecase.NewRegisterStandardUserUseCase(identityUserRepo, identityMemoryBus, identityIdGen)
+	registerAnonymousUserUseCase := identity_usecase.NewRegisterAnonymousUserUseCase(identityUserRepo, identityMemoryBus, identityIdGen)
+	identityRegistrationHandler := identity_ui.NewRegistrationHandler(
+		identity_usecase.NewRegisterIdentityUseCase(
+			registerStandardUserUseCase, 
+			registerAnonymousUserUseCase,
+		),
+	)
+	identityHandler := identity_ui.NewIdentityHandler(identityLoginHandler, identityRegistrationHandler)
 
 	// Vault
-	cryptoService := blockchain.CryptoService{}
-	openVaultHandler := vault_ui.NewOpenVaultHandler(vault_commands.NewOpenVaultCommandHandler(vaultRepo, sessionManager, ipfs, &cryptoService))
+	openVaultHandler := vault_ui.NewOpenVaultHandler(vault_commands.NewOpenVaultCommandHandler(vaultRepo, vaultSessionManager, ipfs, &cryptoService))
 	vaultHandler := vault_ui.NewVaultHandler(openVaultHandler)
 
 
@@ -354,28 +369,27 @@ func NewApp() *App {
 	go createdListener.Listen(ctx)
 
 	// ===== New: monitor for post-activation side effects (email, metrics...) =====
-	identityPort := identity_usecase.NewRegisterIdentityUseCase(
-		identity_usecase.NewRegisterStandardUserUseCase(
-			identity_persistence.NewGormUserRepository(db.DB),
-			identity_infrastructure_eventbus.NewMemoryEventBus(),
-			identity_usecase.IDGenerator{},
-		),
-		identity_usecase.NewRegisterAnonymousUserUseCase(
-			identity_persistence.NewGormUserRepository(db.DB),
-			identity_infrastructure_eventbus.NewMemoryEventBus(),
-			identity_usecase.IDGenerator{},
-		),
-	)
-
+	billingBus := billing_infrastructure_eventbus.NewMemoryBus()
 	billingRepo := billing_persistence.NewGormBillingRepository(db.DB)
-	billingPort := billing_usecase.NewAddPaymentMethodUseCase()
-	subscriptionPort := subscription_usecase.NewSubscriptionPort()
-	userSubscriptionPort := subscription_domain.UserRepository()
-	vaultPort := onboarding_usecase.NewVaultPort()
-	// stellarService := onboarding_usecase.NewStellarServiceInterface()
-	userService 	:= onboarding_usecase.NewUserServiceInterface()
-	busOnboarding := onboarding_application_events.NewOnboardingEventBus()
-	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(appLogger, subscriptionBus, onboardingUserRepo, *db, identityPort, billingPort, subscriptionPort, userSubscriptionPort, vaultPort, &stellarService, userService, busOnboarding)
+	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(vaultRepo)
+	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(vaultRepo, &cryptoService, ipfs)
+	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(initializeVaultHandler, createIpfsCommandHandler, vaultRepo)
+	billingAddPaymentMethodUC := billing_usecase.NewAddPaymentMethodUseCase(billingRepo, billingBus, identityIdGen)	
+	billingHandler:= billing_ui.NewBillingHandler(
+		billing_ui_handlers.NewAddPaymentHandler(billingAddPaymentMethodUC),
+	)
+	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(
+		appLogger, 
+		subscriptionBus, 
+		userSubscriptionRepo,
+		subscriptionSubRepo, 
+		createVaultCommand, 
+		&stellarService, 
+		onboardingUserRepo,
+		onboardingBus,
+		identityHandler,
+		billingHandler,
+	)
 	go activationMonitor.Listen(ctx)
 
 	// Start pending commit worker
@@ -388,7 +402,7 @@ func NewApp() *App {
 		config:                    cfg,
 		version:                   version,
 		DB:                        *db,
-		StellarRecoveryHandler:    stellarHandler,
+		StellarRecoveryHandler:    stellarRecoveryHandler,
 		Identity:                  identityHandler,
 		Vault:                     vaultHandler,
 		OnBoardingHandler:         onBoardingHandler,
@@ -402,7 +416,7 @@ func NewApp() *App {
 		// RuntimeContextV2:          runtimeCtxV2,
 		cancel:                    cancel,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
-		ConnectWithStellarHandler: stellarHandler,
+		ConnectWithStellarHandler: stellarRecoveryHandler,
 	}
 
 }
@@ -469,6 +483,10 @@ func (a *App) CheckStellarKeyForVault(stellarKey string) (*CheckKeyResponse, err
 		LastSyncedAt:     res.LastSyncedAt,
 		Ok:               true,
 	}, nil
+}
+func (a *App) CreateAccount(req onboarding_usecase.AccountCreationRequest) (*onboarding_ui_wails.AccountCreationResponse, error) {
+	utils.LogPretty("CreateAccount req", req)
+	return a.OnBoardingHandler.CreateAccount(req)
 }
 
 func (a *App) RecoverVaultWithKey(stellarKey string) (*stellar_recovery_domain.RecoveredVault, error) {
@@ -551,7 +569,7 @@ func (a *App) OpenURL(rawURL string) error {
 }
 
 // Poll backend for payment status
-func (a *App) PollPaymentStatus(sessionID string) (string, error) {
+func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string, error) {
 	fmt.Println("🔁 Polling session:", sessionID)
 
 	url := "http://localhost:4001/api/payment-status/" + sessionID
@@ -575,7 +593,7 @@ func (a *App) PollPaymentStatus(sessionID string) (string, error) {
 
 	if r.Status == "paid" {
 		go func() {
-			if err := a.OnPaymentConfirmation(sessionID); err != nil {
+			if err := a.OnPaymentConfirmation(sessionID, plainPassword); err != nil {
 				a.Logger.Error("Payment confirmation failed:", err)
 			}
 		}()
@@ -586,10 +604,10 @@ func (a *App) PollPaymentStatus(sessionID string) (string, error) {
 
 }
 
-func (a *App) OnPaymentConfirmation(sessionID string) error {
+func (a *App) OnPaymentConfirmation(sessionID string, plainPassword string) error {
 	log.Println("Deep link received:", sessionID)
 
-	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID)
+	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, plainPassword)
 	if err != nil {
 		return err
 	}
@@ -645,32 +663,29 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		SignedMessage: req.SignedMessage,
 		Signature:     req.Signature,
 	}
-
+	// --------- Identity login ---------
 	result, err := a.Identity.LoginHandler.Handle(cmd)
 	if err != nil {
 		return nil, err
 	}
-
-	tokens := auth.TokenPairs{
-		Token:        result.Tokens.Token,
-		RefreshToken: result.Tokens.RefreshToken,
-		UserID:       result.Tokens.UserID,
-	}
+	a.Logger.Info("Identity login successful: %v", result)
+	// --------- Open vault ---------
 	vaultRes, err := a.Vault.OpenVaultHandler.OpenVault(
 		context.Background(),
 		vault_commands.OpenVaultCommand{
-			UserID:   result.Tokens.UserID,
+			UserID:   result.User.ID,
 			Password: req.Password,
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
+	a.Logger.Info("Vault opened successfully: %v", vaultRes)
+	// --------- Vault response converter for v1 ---------
 	var formerVault *models.VaultPayload
 	if vaultRes.Content != nil {
 		formerVault = vaultRes.Content.ToFormerVaultPayload()
 	}
-
 	var formerRuntimeContext *models.VaultRuntimeContext
 	if vaultRes.RuntimeContext != nil {
 		formerRuntimeContext = vaultRes.RuntimeContext.ToFormerRuntimeContext()
@@ -678,9 +693,10 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 
 	utils.LogPretty("SignInWithIdentity - formerVault", formerVault)
 
+	// --------- Login response converter for v1 ---------
 	loginRes := &handlers.LoginResponse{
 		User:                *result.User.ToFormerUser(),
-		Tokens:              &tokens,
+		Tokens:              result.Tokens.ToFormerModel(),
 		SessionID:           result.SessionID,
 		Vault:               *formerVault,
 		VaultRuntimeContext: formerRuntimeContext,

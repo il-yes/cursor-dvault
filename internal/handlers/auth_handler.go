@@ -861,34 +861,34 @@ func (ah *AuthHandler) VerifyToken(token string) (*auth.Claims, error) {
 // - persist new refresh (rotation)
 // - return ONLY new access token to the frontend
 // AuthHandler.go
-func (ah *AuthHandler) RefreshToken(userID string) (string, error) {
-	utils.LogPretty("RefreshToken - userID", userID)
+func (ah *AuthHandler) RefreshToken(userID string) (*auth.TokenPairs, error) {
+	utils.LogPretty("Auth - RefreshToken - userID", userID)
 	// 1) Get refresh token from DB
 	tokenPair, err := ah.DB.GetJwtTokenByUserId(userID)
 	if err != nil || tokenPair.RefreshToken == "" {
-		return "", errors.New("no active session")
+		return nil, errors.New("no active session")
 	}
 	utils.LogPretty("RefreshToken - tokenpair", tokenPair)
 
 	// 2) Validate refresh token string
 	claims, err := ah.auth.VerifyToken(tokenPair.RefreshToken)
 	if err != nil {
-		return "", fmt.Errorf("invalid refresh token: %w", err)
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
 	// utils.LogPretty("claims", claims)
 
 	if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
-		return "", errors.New("refresh token expired; please login again")
+		return nil, errors.New("refresh token expired; please login again")
 	}
 
 	if claims.Subject != fmt.Sprint(userID) {
-		return "", errors.New("refresh token does not belong to this user")
+		return nil, errors.New("refresh token does not belong to this user")
 	}
 
 	// 3) Load user
 	user, err := ah.DB.FindUserById(userID)
 	if err != nil {
-		return "", fmt.Errorf("RefreshToken - user not found: %w", err)
+		return nil, fmt.Errorf("RefreshToken - user not found: %w", err)
 	}
 
 	u := auth.JwtUser{ID: user.ID, Username: user.Username, Email: user.Email}
@@ -896,21 +896,21 @@ func (ah *AuthHandler) RefreshToken(userID string) (string, error) {
 	// 4) Generate new token pair
 	newTokens, err := ah.auth.GenerateTokenPair(&u)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate new tokens: %w", err)
+		return nil, fmt.Errorf("failed to generate new tokens: %w", err)
 	}
 
 	// 5) Save new refresh token
 	id, err := strconv.Atoi(user.ID)
 	if err != nil {
-		return "", fmt.Errorf("failed to convert userID to string: %w", err)
+		return nil, fmt.Errorf("failed to convert userID to string: %w", err)
 	}
 	_, errToken := ah.DB.UpdateJwtToken(id, newTokens)
 	if errToken != nil {
-		return "", fmt.Errorf("failed to save new refresh token: %w", errToken)
+		return nil, fmt.Errorf("failed to save new refresh token: %w", errToken)
 	}
 
 	// 6) Return only new access token
-	return newTokens.Token, nil
+	return &newTokens, nil
 }
 
 // Logout removes refresh token so session is invalidated.

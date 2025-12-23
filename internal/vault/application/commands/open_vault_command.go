@@ -64,7 +64,7 @@ func (h *OpenVaultCommandHandler) Handle(
 ) (*OpenVaultResult, error) {
 	utils.LogPretty("OpenVaultCommandHandler - cmd", cmd)
 
-	// 1️⃣ Reuse existing session if present
+	// 1️⃣ Session - Reuse existing session if present
 	if existing, ok := h.sessionMgr.Get(cmd.UserID); ok && existing.Vault != nil {
  
 		utils.LogPretty("OpenVaultCommandHandler - existing", existing)
@@ -78,7 +78,7 @@ func (h *OpenVaultCommandHandler) Handle(
 		}, nil
 	}
 
-	// 2️⃣ Load latest vault metadata
+	// 2️⃣ Vault - Load latest vault metadata
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
 		log.Println("OpenVaultCommandHandler - Error loading vault, go for minimal vault", err)
@@ -98,7 +98,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	}
 	utils.LogPretty("OpenVaultCommandHandler - vault", vault)
 
-	// 4️⃣ Fetch encrypted vault payload
+	// 4️⃣ IPFS - Fetch encrypted vault payload
 	encrypted, err := h.ipfs.GetData(vault.CID)
 	if err != nil {
 		log.Println("OpenVaultCommandHandler - Error fetching encrypted vault payload", err)
@@ -106,17 +106,17 @@ func (h *OpenVaultCommandHandler) Handle(
 	}
 	utils.LogPretty("OpenVaultCommandHandler - encrypted", encrypted)
 
-	// 5️⃣ Decrypt vault
+	// 5️⃣ Crypto - Decrypt vault	
 	decrypted, err := h.crypto.Decrypt(encrypted, cmd.Password)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6️⃣ Parse vault payload
+	// 6️⃣ Vault - Parse vault payload	
 	payload := vault_domain.ParseVaultPayload(decrypted)
 	log.Println("OpenVaultCommandHandler - payload", payload)
 
-	// 7️⃣ Create runtime context
+	// 7️⃣ Session - Create runtime context
 	runtimeCtx := vault_session.NewRuntimeContext()
 	log.Println("OpenVaultCommandHandler - Initialize new runtimeCtx")
 
@@ -127,8 +127,7 @@ func (h *OpenVaultCommandHandler) Handle(
 		vault.CID,
 		runtimeCtx,	
 	)
-	log.Println("OpenVaultCommandHandler - Start new session")
-	utils.LogPretty("payload", payload)
+	utils.LogPretty("OpenVaultCommandHandler - Start new session", session)
 
 	return &OpenVaultResult{
 		Vault:          vault,

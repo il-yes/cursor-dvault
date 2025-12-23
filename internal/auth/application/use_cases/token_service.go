@@ -70,6 +70,7 @@ func (j *TokenService) GenerateTokenPair(user *auth_domain.JwtUser) (auth_domain
 }
 
 func (j *TokenService) VerifyToken(tokenStr string) (*auth_domain.Claims, error) {
+	utils.LogPretty("TokenService - VerifyToken - tokenStr", tokenStr)  
     claims := &auth_domain.Claims{}
 
     token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {

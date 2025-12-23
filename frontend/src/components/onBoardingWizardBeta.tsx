@@ -372,6 +372,10 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         setStep(6);
     };
 
+    const GetSession = async () => {
+        const session = await AppAPI.GetSession(userId);
+        console.log("Session:", session);
+    };  
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-3xl p-6">
@@ -419,6 +423,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                                 </div>
                             </button>
                         </div>
+                        <button onClick={() => setStep(1.5)}>Stellar Key backup</button>
+
+                        <button onClick={GetSession}>Get Session</button>
 
                         <Button
                             onClick={handleSkip}
@@ -435,6 +442,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                     <StellarKeyImport
                         onComplete={handleStellarKeyComplete}
                         onSkip={handleStellarKeySkip}
+                        onBack={() => setStep(1)}
                     />
                 )}
 

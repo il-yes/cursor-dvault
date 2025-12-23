@@ -211,8 +211,8 @@ type BaseEntry struct {
 	IsDraft         bool      `json:"is_draft"`
 	IsFavorite      bool      `json:"is_favorite"`
 	// or type:text if jsonb unsupported
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 type LoginEntry struct {
@@ -293,8 +293,6 @@ type VaultEntry struct {
 	Type      string    `json:"type"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-
-
 // Utilities
 func ParseVaultPayload(decrypted []byte) VaultPayload {
 	var vault VaultPayload

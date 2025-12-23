@@ -1,7 +1,6 @@
 package vaults_persistence
 
 import (
-	utils "vault-app/internal"
 	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/gorm"
@@ -39,12 +38,9 @@ func (r *GormVaultRepository) DeleteVault(vaultID string) error {
 
 func (r *GormVaultRepository) GetLatestByUserID(id string) (*vaults_domain.Vault, error) {
 	var record VaultMapper
-	utils.LogPretty("GetLatestByUserID", id)
-
 	if err := r.db.Order("created_at DESC").First(&record, "user_id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	utils.LogPretty("GetLatestByUserID", record)
 	return record.ToDomain(), nil
 }
 	

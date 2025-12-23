@@ -2,6 +2,7 @@
 package vault_session
 
 import (
+	"time"
 	app_config "vault-app/internal/config"
 	"vault-app/internal/models"
 )
@@ -63,4 +64,7 @@ func (rc *RuntimeContext) ToFormerRuntimeContext() *models.VaultRuntimeContext {
 		SessionSecrets: rc.SessionSecrets,
 		WorkingBranch:  rc.WorkingBranch,
 	}
+}
+func (rc *RuntimeContext) Deadline() (deadline time.Time, ok bool) {
+	return time.Time{}, false
 }

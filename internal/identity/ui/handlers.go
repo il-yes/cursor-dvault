@@ -2,7 +2,9 @@ package identity_ui
 
 import (
 	"context"
+	utils "vault-app/internal"
 	identity_commands "vault-app/internal/identity/application/commands"
+	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 )
@@ -63,3 +65,23 @@ func (h *RegistrationHandler) Registers(ctx context.Context, req OnboardRequest)
 	
 	return identity_user, nil
 }
+
+type FinderHandler struct {
+	finderQueryHandler *identity_queries.FinderQueryHandler
+}
+func NewFinderHandler(
+	finderQueryHandler *identity_queries.FinderQueryHandler,
+) *FinderHandler {
+	return &FinderHandler{
+		finderQueryHandler: finderQueryHandler,
+	}
+}	
+func (h *FinderHandler) FindByEmail(ctx context.Context, email string) (*identity_domain.User, error) {
+	return h.finderQueryHandler.FindByEmail(ctx, email)
+}
+
+func (h *FinderHandler) FindById(ctx context.Context, id string) (*identity_domain.User, error) {
+	utils.LogPretty("FinderHandler - FindById - id", id)
+	return h.finderQueryHandler.FindById(ctx, id)
+}
+	

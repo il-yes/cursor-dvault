@@ -3,10 +3,12 @@ import { persist } from 'zustand/middleware';
 import { VaultContext } from '@/types/vault';
 import { CreateShareEntryPayload, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
+import * as AppAPI from "../../wailsjs/go/main/App";
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
 import { listSharedEntries, listSharedWithMe } from '@/services/api';
+import { useAuthStore } from '@/store/useAuthStore';
 
 interface VaultStoreState {
   vault: VaultContext | null;
@@ -95,22 +97,25 @@ export const useVaultStore = create<VaultStoreState>()(
             await new Promise((res) => setTimeout(res, 500)); // simulate delay
           } else {
             // ✅ Fetch from backend
-            const response = await fetch(`${CLOUD_BASE_URL}/vault`, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-            });
+            // const response = await fetch(`${CLOUD_BASE_URL}/vault`, {
+            //   method: 'GET',
+            //   headers: { 'Content-Type': 'application/json' },
+            //   credentials: 'include',
+            // });
+
+            const auth = useAuthStore.getState();
+            const response = await AppAPI.GetSession(auth.user?.id || '') 
             console.log("VaultStore - loadVault response", response);
 
-            if (!response.ok) {
-              throw new Error(`Failed to load vault: ${response.status}`);
+            if (response.Error) {
+              throw new Error(`Failed to load vault: ${response.Error}`);
             }
 
-            const vaultData = await response.json();
+            const vaultData = response.Data;
             data = {
-              User: vaultData.User || { id: vaultData.user_id, role: vaultData.role },
-              Vault: vaultData.Vault || vaultData,
-              SharedEntries: vaultData.SharedEntries || [],
+              User: vaultData?.User || { id: vaultData?.user_id, role: vaultData?.role },
+              Vault: vaultData?.Vault || vaultData,
+              SharedEntries: vaultData?.SharedEntries || [],
             };
             console.log('✅ Loaded vault from backend');
           }

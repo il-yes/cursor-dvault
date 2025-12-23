@@ -59,14 +59,20 @@ type AccountCreationResponse struct {
 // CreateAccount handles account creation (Step 4)
 // TODO: handle non-anonymous accounts with their own stellar keypair
 func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCreationResponse, error) {
+	// I. ---------- Check existing user ----------
+	if existingUser, _ := a.UserRepo.FindByEmail(req.Email); existingUser != nil {
+		return nil, onboarding_domain.ErrUserExists
+	}
+
+	// II. ---------- Anonymous Case ----------
 	if req.IsAnonymous {
-		// Create Stellar account for anonymous or user account (included encrypted password)
+		// 1. ---------- Create Stellar account for anonymous or user account (included encrypted password) ----------
 		pub, secret, txID, err := a.StellarService.CreateKeypair()
 		if err != nil {
 			return nil, err
 		}
 
-		// Create user with Stellar key as identifier
+		// 2. ---------- Create user Onboarding with Stellar key as identifier ----------
 		user := &onboarding_domain.User{
 			IsAnonymous:      true,
 			StellarPublicKey: pub,
@@ -79,14 +85,13 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 			return nil, err
 		}
 
-		// Fire creation event
+		// 3. ---------- Fire Onboarding creation event ----------
 		accountCreatedEvent := onboarding_application_events.AccountCreatedEvent{
 			UserID:           user.ID,
 			StellarPublicKey: pub,
 			OccurredAt:       time.Now(),
 		}
         // utils.LogPretty("accountCreatedEvent", accountCreatedEvent)
-        fmt.Println("accountCreatedEvent", accountCreatedEvent)
         // a.Logger.Info("accountCreatedEvent", accountCreatedEvent)   
 
 		if err := a.Bus.PublishCreated(context.Background(), accountCreatedEvent); err != nil {
@@ -100,10 +105,9 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
             TxID: txID,
 		}, nil
 	}
-		// -----------------------------
-	// 2. Hash password & create user
-	// -----------------------------
-	// utils.LogPretty("Plain password", req.Password)
+
+	// III. ---------- Standard Case ----------
+	// 2. ---------- Create user Onboarding  ----------
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to hash password: %w", err)
@@ -124,7 +128,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	}
 	fmt.Println("createdUser", createdUser)
 
-	// Fire creation event
+	// 3. ---------- Fire Onboarding creation event ----------
 	accountCreatedEvent := onboarding_application_events.AccountCreatedEvent{
 		UserID:     user.ID,
 		OccurredAt: time.Now(),

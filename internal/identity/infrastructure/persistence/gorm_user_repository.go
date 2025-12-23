@@ -2,6 +2,7 @@ package identity_persistence
 
 import (
 	"context"
+	utils "vault-app/internal"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 
@@ -35,9 +36,11 @@ func (r *GormUserRepository) Save(ctx context.Context, u *identity_domain.User) 
 
 func (r *GormUserRepository) FindByID(ctx context.Context, id string) (*identity_domain.User, error) {
 	var u identity_domain.User
-	if err := r.db.First(&u, id).Error; err != nil {
+	utils.LogPretty("GormUserRepository - FindByID - id, processing...", id)
+	if err := r.db.Model(&identity_domain.User{}).Where("id = ?", id).First(&u).Error; err != nil {
 		return nil, err
 	}
+	utils.LogPretty("GormUserRepository - FindByID - u, processed", u)
 	return &u, nil
 }
 
@@ -47,7 +50,7 @@ func (r *GormUserRepository) Update(ctx context.Context, u *identity_domain.User
 
 func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*identity_domain.User, error) {
 	var u identity_domain.User
-	if err := r.db.Where("email = ?", email).First(&u).Error; err != nil {
+	if err := r.db.Model(&identity_domain.User{}).Where("email = ?", email).First(&u).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

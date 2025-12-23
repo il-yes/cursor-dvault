@@ -40,6 +40,7 @@ export function CreateEntryDialog({
 
   // LOGIN
   const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginSite, setLoginSite] = useState("");
 
   // CARD
@@ -68,6 +69,8 @@ export function CreateEntryDialog({
       trashed: false,
       is_draft: false,
       is_favorite: false,
+      created_at: new Date(),
+      updated_at: new Date(),
     };
 
     let entry: any;
@@ -77,7 +80,7 @@ export function CreateEntryDialog({
         entry = {
           ...base,
           user_name: loginUsername,
-          password: "",
+          password: loginPassword,
           web_site: loginSite || undefined,
         };
         break;
@@ -123,6 +126,7 @@ export function CreateEntryDialog({
     setType("login");
     setNoteText("");
     setLoginUsername("");
+    setLoginPassword("");
     setLoginSite("");
     setCardOwner("");
     setCardNumber("");
@@ -146,6 +150,13 @@ export function CreateEntryDialog({
               <Input
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
               />
             </div>
 

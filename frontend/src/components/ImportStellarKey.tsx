@@ -18,9 +18,10 @@ interface VaultFoundData {
 interface StellarKeyImportProps {
   onComplete?: (data: { stellar_key_imported?: boolean; stellar_secret_key?: string }) => void;
   onSkip?: () => void;
+  onBack?: () => void;
 }
 
-const StellarKeyImport: React.FC<StellarKeyImportProps> = ({ onComplete, onSkip }) => {
+const StellarKeyImport: React.FC<StellarKeyImportProps> = ({ onComplete, onSkip, onBack }) => {
   const [importMethod, setImportMethod] = useState<'new' | 'import'>('new');
   const [stellarSecretKey, setStellarSecretKey] = useState('');
   const [checking, setChecking] = useState(false);
@@ -53,11 +54,11 @@ const StellarKeyImport: React.FC<StellarKeyImportProps> = ({ onComplete, onSkip 
         publicKey: publicKey,
         signature: signature,
         signedMessage: challenge
-      } 
+      }
       const result = await CheckStellarKeyForVault(publicKey);
       // const result = await ConnectWithStellar(payload);
       setKeyValidated(true);
-      
+
       if (result && result.ok) {
         setVaultFound(result);
       } else {
@@ -317,13 +318,22 @@ const StellarKeyImport: React.FC<StellarKeyImportProps> = ({ onComplete, onSkip 
             </p>
           </div>
 
-          <Button
-            onClick={handleSkip}
-            size="lg"
-            className="h-14 px-12 text-lg bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg hover:shadow-xl transition-all font-semibold"
-          >
-            Continue with New Account
-          </Button>
+          <div className="flex justify-between">
+            <button
+              onClick={onBack}
+              className="bg-[#C9A44A]/20 backdrop-blur-sm rounded-xl px-6 py-3 font-semibold text-[#C9A44A] hover:bg-opacity-40 shadow-md hover:shadow-xl transition"
+            >
+              Back
+            </button>
+
+            <Button
+              onClick={handleSkip}
+              size="lg"
+              className="h-14 px-12 text-lg bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg hover:shadow-xl transition-all font-semibold"
+            >
+              Continue with New Account
+            </Button>
+          </div>
         </div>
       )}
     </div>

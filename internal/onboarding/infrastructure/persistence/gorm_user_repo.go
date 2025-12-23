@@ -1,9 +1,9 @@
 package onboarding_persistence
 
-
 import (
-	"gorm.io/gorm"
 	"vault-app/internal/onboarding/domain"
+
+	"gorm.io/gorm"
 )
 
 type GormUserRepository struct {
@@ -14,11 +14,6 @@ func NewGormUserRepository(db *gorm.DB) onboarding_domain.UserRepository {
 	return &GormUserRepository{db: db}
 }
 
-// Ensure GORM uses the exact table name "subscription_db" or "subscriptions".
-// Replace "subscriptions" below with your actual table name if different.
-func (GormUserRepository) TableName() string {
-	return "users"
-}
 
 func (r *GormUserRepository) Create(user *onboarding_domain.User) (*onboarding_domain.User, error) {
 	userDB := ToUserDB(user)
@@ -42,9 +37,13 @@ func (r *GormUserRepository) GetByID(id string) (*onboarding_domain.User, error)
 }
 
 func (r *GormUserRepository) List() ([]onboarding_domain.User, error) {
-	var users []onboarding_domain.User
-	if err := r.db.Find(&users).Error; err != nil {
+	var usersDB []UserDB
+	if err := r.db.Find(&usersDB).Error; err != nil {
 		return nil, err
+	}
+	var users []onboarding_domain.User
+	for _, userDB := range usersDB {
+		users = append(users, *userDB.ToUser())
 	}
 	return users, nil
 }
@@ -69,3 +68,6 @@ func (r *GormUserRepository) FindByEmail(email string) (*onboarding_domain.User,
 func (r *GormUserRepository) FindUserByEmail(email string) (*onboarding_domain.User, error) {
 	return r.FindByEmail(email)
 }
+func (r *GormUserRepository) FindAll() ([]onboarding_domain.User, error) {
+	return r.List()
+}	

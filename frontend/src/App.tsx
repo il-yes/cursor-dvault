@@ -60,7 +60,6 @@ function AppContent() {
 				console.warn('IPFS backend not ready:', error);
 			}
 		} else {
-			console.log('Wails runtime not detected - using mock data');
 			setWalletStatus('mock-connected');
 			setIpfsStatus('mock-ready');
 		}

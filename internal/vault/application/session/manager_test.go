@@ -66,6 +66,7 @@ func TestManager_PrepareAndGet(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
+		nil,	
 	)
 
 	userID := "user-1"
@@ -85,6 +86,7 @@ func TestManager_AttachVault(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
+		nil,	
 	)
 
 	userID := "user-2"
@@ -109,6 +111,7 @@ func TestManager_StartSession(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
+		nil,	
 	)
 
 	userID := "user-3"
@@ -135,6 +138,7 @@ func TestManager_MarkDirty(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
+		nil,	
 	)
 
 	manager.NowUTC = func() string { return "now" }
@@ -157,7 +161,8 @@ func TestManager_Close(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
-	)
+		nil,	
+		)
 
 	userID := "user-5"
 	manager.Prepare(userID)
@@ -175,6 +180,7 @@ func TestManager_GetSession_Error(t *testing.T) {
 		&fakeLogger{},
 		context.Background(),
 		nil,
+		nil,	
 	)
 
 	_, err := manager.GetSession("missing-user")

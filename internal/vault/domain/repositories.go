@@ -9,3 +9,14 @@ type VaultRepository interface {
 	GetLatestByUserID(userID string) (*Vault, error)
 }
 
+type FolderRepository interface {
+	SaveFolder(folder *Folder) error
+	GetFolder(folderID string) (*Folder, error)
+	UpdateFolder(folder *Folder) error
+	DeleteFolder(folderID string) error
+
+	GetFoldersByUserID(userID string) ([]Folder, error)
+	GetFoldersByVault(vaultCID string) ([]Folder, error)	
+	GetFolderById(id string) (*Folder, error)
+}
+

@@ -66,19 +66,19 @@ func (s *SubscriptionActivator) Listen(ctx context.Context) error {
 
 func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_eventbus.SubscriptionCreated) error {
 
-    // Load subscription
+    // 1. Load subscription
     sub, err := s.repo.GetByID(ctx, evt.SubscriptionID)
     if err != nil {
         return err
     }
 
-    // Optional: log into Stellar ledger
+    // 1.5. Optional: log into Stellar ledger
     var ledger int32 = 0
     if s.stellar != nil {
         _, _ = s.stellar.LogSubscriptionActivated(ctx, sub.UserID, sub.Tier)
     }
 
-    // Update subscription status
+    // 2. Update Activation subscription status
     sub.Active = true
     sub.ActivatedAt = time.Now().Unix()
     if err := s.repo.Update(ctx, sub); err != nil {
@@ -87,7 +87,7 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
     utils.LogPretty("Subscription Activated", sub)
     
 
-    // Emit SubscriptionActivated event
+    // 3. Emit SubscriptionActivated event
     activated := subscription_application_eventbus.SubscriptionActivated{
         SubscriptionID: sub.ID,
         UserID:         sub.UserID,
@@ -97,6 +97,7 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
         Ledger:         ledger,
         OccurredAt:     time.Now().Unix(),
     }
+    // 4. Publish activated event
     fmt.Println("precessing to publish activated event...")
     _ = s.bus.PublishActivated(ctx, activated)
 

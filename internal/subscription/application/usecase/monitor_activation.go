@@ -78,7 +78,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 		m.Logger.Info("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d password=%s",
 			event.SubscriptionID, event.UserID, event.Tier, event.Ledger, event.Password)
 
-		// 1. ------------ I. Subscription Register User (user_dbs) ------------
+		// 1. ------------ I.  Register User Subscription ------------
 		userSubscription := subscription_domain.UserSubscription{
 			ID:    event.SubscriptionID,
 			Email: event.UserID,

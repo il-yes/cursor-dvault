@@ -25,7 +25,9 @@ type fakeOnboardingRepo struct {
 	user *onboarding_domain.User
 	err  error
 }
-
+func (f	 *fakeOnboardingRepo) FindAll() ([]onboarding_domain.User, error) {
+	return nil, nil
+}
 func (f *fakeOnboardingRepo) FindByEmail(email string) (*onboarding_domain.User, error) {
 	return f.user, f.err
 }

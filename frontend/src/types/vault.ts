@@ -41,7 +41,7 @@ export interface AppSettings {
   vault_settings: VaultSettings;
   blockchain: BlockchainConfig2;
   user_id?: number;
-  auto_sync_enabled: boolean; 
+  auto_sync_enabled: boolean;
 }
 
 export interface CommitRule {
@@ -244,7 +244,7 @@ export interface LoginRequest {
   signature?: string;
 }
 export interface User {
-  id: number;
+  id: string;
   email: string;
   password: string;
   username: string;
@@ -258,7 +258,7 @@ export type Entry =
   | SSHKeyEntry;
 
 
-export  type WailsResponse<T> = {
+export type WailsResponse<T> = {
   result: T | null;
   error: string | null;
   callbackid: string;

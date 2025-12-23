@@ -56,7 +56,14 @@ type Claims struct {
 
 	jwt.RegisteredClaims
 }
-
+func (c *Claims) ToFormerModel() *auth.Claims {
+	return &auth.Claims{
+		UserID:       c.UserID,
+		Username: c.Username,
+		Email:    c.Email,
+		RegisteredClaims: c.RegisteredClaims,
+	}
+}	
 
 
 

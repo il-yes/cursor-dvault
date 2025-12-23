@@ -4,6 +4,7 @@ import {json} from '../models';
 import {share_application_use_cases} from '../models';
 import {blockchain} from '../models';
 import {handlers} from '../models';
+import {auth} from '../models';
 import {main} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
@@ -24,7 +25,7 @@ export function CheckEmail(arg1:string):Promise<handlers.CheckEmailResponse>;
 
 export function CheckPaymentOnResume():Promise<void>;
 
-export function CheckSession(arg1:string):Promise<string>;
+export function CheckSession(arg1:string):Promise<auth.TokenPairs>;
 
 export function CheckStellarKeyForVault(arg1:string):Promise<main.CheckKeyResponse>;
 
@@ -58,9 +59,13 @@ export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<models.
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
 
+export function GetSession(arg1:string):Promise<main.GetSessionResponse>;
+
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_domain.ShareAcceptData>;
 
 export function GetTierFeatures():Promise<Record<string, onboarding_domain.SubscriptionFeatures>>;
+
+export function GetVault(arg1:string):Promise<Record<string, any>>;
 
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
@@ -84,11 +89,13 @@ export function PollPaymentStatus(arg1:string,arg2:string):Promise<string>;
 
 export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain.RecoveredVault>;
 
-export function RefreshToken(arg1:string):Promise<string>;
+export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 
 export function RejectShare(arg1:string,arg2:string):Promise<share_application_use_cases.RejectShareResult>;
 
 export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
+
+export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 

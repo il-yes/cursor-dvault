@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
+	vault_session "vault-app/internal/vault/application/session"
 )
 
 type EntryHandler interface {
@@ -12,11 +13,13 @@ type EntryHandler interface {
 	Edit(userID string, entry any) (*any, error)
 	Trash(userID string, entryID string) error
 	Restore(userID string, entryID string) error
+	SetVault(vault *vault_session.Session)
 }
 
 type EntryRegistry struct {
 	logger logger.Logger
 	handlers map[string]EntryHandler
+	Vault *vault_session.Session
 }
 
 

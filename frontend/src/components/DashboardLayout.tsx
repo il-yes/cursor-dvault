@@ -45,6 +45,10 @@ import { NavLink as ReactRouterNavLink, NavLinkProps as ReactRouterNavLinkProps 
 import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
+import { withAuth } from "@/hooks/withAuth";
+import { auth } from "wailsjs/go/models";
+
+
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
   children: React.ReactNode;
@@ -120,6 +124,7 @@ function DashboardNavbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [vault, setVault] = useState<VaultPayload | null>(null);
   const [decryptionPassword, setDecryptionPassword] = useState<string | null>(null);
+  const auth = useAuthStore.getState();
 
   const isVaultContext = location.pathname.startsWith("/dashboard/vault");
 
@@ -161,7 +166,7 @@ function DashboardNavbar() {
     try {
       // Debug: Check if jwtToken is available
       console.log("🔑 JWT Token:", jwtToken);
-      
+
 
       if (!jwtToken) {
         toast({
@@ -179,7 +184,12 @@ function DashboardNavbar() {
       };
 
       // 2️⃣ Send to backend (v0 logic)
-      const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
+      // const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
+      const rawEntry = await withAuth((token) => {
+        console.log("🚀 ~ withAuth ~ token:", token)
+        return AppAPI.AddEntry(entry.type, entryPayload, token)
+      });
+      console.log("🚀 ~ handleCreateEntry ~ rawEntry:", rawEntry)
 
       // 3️⃣ Convert backend response if needed
       const newEntry: VaultEntry = {
@@ -216,6 +226,11 @@ function DashboardNavbar() {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
+  const refreshTokenTest = async () => {
+    const token = await AppAPI.RefreshToken(auth.user?.id);
+    console.log("🚀 ~ refreshTokenTest ~ token:", {token})
+  } 
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center px-4 md:px-6">
@@ -229,7 +244,7 @@ function DashboardNavbar() {
 
         <div className="hidden md:flex items-center gap-3">
           {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
-          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+          <span onClick={refreshTokenTest} className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
         </div>
 
         <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
@@ -313,15 +328,15 @@ function DashboardNavbar() {
 
 
 const Avatars = [
-  {'id': 38, src: AvatarImg},
-  {'id': 37, src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg"},
-  {'id': 34, src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg'},
-  {'id': 39, src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg'}
+  { 'id': "38", src: AvatarImg },
+  { 'id': "37", src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg" },
+  { 'id': "34", src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg' },
+  { 'id': "39", src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg' }
 ]
-const RenderAvatar = (id: number) => {
-  const img = Avatars.find((f: { id: any; }) => f.id === id);
-  return img ? img.src : "" 
-} 
+const RenderAvatar = (id: string | number) => {
+  const img = Avatars.find((f) => String(f.id) === String(id));
+  return img ? img.src : ""
+}
 
 function AppSidebar() {
   const location = useLocation();
@@ -366,7 +381,7 @@ function AppSidebar() {
         )}
 
         <SidebarGroup >
-          <SidebarGroupLabel style={{marginTop: "30px"}} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+          <SidebarGroupLabel style={{ marginTop: "30px" }} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
             {isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -378,10 +393,9 @@ function AppSidebar() {
                       to={item.url}
                       end
                       className={({ isActive }) =>
-                        `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
-                          isActive
-                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                            : "text-muted-foreground hover:text-foreground"
+                        `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+                          ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                          : "text-muted-foreground hover:text-foreground"
                         }`
                       }
                     >
@@ -396,7 +410,7 @@ function AppSidebar() {
         </SidebarGroup>
 
         {secondaryItems.length > 0 && (
-          <SidebarGroup style={{marginTop: "30px"}} >
+          <SidebarGroup style={{ marginTop: "30px" }} >
             <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
               {isVaultContext ? "Entry Types" : "More"}
             </SidebarGroupLabel>
@@ -408,10 +422,9 @@ function AppSidebar() {
                       <NavLink
                         to={item.url}
                         className={({ isActive }) =>
-                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
-                            isActive
-                              ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                              : "text-muted-foreground hover:text-foreground"
+                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                            : "text-muted-foreground hover:text-foreground"
                           }`
                         }
                       >
@@ -428,7 +441,7 @@ function AppSidebar() {
 
         {/* Folders Section (Vault only) */}
         {isVaultContext && (
-          <SidebarGroup style={{marginTop: "30px"}} >
+          <SidebarGroup style={{ marginTop: "30px" }} >
             <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 flex justify-between items-center bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
               <span>Folders</span>
               <SidebarMenuButton asChild>
@@ -448,10 +461,9 @@ function AppSidebar() {
                       <NavLink
                         to={`/dashboard/vault/folder/${folder.id}`}
                         className={({ isActive }) =>
-                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${
-                            isActive
-                              ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                              : "text-muted-foreground hover:text-foreground"
+                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+                            : "text-muted-foreground hover:text-foreground"
                           }`
                         }
                       >
@@ -489,7 +501,7 @@ function AppSidebar() {
           <Crown className="h-4 w-4 mr-2" />
           Upgrade to Premium
         </Button>
-        
+
         {/* User Info */}
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
           <Avatar className="h-10 w-10 flex-shrink-0">
@@ -565,7 +577,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <AppSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <DashboardNavbar />
-          <main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{paddingRight: "25px"}}>
+          <main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{ paddingRight: "25px" }}>
             {children}
           </main>
         </div>

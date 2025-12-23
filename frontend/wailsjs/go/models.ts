@@ -249,6 +249,57 @@ export namespace app_config {
 
 export namespace auth {
 	
+	export class Claims {
+	    user_id: string;
+	    username: string;
+	    email: string;
+	    iss?: string;
+	    sub?: string;
+	    aud?: string[];
+	    // Go type: jwt
+	    exp?: any;
+	    // Go type: jwt
+	    nbf?: any;
+	    // Go type: jwt
+	    iat?: any;
+	    jti?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Claims(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.username = source["username"];
+	        this.email = source["email"];
+	        this.iss = source["iss"];
+	        this.sub = source["sub"];
+	        this.aud = source["aud"];
+	        this.exp = this.convertValues(source["exp"], null);
+	        this.nbf = this.convertValues(source["nbf"], null);
+	        this.iat = this.convertValues(source["iat"], null);
+	        this.jti = source["jti"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class TokenPairs {
 	    access_token: string;
 	    refresh_token: string;
@@ -591,6 +642,20 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class GetSessionResponse {
+	    Data: Record<string, any>;
+	    Error: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new GetSessionResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Data = source["Data"];
+	        this.Error = source["Error"];
+	    }
 	}
 	export class OnboardingStep1Response {
 	    identity: string;

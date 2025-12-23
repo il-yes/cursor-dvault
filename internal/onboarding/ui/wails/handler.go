@@ -1,9 +1,11 @@
 package onboarding_ui_wails
 
 import (
+    "gorm.io/gorm"
 	identity_domain "vault-app/internal/identity/domain"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_domain "vault-app/internal/subscription/domain"
 )
 
@@ -12,14 +14,16 @@ type OnBoardingHandler struct {
 	uc *onboarding_usecase.GetRecommendedTierUseCase
 	createAccountUseCase *onboarding_usecase.CreateAccountUseCase   
     setupPaymentUseCase *onboarding_usecase.SetupPaymentAndActivateUseCase
+    DB *gorm.DB
 }
 
 func NewOnBoardingHandler(
     uc *onboarding_usecase.GetRecommendedTierUseCase, 
     createAccountUseCase *onboarding_usecase.CreateAccountUseCase,
     setupPaymentUseCase *onboarding_usecase.SetupPaymentAndActivateUseCase,
+    DB *gorm.DB,
     ) *OnBoardingHandler {
-	return &OnBoardingHandler{uc: uc, createAccountUseCase: createAccountUseCase, setupPaymentUseCase: setupPaymentUseCase}
+	return &OnBoardingHandler{uc: uc, createAccountUseCase: createAccountUseCase, setupPaymentUseCase: setupPaymentUseCase, DB: DB}
 }
 
 
@@ -114,4 +118,10 @@ func (h *OnBoardingHandler) SetupPaymentAndActivate(req onboarding_usecase.Payme
     }
 
     return response, nil
+}
+
+func (h *OnBoardingHandler) FetchUsers() ([]onboarding_domain.User, error) {
+    userRepository := onboarding_persistence.NewGormUserRepository(h.DB)
+    findUserUC := onboarding_usecase.NewFindUsersUseCase(userRepository)
+    return findUserUC.Execute()
 }

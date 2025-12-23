@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { checkEmail } from "@/services/api";
 import { Shield, ArrowLeft } from "lucide-react";
 import { StellarLoginForm } from "@/components/StellarLoginForm";
 import { useAuth } from "@/hooks/useAuth";
+import * as AppAPI from "../../wailsjs/go/main/App";
 
 const EmailLookup = () => {
   const [email, setEmail] = useState("");
@@ -16,6 +17,27 @@ const EmailLookup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loginWithStellar } = useAuth();
+  const [users, setUsers] = useState<any>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await AppAPI.FetchUsers();
+        setUsers(response);
+        console.log(response);
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch users. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+    fetchUsers();
+  }, []);
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -28,6 +50,7 @@ const EmailLookup = () => {
         description: "Please enter a valid email address.",
         variant: "destructive",
       });
+      console.log({ email })
       return;
     }
 
@@ -35,7 +58,8 @@ const EmailLookup = () => {
     try {
       const response = await checkEmail(email);
       if (response.status === "NEW_USER") {
-        navigate(`/signup?email=${encodeURIComponent(email)}`);
+        navigate(`/login/step2?email=${encodeURIComponent(email)}&methods=${response.auth_methods?.join(",")}`);
+        // navigate(`/signup?email=${encodeURIComponent(email)}`);
       } else if (response.status === "EXISTS") {
         navigate(`/login/step2?email=${encodeURIComponent(email)}&methods=${response.auth_methods?.join(",")}`);
       }
@@ -77,21 +101,40 @@ const EmailLookup = () => {
             <CardDescription>Access your secure vault</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5" style={{padding: "0px 20px"}}>
+            <form onSubmit={handleSubmit} className="space-y-5" style={{ padding: "0px 20px" }}>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email Address
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  className="h-11 rounded-xl border-zinc-200 dark:border-zinc-700 focus:ring-2 focus:ring-primary/30 transition-all"
-                  placeholder="you@example.com"
+                
+                <select
+                  id="user"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
+                  disabled={isLoading || users.length === 0}
+                  className="
+                    h-11 w-full rounded-xl
+                    bg-white/10 dark:bg-zinc-900/20
+                    border border-white/40 dark:border-white/10
+                    shadow-sm shadow-black/10
+                    backdrop-blur-md
+                    px-3 text-sm
+                    text-foreground
+                    placeholder:text-zinc-400
+                    focus:outline-none focus:ring-2 focus:ring-amber-300/70 focus:border-transparent
+                    disabled:opacity-60 disabled:cursor-not-allowed
+                    transition-colors
+                  "
+                >
+                  <option value="">Choose a user…</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.email}>
+                      {u.email ?? u.name ?? u.id}
+                    </option>
+                  ))}
+                </select>
+
+
               </div>
 
               <Button

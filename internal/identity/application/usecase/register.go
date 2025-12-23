@@ -7,6 +7,30 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 )
 
+
+type RegisterRequest struct {
+	Email string
+	Password string
+	IsAnonymous bool
+	StellarPublicKey string
+}
+
+type RegisterIdentityUseCase struct {
+	StandardUC *RegisterStandardUserUseCase
+	AnonymousUC *RegisterAnonymousUserUseCase
+}
+
+func NewRegisterIdentityUseCase(std *RegisterStandardUserUseCase, anon *RegisterAnonymousUserUseCase) *RegisterIdentityUseCase {
+	return &RegisterIdentityUseCase{StandardUC: std, AnonymousUC: anon}
+}	
+
+func (uc *RegisterIdentityUseCase) RegisterIdentity(ctx context.Context, req RegisterRequest) (*identity_domain.User, error) {
+	if req.IsAnonymous {
+		return uc.AnonymousUC.Execute(ctx, req.StellarPublicKey)
+	}
+	return uc.StandardUC.Execute(ctx, req.Email, req.Password)
+}
+
 // RegisterStandardUserUseCase registers a non-anonymous user
 type RegisterStandardUserUseCase struct {
 	repo  identity_domain.UserRepository
@@ -19,16 +43,17 @@ func NewRegisterStandardUserUseCase(repo identity_domain.UserRepository, bus ide
 }
 
 func (uc *RegisterStandardUserUseCase) Execute(ctx context.Context, email, passwordHash string) (*identity_domain.User, error) {
-	// check existing
+	// ---------	 I. Check existing ---------
 	if existing, _ := uc.repo.FindByEmail(ctx, email); existing != nil {
 		return nil, identity_domain.ErrUserExists
 	}
+	// ---------	 II. Create Identity User ---------
 	id := uc.idGen()
 	u := identity_domain.NewStandardUser(id, email, passwordHash)
 	if err := uc.repo.Save(ctx, u); err != nil {
 		return nil, err
 	}
-	// publish event
+	// 	--------- III. Publish event ---------
 	domainEvent := identity_domain.NewUserRegistered(u)
 	if uc.bus != nil {
 		// Convert domain event to application event
@@ -74,27 +99,4 @@ func (uc *RegisterAnonymousUserUseCase) Execute(ctx context.Context, stellarPubl
 }
 
 
-type RegisterRequest struct {
-	Email string
-	Password string
-	IsAnonymous bool
-	StellarPublicKey string
-}
-
-
-type RegisterIdentityUseCase struct {
-	StandardUC *RegisterStandardUserUseCase
-	AnonymousUC *RegisterAnonymousUserUseCase
-}
-
-func NewRegisterIdentityUseCase(std *RegisterStandardUserUseCase, anon *RegisterAnonymousUserUseCase) *RegisterIdentityUseCase {
-	return &RegisterIdentityUseCase{StandardUC: std, AnonymousUC: anon}
-}	
-
-func (uc *RegisterIdentityUseCase) RegisterIdentity(ctx context.Context, req RegisterRequest) (*identity_domain.User, error) {
-	if req.IsAnonymous {
-		return uc.AnonymousUC.Execute(ctx, req.StellarPublicKey)
-	}
-	return uc.StandardUC.Execute(ctx, req.Email, req.Password)
-}
 	

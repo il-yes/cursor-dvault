@@ -81,4 +81,3 @@ func SessionDomainToMapper(session *vault_session.Session) *SessionMapper {
         Runtime: session.Runtime,
     }
 }
-

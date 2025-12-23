@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	auth_usecases "vault-app/internal/auth/application/use_cases"
 	auth_domain "vault-app/internal/auth/domain"
 	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
+	auth_ui "vault-app/internal/auth/ui"
 	billing_usecase "vault-app/internal/billing/application/usecase"
 	billing_infrastructure_eventbus "vault-app/internal/billing/infrastructure/eventbus"
 	billing_persistence "vault-app/internal/billing/infrastructure/persistence"
@@ -26,6 +28,7 @@ import (
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
 	identity_commands "vault-app/internal/identity/application/commands"
+	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
@@ -56,6 +59,7 @@ import (
 	"vault-app/internal/tracecore"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_session "vault-app/internal/vault/application/session"
+	vaults_domain "vault-app/internal/vault/domain"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 	vault_ui "vault-app/internal/vault/ui"
 
@@ -109,6 +113,7 @@ type App struct {
 	// Core handlers
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
 	Identity                  *identity_ui.IdentityHandler
+	AuthHandler               *auth_ui.AuthHandler	
 	Vault                     *vault_ui.VaultHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
@@ -172,6 +177,13 @@ func NewApp() *App {
 		TokenExpiry:   time.Minute * 15,
 		RefreshExpiry: time.Hour * 24,
 	}
+	authV2 := auth_domain.Auth{
+		Issuer:        cfg.JWTIssuer,
+		Audience:      cfg.JWTAudience,
+		Secret:        cfg.JWTSecret,
+		TokenExpiry:   time.Minute * 15,
+		RefreshExpiry: time.Hour * 24,
+	}
 
 	// Init services
 	appLogger.Info("🔧 Initializing IPFS client...")
@@ -179,40 +191,8 @@ func NewApp() *App {
 	appLogger.Info("✅ IPFS client initialized (connection will be tested on first use)")
 
 	sessions := make(map[string]*models.VaultSession)
-
-	appLogger.Info("🔧 Initializing Tracecore client...")
-	tcClient := tracecore.NewTracecoreClient(os.Getenv("ANKHORA_URL"), os.Getenv("TRACECORE_TOKEN"))
-	appLogger.Info("✅ Tracecore client initialized")
-
-	reg := registry.NewRegistry(appLogger)
-	reg.RegisterDefinitions([]registry.EntryDefinition{
-		{
-			Type:    "login",
-			Factory: func() models.VaultEntry { return &models.LoginEntry{} },
-			Handler: handlers.NewLoginHandler(*db, *ipfs, sessions, appLogger),
-		},
-		{
-			Type:    "card",
-			Factory: func() models.VaultEntry { return &models.CardEntry{} },
-			Handler: handlers.NewCardHandler(*db, *ipfs, sessions, appLogger),
-		},
-		{
-			Type:    "note",
-			Factory: func() models.VaultEntry { return &models.NoteEntry{} },
-			Handler: handlers.NewNoteHandler(*db, *ipfs, sessions, appLogger),
-		},
-		{
-			Type:    "identity",
-			Factory: func() models.VaultEntry { return &models.IdentityEntry{} },
-			Handler: handlers.NewIdentityHandler(*db, *ipfs, sessions, appLogger),
-		},
-		{
-			Type:    "sshkey",
-			Factory: func() models.VaultEntry { return &models.SSHKeyEntry{} },
-			Handler: handlers.NewSSHKeyHandler(*db, *ipfs, sessions, appLogger),
-		},
-	})
-
+	sessionsV2 := make(map[string]*vault_session.Session)
+	
 	ctx, cancel := context.WithCancel(context.Background())
 	runtimeCtx := &vault_session.RuntimeContext{
 		AppConfig: app_config.AppConfig{
@@ -234,6 +214,44 @@ func NewApp() *App {
 		SessionSecrets: make(map[string]string),
 		// LoadedEntries:  []models.VaultEntry{},
 	}
+
+	// vaultRepo := vaults_persistence.NewGormVaultRepository(db.DB)
+	// sessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
+	// sessionV2 := vault_session.NewManager(sessionRepo, vaultRepo, appLogger, ctx, ipfs)
+
+	appLogger.Info("🔧 Initializing Tracecore client...")
+	tcClient := tracecore.NewTracecoreClient(os.Getenv("ANKHORA_URL"), os.Getenv("TRACECORE_TOKEN"))
+	appLogger.Info("✅ Tracecore client initialized")
+
+	reg := registry.NewRegistry(appLogger)
+	reg.RegisterDefinitions([]registry.EntryDefinition{
+		{
+			Type:    "login",
+			Factory: func() models.VaultEntry { return &vaults_domain.LoginEntry{} },
+			Handler: vault_ui.NewLoginHandler(*db, *ipfs, appLogger),
+		},
+		{
+			Type:    "card",
+			Factory: func() models.VaultEntry { return &vaults_domain.CardEntry{} },
+			Handler: vault_ui.NewCardHandler(*db, *ipfs, appLogger),
+		},
+		{
+			Type:    "note",
+			Factory: func() models.VaultEntry { return &vaults_domain.NoteEntry{} },
+			Handler: vault_ui.NewNoteHandler(*db, *ipfs, appLogger),
+		},
+		{
+			Type:    "identity",
+			Factory: func() models.VaultEntry { return &vaults_domain.IdentityEntry{} },
+			Handler: vault_ui.NewIdentityHandler(*db, *ipfs, appLogger),
+		},
+		{
+			Type:    "sshkey",
+			Factory: func() models.VaultEntry { return &vaults_domain.SSHKeyEntry{} },
+			Handler: vault_ui.NewSSHKeyHandler(*db, *ipfs, appLogger),
+		},
+	})
+
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth, onboardingUserRepo)
@@ -265,7 +283,7 @@ func NewApp() *App {
 	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, onboardingBus, appLogger)
 	stellarRecoveryHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
 	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient)
-	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, onboardingCreateAccountUC, onboardingSetupPaymentUseCase)
+	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, onboardingCreateAccountUC, onboardingSetupPaymentUseCase, db.DB)
 	subscriptionBus := subscription_infrastructure_eventbus.NewMemoryBus()
 	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
 	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
@@ -294,14 +312,14 @@ func NewApp() *App {
 
 
 	cryptoService := blockchain.CryptoService{}
+	authRepository := auth_persistence.NewGormAuthRepository(db.DB)
+	authTokenService := auth_usecases.NewTokenService(authV2, authRepository, db.DB)
 	
 	// Identity
 	identityUserRepo := identity_persistence.NewGormUserRepository(db.DB)
 	vaultSessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db.DB)
-	vaultSessionManager := vault_session.NewManager(vaultSessionRepo, vaultRepo, appLogger, ctx, ipfs)
-	authRepo := auth_persistence.NewGormAuthRepository(db.DB)	
-	authTokenService := auth_usecases.NewTokenService(auth_domain.Auth{}, authRepo, db.DB)
+	vaultSessionManager := vault_session.NewManager(vaultSessionRepo, vaultRepo, appLogger, ctx, ipfs, sessionsV2)
 	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
 	identityLoginCommandHandler := identity_commands.NewLoginCommandHandler(onboardingUserRepo, identityUserRepo, authTokenService, vaultSessionManager, identityMemoryBus)
 	identityLoginHandler := identity_ui.NewLoginHandler(identityLoginCommandHandler)
@@ -314,11 +332,21 @@ func NewApp() *App {
 			registerAnonymousUserUseCase,
 		),
 	)
-	identityHandler := identity_ui.NewIdentityHandler(identityLoginHandler, identityRegistrationHandler)
+	identityFinderHandler := identity_ui.NewFinderHandler(
+		identity_queries.NewFinderQueryHandler(identityUserRepo),
+	)
+	identityHandler := identity_ui.NewIdentityHandler(identityLoginHandler, identityRegistrationHandler, identityFinderHandler)
 
+
+	// Auth
+	tokenUC := auth_usecases.NewGenerateTokensUseCase(authRepository, authTokenService)
+	authHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db.DB)
+	
 	// Vault
+	vaultRepository := vaults_persistence.NewGormVaultRepository(db.DB)
+	folderRepository := vaults_persistence.NewGormFolderRepository(db.DB)
 	openVaultHandler := vault_ui.NewOpenVaultHandler(vault_commands.NewOpenVaultCommandHandler(vaultRepo, vaultSessionManager, ipfs, &cryptoService))
-	vaultHandler := vault_ui.NewVaultHandler(openVaultHandler)
+	vaultHandler := vault_ui.NewVaultHandler(openVaultHandler, folderRepository, vaultRepository, reg, *appLogger, ctx, ipfs, db.DB, sessionsV2)
 
 
 	// Stripe webhook listener
@@ -403,6 +431,7 @@ func NewApp() *App {
 		version:                   version,
 		DB:                        *db,
 		StellarRecoveryHandler:    stellarRecoveryHandler,
+		AuthHandler:               authHandler,
 		Identity:                  identityHandler,
 		Vault:                     vaultHandler,
 		OnBoardingHandler:         onBoardingHandler,
@@ -645,8 +674,14 @@ func (a *App) SignOut(userID string, cid string, password string) {
 	a.Vaults.EndSession(userID)
 	a.Auth.Logout(userID)
 }
-func (a *App) CheckSession(userID string) (string, error) {
-	return a.Auth.RefreshToken(userID) // same logic you already wrote
+func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
+	utils.LogPretty("CheckSession userID", userID)
+	tokenPair, err := a.AuthHandler.GenerateTokenPair(userID)
+	if err != nil {
+		return nil, err
+	}
+	return tokenPair.ToFormerModel(), nil
+	// return a.Auth.RefreshToken(userID) // same logic you already wrote
 }
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
@@ -681,6 +716,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		return nil, err
 	}
 	a.Logger.Info("Vault opened successfully: %v", vaultRes)
+	
 	// --------- Vault response converter for v1 ---------
 	var formerVault *models.VaultPayload
 	if vaultRes.Content != nil {
@@ -706,16 +742,60 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 	utils.LogPretty("SignInWithIdentity - loginRes", loginRes)
 	return loginRes, nil
 }
+type GetSessionResponse struct {
+	Data map[string]interface{}
+	Error error
+}
+func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
+	utils.LogPretty("App - GetSession - userID", userID)
+	if a.Vault.SessionManager == nil {
+		return &GetSessionResponse{Error: errors.New("session manager not initialized")}, nil
+	}
+	utils.LogPretty("App - GetSession - userID", userID)
 
+	userSession, err := a.Vault.SessionManager.GetSession(userID)
+	if err != nil {
+		return &GetSessionResponse{Error: err}, nil
+	}
+	user, err := a.Identity.Finder.FindById(a.ctx, userID)	
+	if err != nil {
+		return nil, err
+	}
+
+	response := map[string]interface{}{
+		"User": 	user,
+		"role": "user",
+		"Vault": userSession.Vault,
+		"SharedEntries": []models.VaultEntry{},
+		"VaultRuntimeContext": userSession.Runtime,
+		"LastCID": userSession.LastCID,
+		"Dirty": userSession.Dirty,
+	 }
+	return &GetSessionResponse{Data: response}, nil	
+}
 // -----------------------------
 // JWT Token
 // -----------------------------
-func (a *App) RefreshToken(userID string) (string, error) {
-	token, err := a.Auth.RefreshToken(userID)
+func (a *App) RefreshToken(userID string) (*auth.TokenPairs, error) {
+	// token, err := a.Auth.RefreshToken(userID)
+	utils.LogPretty("App - RefreshToken - userID", userID)
+	token, err := a.AuthHandler.GenerateTokenPair(userID)
 	if err != nil {
-		return "", err
+		a.Logger.Error("App - RefreshToken - error", err)
+		return nil, err
 	}
-	return token, nil
+	utils.LogPretty("App - RefreshToken - token", token)
+
+	return token.ToFormerModel(), nil
+}
+func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
+	utils.LogPretty("App - RequireAuth ", jwtToken)
+	claims, err := a.AuthHandler.VerifyToken(jwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	utils.LogPretty("claims", claims)
+	return claims.ToFormerModel(), nil
 }
 func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
 	return a.Auth.RequestChallenge(req)
@@ -723,16 +803,45 @@ func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.Chal
 func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
-
 // -----------------------------
 // Vault Crud
 // -----------------------------
-func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+func (a *App) GetVault(userID string) (map[string]interface{}, error) {
+	utils.LogPretty("App - GetVault - userID", userID)
+	user, err := a.Identity.Finder.FindById(a.ctx, userID)	
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.AddEntry(claims.UserID, entryType, raw)
+	vaultUser, err := a.Vault.GetVault(userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	 response := map[string]interface{}{
+		"User": 	user,
+		"role": "user",
+		"Vault": vaultUser,
+		"SharedEntries": []models.VaultEntry{},
+		"VaultRuntimeContext": *vaultUser.Runtime,
+		"LastCID": vaultUser.LastCID,
+		"Dirty": vaultUser.Dirty,
+	 }
+	return response, nil
+}
+func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
+	utils.LogPretty("App - AddEntry - jwtToken", jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - AddEntry - error: %v", err)
+		return nil, err
+	}
+	utils.LogPretty("App - AddEntry - claims", claims)
+	res, err := a.Vault.AddEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - AddEntry - res", res)
+	return res, nil
 }
 
 func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
@@ -983,7 +1092,22 @@ func (a *App) IsVaultDirty(jwtToken string) (bool, error) {
 }
 
 func (a *App) FetchUsers() ([]models.UserDTO, error) {
-	return a.DB.FindUsers()
+	users, err := a.OnBoardingHandler.FetchUsers()		
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("FetchUsers - users", users)	
+	var userDTOs []models.UserDTO
+	for _, user := range users {
+		userDTOs = append(userDTOs, models.UserDTO{
+			ID:      user.ID,
+			Email:  user.Email,
+			Role:   "user",
+			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"),
+		})
+	}
+	
+	return userDTOs, nil
 }
 
 // -----------------------------

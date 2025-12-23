@@ -36,13 +36,13 @@ func NewCreateIPFSPayloadCommandHandler(vaultRepo vaults_domain.VaultRepository,
 
 func (h *CreateIPFSPayloadCommandHandler) Execute(cmd CreateIPFSPayloadCommand) (*CreateIPFSPayloadCommandResult, error) {
 	// -----------------------------
-	// 1. Get vault content
+	// 1. Vault - Get vault content
 	// -----------------------------
 	const InitialVaultVersion = "1.0.0"
-	vaultPayload := cmd.Vault.BuildInitialPayload(InitialVaultVersion)
+	vaultPayload := cmd.Vault.BuildInitialPayload(InitialVaultVersion) // true for new user only
 		
 	// -----------------------------
-	// 2. Encrypt vault content
+	// 2. CryptoEncrypt vault content
 	// -----------------------------
 	vaultBytes, err := vaultPayload.GetContentBytes()
 	if err != nil {
@@ -55,7 +55,7 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(cmd CreateIPFSPayloadCommand) 
 	}
 	
 	// -----------------------------
-	// 3. Add vault content to IPFS
+	// 3. IPFS - Add vault content to IPFS
 	// -----------------------------
 	cidFromIpfs, err := h.IpfsService.AddData(encrypted)
 	if err != nil {

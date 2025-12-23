@@ -90,12 +90,20 @@ export function GetRecommendedTier(arg1) {
   return window['go']['main']['App']['GetRecommendedTier'](arg1);
 }
 
+export function GetSession(arg1) {
+  return window['go']['main']['App']['GetSession'](arg1);
+}
+
 export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }
 
 export function GetTierFeatures() {
   return window['go']['main']['App']['GetTierFeatures']();
+}
+
+export function GetVault(arg1) {
+  return window['go']['main']['App']['GetVault'](arg1);
 }
 
 export function ImportVaultWithKey(arg1) {
@@ -152,6 +160,10 @@ export function RejectShare(arg1, arg2) {
 
 export function RequestChallenge(arg1) {
   return window['go']['main']['App']['RequestChallenge'](arg1);
+}
+
+export function RequireAuth(arg1) {
+  return window['go']['main']['App']['RequireAuth'](arg1);
 }
 
 export function RestoreEntry(arg1, arg2, arg3) {

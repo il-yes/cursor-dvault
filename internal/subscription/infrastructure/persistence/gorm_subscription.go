@@ -27,18 +27,18 @@ func (r *SubscriptionRepository) Save(ctx context.Context, s *subscription_domai
 }
 
 func (r *SubscriptionRepository) FindByUserID(ctx context.Context, userID string) (*subscription_domain.Subscription, error) {
-	var s subscription_domain.Subscription
-	if err := r.DB.Where("user_id = ?", userID).First(&s).Error; err != nil {
+	var sDB SubscriptionMapper
+	if err := r.DB.Where("user_id = ?", userID).First(&sDB).Error; err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return sDB.ToDomain(), nil
 }
 func (r *SubscriptionRepository) GetByID(ctx context.Context, id string) (*subscription_domain.Subscription, error) {
-	var s subscription_domain.Subscription
-	if err := r.DB.Where("id = ?", id).First(&s).Error; err != nil {
+	var sDB SubscriptionMapper
+	if err := r.DB.Where("id = ?", id).First(&sDB).Error; err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return sDB.ToDomain(), nil
 }	
 
 func (r *SubscriptionRepository) Update(ctx context.Context, s *subscription_domain.Subscription) error {

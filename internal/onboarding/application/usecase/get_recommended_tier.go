@@ -8,15 +8,10 @@ import (
 )
 
 
-
-
 type GetRecommendedTierUseCase struct {
 	Db *gorm.DB
 
 }	
-
-
-
 
 // GetRecommendedTier returns recommended tier based on identity choice
 func (a *GetRecommendedTierUseCase) Execute(identity identity_domain.IdentityChoice) subscription_domain.SubscriptionTier {

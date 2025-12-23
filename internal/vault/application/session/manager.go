@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	utils "vault-app/internal"
 	share_application_events "vault-app/internal/application/events/share"
 	"vault-app/internal/blockchain"
 	share_infrastructure "vault-app/internal/infrastructure/share"
@@ -39,9 +40,9 @@ type Manager struct {
 	Ctx             context.Context
 }
 
-func NewManager(sessionRepository SessionRepository, vaultRepository vaults_domain.VaultRepository, logger Logger, ctx context.Context, ipfs *blockchain.IPFSClient) *Manager {
+func NewManager(sessionRepository SessionRepository, vaultRepository vaults_domain.VaultRepository, logger Logger, ctx context.Context, ipfs *blockchain.IPFSClient, sessions map[string]*Session) *Manager {
 	return &Manager{
-		sessions:          make(map[string]*Session),
+		sessions:          sessions,
 		SessionRepository: sessionRepository,
 		VaultRepository:   vaultRepository,
 		logger:            logger,
@@ -97,6 +98,8 @@ func (m *Manager) AttachVault(
 	s.Vault = vault
 	s.Runtime = runtime
 	s.LastCID = lastCID
+	s.LastSynced = m.NowUTC()
+	s.LastUpdated = m.NowUTC()
 
 	return s
 }
@@ -133,7 +136,14 @@ func (m *Manager) StartSession(userID string, vault vaults_domain.VaultPayload, 
 	m.sessions[userID] = session
 	return session
 }
+
+func (m *Manager) AttachSession(s *Session) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sessions[s.UserID] = s
+}
 func (m *Manager) GetSession(userID string) (*Session, error) {
+	utils.LogPretty("Manager - GetSession - userID", userID)
 	session, ok := m.sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")

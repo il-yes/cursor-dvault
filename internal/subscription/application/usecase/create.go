@@ -26,23 +26,25 @@ type TraditionalSubscriptionResponse struct {
 }
 
 func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string, plainPassword string) (*subscription_domain.Subscription, error) {
-	// fetch subscription from payment from Ankhora cloud
+	// I. ---------- Fetch subscription from payment from Ankhora cloud ----------
 	subscriptionFromPayment, err := uc.AnkhorClient.GetSubscriptionBySessionID(ctx, subID)
 	if err != nil {
 		return nil, err
 	}
 	// utils.LogPretty("Subscription from payment:", subscriptionFromPayment)
 
+	// II. ---------- Validate subscription ----------
 	if err := subscriptionFromPayment.Validate(); err != nil {
 		return nil, err
 	}
 	// fmt.Println("Subscription from payment validated:", subscriptionFromPayment.Validate())
 
+	// III. ---------- Save subscription ----------
 	if err := uc.repo.Save(ctx, subscriptionFromPayment); err != nil {
 		return nil, err
 	}
 
-	// Fire event immediately after saving
+	// IV. ---------- Fire event immediately after saving ----------
 	if uc.bus != nil {
 		_ = uc.bus.PublishCreated(ctx, subscription_eventbus.SubscriptionCreated{
 			SubscriptionID: subscriptionFromPayment.ID,

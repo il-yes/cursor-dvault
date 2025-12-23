@@ -88,7 +88,7 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 		creds.Password = plain
 	}
 	utils.LogPretty("Resolved credentials", creds)
-	// 2. Authenticate
+	// 2. Onboarding - Authenticate
 	onboardingUser, err := h.onboardingRepo.FindByEmail(creds.Email)
 	if err != nil || onboardingUser == nil {
 		return nil, auth_domain.ErrInvalidCredentials
@@ -102,36 +102,37 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 		return nil, auth_domain.ErrInvalidCredentials
 	}
 	utils.LogPretty("Authenticated bcrypt checked", "true")
-	// 3. Load identity user
+	// 3. Identity - Load identity user
 	utils.LogPretty("Loading identity user by email", creds.Email)
 	user, err := h.userRepo.FindByEmail(context.Background(), creds.Email)
 	if err != nil {
 		return nil, err
 	}
 	utils.LogPretty("Loaded identity user", user)
-	// 4. Update last connection (write)
+
 	user.LastConnectedAt = time.Now()
 	if err := h.userRepo.Update(context.Background(), user); err != nil {
 		return nil, err
 	}
 
-	// 5. Generate tokens
+	// 5. Auth - Generate tokens
 	tokens, err := h.tokenService.GenerateTokenPair(user.ToJwtUser())
 	if err != nil {
 		utils.LogPretty("Failed to generate tokens", user)
 		return nil, err
 	}
 	utils.LogPretty("Generated tokens", tokens)
-	// 6. Persist tokens
+
 	if _, err := h.tokenService.SaveJwtToken(tokens); err != nil {
 		utils.LogPretty("Failed to persist tokens", tokens)
 		return nil, err
 	}
 	utils.LogPretty("Persisted tokens", tokens)
-	// 7. Prepare session (do NOT open vault here)
+	// 6. Session - Prepare session (do NOT open vault here)
 	sessionID := h.sessionManager.Prepare(user.ID)
 	utils.LogPretty("Prepared session", sessionID)
 
+	// 7. Publish event
 	if h.eventBus != nil {
 		_ = h.eventBus.PublishUserLoggedIn(context.Background(), identity_eventbus.UserLoggedIn{
 			UserID:     user.ID,

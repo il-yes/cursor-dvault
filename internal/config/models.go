@@ -22,7 +22,7 @@ type AppConfig struct {
 	DefaultVaultPath   string           `json:"default_vault_path" yaml:"default_vault_path"`
 	VaultSettings      VaultConfig      `json:"vault_settings" yaml:"vault_settings" gorm:"embedded"`
 	Blockchain         BlockchainConfig `json:"blockchain" yaml:"blockchain" gorm:"embedded"`
-	UserID             int              `json:"user_id" gorm:"integer"`
+	UserID             string           `json:"user_id" gorm:"string"`
 	AutoLockTimeout    string           `json:"auto_lock_timeout" yaml:"auto_lock_timeout"`
 	RemaskDelay        string           `json:"remask_delay" yaml:"remask_delay"`
 	Theme              string           `json:"theme" yaml:"theme"`

@@ -26,6 +26,193 @@ const (
 	scryptP   = 1
 )
 
+
+
+// type CryptoService interface {
+// 	EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error)
+// 	EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error)
+// 	DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error)
+// 	DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error)
+// }	
+
+// -----------------------------
+// V2 Crypto
+// -----------------------------   
+type CryptoService struct {}
+
+// EncryptPasswordWithStellar encrypts the password using the Stellar private key
+func (c *CryptoService) EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error) {
+	key, err := deriveKeyFromStellar(stellarSecret)
+	if err != nil {
+		return nil, nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+	ciphertext = gcm.Seal(nil, nonce, []byte(password), nil)
+	return nonce, ciphertext, nil
+}
+func (c *CryptoService) EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error) {
+	// Generate random salt (16 bytes recommended)
+	salt = make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// Derive AES key from Stellar secret + salt
+	key, err := deriveKeyFromStellarSecure(stellarSecret, salt)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Create AES-GCM cipher
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	// Generate nonce
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Encrypt password
+	ciphertext = gcm.Seal(nil, nonce, []byte(password), nil)
+	return salt, nonce, ciphertext, nil
+}
+
+// DecryptPasswordWithStellar decrypts the password using the Stellar private key
+func (c *CryptoService) DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error) {
+	key, err := deriveKeyFromStellar(stellarSecret)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+func (c *CryptoService) DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error) {
+	key, err := deriveKeyFromStellarSecure(stellarSecret, salt)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+
+	return string(plaintext), nil
+}
+
+// Decrypt decrypts encrypted data using a password.
+func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, error) {
+	if len(encrypted) < saltSize+nonceSize {
+		return nil, fmt.Errorf("❌ invalid data length")
+	}
+
+	salt := encrypted[:saltSize]
+	nonce := encrypted[saltSize : saltSize+nonceSize]
+	ciphertext := encrypted[saltSize+nonceSize:]
+
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("❌ key derivation failed: %w", err)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("❌ cipher creation failed: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
+	}
+	log.Printf("🧂 Salt: %x", salt)
+	log.Printf("🔑 Key: %x", key)
+	log.Printf("🔁 Nonce: %x", nonce)
+	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
+
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	return plain, nil
+}
+// Encrypt encrypts plain data using a password.
+func (c *CryptoService) Encrypt(data []byte, password string) ([]byte, error) {
+	// Generate random salt
+	salt := make([]byte, saltSize)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("key derivation failed: %w", err)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// Final encrypted data = salt + nonce + ciphertext
+	ciphertext := gcm.Seal(nil, nonce, data, nil)
+	final := append(salt, nonce...)
+	final = append(final, ciphertext...)
+	return final, nil
+}
+
+// -----------------------------
+// V1 Crypto
+// -----------------------------   
+
 // DeriveKey derives a key from password using scrypt.
 func DeriveKey(password string, salt []byte) ([]byte, error) {
 	return scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keySize)

@@ -114,3 +114,26 @@ func (l *Logger) LogStructured(level string, msg string, args ...interface{}) {
 	jsonBytes, _ := json.Marshal(entry)
 	fmt.Println(string(jsonBytes))
 }
+
+func (l *Logger) LogPretty(title string, v interface{}) {
+	if !l.shouldLog(INFO) {
+		return
+	}	
+	fmt.Println("------------------------------------------------------------------------")
+	fmt.Println("* ", title)
+	fmt.Println("------------------------------------------------------------------------")
+
+	// Handle error types explicitly
+	if err, ok := v.(error); ok {
+		fmt.Println(err.Error())
+		// return
+	}
+
+	bytes, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		fmt.Println("Failed to marshal object:", err)
+		return
+	}
+	fmt.Println(string(bytes))
+	fmt.Println("_____")
+}

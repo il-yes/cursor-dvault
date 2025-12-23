@@ -22,7 +22,7 @@ func (e BaseEvent) OccurredAt() time.Time { return e.Time }
 type ShareCreated struct {
     BaseEvent
     ShareID   string
-    OwnerID   uint
+    OwnerID   string
 }
 
 type RecipientAdded struct {

@@ -12,16 +12,16 @@ var (
 )
 
 type Repository interface {
-	ListByUser(userID uint) ([]ShareEntry, error)
+	ListByUser(userID string) ([]ShareEntry, error)
 	GetByID(id string) (*ShareEntry, error)
 	Save(entry *ShareEntry) error
 	Delete(id string) error
 
-	ListReceivedByUser(recipientID uint) ([]ShareEntry, error) // shared WITH me
-	GetShareForAccept(shareID string, recipientID uint) (*ShareEntry, *Recipient, []byte, error)
+	ListReceivedByUser(recipientID string) ([]ShareEntry, error) // shared WITH me
+	GetShareForAccept(shareID string, recipientID string) (*ShareEntry, *Recipient, []byte, error)
 	// CreateShare(ctx context.Context, s *ShareEntry) error
 	// GetShareForRecipient(ctx context.Context, shareID string, recipientID uint) (*ShareEntry, error)
-	GetShareAndRecipient(ctx context.Context, shareID string, recipientID uint) (*ShareEntry, *Recipient, error)
+	GetShareAndRecipient(ctx context.Context, shareID string, recipientID string) (*ShareEntry, *Recipient, error)
 	MarkRecipientAccepted(ctx context.Context, recipientID string) error
 	MarkRecipientRejected(ctx context.Context, recipientID string) error // NEW
     // Recipient management

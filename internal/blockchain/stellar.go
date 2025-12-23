@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 	utils "vault-app/internal"
+	"vault-app/internal/logger/logger"
 	"vault-app/internal/tracecore"
 
 	// "time"
@@ -20,6 +21,75 @@ import (
 	"github.com/stellar/go/network"
 	"github.com/stellar/go/txnbuild"
 )
+
+type StellarBlockchainService interface {
+	CreateKeypair() (string, string, string, error)
+	VerifyStellarSignature(message, pubKey, signatureBase64 string) bool
+	SignActorWithStellarPrivateKey(privateKey string, message string) (string, error)
+	SignWithDvaultPrivateKey(cp tracecore.CommitPayload) (string, error)
+	CreateAccount(plainPassword string) (*CreateAccountRes, error)
+	CreateAccountWithFriendbotFunding(plainPassword string) (*CreateAccountRes, error)
+}
+
+type StellarService struct {
+	logger *logger.Logger
+}
+
+type CreateAccountRes struct {
+	PublicKey   string `json:"public_key"`
+	PrivateKey  string `json:"private_key"`
+	EncNonce    []byte `json:"enc_nonce"`
+	EncPassword []byte `json:"enc_password"`
+	TxID        string `json:"tx_id"`
+}
+func (s *StellarService) CreateKeypair() (publicKey string, secretKey string, transactionID string, err error) {
+	kp, err := keypair.Random()
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to generate keypair: %w", err)
+	}
+	return kp.Address(), kp.Seed(), "", nil
+}
+
+// CreateAccount creates a new Stellar account with funding from friendbot	
+func (s *StellarService) CreatAccountWithFriendbotFunding(plainPassword string) (*CreateAccountRes, error) {
+	pub, secret, txID, err := s.CreateKeypair()
+	if err != nil {
+		s.logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		return nil, err
+	}
+	
+	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
+	s.logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+
+	return &CreateAccountRes{
+		PublicKey:   pub,
+		PrivateKey:  secret,
+		EncNonce:    nonce,
+		EncPassword: encPassword,
+		TxID:        txID,
+	}, nil
+}
+
+// CreateAccount creates a new Stellar account with no funding
+func (s *StellarService) CreateAccount(plainPassword string) (*CreateAccountRes, error) {
+	pub, secret, txID, err := s.CreateKeypair()
+	if err != nil {
+		s.logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		return nil, err
+	}
+
+	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
+	s.logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+
+	return &CreateAccountRes{
+		PublicKey:   pub,
+		PrivateKey:  secret,
+		EncNonce:    nonce,
+		EncPassword: encPassword,
+	}, nil
+}
+
+
 
 // In-memory map for demo (you'd want a DB or Redis in production)
 var ChallengeStore = map[string]string{}
@@ -219,4 +289,3 @@ func SignWithDvaultPrivateKey(cp tracecore.CommitPayload) (string, error) {
 	}
 	return base64.StdEncoding.EncodeToString(sig), nil
 }
-

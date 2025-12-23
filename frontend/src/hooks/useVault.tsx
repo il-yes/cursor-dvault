@@ -135,7 +135,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	};
 
 	// Add a new entry
-	const addEntry = async (entry: VaultEntry): Promise<void> => {
+	const addEntryV0 = async (entry: VaultEntry): Promise<void> => {
 		if (!vaultContext) return;
 
 		const type = entry.type as keyof typeof vaultContext.Vault.entries;
@@ -158,6 +158,31 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		// Update vaultStore - this will trigger the useEffect to update vaultContext
 		useVaultStore.getState().setVault(updatedContext);
 	};
+	const addEntry = async (entry: VaultEntry): Promise<void> => {
+		useVaultStore.setState((state) => {
+			if (!state.vault) return state;
+
+			const type = entry.type as keyof typeof state.vault.Vault.entries;
+
+			return {
+				vault: {
+					...state.vault,
+					Vault: {
+						...state.vault.Vault,
+						entries: {
+							...state.vault.Vault.entries,
+							[type]: [
+								...(state.vault.Vault.entries[type] || []),
+								entry,
+							],
+						},
+					},
+				},
+				lastSyncTime: new Date().toISOString(),
+			};
+		});
+	};
+
 
 	// Update an entry
 	const updateEntry = async (entryId: string, updates: Partial<VaultEntry>): Promise<void> => {
@@ -456,7 +481,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
 	const syncVault = (jwtToken: string, vaultPassword: string): Promise<string> => {
 		return AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
-	}	
+	}
 
 
 	return (

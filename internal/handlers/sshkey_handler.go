@@ -16,10 +16,10 @@ type SSHKeyHandler struct {
 	ipfs       blockchain.IPFSClient
 	logger     *logger.Logger
 	NowUTC     func() string
-	sessions   map[int]*models.VaultSession
+	sessions   map[string]*models.VaultSession
 }
 
-func NewSSHKeyHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[int]*models.VaultSession, log *logger.Logger) *SSHKeyHandler {
+func NewSSHKeyHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[string]*models.VaultSession, log *logger.Logger) *SSHKeyHandler {
 	return &SSHKeyHandler{
 		db:       db,
 		ipfs:     ipfs,
@@ -29,7 +29,7 @@ func NewSSHKeyHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions ma
 	}
 }
 
-func (h *SSHKeyHandler) GetSession(userID int) (*models.VaultSession, error) {
+func (h *SSHKeyHandler) GetSession(userID string) (*models.VaultSession, error) {
 	session, ok := h.sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")
@@ -37,10 +37,10 @@ func (h *SSHKeyHandler) GetSession(userID int) (*models.VaultSession, error) {
 	return session, nil
 }
 
-func (h *SSHKeyHandler) Add(userID int, anEntry any) (*any, error) {
+func (h *SSHKeyHandler) Add(userID string, anEntry any) (*any, error) {
 	session, ok := h.GetSession(userID)
 	if ok != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	entry, err := anEntry.(*models.SSHKeyEntry)
 	if !err {
@@ -51,16 +51,16 @@ func (h *SSHKeyHandler) Add(userID int, anEntry any) (*any, error) {
 	// session.LastUpdated = h.NowUTC()
 	// session.Dirty = true
 
-	h.logger.Info("✅ Added ssh key entry for user %d: %s\n", userID, entry.EntryName)
+	h.logger.Info("✅ Added ssh key entry for user %s: %s\n", userID, entry.EntryName)
 
 	var result any = entry
 	return &result, nil
 
 }
-func (h *SSHKeyHandler) Edit(userID int, entry any) (*any, error) {
+func (h *SSHKeyHandler) Edit(userID string, entry any) (*any, error) {
 	session, err := h.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	updatedEntry, ok := entry.(*models.SSHKeyEntry)
 	if !ok {
@@ -80,26 +80,26 @@ func (h *SSHKeyHandler) Edit(userID int, entry any) (*any, error) {
 	}
 
 	if !updated {
-		return nil, fmt.Errorf("entry with ID %s not found for user %d", updatedEntry.ID, userID)
+		return nil, fmt.Errorf("entry with ID %s not found for user %s", updatedEntry.ID, userID)
 	}
 
 	session.Vault.Entries.SSHKey = entries
 	// h.MarkDirty(userID)
 
 
-	h.logger.Info("✏️ Updated ssh key entry for user %d: %s\n", userID, updatedEntry.EntryName)
+	h.logger.Info("✏️ Updated ssh key entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
 	var result any = updatedEntry
 	return &result, nil
 }
-func (h *SSHKeyHandler) Trash(userID int, entryID string) error {
+func (h *SSHKeyHandler) Trash(userID string, entryID string) error {
 	return h.TrashSSHKeyEntryAction(userID, entryID, true)
 }
-func (h *SSHKeyHandler) Restore(userID int, entryID string) error {
+func (h *SSHKeyHandler) Restore(userID string, entryID string) error {
 	return h.TrashSSHKeyEntryAction(userID, entryID, false)
 }
-func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID int, entryID string, trashed bool) error {
+func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, trashed bool) error {
 	session, err := h.GetSession(userID)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID int, entryID string, trash
 			if trashed {
 				state = "trashed"
 			}
-			h.logger.Info("🗑️ %s ssh key entry %s for user %d", state, entryID, userID)
+			h.logger.Info("🗑️ %s ssh key entry %s for user %s", state, entryID, userID)
 
 			return nil
 		}

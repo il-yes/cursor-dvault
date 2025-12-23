@@ -1,6 +1,7 @@
 import { EntrySnapshot } from "@/types/sharing";
 import { VaultEntry } from "@/types/vault";
 import { clsx, type ClassValue } from "clsx";
+import { Keypair } from "stellar-sdk";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -74,6 +75,8 @@ export function buildEntrySnapshot(entry: VaultEntry): EntrySnapshot {
       };
   }
 }
+
+
 
 
 // const res = await fetch(`${API_BASE}/api/shared-entries`, { credentials: "include" });

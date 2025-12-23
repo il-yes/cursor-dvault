@@ -21,7 +21,7 @@ type Auth struct {
 }
 
 type JwtUser struct {
-	ID       int    `json:"id"`
+	ID       string    `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
 }
@@ -29,12 +29,12 @@ type JwtUser struct {
 type TokenPairs struct {
     Token        string `gorm:"column:token;type:text" json:"access_token"`
     RefreshToken string `gorm:"column:refresh_token;type:text" json:"refresh_token"`
-    UserID       int    `gorm:"column:user_id" json:"user_id"`
+    UserID       string    `gorm:"column:user_id" json:"user_id"`
 }
 
 
 type Claims struct {
-    UserID   int    `json:"user_id"`
+    UserID       string    `json:"user_id"`
     Username string `json:"username"`
     Email    string `json:"email"`
 
@@ -83,7 +83,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
     return TokenPairs{
         Token:        signedAccessToken,
         RefreshToken: signedRefreshToken,
-        UserID:       user.ID,
+        UserID:         user.ID,
     }, nil
 }
 

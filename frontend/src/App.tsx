@@ -21,6 +21,10 @@ import About from "./pages/About";
 import ProfileBeta from "./pages/ProfileBeta";
 import SettingsBeta from "./pages/SettingsBeta";
 import OnboardingWizard from "./components/OnboardingWizard";
+import OnboardingWizardBeta from "@/components/onBoardingWizardBeta";
+import { Elements } from '@stripe/react-stripe-js';
+import { stripePromise } from '@/lib/stripe';
+import PaymentSuccess from "./components/PaymentSuccess";
 
 
 const queryClient = new QueryClient();
@@ -56,7 +60,6 @@ function AppContent() {
 				console.warn('IPFS backend not ready:', error);
 			}
 		} else {
-			console.log('Wails runtime not detected - using mock data');
 			setWalletStatus('mock-connected');
 			setIpfsStatus('mock-ready');
 		}
@@ -72,15 +75,16 @@ function AppContent() {
 
 	if (!isOnboarded) {
 		return (
-			<OnboardingWizard
-				onComplete={() => {
+			<Elements stripe={stripePromise}>
+				<OnboardingWizardBeta
+					onComplete={() => {
 					setIsOnboarded(true);
 					localStorage.setItem('ankhora-onboarded', 'true');
-				}}
-			/>
+					}}
+				/>
+			</Elements>
 		);
-	}
-
+	}		
 
 	return (
 		<Routes>
@@ -100,6 +104,7 @@ function AppContent() {
 			<Route path="/login/step2" element={<LoginStep2 />} />
 			<Route path="/dashboard/feedback" element={<Feedback />} />
 			<Route path="/dashboard/about" element={<About />} />
+			<Route path="/payment/success" element={<PaymentSuccess />} />
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 			<Route path="*" element={<NotFound />} />
 		</Routes>

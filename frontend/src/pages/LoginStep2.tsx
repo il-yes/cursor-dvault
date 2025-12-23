@@ -73,7 +73,7 @@ const LoginStep2 = () => {
         payload.publicKey = publicKey;
         console.log("Stellar login payload:", payload);
 
-        const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+        const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
 
         if (!res) throw new Error("SignIn failed: empty result");
 
@@ -99,6 +99,7 @@ const LoginStep2 = () => {
 
       navigate("/dashboard");
     } catch (error) {
+      console.error("Login failed:", {error});
       toast({
         title: "Login failed",
         description: error instanceof Error ? error.message : "Please check your credentials and try again.",

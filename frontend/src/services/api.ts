@@ -24,12 +24,27 @@
  */
 import { LoginRequest, User, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
+import { Keypair } from "stellar-sdk";
+import { Buffer } from "buffer";
 
+export interface CheckoutPayload {
+  amount: number;
+  currency: string;
+  successRedirect: string;
+  cancelRedirect: string;
+}
 
+// export const createCheckout = async (payload: CheckoutPayload) => {
+//   return await AppAPI.CreateCheckoutSession(payload);
+// };
+
+// export const getCheckoutStatus = async (sessionId: string) => {
+//   return await AppAPI.GetCheckoutSessionStatus(sessionId);
+// };
 
 export interface VaultEntry {
   id: string;
@@ -546,11 +561,23 @@ export interface AuthResponse {
   vault_runtime_context: any;
   last_cid: string;
   dirty: boolean;
+  tier?: string;
+  price?: any;
+  method_billing?: string;
+  payment_method?: string;
+  next_billing_date?: string;
+  next_payment_date?: string;
+  subscription?: any;
+  status?: string;
+  features?: any;
+  used_gb?: number;
+  quota_gb?: number;
+  percentage?: number;
 }
 
 export const login = async (payload: LoginRequest): Promise<handlers.LoginResponse> => {
   console.log("Password login payload:", payload);
-  const res: handlers.LoginResponse = await AppAPI.SignIn(payload);
+  const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
   console.log("LoginResponse:", res);
 
   return res;
@@ -586,4 +613,271 @@ export async function getSharedEntry(id: string) {
   if (!res.ok) throw new Error("Failed to fetch shared entry");
 
   return await res.json();
+}
+type GetRecommendedTierPayload = string;
+
+export const GetRecommendedTier = async (payload: GetRecommendedTierPayload) => {
+  try {
+    const { identity } = await AppAPI.GetRecommendedTier(payload);
+    console.log("Recommended tier:", { identity });
+    return identity;
+  } catch (error) {
+    console.error("Failed to fetch recommended tier", error);
+    return null;
+  }
+}
+type SetupPaymentAndActivatePayload = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+}
+type TierFeaturesResponse = {
+  [tier: string]: {
+    name?: string;
+    description?: string;
+    features?: string[];
+  };
+}
+type CreateAccountPayload = {
+  email: string;
+  name: string;
+  password: string;
+  org?: string;
+  country?: string;
+  tier: string;
+  is_anonymous: boolean;
+}
+type AccountCreationResponse = {
+  user_id: string;
+  stellar_key?: string;
+  secret_key?: string;
+}
+
+export const CreateAccount = async (payload: CreateAccountPayload): Promise<AccountCreationResponse> => {
+  try {
+
+    const response = await AppAPI.CreateAccount(payload);
+    console.log("CreateAccountResponse:", response);
+    return response as AccountCreationResponse;
+  } catch (error) {
+    console.error("Failed to create account", error);
+    throw error;
+  }
+
+
+
+
+};
+
+type PaymentSetupRequest = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+  stripe_payment_method_id?: string;
+  encrypted_payment_data?: string;
+  stellar_public_key?: string;
+  card_number: string;
+  card_brand: string;
+  payment_method_id: string;
+  exp: string;
+  cvc: string;
+  exp_month: string;
+  exp_year: string; 
+  last_four: string;  
+  currency: string;
+  amount: string;
+  plan: string;
+  product_id: string;
+}
+type PaymentSetupResponse = {
+  user_id: string;
+  stellar_key?: string;
+  secret_key?: string;
+}
+
+export const SetupPaymentAndActivate = async (payload: PaymentSetupRequest): Promise<subscription_domain.Subscription> => {
+  console.log("SetupPaymentAndActivate payload:", { payload });
+
+  try {
+    const response = await AppAPI.SetupPaymentAndActivate(payload);
+    console.log("SetupPaymentAndActivateResponse:", response);
+    return response;
+  } catch (error) {
+    console.error("Failed to setup payment and activate", error);
+    throw error;
+  }
+
+};
+
+export const GetTierFeatures = async (tier: string): Promise<TierFeaturesResponse> => {
+  // const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
+  //   method: 'GET',
+  //   headers: { 'Content-Type': 'application/json' },
+  // });
+  try {
+    const response = await AppAPI.GetTierFeatures();
+    console.log("Tier features:", { response });
+    return response;
+  } catch (error) {
+    console.error("Failed to fetch tier features", error);
+    return {};
+  }
+}
+
+type UpgradeSubscriptionPayload = {
+  user_id: string;
+  tier: string;
+  payment_method: string;
+}
+type CancelSubscriptionPayload = {
+  user_id: string;
+  reason: string;
+}
+type BillingHistoryResponse = {
+  history: {
+    id: string;
+    created_at: string;
+    description: string;
+    amount: number;
+    status: string;
+    stellar_tx_hash?: string;
+    stripe_intent_id?: string;
+  }[];
+}
+export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/upgrade-subscription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const CancelSubscription = async (payload: CancelSubscriptionPayload): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/cancel-subscription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to cancel subscription: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const GetBillingHistory = async (): Promise<BillingHistoryResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-billing-history`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get billing history: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+export const GetSubscriptionDetails = async (): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-subscription-details`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get subscription details: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+export const GetStorageUsage = async (): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/get-storage-usage`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get storage usage: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+type RecoverVaultResponse = {
+  vault_id: string;
+}
+type ImportStellarKeyResponse = {
+  vault_id: string;
+}
+
+export const CheckStellarKeyForVault = async (payload: string): Promise<main.CheckKeyResponse> => {
+  const response = await AppAPI.CheckStellarKeyForVault(payload);
+
+  if (!response.ok) { // note capital Ok
+    throw new Error(`Failed to check stellar key for vault`);
+  }
+  console.log(response)
+  return response;
+};
+
+export const ConnectWithStellar = async (payload: LoginRequest): Promise<main.CheckKeyResponse> => {
+  try {
+    const response = await AppAPI.ConnectWithStellar(payload);
+    console.log(response)
+
+    return response;
+  } catch (error) {
+    console.log(error)
+    throw new Error(`Failed to connect with stellar: ${error.message}`);
+  }
+};
+
+export const RecoverVault = async (stellar_key: string): Promise<RecoverVaultResponse> => {
+  const response = await fetch(`${API_BASE_URL}/recover-vault`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stellar_key }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to recover vault: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const ImportStellarKey = async (stellar_key: string): Promise<ImportStellarKeyResponse> => {
+  const response = await fetch(`${API_BASE_URL}/import-stellar-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stellar_key }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to import stellar key: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+export const StellarAsksForChallenge = async (stellarKey: string) => {
+  // 1. Generate keypair
+  const keypair = Keypair.fromSecret(stellarKey);
+  const publicKey = keypair.publicKey();
+
+  // 2. Request challenge from backend
+  const { challenge } = await AppAPI.RequestChallenge({ public_key: publicKey });
+
+  // 3. Sign challenge
+  const signature = Buffer.from(
+    keypair.sign(Buffer.from(challenge))
+  ).toString("base64");
+
+  return { publicKey, signature, challenge };
 }

@@ -110,7 +110,7 @@ export namespace app_config {
 	    default_vault_path: string;
 	    vault_settings: VaultConfig;
 	    blockchain: BlockchainConfig;
-	    user_id: number;
+	    user_id: string;
 	    auto_lock_timeout: string;
 	    remask_delay: string;
 	    theme: string;
@@ -249,10 +249,61 @@ export namespace app_config {
 
 export namespace auth {
 	
+	export class Claims {
+	    user_id: string;
+	    username: string;
+	    email: string;
+	    iss?: string;
+	    sub?: string;
+	    aud?: string[];
+	    // Go type: jwt
+	    exp?: any;
+	    // Go type: jwt
+	    nbf?: any;
+	    // Go type: jwt
+	    iat?: any;
+	    jti?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Claims(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.username = source["username"];
+	        this.email = source["email"];
+	        this.iss = source["iss"];
+	        this.sub = source["sub"];
+	        this.aud = source["aud"];
+	        this.exp = this.convertValues(source["exp"], null);
+	        this.nbf = this.convertValues(source["nbf"], null);
+	        this.iat = this.convertValues(source["iat"], null);
+	        this.jti = source["jti"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class TokenPairs {
 	    access_token: string;
 	    refresh_token: string;
-	    user_id: number;
+	    user_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TokenPairs(source);
@@ -394,8 +445,8 @@ export namespace handlers {
 		}
 	}
 	export class LoginRequest {
-	    email: string;
-	    password: string;
+	    email?: string;
+	    password?: string;
 	    publicKey?: string;
 	    privateKey?: string;
 	    signedMessage?: string;
@@ -423,6 +474,7 @@ export namespace handlers {
 	    vault_runtime_context?: models.VaultRuntimeContext;
 	    last_cid: string;
 	    dirty: boolean;
+	    session_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoginResponse(source);
@@ -437,6 +489,7 @@ export namespace handlers {
 	        this.vault_runtime_context = this.convertValues(source["vault_runtime_context"], models.VaultRuntimeContext);
 	        this.last_cid = source["last_cid"];
 	        this.dirty = source["dirty"];
+	        this.session_id = source["session_id"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -522,6 +575,42 @@ export namespace handlers {
 
 export namespace main {
 	
+	export class CheckKeyResponse {
+	    id: string;
+	    created_at: string;
+	    subscription_tier: string;
+	    storage_used_gb: number;
+	    last_synced_at: string;
+	    ok: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckKeyResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.created_at = source["created_at"];
+	        this.subscription_tier = source["subscription_tier"];
+	        this.storage_used_gb = source["storage_used_gb"];
+	        this.last_synced_at = source["last_synced_at"];
+	        this.ok = source["ok"];
+	    }
+	}
+	export class CreateCheckoutResponse {
+	    sessionId: string;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateCheckoutResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.url = source["url"];
+	    }
+	}
 	export class CreateShareInput {
 	    payload: handlers.CreateShareEntryPayload;
 	    jwtToken: string;
@@ -553,6 +642,32 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class GetSessionResponse {
+	    Data: Record<string, any>;
+	    Error: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new GetSessionResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Data = source["Data"];
+	        this.Error = source["Error"];
+	    }
+	}
+	export class OnboardingStep1Response {
+	    identity: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OnboardingStep1Response(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identity = source["identity"];
+	    }
 	}
 
 }
@@ -814,7 +929,7 @@ export namespace models {
 		}
 	}
 	export class Folder {
-	    id: number;
+	    id: string;
 	    name: string;
 	    created_at: string;
 	    updated_at: string;
@@ -838,7 +953,7 @@ export namespace models {
 	
 	
 	export class User {
-	    id: number;
+	    id: string;
 	    username: string;
 	    email: string;
 	    password: string;
@@ -885,7 +1000,7 @@ export namespace models {
 		}
 	}
 	export class UserDTO {
-	    id: number;
+	    id: string;
 	    email: string;
 	    role: string;
 	    created_at: string;
@@ -987,10 +1102,98 @@ export namespace models {
 
 }
 
+export namespace onboarding_ui_wails {
+	
+	export class AccountCreationResponse {
+	    user_id: string;
+	    stellar_key?: string;
+	    secret_key?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountCreationResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.stellar_key = source["stellar_key"];
+	        this.secret_key = source["secret_key"];
+	    }
+	}
+
+}
+
+export namespace onboarding_usecase {
+	
+	export class AccountCreationRequest {
+	    email?: string;
+	    password?: string;
+	    is_anonymous: boolean;
+	    stellar_key?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountCreationRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.email = source["email"];
+	        this.password = source["password"];
+	        this.is_anonymous = source["is_anonymous"];
+	        this.stellar_key = source["stellar_key"];
+	    }
+	}
+	export class PaymentSetupRequest {
+	    user_id: string;
+	    tier: string;
+	    stripe_payment_method_id?: string;
+	    encrypted_payment_data?: string;
+	    stellar_public_key?: string;
+	    exp?: string;
+	    card_number?: string;
+	    card_brand: string;
+	    exp_month: string;
+	    exp_year: string;
+	    last_four: string;
+	    currency: string;
+	    amount: string;
+	    payment_method_id: string;
+	    cvc?: string;
+	    plan: string;
+	    product_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentSetupRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.tier = source["tier"];
+	        this.stripe_payment_method_id = source["stripe_payment_method_id"];
+	        this.encrypted_payment_data = source["encrypted_payment_data"];
+	        this.stellar_public_key = source["stellar_public_key"];
+	        this.exp = source["exp"];
+	        this.card_number = source["card_number"];
+	        this.card_brand = source["card_brand"];
+	        this.exp_month = source["exp_month"];
+	        this.exp_year = source["exp_year"];
+	        this.last_four = source["last_four"];
+	        this.currency = source["currency"];
+	        this.amount = source["amount"];
+	        this.payment_method_id = source["payment_method_id"];
+	        this.cvc = source["cvc"];
+	        this.plan = source["plan"];
+	        this.product_id = source["product_id"];
+	    }
+	}
+
+}
+
 export namespace share_application_use_cases {
 	
 	export class AddReceiverInput {
-	    ShareID: number;
+	    ShareID: string;
 	    Name: string;
 	    Email: string;
 	    Role: string;
@@ -1008,8 +1211,8 @@ export namespace share_application_use_cases {
 	    }
 	}
 	export class AddReceiverResult {
-	    ShareID: number;
-	    RecipientID: number;
+	    ShareID: string;
+	    RecipientID: string;
 	    Message: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1024,8 +1227,8 @@ export namespace share_application_use_cases {
 	    }
 	}
 	export class RejectShareResult {
-	    ShareID: number;
-	    RecipientID: number;
+	    ShareID: string;
+	    RecipientID: string;
 	    Message: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1169,7 +1372,7 @@ export namespace share_domain {
 	}
 	export class ShareEntry {
 	    id: string;
-	    owner_id: number;
+	    owner_id: string;
 	    entry_name: string;
 	    entry_type: string;
 	    entry_ref: string;
@@ -1241,6 +1444,364 @@ export namespace share_domain {
 	        this.share = this.convertValues(source["share"], ShareEntry);
 	        this.recipient = this.convertValues(source["recipient"], Recipient);
 	        this.blob = source["blob"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace stellar_recovery_domain {
+	
+	export class ImportedKey {
+	    StellarPublic: string;
+	    StellarSecret: string;
+	    CanCreate: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportedKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.StellarPublic = source["StellarPublic"];
+	        this.StellarSecret = source["StellarSecret"];
+	        this.CanCreate = source["CanCreate"];
+	    }
+	}
+	export class Subscription {
+	    ID: string;
+	    UserID: string;
+	    Status: string;
+	    Tier: string;
+	    // Go type: time
+	    CreatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.UserID = source["UserID"];
+	        this.Status = source["Status"];
+	        this.Tier = source["Tier"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Vault {
+	    ID: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    StorageUsedGB: number;
+	    StorageQuotaGB: number;
+	    // Go type: time
+	    LastSyncedAt?: any;
+	    IPFSNodeID: string;
+	    PinataPinID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.StorageUsedGB = source["StorageUsedGB"];
+	        this.StorageQuotaGB = source["StorageQuotaGB"];
+	        this.LastSyncedAt = this.convertValues(source["LastSyncedAt"], null);
+	        this.IPFSNodeID = source["IPFSNodeID"];
+	        this.PinataPinID = source["PinataPinID"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class User {
+	    ID: string;
+	    Email: string;
+	    IsAnonymous: boolean;
+	    StellarPublicKey: string;
+	    EncryptedSecretKey: string;
+	    SubscriptionTier: string;
+	    SubscriptionID?: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Email = source["Email"];
+	        this.IsAnonymous = source["IsAnonymous"];
+	        this.StellarPublicKey = source["StellarPublicKey"];
+	        this.EncryptedSecretKey = source["EncryptedSecretKey"];
+	        this.SubscriptionTier = source["SubscriptionTier"];
+	        this.SubscriptionID = source["SubscriptionID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RecoveredVault {
+	    User?: User;
+	    Vault?: Vault;
+	    Subscription?: Subscription;
+	    SessionToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecoveredVault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.User = this.convertValues(source["User"], User);
+	        this.Vault = this.convertValues(source["Vault"], Vault);
+	        this.Subscription = this.convertValues(source["Subscription"], Subscription);
+	        this.SessionToken = source["SessionToken"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+
+}
+
+export namespace subscription_domain {
+	
+	export class SubscriptionFeatures {
+	    subscription_id: string;
+	    StorageGB: number;
+	    StorageType: string;
+	    CloudBackup: boolean;
+	    MobileApps: boolean;
+	    SharingLimit: number;
+	    UnlimitedSharing: boolean;
+	    VersionHistory: boolean;
+	    VersionHistoryDays: number;
+	    StellarVerification: boolean;
+	    Telemetry: boolean;
+	    AnonymousAccount: boolean;
+	    CryptoPayments: boolean;
+	    EncryptedPayments: boolean;
+	    Support: string;
+	    APIAccess: boolean;
+	    Tracecore: boolean;
+	    SSO: boolean;
+	    TeamFeatures: boolean;
+	    payment_method: string;
+	    payment_intent: string;
+	    browser_extension: boolean;
+	    threat_detection: boolean;
+	    priority_stellar: boolean;
+	    team_size: number;
+	    git_cli: boolean;
+	    custom_stellar: boolean;
+	    on_premise: boolean;
+	    multi_cloud: boolean;
+	    custom_integrations: boolean;
+	    ai_sovereignty: boolean;
+	    compliance: string[];
+	    sla: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionFeatures(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subscription_id = source["subscription_id"];
+	        this.StorageGB = source["StorageGB"];
+	        this.StorageType = source["StorageType"];
+	        this.CloudBackup = source["CloudBackup"];
+	        this.MobileApps = source["MobileApps"];
+	        this.SharingLimit = source["SharingLimit"];
+	        this.UnlimitedSharing = source["UnlimitedSharing"];
+	        this.VersionHistory = source["VersionHistory"];
+	        this.VersionHistoryDays = source["VersionHistoryDays"];
+	        this.StellarVerification = source["StellarVerification"];
+	        this.Telemetry = source["Telemetry"];
+	        this.AnonymousAccount = source["AnonymousAccount"];
+	        this.CryptoPayments = source["CryptoPayments"];
+	        this.EncryptedPayments = source["EncryptedPayments"];
+	        this.Support = source["Support"];
+	        this.APIAccess = source["APIAccess"];
+	        this.Tracecore = source["Tracecore"];
+	        this.SSO = source["SSO"];
+	        this.TeamFeatures = source["TeamFeatures"];
+	        this.payment_method = source["payment_method"];
+	        this.payment_intent = source["payment_intent"];
+	        this.browser_extension = source["browser_extension"];
+	        this.threat_detection = source["threat_detection"];
+	        this.priority_stellar = source["priority_stellar"];
+	        this.team_size = source["team_size"];
+	        this.git_cli = source["git_cli"];
+	        this.custom_stellar = source["custom_stellar"];
+	        this.on_premise = source["on_premise"];
+	        this.multi_cloud = source["multi_cloud"];
+	        this.custom_integrations = source["custom_integrations"];
+	        this.ai_sovereignty = source["ai_sovereignty"];
+	        this.compliance = source["compliance"];
+	        this.sla = source["sla"];
+	    }
+	}
+	export class Subscription {
+	    id: string;
+	    email: string;
+	    wallet?: string;
+	    user_id: string;
+	    tier: string;
+	    expires_at: number;
+	    rail: string;
+	    tx_hash?: string;
+	    active: boolean;
+	    activated_at: number;
+	    months: number;
+	    payment_method: string;
+	    payment_intent: string;
+	    // Go type: time
+	    started_at: any;
+	    features: SubscriptionFeatures;
+	    ledger: number;
+	    billing_cycle: string;
+	    trial_ends_at: number;
+	    next_billing_date: number;
+	    price: number;
+	    stripe_subscription_id: string;
+	    stellar_payment_address: string;
+	    payment_flow_type: string;
+	    stellar_schedule_id: string;
+	    status: string;
+	    ended_at: number;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.email = source["email"];
+	        this.wallet = source["wallet"];
+	        this.user_id = source["user_id"];
+	        this.tier = source["tier"];
+	        this.expires_at = source["expires_at"];
+	        this.rail = source["rail"];
+	        this.tx_hash = source["tx_hash"];
+	        this.active = source["active"];
+	        this.activated_at = source["activated_at"];
+	        this.months = source["months"];
+	        this.payment_method = source["payment_method"];
+	        this.payment_intent = source["payment_intent"];
+	        this.started_at = this.convertValues(source["started_at"], null);
+	        this.features = this.convertValues(source["features"], SubscriptionFeatures);
+	        this.ledger = source["ledger"];
+	        this.billing_cycle = source["billing_cycle"];
+	        this.trial_ends_at = source["trial_ends_at"];
+	        this.next_billing_date = source["next_billing_date"];
+	        this.price = source["price"];
+	        this.stripe_subscription_id = source["stripe_subscription_id"];
+	        this.stellar_payment_address = source["stellar_payment_address"];
+	        this.payment_flow_type = source["payment_flow_type"];
+	        this.stellar_schedule_id = source["stellar_schedule_id"];
+	        this.status = source["status"];
+	        this.ended_at = source["ended_at"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

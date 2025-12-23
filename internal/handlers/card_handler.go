@@ -16,10 +16,10 @@ type CardHandler struct {
 	ipfs       blockchain.IPFSClient
 	logger     *logger.Logger
 	NowUTC     func() string
-	sessions   map[int]*models.VaultSession
+	sessions   map[string]*models.VaultSession
 }
 
-func NewCardHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[int]*models.VaultSession, log *logger.Logger) *CardHandler {
+func NewCardHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[string]*models.VaultSession, log *logger.Logger) *CardHandler {
 	return &CardHandler{
 		db:       db,
 		ipfs:     ipfs,
@@ -29,7 +29,7 @@ func NewCardHandler(db models.DBModel, ipfs blockchain.IPFSClient, sessions map[
 	}
 }
 
-func (h *CardHandler) GetSession(userID int) (*models.VaultSession, error) {
+func (h *CardHandler) GetSession(userID string) (*models.VaultSession, error) {
 	session, ok := h.sessions[userID]
 	if !ok {
 		return nil, errors.New("no vault session found")
@@ -37,10 +37,10 @@ func (h *CardHandler) GetSession(userID int) (*models.VaultSession, error) {
 	return session, nil
 }
 
-func (h *CardHandler) Add(userID int, anEntry any) (*any, error) {
+func (h *CardHandler) Add(userID string, anEntry any) (*any, error) {
 	session, ok := h.GetSession(userID)
 	if ok != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	entry, err := anEntry.(*models.CardEntry)
 	if !err {
@@ -58,10 +58,10 @@ func (h *CardHandler) Add(userID int, anEntry any) (*any, error) {
 	return &result, nil
 
 }
-func (h *CardHandler) Edit(userID int, entry any) (*any, error) {
+func (h *CardHandler) Edit(userID string, entry any) (*any, error) {
 	session, err := h.GetSession(userID)
 	if err != nil {
-		return nil, fmt.Errorf("no active session for user %d", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 	updatedEntry, ok := entry.(*models.CardEntry)
 	if !ok {
@@ -95,13 +95,13 @@ func (h *CardHandler) Edit(userID int, entry any) (*any, error) {
 	var result any = updatedEntry
 	return &result, nil
 }
-func (h *CardHandler) Trash(userID int, entryID string) error {
+func (h *CardHandler) Trash(userID string, entryID string) error {
 	return h.TrashCardEntryAction(userID, entryID, true)
 }
-func (h *CardHandler) Restore(userID int, entryID string) error {
+func (h *CardHandler) Restore(userID string, entryID string) error {
 	return h.TrashCardEntryAction(userID, entryID, false)
 }
-func (h *CardHandler) TrashCardEntryAction(userID int, entryID string, trashed bool) error {
+func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashed bool) error {
 	session, err := h.GetSession(userID)
 	if err != nil {
 		return err

@@ -14,7 +14,8 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/stellar/go v0.0.0-20250703185545-a356b55b5396
 	github.com/stretchr/testify v1.10.0
-	github.com/wailsapp/wails/v2 v2.10.1
+	github.com/stripe/stripe-go/v74 v74.30.0
+	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.33.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/sqlite v1.6.0
@@ -34,6 +35,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gorilla/schema v1.4.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/ipfs/boxo v0.12.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
@@ -77,7 +79,7 @@ require (
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/wailsapp/go-webview2 v1.0.19 // indirect
+	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/net v0.35.0 // indirect

@@ -46,7 +46,7 @@ func InitDatabase(dsn string, logger logger.Logger) (*models.DBModel, error) {
 		return nil, fmt.Errorf("failed to open DB: %w", err)
 	}
 
-	if err := models.AutoMigrate(conn); err != nil {
+	if err := AutoMigrate(conn); err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate schema: %w", err)
 	}
 

@@ -12,6 +12,7 @@ import (
 	"time"
 	utils "vault-app/internal"
 	share_domain "vault-app/internal/domain/shared"
+	subscription_domain "vault-app/internal/subscription/domain"
 )
 
 func (c *TracecoreClient) GetVault(ctx context.Context) ([]byte, error) {
@@ -282,4 +283,103 @@ func (c *TracecoreClient) GetShareWithMe(ctx context.Context) ([]share_domain.Sh
 }
 
 
+type PaymentSetupRequest struct {
+	PaymentIntentID       string                               `json:"payment_intent_id"`
+	Rail                  string                               `json:"rail"`
+	Wallet                string                               `json:"wallet"`	
+	Month                 int64                                `json:"month"`
+	TxHash                string                               `json:"tx_hash"`	
+	Email                 string 
+	FirstName             string                               `json:"first_name"`
+	LastName              string                               `json:"last_name"`
+	CardBrand             string                               `json:"card_brand"`
+	ExpiryMonth           string                                  `json:"exp_month"`
+	ExpiryYear            string                                  `json:"exp_year"`
+	Currency              string                               `json:"currency"`
+	Amount                string                               `json:"amount"`
+	Plan                  string                               `json:"plan"`
+	ProductID             string                               `json:"product_id"`
+	UserID                string                               `json:"user_id"`
+	Tier                  subscription_domain.SubscriptionTier `json:"tier"`
+	LastFour              string                               `json:"last_four"`
+	CardNumber            string                               `json:"card_number"`
+	Exp                   string                               `json:"exp"`
+	CVC                   string                               `json:"cvc"`
+	PaymentMethod         subscription_domain.PaymentMethod    `json:"payment_method"`
+	StripePaymentMethodID string                               `json:"stripe_payment_method_id,omitempty"`
+	EncryptedPaymentData  string                               `json:"encrypted_payment_data,omitempty"` // Encrypted client-side
+	StellarPublicKey      string                               `json:"stellar_public_key,omitempty"`
+}
+type PaymentSetupResponse struct {
+	Data       json.RawMessage `json:"data"`
+	Status     string          `json:"status"`
+	StatusCode int             `json:"status_code"`
+	Message    string          `json:"message"`
+}
+func (c *TracecoreClient) SetupSubscription(ctx context.Context, payload PaymentSetupRequest) (*PaymentSetupResponse, error) {
+	bodyBytes, _ := json.Marshal(payload)
+    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/stripe", bytes.NewReader(bodyBytes))
+    req.Header.Set("Content-Type", "application/json")
+    if c.Token != "" {
+        req.Header.Set("Authorization", "Bearer "+c.Token)
+    }
 
+    resp, err := c.HTTPClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    respBytes, _ := io.ReadAll(resp.Body)
+    var cloudResp PaymentSetupResponse
+    if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+        return nil, fmt.Errorf("invalid cloud response: %w", err)
+    }
+
+    if cloudResp.Status != "ok" {
+        return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+    }
+	utils.LogPretty("cloud response", cloudResp)
+
+    return &cloudResp, nil
+}	
+
+func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessionID string) (*subscription_domain.Subscription, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions?session_id="+sessionID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	var sub subscription_domain.Subscription
+	if err := json.Unmarshal(cloudResp.Data, &sub); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+
+	return &sub, nil
+}

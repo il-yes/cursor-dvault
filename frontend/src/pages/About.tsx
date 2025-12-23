@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Globe, Github, BookOpen, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
+import SubscriptionManager from "@/components/Subscription/subscriptionManager";
 
 export default function About() {
   return (
@@ -14,13 +15,12 @@ export default function About() {
           <CardHeader className="text-center space-y-8 pb-6">
             {/* Hero Logo */}
             <div className="mx-auto w-auto h-20 rounded-3xl to-amber-500/20 backdrop-blur-sm  flex items-center justify-center p-6">
-              <img 
-                src={ankhoraLogo} 
-                alt="Ankhora Logo" 
+              <img
+                src={ankhoraLogo}
+                alt="Ankhora Logo"
                 className="w-auto h-32 object-contain drop-shadow-lg"
               />
             </div>
-
             {/* App Identity */}
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm rounded-2xl border border-zinc-200/50 shadow-sm">
@@ -34,6 +34,7 @@ export default function About() {
                 A secure, privacy-focused cryptographic vault for your digital identity.
               </CardDescription>
             </div>
+
           </CardHeader>
 
           <CardContent className="space-y-8">
@@ -63,7 +64,7 @@ export default function About() {
                   <Globe className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                   <span className="text-sm font-medium">Website</span>
                 </Button>
-                
+
                 <Button
                   variant="ghost"
                   className="group h-14 rounded-2xl border-2 border-zinc-200/50 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm hover:border-primary/40 hover:bg-primary/5 hover:shadow-md transition-all duration-300 justify-start gap-3 shadow-sm hover:shadow-primary/10"
@@ -72,7 +73,7 @@ export default function About() {
                   <Github className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                   <span className="text-sm font-medium">GitHub</span>
                 </Button>
-                
+
                 <Button
                   variant="ghost"
                   className="group h-14 rounded-2xl border-2 border-zinc-200/50 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/50 backdrop-blur-sm hover:border-primary/40 hover:bg-primary/5 hover:shadow-md transition-all duration-300 justify-start gap-3 shadow-sm hover:shadow-primary/10"

@@ -18,8 +18,24 @@ export function CheckEmail(arg1) {
   return window['go']['main']['App']['CheckEmail'](arg1);
 }
 
+export function CheckPaymentOnResume() {
+  return window['go']['main']['App']['CheckPaymentOnResume']();
+}
+
 export function CheckSession(arg1) {
   return window['go']['main']['App']['CheckSession'](arg1);
+}
+
+export function CheckStellarKeyForVault(arg1) {
+  return window['go']['main']['App']['CheckStellarKeyForVault'](arg1);
+}
+
+export function ConnectWithStellar(arg1) {
+  return window['go']['main']['App']['ConnectWithStellar'](arg1);
+}
+
+export function CreateAccount(arg1) {
+  return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
 export function CreateFolder(arg1, arg2) {
@@ -62,12 +78,40 @@ export function FlushAllSessions() {
   return window['go']['main']['App']['FlushAllSessions']();
 }
 
+export function GetCheckoutURL(arg1) {
+  return window['go']['main']['App']['GetCheckoutURL'](arg1);
+}
+
 export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
 }
 
+export function GetRecommendedTier(arg1) {
+  return window['go']['main']['App']['GetRecommendedTier'](arg1);
+}
+
+export function GetSession(arg1) {
+  return window['go']['main']['App']['GetSession'](arg1);
+}
+
 export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
+}
+
+export function GetTierFeatures() {
+  return window['go']['main']['App']['GetTierFeatures']();
+}
+
+export function GetVault(arg1) {
+  return window['go']['main']['App']['GetVault'](arg1);
+}
+
+export function ImportVaultWithKey(arg1) {
+  return window['go']['main']['App']['ImportVaultWithKey'](arg1);
+}
+
+export function InitStripe() {
+  return window['go']['main']['App']['InitStripe']();
 }
 
 export function IsVaultDirty(arg1) {
@@ -82,6 +126,30 @@ export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
 }
 
+export function NotifyPaymentSuccess(arg1) {
+  return window['go']['main']['App']['NotifyPaymentSuccess'](arg1);
+}
+
+export function OnPaymentConfirmation(arg1, arg2) {
+  return window['go']['main']['App']['OnPaymentConfirmation'](arg1, arg2);
+}
+
+export function OpenGoogle() {
+  return window['go']['main']['App']['OpenGoogle']();
+}
+
+export function OpenURL(arg1) {
+  return window['go']['main']['App']['OpenURL'](arg1);
+}
+
+export function PollPaymentStatus(arg1, arg2) {
+  return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2);
+}
+
+export function RecoverVaultWithKey(arg1) {
+  return window['go']['main']['App']['RecoverVaultWithKey'](arg1);
+}
+
 export function RefreshToken(arg1) {
   return window['go']['main']['App']['RefreshToken'](arg1);
 }
@@ -94,12 +162,24 @@ export function RequestChallenge(arg1) {
   return window['go']['main']['App']['RequestChallenge'](arg1);
 }
 
+export function RequireAuth(arg1) {
+  return window['go']['main']['App']['RequireAuth'](arg1);
+}
+
 export function RestoreEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2, arg3);
 }
 
-export function SignIn(arg1) {
-  return window['go']['main']['App']['SignIn'](arg1);
+export function SetupPaymentAndActivate(arg1) {
+  return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
+}
+
+export function Sign(arg1) {
+  return window['go']['main']['App']['Sign'](arg1);
+}
+
+export function SignInWithIdentity(arg1) {
+  return window['go']['main']['App']['SignInWithIdentity'](arg1);
 }
 
 export function SignInWithStellar(arg1) {

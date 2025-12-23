@@ -9,8 +9,6 @@ import (
 	"time"
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
-	share_domain "vault-app/internal/domain/shared"
-	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/tracecore"
 
 	"gorm.io/gorm"
@@ -31,34 +29,14 @@ func NewModels(db *gorm.DB) Models {
 		DB: DBModel{DB: db},
 	}
 }
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&User{},
-		&Folder{},
-		&VaultCID{},
-		&VaultContent{},
-		&LoginEntry{},
-		&CardEntry{},
-		&IdentityEntry{},
-		&NoteEntry{},
-		&SSHKeyEntry{},
 
-		// App & User Configs
-		&app_config.AppConfig{},
-		&app_config.CommitRule{},
-		&app_config.UserConfig{},
-		&app_config.SharingRule{},
-		&app_config.SharingConfig{}, // if used for advanced sharing
-		&UserSession{},
-		&auth.TokenPairs{},
 
-		// Sharing
-		&share_infrastructure.ShareEntryModel{},
-		&share_infrastructure.RecipientModel{},
-		&share_domain.AuditLog{},	
+const (
+	ErrUserNotFound = "user not found"
+	ErrUserExists   = "user exists"
+	
+)
 
-	)
-}
 
 type VaultEntry interface {
 	GetId() string
@@ -67,17 +45,17 @@ type VaultEntry interface {
 }
 
 type User struct {
-	ID              int       `json:"id" gorm:"primaryKey"`
+	ID              string       `json:"id" gorm:"primaryKey"`
 	Username        string    `gorm:"column:username" json:"username"`
 	Email           string    `gorm:"column:email" json:"email"`
 	Password        string    `gorm:"column:password" json:"password"`
 	Role            string    `gorm:"column:role" json:"role"`
 	CreatedAt       time.Time `json:"created_at" gorm:"varchar(100)"`
 	UpdatedAt       time.Time `json:"updated_at" gorm:"varchar(100)"`
-	LastConnectedAt time.Time `json:"last_connected_at" gorm:"last_connected_at"`
+	LastConnectedAt time.Time `json:"last_connected_at"`
 }
 type UserDTO struct {
-	ID              int    `json:"id"`
+	ID              string    `json:"id"`
 	Email           string `json:"email"`
 	Role            string `json:"role"`
 	CreatedAt       string `json:"created_at"`
@@ -97,7 +75,7 @@ func toUserDTO(u User) UserDTO {
 }
 
 type Folder struct {
-	ID        int    `json:"id" gorm:"primaryKey"`
+	ID        string    `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"varchar(100)"`
 	CreatedAt string `json:"created_at" gorm:"varchar(100)"`
 	UpdatedAt string `json:"updated_at" gorm:"varchar(100)"`
@@ -117,10 +95,10 @@ const (
 
 // Vault of the user (could be versionned)
 type VaultCID struct {
-	ID        int    `json:"id" gorm:"primaryKey"`
+	ID        string    `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"column:name"`
 	Type      string `json:"type" gorm:"column:type"`
-	UserID    int    `json:"user_id" gorm:"column:user_id"`
+	UserID    string    `json:"user_id" gorm:"column:user_id"`
 	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
 	TxHash    string `json:"tx_hash" gorm:"column:tx_hash"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"`
@@ -141,6 +119,7 @@ type BaseVaultContent struct {
 	UpdatedAt string   `json:"updated_at" gorm:"varchar(100)"`
 }
 
+	
 // For vault initialization (signup)
 type VaultPayload struct {
 	Version string `json:"version"`
@@ -239,7 +218,7 @@ func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 // For draft mode in temp storage
 type VaultContent struct {
 	ID        string `json:"id"`
-	UserID    int    `json:"user_id"`
+	UserID    string    `json:"user_id"`
 	CID       string `json:"cid"`
 	IsDraft   bool   `json:"is_draft"`
 	CreatedAt string `json:"created_at" gorm:"varchar(100)"`
@@ -279,7 +258,7 @@ func (m *DBModel) GetLastVaultByCID(cid string) (*VaultCID, error) {
 	}
 	return &record, nil
 }
-func (m *DBModel) GetLatestVaultCIDByUserID(id int) (*VaultCID, error) {
+func (m *DBModel) GetLatestVaultCIDByUserID(id string) (*VaultCID, error) {
 	var record VaultCID
 
 	if err := m.DB.Order("created_at DESC").First(&record, "user_id = ?", id).Error; err != nil {
@@ -290,6 +269,7 @@ func (m *DBModel) GetLatestVaultCIDByUserID(id int) (*VaultCID, error) {
 
 func (m *DBModel) GetUserByEmail(email string) (*User, error) {
 	var user User
+	fmt.Println("GetUserByEmail - email", email)
 	if err := m.DB.First(&user, "email = ?", email).Error; err != nil {
 		return nil, err
 	}
@@ -455,7 +435,7 @@ func (m *DBModel) UpsertVaultContent(vault *VaultContent) error {
 
 // VaultSession holds the decrypted vault during an active session
 type VaultSession struct {
-	UserID              int           `json:"user_id"`
+	UserID              string           `json:"user_id"`
 	Vault               *VaultPayload // Decrypted vault format
 	LastCID             string
 	Dirty               bool
@@ -466,7 +446,7 @@ type VaultSession struct {
 	PendingCommits      []tracecore.CommitEnvelope `json:"pending_commits,omitempty"`
 }
 type UserSession struct {
-	UserID      int            `gorm:"primaryKey;column:user_id" json:"user_id"`
+	UserID      string            `gorm:"primaryKey;column:user_id" json:"user_id"`
 	SessionData string         `gorm:"type:json" json:"session_data"` // Marshaled VaultSession
 	UpdatedAt   string         `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
@@ -501,10 +481,10 @@ func (m *DBModel) FindUsers() ([]UserDTO, error) {
 
 	return userDTOs, nil
 }
-func (m *DBModel) FindUserById(id int) (*User, error) {
+func (m *DBModel) FindUserById(id string) (*User, error) {
 	var user User
 	if err := m.DB.First(&user, "id = ?", id).Error; err != nil {
-		return nil, fmt.Errorf("❌ failed to find user with id: %d - %w", id, err)
+		return nil, fmt.Errorf("❌ failed to find user with id: %s - %w", id, err)
 	}
 
 	return &user, nil
@@ -524,17 +504,17 @@ func (m *DBModel) SaveUserConfig(uc app_config.UserConfig) (*app_config.UserConf
 	}
 	return &uc, nil
 }
-func (m *DBModel) GetAppConfigByUserID(userID int) (*app_config.AppConfig, error) {
+func (m *DBModel) GetAppConfigByUserID(userID string) (*app_config.AppConfig, error) {
 	var appCfg app_config.AppConfig
 	if err := m.DB.Find(&appCfg, "user_id = ?", userID).Error; err != nil {
-		return nil, fmt.Errorf("❌ failed to find app config from user Id: %d", userID)
+		return nil, fmt.Errorf("❌ failed to find app config from user Id: %s", userID)
 	}
 	return &appCfg, nil
 }
-func (m *DBModel) GetUserConfigByUserID(userID int) (*app_config.UserConfig, error) {
+func (m *DBModel) GetUserConfigByUserID(userID string) (*app_config.UserConfig, error) {
 	var userCfg app_config.UserConfig
 	if err := m.DB.First(&userCfg, "id = ?", userID).Error; err != nil {
-		return nil, fmt.Errorf("❌ failed to find user config from user Id: %d", userID)
+		return nil, fmt.Errorf("❌ failed to find user config from user Id: %s", userID)
 	}
 	return &userCfg, nil
 }
@@ -553,7 +533,7 @@ func (m *DBModel) GetUserByPublicKey(pubKey string) (*User, *app_config.UserConf
 	return &user, &userCfg, nil
 }
 
-func (db *DBModel) SaveSession(userID int, session *VaultSession) error {
+func (db *DBModel) SaveSession(userID string, session *VaultSession) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
@@ -566,7 +546,7 @@ func (db *DBModel) SaveSession(userID int, session *VaultSession) error {
 	return db.DB.Save(&userSession).Error
 }
 
-func (db *DBModel) LoadSession(userID int) (*VaultSession, error) {
+func (db *DBModel) LoadSession(userID string) (*VaultSession, error) {
 	var userSession UserSession
 	if err := db.DB.First(&userSession, "user_id = ?", userID).Error; err != nil {
 		return nil, err
@@ -579,17 +559,17 @@ func (db *DBModel) LoadSession(userID int) (*VaultSession, error) {
 	return &session, nil
 }
 
-func (db *DBModel) GetAllSessions() (map[int]*VaultSession, error) {
+func (db *DBModel) GetAllSessions() (map[string]*VaultSession, error) {
 	var sessions []UserSession
 	if err := db.DB.Find(&sessions).Error; err != nil {
 		return nil, err
 	}
 
-	sessionMap := make(map[int]*VaultSession)
+	sessionMap := make(map[string]*VaultSession)
 	for _, s := range sessions {
 		var vaultSession VaultSession
 		if err := json.Unmarshal([]byte(s.SessionData), &vaultSession); err != nil {
-			return nil, fmt.Errorf("failed to decode session for user %d: %w", s.UserID, err)
+			return nil, fmt.Errorf("failed to decode session for user %s: %w", s.UserID, err)
 		}
 		sessionMap[s.UserID] = &vaultSession
 	}
@@ -627,11 +607,11 @@ func (m *DBModel) UpdateJwtToken(userID int, tokens auth.TokenPairs) (*auth.Toke
 }
 
 // DeleteJwtToken removes the refresh token (logout)
-func (m *DBModel) DeleteJwtToken(userID int) error {
+func (m *DBModel) DeleteJwtToken(userID string) error {
 	return m.DB.Delete(&auth.TokenPairs{}, "user_id = ?", userID).Error
 }
 
-func (m *DBModel) GetJwtTokenByUserId(userId int) (*auth.TokenPairs, error) {
+func (m *DBModel) GetJwtTokenByUserId(userId string) (*auth.TokenPairs, error) {
 	var token auth.TokenPairs
 	err := m.DB.Find(&token, "user_id = ?", userId).Error
 	if err != nil {
@@ -659,14 +639,14 @@ func (m *DBModel) GetFoldersByVault(vaultCID string) ([]Folder, error) {
 	}
 	return folders, nil
 }
-func (m *DBModel) GetFolderById(id int) (*Folder, error) {
+func (m *DBModel) GetFolderById(id string) (*Folder, error) {
 	var folder Folder
 	if err := m.DB.First(&folder, id).Error; err != nil {
 		return nil, err
 	}
 	return &folder, nil
 }
-func (m *DBModel) DeleteFolder(id int) error {
+func (m *DBModel) DeleteFolder(id string) error {
 	if err := m.DB.Delete(&Folder{}, id).Error; err != nil {
 		return err
 	}

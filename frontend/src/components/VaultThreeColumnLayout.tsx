@@ -8,15 +8,21 @@ import { Radio, Database, CheckCircle2, Clock, Star } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
-import { useVault } from "@/hooks/useVault";
 import "./contributionGraph/g-scrollbar.css";
+import { useVaultStore } from "@/store/vaultStore";
 
 interface VaultThreeColumnLayoutProps {
   filter: string;
 }
 
 export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) {
-  const { vaultContext, updateEntry, deleteEntry, restoreEntry, toggleFavorite } = useVault();
+  const vaultContext = useVaultStore((state) => state.vault);
+  const updateEntry = useVaultStore((state) => state.updateEntry);
+  const deleteEntry = useVaultStore((state) => state.deleteEntry);
+  const restoreEntry = useVaultStore((state) => state.restoreEntry);
+  const toggleFavorite = useVaultStore((state) => state.toggleFavorite);
+  const loadVault = useVaultStore((state) => state.loadVault);
+
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const [editMode, setEditMode] = useState(false);
@@ -33,8 +39,14 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
       ...(vaultContext.Vault.entries?.identity || []),
     ];
 
+    console.log({ entries });
+
     return entries;
   }, [vaultContext]);
+
+  useEffect(() => {
+    console.log("🚀 ~ from VaultThreeColumnLayout ~ vaultContext:", {vaultContext})
+  }, []);
 
   // Derive selectedEntry from vaultContext using the ID - this ensures we always have the latest data
   const selectedEntry = useMemo(() => {

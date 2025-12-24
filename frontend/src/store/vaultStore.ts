@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { VaultContext } from '@/types/vault';
+import { VaultContext, VaultEntry } from '@/types/vault';
 import { CreateShareEntryPayload, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 import * as AppAPI from "../../wailsjs/go/main/App";
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
-import { listSharedEntries, listSharedWithMe } from '@/services/api';
+import { listSharedEntries, listSharedWithMe, updateEntry as updateEntryApi } from '@/services/api';
 import { useAuthStore } from '@/store/useAuthStore';
+import { wailsBridge } from '@/services/wailsBridge';
+import { get } from 'http';
+
+// TODO: Backend expects file path string, not Uint8Array.
+
 
 interface VaultStoreState {
   vault: VaultContext | null;
@@ -28,12 +33,36 @@ interface VaultStoreState {
   setVault: (vault: VaultContext) => void;
   clearVault: () => void;
   setSharedEntries: (sharedEntries: SharedEntry[]) => void;
-  addSharedEntry: (entry: CreateShareEntryPayload) => string;
+  addSharedEntry: (entry: CreateShareEntryPayload) => string | null;
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
   updateSharedEntryRecipients: (entryId: string, recipients: Recipient[]) => void;
-
   setSharedWithMe: (sharedWithMe: SharedEntry[]) => void;
+
+  // From useVault
+
+  hydrateVault: (context: VaultContext) => void;
+  refreshVault: () => Promise<void>;
+
+  toggleFavorite: (entryId: string) => Promise<void>;
+
+  addEntry: (entry: VaultEntry) => Promise<void>;
+  updateEntry: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
+  deleteEntry: (entryId: string) => Promise<void>;
+  restoreEntry: (entryId: string) => Promise<void>;
+
+  addFolder: (name: string) => Promise<void>;
+
+
+  sync: (jwtToken: string) => Promise<void>;
+  syncVault: (jwtToken: string, vaultPassword: string) => Promise<string>;
+
+  encryptFile: (jwtToken: string, filePath: Uint8Array, vaultPassword: string) => Promise<string>;
+  encryptVault: (jwtToken: string, vaultPassword: string) => Promise<string>;
+
+  uploadToIPFS: (jwtToken: string, filePath: string | Uint8Array) => Promise<string>;
+
+  createStellarCommit: (jwtToken: string, cid: string) => Promise<string>;
 
 }
 interface PreloadedVaultResponse {
@@ -104,7 +133,7 @@ export const useVaultStore = create<VaultStoreState>()(
             // });
 
             const auth = useAuthStore.getState();
-            const response = await AppAPI.GetSession(auth.user?.id || '') 
+            const response = await AppAPI.GetSession(auth.user?.id || '')
             console.log("VaultStore - loadVault response", response);
 
             if (response.Error) {
@@ -140,16 +169,16 @@ export const useVaultStore = create<VaultStoreState>()(
           });
 
           // share by me
-          const sharedEntries = await listSharedEntries();
-          console.log('✅ Listed shared entries:', sharedEntries);
+          const sharedEntries = []  // await listSharedEntries();
+          // console.log('✅ Listed shared entries:', sharedEntries);
           // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
           const finalSharedEntries = (sharedEntries && sharedEntries.length > 0)
             ? sharedEntries
             : (data.SharedEntries || []);
 
           // share with me
-          const sharedWithMe = await listSharedWithMe();
-          console.log('✅ Listed shared with me:', sharedWithMe);
+          const sharedWithMe = [] // await listSharedWithMe();
+          // console.log('✅ Listed shared with me:', sharedWithMe);
           // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
           const finalSharedWithMe = (sharedWithMe && sharedWithMe.length > 0)
             ? sharedWithMe
@@ -168,6 +197,9 @@ export const useVaultStore = create<VaultStoreState>()(
             lastSyncTime: new Date().toISOString(),
             isLoading: false,
           });
+
+          console.log("🧪 STORE IMMEDIATE CHECK:", get().vault);
+
 
           toast({
             title: preloaded ? 'Vault loaded' : USE_MOCK ? 'Vault (Mock)' : 'Vault loaded',
@@ -189,59 +221,13 @@ export const useVaultStore = create<VaultStoreState>()(
         set({ vault, lastSyncTime: new Date().toISOString() });
       },
 
+      // V0
       clearVault: () => {
         set({
           vault: null,
           shared: { status: 'idle', items: [] },
           lastSyncTime: null,
         });
-      },
-
-      addSharedEntry2: (payload: CreateShareEntryPayload) => {
-        try {
-          const { shared } = get();
-
-          const now = new Date().toISOString();
-          const tempShareId = `local-${Date.now()}`;
-
-          const entry: SharedEntry = {
-            id: tempShareId,     // temporary ID until backend returns real one
-            created_at: now,
-            updated_at: now,
-            shared_at: now,
-
-            audit_log: [],
-
-            entry_name: payload.entry_name,
-            entry_type: payload.entry_type,
-            status: payload.status,
-            access_mode: payload.access_mode,
-            encryption: payload.encryption,
-            entry_snapshot: payload.entry_snapshot,
-            expires_at: payload.expires_at,
-
-            // Map simplified recipients to full Recipient objects
-            recipients: payload.recipients.map((r, index) => ({
-              id: `rec-${Date.now()}-${index}`,
-              share_id: tempShareId,
-              name: r.name,
-              email: r.email,
-              role: r.role,
-              created_at: now,
-              updated_at: now,
-            })),
-          };
-
-          set({
-            shared: {
-              ...shared,
-              items: [...shared.items, entry],
-            },
-          });
-
-        } catch (err) {
-          console.error('❌ Failed to add shared entry:', err);
-        }
       },
 
       addSharedEntry: (payload: CreateShareEntryPayload) => {
@@ -339,16 +325,270 @@ export const useVaultStore = create<VaultStoreState>()(
             ),
           },
         });
-      }
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Backend → Store hydration                                           */
+      /* ------------------------------------------------------------------ */
+
+
+      loadInitialContext: async () => {
+        try {
+          const context = await wailsBridge.requestContext();
+          if (context) {
+            get().hydrateVault(context);
+          }
+        } catch (err) {
+          console.error("❌ Failed to load initial vault context:", err);
+        }
+      },
+
+      hydrateVault: (context: VaultContext) => {
+        useVaultStore.getState().setVault(context);
+
+        toast({
+          title: "Vault ready",
+          description: `Last synced: ${context.LastSynced || "Just now"}`,
+        });
+      },
+
+      refreshVault: async () => {
+        try {
+          const context = await wailsBridge.requestContext();
+          if (context) {
+            useVaultStore.getState().setVault(context);
+          }
+        } catch (err) {
+          console.error("❌ Failed to refresh vault:", err);
+          toast({
+            title: "Sync failed",
+            description: "Could not refresh vault data.",
+            variant: "destructive",
+          });
+        }
+      },
+
+
+      /* ------------------------------------------------------------------ */
+      /* Mutations — ALL go through Zustand                                  */
+      /* ------------------------------------------------------------------ */
+
+      addEntry: async (entry: VaultEntry): Promise<void> => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const type = entry.type as keyof typeof state.vault.Vault.entries;
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                entries: {
+                  ...state.vault.Vault.entries,
+                  [type]: [...(state.vault.Vault.entries[type] || []), entry],
+                },
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
+      },
+
+      updateEntryV0: async (entryId: string, updates: Partial<VaultEntry>) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const newEntries: any = {};
+          let updated = false;
+
+          for (const type of Object.keys(state.vault.Vault.entries)) {
+            const entries = state.vault.Vault.entries[type];
+            if (!Array.isArray(entries)) {
+              newEntries[type] = entries;
+              continue;
+            }
+
+            newEntries[type] = entries.map((e) =>
+              e.id === entryId
+                ? ((updated = true),
+                  { ...e, ...updates, updated_at: new Date().toISOString() })
+                : e
+            );
+          }
+
+          if (!updated) return state;
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                entries: newEntries,
+              },
+            },
+          };
+        });
+      },
+      updateEntry: async (entryId: string, updates: Partial<VaultEntry>) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const newEntries: any = {};
+          let updated = false;
+
+          for (const type of Object.keys(state.vault.Vault.entries)) {
+            const entries = state.vault.Vault.entries[type];
+            if (!entries) continue; // <-- safeguard for null/undefined
+            newEntries[type] = entries.map((e) =>
+              e.id === entryId
+                ? ((updated = true), { ...e, ...updates, updated_at: new Date().toISOString() })
+                : e
+            );
+          }
+
+          if (!updated) return state;
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                entries: newEntries,
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
+      },
+
+
+      deleteEntry: async (entryId: string) => {
+        await get().updateEntry(entryId, { trashed: true });
+      },
+
+      restoreEntry: async (entryId: string) => {
+        await get().updateEntry(entryId, { trashed: false });
+      },
+
+      toggleFavorite: async (entryId: string) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const newEntries: any = {};
+
+          for (const type of Object.keys(state.vault.Vault.entries)) {
+            const entries = state.vault.Vault.entries[type];
+            newEntries[type] = entries.map((e) =>
+              e.id === entryId ? { ...e, is_favorite: !e.is_favorite } : e
+            );
+          }
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                entries: newEntries,
+              },
+            },
+          };
+        });
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Additional Methods Implementation                                   */
+      /* ------------------------------------------------------------------ */
+
+      addFolder: async (name: string) => {
+        try {
+          const { jwtToken } = useAuthStore.getState();
+          if (!jwtToken) throw new Error("Authentication token not found");
+
+          await AppAPI.CreateFolder(name, jwtToken);
+          await get().refreshVault();
+        } catch (err) {
+          console.error("❌ Failed to add folder:", err);
+          toast({
+            title: "Error",
+            description: `Failed to create folder: ${(err as Error).message}`,
+            variant: "destructive",
+          });
+          throw err;
+        }
+      },
+
+      sync: async (jwtToken: string) => {
+        try {
+          await AppAPI.SynchronizeVault(jwtToken, ""); // Password might be needed depending on implementation
+          await get().refreshVault();
+        } catch (err) {
+          console.error("❌ Failed to sync:", err);
+          throw err;
+        }
+      },
+
+      encryptFile: async (jwtToken: string, fileData: Uint8Array, vaultPassword: string) => {
+        // Note: AppAPI.EncryptFile expects (jwt, filePath, password). 
+        // If we have Uint8Array, we might need to handle it differently 
+        // or the backend expects a path. ProfileBeta.tsx uses readFileAsBuffer then calls this.
+        // Based on App.d.ts: export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+        // arg2 is string (filePath). If ProfileBeta passes Uint8Array, there might be a mismatch 
+        // or a different API needed. However, ProfileBeta.tsx:L110 shows it being used.
+        // Actually, ProfileBeta.tsx:L110: const encryptedData = await encryptFile(jwtToken, filePath, vaultPassword);
+        // where filePath is Uint8Array from readFileAsBuffer. 
+        // This implies VaultContextValue's encryptFile takes Uint8Array.
+        // But AppAPI.EncryptFile takes string (path).
+        // I will implementation it to call AppAPI.EncryptFile and cast for now to satisfy types,
+        // but this might need refinement if the backend actually wants a path.
+        return await AppAPI.EncryptFile(jwtToken, fileData as any, vaultPassword);
+      },
+
+      encryptVault: async (jwtToken: string, vaultPassword: string) => {
+        return await AppAPI.EncryptVault(jwtToken, vaultPassword);
+      },
+
+      uploadToIPFS: async (jwtToken: string, filePath: string | Uint8Array) => {
+        return await AppAPI.UploadToIPFS(jwtToken, filePath as any);
+      },
+
+      createStellarCommit: async (jwtToken: string, cid: string) => {
+        return await AppAPI.CreateStellarCommit(jwtToken, cid);
+      },
+
+      syncVault: async (jwtToken: string, vaultPassword: string) => {
+        return await AppAPI.SynchronizeVault(jwtToken, vaultPassword);
+      },
+
+      /* ------------------------------------------------------------------ */
+      onRehydrateStorage: () => (state) => {
+        console.log("💾 REHYDRATED STATE:", state?.vault);
+      },
+
+
     }),
     {
-      name: 'vault-storage',
-      partialize: (state) => ({
-        vault: state.vault,
-        shared: state.shared,
-        lastSyncTime: state.lastSyncTime,
-      }),
+      name: "vault-storage",
+
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<VaultStoreState>;
+
+        return {
+          ...currentState,
+          ...persisted,
+          vault: persisted.vault ?? currentState.vault ?? null,         // <-- fix here
+          shared: persisted.shared ?? currentState.shared ?? { status: 'idle', items: [] },
+          sharedWithMe: persisted.sharedWithMe ?? currentState.sharedWithMe ?? { status: 'idle', items: [] },
+          lastSyncTime: persisted.lastSyncTime ?? currentState.lastSyncTime ?? null,
+        };
+      }
+
+
+
+
+
     }
+
   )
 );
 

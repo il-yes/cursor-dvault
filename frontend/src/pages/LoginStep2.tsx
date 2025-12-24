@@ -13,7 +13,6 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 import { normalizePreloadedVault } from "@/services/normalizeVault";
 import { useAppStore } from "@/store/appStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useVault } from "@/hooks/useVault";
 
 const LoginStep2 = () => {
   const [searchParams] = useSearchParams();

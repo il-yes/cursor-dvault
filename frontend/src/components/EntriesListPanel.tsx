@@ -2,7 +2,7 @@ import { VaultEntry } from "@/types/vault";
 import { LogIn, CreditCard, FileText, Key, UserCircle, Star, Edit, Trash2, Share2, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { useVault } from "@/hooks/useVault";
+import { useVaultStore } from "@/store/vaultStore";
 import "./contributionGraph/g-scrollbar.css";
 
 interface EntriesListPanelProps {
@@ -26,7 +26,7 @@ export function EntriesListPanel({
   onSelectEntry,
   onToggleFavorite,
 }: EntriesListPanelProps) {
-  const { vaultContext } = useVault();
+  const vaultContext = useVaultStore((state) => state.vault);
   
   const getFolderName = (folderId?: string) => {
     if (!folderId || !vaultContext?.Vault.folders) return null;

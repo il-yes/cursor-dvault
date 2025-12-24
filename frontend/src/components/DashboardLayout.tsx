@@ -115,8 +115,10 @@ function DashboardNavbar() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
-  const { vaultContext, addEntry, clearVault: clearVaultContext } = useVault();
-  const { clearVault: clearVaultStore } = useVaultStore();
+
+  const vaultContext = useVaultStore((state) => state.vault);
+  const addEntry = useVaultStore((state) => state.addEntry);
+  const clearVaultStore = useVaultStore((state) => state.clearVault);
 
   const { updateOnboarding, onboarding, jwtToken } = useAuthStore();
   const [encryptedVault, setEncryptedVault] = useState<string | null>(null);
@@ -142,7 +144,6 @@ function DashboardNavbar() {
   const handleLogout = () => {
     // Clear all stores and state
     clearVaultStore();                   // Clear vault store (entries, vault data)
-    clearVaultContext();                 // Clear vault context provider
     useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
     useAppStore.getState().reset();      // Clear app store (session)
 
@@ -226,10 +227,7 @@ function DashboardNavbar() {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-  const refreshTokenTest = async () => {
-    const token = await AppAPI.RefreshToken(auth.user?.id);
-    console.log("🚀 ~ refreshTokenTest ~ token:", {token})
-  } 
+
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -244,7 +242,7 @@ function DashboardNavbar() {
 
         <div className="hidden md:flex items-center gap-3">
           {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
-          <span onClick={refreshTokenTest} className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
         </div>
 
         <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
@@ -343,7 +341,9 @@ function AppSidebar() {
   const navigate = useNavigate();
   const isVaultContext = location.pathname.startsWith("/dashboard/vault");
   const isSharedContext = location.pathname.startsWith("/dashboard/shared");
-  const { vaultContext, addFolder } = useVault();
+
+  const vaultContext = useVaultStore((state) => state.vault);
+  const addFolder = useVaultStore((state) => state.addFolder);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [isNewShareOpen, setIsNewShareOpen] = useState(false);
@@ -362,6 +362,8 @@ function AppSidebar() {
     }
   };
   const avatar = user && RenderAvatar(user.id)
+
+
 
   return (
     <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">

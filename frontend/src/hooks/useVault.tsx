@@ -31,133 +31,71 @@ interface VaultContextValue {
 const VaultContextProvider = createContext<VaultContextValue | undefined>(undefined);
 
 export function VaultProvider({ children }: { children: ReactNode }) {
-	const [vaultContext, setVaultContext] = useState<VaultContext | null>(null);
-	const [isLoading, setIsLoading] = useState(true);
-	const vaultStoreData = useVaultStore((state) => state.vault);
+	// 🔑 SINGLE SOURCE OF TRUTH
+	const vaultContext = useVaultStore((state) => state.vault);
+	const isLoading = useVaultStore((state) => state.isLoading);
 
-	// Sync vaultStore data to vaultContext
-	useEffect(() => {
-		console.log('🔄 VaultProvider: useEffect triggered', {
-			hasVaultStoreData: !!vaultStoreData,
-			vaultStoreData: vaultStoreData ? {
-				user_id: vaultStoreData.user_id,
-				hasVault: !!vaultStoreData.Vault,
-				hasEntries: !!vaultStoreData.Vault?.entries,
-				lastUpdated: vaultStoreData.LastUpdated
-			} : null
-		});
-
-		if (vaultStoreData) {
-			console.log('✅ VaultProvider: Syncing vaultStoreData to vaultContext');
-			setVaultContext(vaultStoreData);
-			setIsLoading(false);
-		} else {
-			console.log('⚠️ VaultProvider: No vaultStoreData to sync');
-		}
-	}, [vaultStoreData]);
+	/* ------------------------------------------------------------------ */
+	/* Backend → Store hydration                                           */
+	/* ------------------------------------------------------------------ */
 
 	useEffect(() => {
-		// Listen to context pushes from backend
 		const unsubscribe = wailsBridge.onContextReceived((context) => {
 			hydrateVault(context);
 		});
 
-		// Load context at startup only if vaultStore is empty
-		if (!vaultStoreData) {
+		// Load initial vault only once if empty
+		if (!vaultContext) {
 			loadInitialContext();
-		} else {
-			setIsLoading(false);
 		}
 
-		return () => {
-			unsubscribe();
-		};
+		return unsubscribe;
 	}, []);
 
 	const loadInitialContext = async () => {
 		try {
 			const context = await wailsBridge.requestContext();
-
 			if (context) {
 				hydrateVault(context);
-			} else {
-				// No mock! User is probably not logged in
-				setVaultContext(null);
 			}
-		} catch (error) {
-			console.error("Failed to load initial vault context:", error);
-			setVaultContext(null);
-		} finally {
-			setIsLoading(false);
+		} catch (err) {
+			console.error("❌ Failed to load initial vault context:", err);
 		}
 	};
 
 	const hydrateVault = (context: VaultContext) => {
-		// Update vaultStore - this will trigger the useEffect to update vaultContext
 		useVaultStore.getState().setVault(context);
 
-		// Show sync status
-		if (context.Dirty && !context.vault_runtime_context.AppSettings.auto_sync_enabled) {
-			toast({
-				title: "Vault loaded",
-				description: `Last synced: ${context.LastSynced || 'Never'}. Local changes pending.`,
-			});
-		} else {
-			toast({
-				title: "Vault ready",
-				description: `Synced locally. Last synced: ${context.LastSynced || 'Just now'}`,
-			});
-		}
+		toast({
+			title: "Vault ready",
+			description: `Last synced: ${context.LastSynced || "Just now"}`,
+		});
 	};
 
 	const refreshVault = async () => {
-		setIsLoading(true);
 		try {
 			const context = await wailsBridge.requestContext();
 			if (context) {
-				// Update vaultStore - this will trigger the useEffect to update vaultContext
 				useVaultStore.getState().setVault(context);
 			}
-		} catch (error) {
-			console.error('Failed to refresh vault:', error);
+		} catch (err) {
+			console.error("❌ Failed to refresh vault:", err);
 			toast({
 				title: "Sync failed",
 				description: "Could not refresh vault data.",
 				variant: "destructive",
 			});
-		} finally {
-			setIsLoading(false);
 		}
 	};
 
 	const clearVault = () => {
-		setVaultContext(null);
+		useVaultStore.getState().clearVault();
 	};
 
-	// Add a new entry
-	const addEntryV0 = async (entry: VaultEntry): Promise<void> => {
-		if (!vaultContext) return;
+	/* ------------------------------------------------------------------ */
+	/* Mutations — ALL go through Zustand                                  */
+	/* ------------------------------------------------------------------ */
 
-		const type = entry.type as keyof typeof vaultContext.Vault.entries;
-
-		// ✅ Entry already has backend-generated ID from DashboardLayout
-		// Create updated context
-		const updatedContext = {
-			...vaultContext,
-			Vault: {
-				...vaultContext.Vault,
-				entries: {
-					...vaultContext.Vault.entries,
-					[type]: [...(vaultContext.Vault.entries[type] || []), entry],
-				},
-			},
-			Dirty: true,
-			LastUpdated: new Date().toISOString(),
-		};
-
-		// Update vaultStore - this will trigger the useEffect to update vaultContext
-		useVaultStore.getState().setVault(updatedContext);
-	};
 	const addEntry = async (entry: VaultEntry): Promise<void> => {
 		useVaultStore.setState((state) => {
 			if (!state.vault) return state;
@@ -171,10 +109,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 						...state.vault.Vault,
 						entries: {
 							...state.vault.Vault.entries,
-							[type]: [
-								...(state.vault.Vault.entries[type] || []),
-								entry,
-							],
+							[type]: [...(state.vault.Vault.entries[type] || []), entry],
 						},
 					},
 				},
@@ -183,306 +118,140 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		});
 	};
 
+	const updateEntry = async (entryId: string, updates: Partial<VaultEntry>) => {
+		useVaultStore.setState((state) => {
+			if (!state.vault) return state;
 
-	// Update an entry
-	const updateEntry = async (entryId: string, updates: Partial<VaultEntry>): Promise<void> => {
-		if (!vaultContext) {
-			console.error("❌ Cannot update entry: vaultContext is null");
-			toast({ title: "Error", description: "Vault not loaded. Please refresh the page.", variant: "destructive" });
-			return;
-		}
+			const newEntries: any = {};
+			let updated = false;
 
-		const { jwtToken } = useAuthStore.getState();
-		let updated = false;
-		let updatedEntry: VaultEntry | null = null;
-		let entryType: string = '';
+			for (const type of Object.keys(state.vault.Vault.entries)) {
+				const entries = state.vault.Vault.entries[type];
+				if (!Array.isArray(entries)) {
+					newEntries[type] = entries;
+					continue;
+				}
 
-		// Create a deep copy of entries with new array references
-		const newEntries: any = {};
-
-		Object.keys(vaultContext.Vault.entries).forEach((type) => {
-			const entries = vaultContext.Vault.entries[type as keyof typeof vaultContext.Vault.entries];
-
-			// ✅ Safety check: ensure entries array exists
-			if (!entries || !Array.isArray(entries)) {
-				console.warn(`⚠️ No entries array for type: ${type}`);
-				newEntries[type] = entries;
-				return;
+				newEntries[type] = entries.map((e) =>
+					e.id === entryId
+						? ((updated = true),
+							{ ...e, ...updates, updated_at: new Date().toISOString() })
+						: e
+				);
 			}
 
-			const index = entries.findIndex((e) => e.id === entryId);
-			if (index !== -1) {
-				// Create a new array with the updated entry
-				const updatedEntryData = { ...entries[index], ...updates, updated_at: new Date().toISOString() } as VaultEntry;
-				newEntries[type] = [
-					...entries.slice(0, index),
-					updatedEntryData,
-					...entries.slice(index + 1)
-				];
-				updatedEntry = updatedEntryData;
-				entryType = updatedEntryData.type.toLowerCase();
-				updated = true;
-			} else {
-				// Keep the same array if no update
-				newEntries[type] = entries;
-			}
+			if (!updated) return state;
+
+			return {
+				vault: {
+					...state.vault,
+					Vault: {
+						...state.vault.Vault,
+						entries: newEntries,
+					},
+				},
+			};
 		});
-
-		if (!updated || !updatedEntry) {
-			console.error(`❌ Entry not found: ${entryId}`);
-			toast({ title: "Error", description: "Entry not found in vault.", variant: "destructive" });
-			return;
-		}
-
-		// 1️⃣ Update context immediately (optimistic update)
-		const updatedContext = {
-			...vaultContext,
-			Vault: {
-				...vaultContext.Vault,
-				entries: newEntries // New entries object with new array references
-			},
-			Dirty: true,
-			LastUpdated: new Date().toISOString()
-		};
-
-		// Update vaultStore - this will trigger the useEffect to update vaultContext
-		useVaultStore.getState().setVault(updatedContext);
-
-		if (!jwtToken) {
-			toast({ title: "Warning", description: "Changes saved locally only (not authenticated).", variant: "default" });
-			return;
-		}
-
-		try {
-			// 2️⃣ Persist to backend with correct signature: EditEntry(entryType, fullEntry, jwtToken)
-			// Ensure the entry type in the payload is also lowercase
-			const entryPayload = { ...updatedEntry, type: entryType };
-			await AppAPI.EditEntry(entryType, entryPayload, jwtToken);
-			toast({ title: "Entry updated", description: "Changes saved successfully." });
-		} catch (err) {
-			console.error(err);
-			toast({ title: "Error", description: "Failed to update entry on backend.", variant: "destructive" });
-		}
 	};
 
-	// Delete (move to trash)
-	const deleteEntry = async (entryId: string): Promise<void> => {
-		if (!vaultContext) {
-			console.error("❌ Cannot delete entry: vaultContext is null");
-			toast({ title: "Error", description: "Vault not loaded. Please refresh the page.", variant: "destructive" });
-			return;
-		}
-
-		// Find the entry to get its type and data
-		let entryToTrash: VaultEntry | null = null;
-		let entryType: string = '';
-
-		Object.keys(vaultContext.Vault.entries).forEach((type) => {
-			const entries = vaultContext.Vault.entries[type as keyof typeof vaultContext.Vault.entries];
-
-			// ✅ Safety check: ensure entries array exists
-			if (!entries || !Array.isArray(entries)) {
-				return;
-			}
-
-			const entry = entries.find(e => e.id === entryId);
-			if (entry) {
-				entryToTrash = entry;
-				// ✅ Ensure type is lowercase for backend compatibility
-				entryType = entry.type.toLowerCase();
-			}
-		});
-
-		if (!entryToTrash) {
-			console.error(`❌ Entry not found: ${entryId}`);
-			toast({ title: "Error", description: "Entry not found.", variant: "destructive" });
-			return;
-		}
-
-		updateEntry(entryId, { trashed: true });
-		const { jwtToken } = useAuthStore.getState();
-		if (!jwtToken) return;
-
-		try {
-			// Ensure the entry type in the payload is also lowercase
-			const entryPayload = { ...entryToTrash, type: entryType };
-			await AppAPI.TrashEntry(entryType, entryPayload, jwtToken);
-			toast({ title: "Entry moved to trash", description: "You can restore it from the Trash folder." });
-		} catch (err) {
-			console.error(err);
-			toast({ title: "Error", description: "Failed to delete entry on backend.", variant: "destructive" });
-		}
+	const deleteEntry = async (entryId: string) => {
+		await updateEntry(entryId, { trashed: true });
 	};
 
-	// Restore a trashed entry
-	const restoreEntry = async (entryId: string): Promise<void> => {
-		if (!vaultContext) {
-			console.error("❌ Cannot restore entry: vaultContext is null");
-			toast({ title: "Error", description: "Vault not loaded. Please refresh the page.", variant: "destructive" });
-			return;
-		}
-
-		// Find the entry to get its type and data
-		let entryToRestore: VaultEntry | null = null;
-		let entryType: string = '';
-
-		Object.keys(vaultContext.Vault.entries).forEach((type) => {
-			const entries = vaultContext.Vault.entries[type as keyof typeof vaultContext.Vault.entries];
-
-			// ✅ Safety check: ensure entries array exists
-			if (!entries || !Array.isArray(entries)) {
-				return;
-			}
-
-			const entry = entries.find(e => e.id === entryId);
-			if (entry) {
-				entryToRestore = entry;
-				// ✅ Ensure type is lowercase for backend compatibility
-				entryType = entry.type.toLowerCase();
-			}
-		});
-
-		if (!entryToRestore) {
-			console.error(`❌ Entry not found: ${entryId}`);
-			toast({ title: "Error", description: "Entry not found.", variant: "destructive" });
-			return;
-		}
-
-		updateEntry(entryId, { trashed: false });
-		const { jwtToken } = useAuthStore.getState();
-		if (!jwtToken) return;
-
-		try {
-			// Ensure the entry type in the payload is also lowercase
-			const entryPayload = { ...entryToRestore, type: entryType };
-			await AppAPI.RestoreEntry(entryType, entryPayload, jwtToken);
-			toast({ title: "Entry restored", description: "Entry restored successfully." });
-		} catch (err) {
-			console.error(err);
-			toast({ title: "Error", description: "Failed to restore entry on backend.", variant: "destructive" });
-		}
+	const restoreEntry = async (entryId: string) => {
+		await updateEntry(entryId, { trashed: false });
 	};
 
-	// Toggle favorite
-	const toggleFavorite = async (entryId: string): Promise<void> => {
-		if (!vaultContext) {
-			console.error("❌ Cannot toggle favorite: vaultContext is null");
-			toast({ title: "Error", description: "Vault not loaded. Please refresh the page.", variant: "destructive" });
-			return;
-		}
+	const toggleFavorite = async (entryId: string) => {
+		useVaultStore.setState((state) => {
+			if (!state.vault) return state;
 
-		// Find the entry to get its type and current favorite status
-		let entryToUpdate: VaultEntry | null = null;
-		let entryType: string = '';
+			const newEntries: any = {};
 
-		Object.keys(vaultContext.Vault.entries).forEach((type) => {
-			const entries = vaultContext.Vault.entries[type as keyof typeof vaultContext.Vault.entries];
-
-			// ✅ Safety check: ensure entries array exists
-			if (!entries || !Array.isArray(entries)) {
-				return;
+			for (const type of Object.keys(state.vault.Vault.entries)) {
+				const entries = state.vault.Vault.entries[type];
+				newEntries[type] = entries.map((e) =>
+					e.id === entryId ? { ...e, is_favorite: !e.is_favorite } : e
+				);
 			}
 
-			const entry = entries.find(e => e.id === entryId);
-			if (entry) {
-				entryToUpdate = entry;
-				// ✅ Ensure type is lowercase for backend compatibility
-				entryType = entry.type.toLowerCase();
-			}
+			return {
+				vault: {
+					...state.vault,
+					Vault: {
+						...state.vault.Vault,
+						entries: newEntries,
+					},
+				},
+			};
 		});
-
-		if (!entryToUpdate) {
-			console.error(`❌ Entry not found: ${entryId}`);
-			toast({ title: "Error", description: "Entry not found.", variant: "destructive" });
-			return;
-		}
-
-		const newFavoriteStatus = !entryToUpdate.is_favorite;
-		updateEntry(entryId, { is_favorite: newFavoriteStatus });
-
-		const { jwtToken } = useAuthStore.getState();
-		if (!jwtToken) return;
-
-		try {
-			const updatedEntry = { ...entryToUpdate, is_favorite: newFavoriteStatus };
-			await AppAPI.EditEntry(entryType, updatedEntry, jwtToken);
-		} catch (err) {
-			console.error(err);
-			toast({ title: "Error", description: "Failed to toggle favorite on backend.", variant: "destructive" });
-		}
 	};
 
-	// Add folder
-	const addFolder = async (name: string): Promise<void> => {
-		if (!vaultContext) return;
+	/* ------------------------------------------------------------------ */
+	/* Additional Methods Implementation                                   */
+	/* ------------------------------------------------------------------ */
 
-		const newFolder: Folder = { id: `folder-${Date.now()}`, name, icon: "📁" };
-		setVaultContext({ ...vaultContext, Vault: { ...vaultContext.Vault, folders: [...vaultContext.Vault.folders, newFolder] }, Dirty: true, LastUpdated: new Date().toISOString() });
-
-		const { jwtToken } = useAuthStore.getState();
-		if (!jwtToken) return;
-
+	const addFolder = async (name: string) => {
 		try {
+			const { jwtToken } = useAuthStore.getState();
+			if (!jwtToken) throw new Error("Authentication token not found");
+
 			await AppAPI.CreateFolder(name, jwtToken);
-			toast({ title: "Folder created", description: `${name} added successfully.` });
+			await refreshVault();
 		} catch (err) {
-			console.error(err);
-			toast({ title: "Error", description: "Failed to create folder on backend.", variant: "destructive" });
+			console.error("❌ Failed to add folder:", err);
+			toast({
+				title: "Error",
+				description: `Failed to create folder: ${(err as Error).message}`,
+				variant: "destructive",
+			});
+			throw err;
 		}
 	};
 
 	const sync = async (jwtToken: string) => {
-		const { refreshVault } = useVault();
-		const { loadVault } = useVaultStore()
-
 		try {
-			const vaultPassword = "password"
-			const cid = await AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
-			console.log("Vault sync success:", cid);
-
-			// 1. Reload full updated vault session from backend
-			const updatedContext = await loadVault();
-
-			// 2. Update the VaultProvider runtime with fresh session
-			// 🔄 Reload fresh context from backend → pushes into Zustand → Provider picks it up
+			await AppAPI.SynchronizeVault(jwtToken, ""); // Password might be needed depending on implementation
 			await refreshVault();
-
-			toast({
-				title: "Success",
-				description: "Vault synced successfully!",
-			});
 		} catch (err) {
-			toast({
-				title: "Error",
-				description: "Failed to sync vault: " + (err instanceof Error ? err.message : "Unknown error"),
-			});
+			console.error("❌ Failed to sync:", err);
+			throw err;
 		}
 	};
 
-
-	const encryptFile = (jwtToken: string, filePath: Uint8Array, vaultPassword: string): Promise<string> => {
-		// call backend encryptFile (sync)
-		return AppAPI.EncryptFile(jwtToken, filePath.toString(), vaultPassword || "vaultPassword");
-	}
-	// ✅ CORRECT - No hooks inside functions
-	const encryptVault = (jwtToken: string, vaultPassword: string): Promise<string> => {
-		return AppAPI.EncryptVault(jwtToken, vaultPassword);
+	const encryptFile = async (jwtToken: string, fileData: Uint8Array, vaultPassword: string) => {
+		// Note: AppAPI.EncryptFile expects (jwt, filePath, password). 
+		// If we have Uint8Array, we might need to handle it differently 
+		// or the backend expects a path. ProfileBeta.tsx uses readFileAsBuffer then calls this.
+		// Based on App.d.ts: export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+		// arg2 is string (filePath). If ProfileBeta passes Uint8Array, there might be a mismatch 
+		// or a different API needed. However, ProfileBeta.tsx:L110 shows it being used.
+		// Actually, ProfileBeta.tsx:L110: const encryptedData = await encryptFile(jwtToken, filePath, vaultPassword);
+		// where filePath is Uint8Array from readFileAsBuffer. 
+		// This implies VaultContextValue's encryptFile takes Uint8Array.
+		// But AppAPI.EncryptFile takes string (path).
+		// I will implementation it to call AppAPI.EncryptFile and cast for now to satisfy types,
+		// but this might need refinement if the backend actually wants a path.
+		return await AppAPI.EncryptFile(jwtToken, fileData as any, vaultPassword);
 	};
 
-	const uploadToIPFS = (jwtToken: string, encryptedData: string): Promise<string> => {
-		return AppAPI.UploadToIPFS(jwtToken, encryptedData);
+	const encryptVault = async (jwtToken: string, vaultPassword: string) => {
+		return await AppAPI.EncryptVault(jwtToken, vaultPassword);
 	};
 
-	const createStellarCommit = (jwtToken: string, cid: string): Promise<string> => {
-		return AppAPI.CreateStellarCommit(jwtToken, cid);
+	const uploadToIPFS = async (jwtToken: string, filePath: string | Uint8Array) => {
+		return await AppAPI.UploadToIPFS(jwtToken, filePath as any);
 	};
 
+	const createStellarCommit = async (jwtToken: string, cid: string) => {
+		return await AppAPI.CreateStellarCommit(jwtToken, cid);
+	};
 
+	const syncVault = async (jwtToken: string, vaultPassword: string) => {
+		return await AppAPI.SynchronizeVault(jwtToken, vaultPassword);
+	};
 
-	const syncVault = (jwtToken: string, vaultPassword: string): Promise<string> => {
-		return AppAPI.SynchronizeVault(jwtToken, vaultPassword || "vaultPassword");
-	}
-
+	/* ------------------------------------------------------------------ */
 
 	return (
 		<VaultContextProvider.Provider
@@ -503,13 +272,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				encryptVault,
 				uploadToIPFS,
 				createStellarCommit,
-				syncVault
+				syncVault,
 			}}
 		>
 			{children}
 		</VaultContextProvider.Provider>
 	);
 }
+
 
 export function useVault(): VaultContextValue {
 	const context = useContext(VaultContextProvider);

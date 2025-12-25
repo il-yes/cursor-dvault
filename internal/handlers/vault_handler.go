@@ -102,7 +102,7 @@ func (vh *VaultHandler) EndSession(userID string) {
 		// utils.LogPretty("ssession saved", session)
 		// Persist before deleting
 		if err := vh.DB.SaveSession(userID, session); err != nil {
-			vh.logger.Error("❌ failed to save session for user %s: %v", userID, err)
+			vh.logger.Error("❌ Handlers v0 - failed to save session for user %s: %v", userID, err)
 		} else {
 			vh.logger.Info("💾 Session saved for user %s", userID)
 		}

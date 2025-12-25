@@ -35,6 +35,10 @@ func (f *fakeSessionRepo) SaveSession(string, *vault_session.Session) error {
 	f.saved = true
 	return nil
 }
+func (f *fakeSessionRepo) SaveSessionV1(string, *vault_session.Session) error {
+	f.saved = true
+	return nil
+}
 func (f *fakeSessionRepo) GetLatestByUserID(string) (*vault_session.Session, error) {
 	return nil, nil
 }
@@ -71,8 +75,9 @@ func TestManager_PrepareAndGet(t *testing.T) {
 
 	userID := "user-1"
 
-	id := manager.Prepare(userID)
+	id, err := manager.Prepare(userID)
 	assert.Equal(t, userID, id)
+	assert.NoError(t, err)
 
 	session, ok := manager.Get(userID)
 	assert.True(t, ok)
@@ -90,7 +95,8 @@ func TestManager_AttachVault(t *testing.T) {
 	)
 
 	userID := "user-2"
-	manager.Prepare(userID)
+	_, err := manager.Prepare(userID)
+	assert.NoError(t, err)
 
 	payload := &vault_domain.VaultPayload{}
 	runtime := &vault_session.RuntimeContext{}

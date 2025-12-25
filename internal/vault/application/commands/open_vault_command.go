@@ -16,6 +16,7 @@ import (
 type OpenVaultCommand struct {
 	UserID   string
 	Password string
+	Session  *vault_session.Session
 }
 
 // -------- RESULT --------
@@ -63,40 +64,42 @@ func (h *OpenVaultCommandHandler) Handle(
 	cmd OpenVaultCommand,
 ) (*OpenVaultResult, error) {
 	utils.LogPretty("OpenVaultCommandHandler - cmd", cmd)
+	reusedExisting := true
 
-	// 1️⃣ Session - Reuse existing session if present
-	if existing, ok := h.sessionMgr.Get(cmd.UserID); ok && existing.Vault != nil {
- 
-		utils.LogPretty("OpenVaultCommandHandler - existing", existing)
-		return &OpenVaultResult{
-			Vault:          nil,
-			Content:        existing.Vault,
-			RuntimeContext: existing.Runtime,
-			Session:        existing,
-			LastCID:        existing.LastCID,
-			ReusedExisting: true,
-		}, nil
-	}
-
-	// 2️⃣ Vault - Load latest vault metadata
+	// 1. Vault - Use existing if present or Load latest vault metadata
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
 		log.Println("OpenVaultCommandHandler - Error loading vault, go for minimal vault", err)
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
 			log.Println("OpenVaultCommandHandler - Create minimal vault")
-			// 3️⃣ Create minimal vault
+			// 3️⃣ Create minimal vault - secure by default
 			vault = vault_domain.NewVault(cmd.UserID, "New Vault")
 			utils.LogPretty("OpenVaultCommandHandler - new minimal vault", vault)
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
 				log.Println("OpenVaultCommandHandler - Error saving minimal vault", err)
 				return nil, err
 			}
+			reusedExisting = false
 		} else {
 			log.Println("OpenVaultCommandHandler - Error loading vault no minimal vault", err)
 			return nil, err
 		}
 	}
 	utils.LogPretty("OpenVaultCommandHandler - vault", vault)
+
+	// 2. Session - Reuse existing session if present
+	if cmd.Session.LastCID != "" {
+		openedResult := &OpenVaultResult{
+			Vault:          vault,
+			Content:        cmd.Session.Vault,
+			RuntimeContext: cmd.Session.Runtime,
+			Session:        cmd.Session,
+			LastCID:        cmd.Session.LastCID,
+			ReusedExisting: reusedExisting,
+		}
+		utils.LogPretty("OpenVaultCommandHandler - reused existing session", cmd)
+		return openedResult, nil
+	}
 
 	// 4️⃣ IPFS - Fetch encrypted vault payload
 	encrypted, err := h.ipfs.GetData(vault.CID)
@@ -120,20 +123,15 @@ func (h *OpenVaultCommandHandler) Handle(
 	runtimeCtx := vault_session.NewRuntimeContext()
 	log.Println("OpenVaultCommandHandler - Initialize new runtimeCtx")
 
-	// 8️⃣ Start session
-	session := h.sessionMgr.StartSession(
-		cmd.UserID,
-		payload,
-		vault.CID,
-		runtimeCtx,	
-	)
-	utils.LogPretty("OpenVaultCommandHandler - Start new session", session)
+	// 6. Firre event Vault Opened
+	// if h.eventBus != nil {
+	// 	h.eventBus.Publish(vault_domain.NewVaultOpenedEvent(vault.ID, vault.UserID, vault.Name))
+	// }
 
 	return &OpenVaultResult{
 		Vault:          vault,
 		Content:        &payload,
 		RuntimeContext: runtimeCtx,
-		Session:        session,
 		LastCID:        vault.CID,
 		ReusedExisting: false,
 	}, nil

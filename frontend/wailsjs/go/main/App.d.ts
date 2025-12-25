@@ -99,6 +99,8 @@ export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
+export function SaveSessionTest(arg1:string):Promise<void>;
+
 export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
@@ -107,7 +109,7 @@ export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<handlers.
 
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
-export function SignOut(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function SignOut(arg1:string):Promise<void>;
 
 export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResponse>;
 

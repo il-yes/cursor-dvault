@@ -13,23 +13,24 @@ import (
 )
 
 type IdentityHandler struct {
-	db       models.DBModel
-	ipfs     blockchain.IPFSClient
-	logger   *logger.Logger
-	NowUTC   func() string
-	Vault    *vaults_domain.VaultPayload
+	db     models.DBModel
+	ipfs   blockchain.IPFSClient
+	logger *logger.Logger
+	NowUTC func() string
+	Vault  *vaults_domain.VaultPayload
+	Session *vault_session.Session
 }
 
 func NewIdentityHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *IdentityHandler {
 	return &IdentityHandler{
-		db:       db,
-		ipfs:     ipfs,
-		logger:   log,
-		NowUTC:   func() string { return time.Now().Format(time.RFC3339) },
+		db:     db,
+		ipfs:   ipfs,
+		logger: log,
+		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
 }
 
-func (h *IdentityHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *IdentityHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	if h.Vault == nil {
 		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
@@ -44,8 +45,7 @@ func (h *IdentityHandler) Add(userID string, anEntry any) (*any, error) {
 
 	h.logger.Info("✅ Added identity entry for user %s: %s\n", userID, entry.EntryName)
 
-	var result any = entry
-	return &result, nil
+	return h.Vault, nil
 
 }
 func (h *IdentityHandler) Edit(userID string, entry any) (*any, error) {
@@ -111,5 +111,10 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string
 }
 
 func (h *IdentityHandler) SetVault(vault *vault_session.Session) {
-	h.Vault = vault.Vault
+	p := vault.Vault
+	h.Vault = p
+}
+func (h *IdentityHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
 }

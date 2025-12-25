@@ -155,7 +155,7 @@ function DashboardNavbar() {
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
-
+    AppAPI.SignOut(auth.user.id);
     navigate("/login/email");
   };
   const handleAddEntry = () => {
@@ -227,7 +227,9 @@ function DashboardNavbar() {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-
+  const SaveSessionTest = async () => {
+    await AppAPI.SaveSessionTest(auth.jwtToken);
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -242,7 +244,7 @@ function DashboardNavbar() {
 
         <div className="hidden md:flex items-center gap-3">
           {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
-          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+          <span onClick={() => SaveSessionTest()} className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
         </div>
 
         <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >

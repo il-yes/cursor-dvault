@@ -30,13 +30,12 @@ func TestLoginHandlerAddSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	addedEntry, ok := (*result).(*vaults_domain.LoginEntry)
-	require.True(t, ok)
-	require.NotEmpty(t, addedEntry.ID)
-	require.Equal(t, "Primary Account", addedEntry.EntryName)
+	addedEntry := result
+	require.NotEmpty(t, addedEntry.Entries.Login)
+	require.Equal(t, "Primary Account", addedEntry.Entries.Login[0].EntryName)
 
 	require.Len(t, handler.Vault.Entries.Login, 1)
-	require.Equal(t, addedEntry.ID, handler.Vault.Entries.Login[0].ID)
+	require.Equal(t, addedEntry.Entries.Login[0].ID, handler.Vault.Entries.Login[0].ID)
 }
 
 func TestLoginHandlerAddNoSession(t *testing.T) {

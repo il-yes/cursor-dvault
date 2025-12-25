@@ -3,6 +3,8 @@ package vault_session
 
 import (
 	"sync"
+	"time"
+	"vault-app/internal/models"
 	"vault-app/internal/tracecore"
 	vaults_domain "vault-app/internal/vault/domain"
 
@@ -12,22 +14,22 @@ import (
 type SessionState string
 
 const (
-    SessionPrepared SessionState = "prepared"
-    SessionVaultOpen SessionState = "vault_open"
+	SessionPrepared  SessionState = "prepared"
+	SessionVaultOpen SessionState = "vault_open"
 )
 
-
 type Session struct {
-    UserID   string
-    Vault    *vaults_domain.VaultPayload
-    Dirty    bool
-    LastCID  string
+	ID string
+	UserID  string
+	Vault   *vaults_domain.VaultPayload
+	Dirty   bool
+	LastCID string
 
-    LastSynced string
-    LastUpdated string
-    Runtime *RuntimeContext
+	LastSynced  string
+	LastUpdated string
+	Runtime     *RuntimeContext
+	PendingCommits      []tracecore.CommitEnvelope `json:"pending_commits,omitempty"`
 }
-
 
 type SessionRepository interface {
 	CreateSession(session *Session) error
@@ -36,31 +38,43 @@ type SessionRepository interface {
 	DeleteSession(sessionID string) error
 	SaveSession(userID string, session *Session) error
 
-
 	GetLatestByUserID(userID string) (*Session, error)
 }
 
-
 // VaultSession holds the decrypted vault during an active session
 type VaultSession struct {
-	UserID              string           `json:"user_id"`
-	Vault               *vaults_domain.VaultPayload // Decrypted vault format
+	UserID              string                      `json:"user_id"`
+	Vault               vaults_domain.VaultPayload // Decrypted vault format
 	LastCID             string
 	Dirty               bool
 	LastSynced          string
 	LastUpdated         string
 	Mutex               sync.Mutex                 `json:"-"`
-	VaultRuntimeContext RuntimeContext `json:"vault_runtime_context"`
+	VaultRuntimeContext RuntimeContext             `json:"vault_runtime_context"`
 	PendingCommits      []tracecore.CommitEnvelope `json:"pending_commits,omitempty"`
 }
+
+func (v *VaultSession) ToFormerModel() *models.VaultSession {
+	return &models.VaultSession{
+		UserID:              v.UserID,
+		Vault:               v.Vault.ToFormerVaultPayload(),
+		LastCID:             v.LastCID,
+		Dirty:               v.Dirty,
+		LastSynced:          v.LastSynced,
+		LastUpdated:         v.LastUpdated,
+		VaultRuntimeContext: *v.VaultRuntimeContext.ToFormerRuntimeContext(),
+		PendingCommits:      v.PendingCommits,
+	}
+}
+
 type UserSession struct {
-	UserID      string            `gorm:"primaryKey;column:user_id" json:"user_id"`
+	UserID      string         `gorm:"primaryKey;column:user_id" json:"user_id"`
 	SessionData string         `gorm:"type:json" json:"session_data"` // Marshaled VaultSession
-	UpdatedAt   string         `gorm:"autoUpdateTime" json:"updated_at"`
+	CreatedAt   time.Time      
+	UpdatedAt   time.Time      
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
-} 
+}
 
 func (UserSession) TableName() string {
 	return "user_sessions"
 }
- 

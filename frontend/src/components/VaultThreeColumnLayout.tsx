@@ -21,7 +21,6 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   const deleteEntry = useVaultStore((state) => state.deleteEntry);
   const restoreEntry = useVaultStore((state) => state.restoreEntry);
   const toggleFavorite = useVaultStore((state) => state.toggleFavorite);
-  const loadVault = useVaultStore((state) => state.loadVault);
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();

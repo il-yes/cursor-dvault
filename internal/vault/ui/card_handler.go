@@ -13,23 +13,24 @@ import (
 )
 
 type CardHandler struct {
-	db       models.DBModel
-	ipfs     blockchain.IPFSClient
-	logger   *logger.Logger
-	NowUTC   func() string
-	Vault    vaults_domain.VaultPayload
+	db     models.DBModel
+	ipfs   blockchain.IPFSClient
+	logger *logger.Logger
+	NowUTC func() string
+	Vault  vaults_domain.VaultPayload
+	Session *vault_session.Session
 }
 
 func NewCardHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *CardHandler {
 	return &CardHandler{
-		db:       db,
-		ipfs:     ipfs,
-		logger:   log,
-		NowUTC:   func() string { return time.Now().Format(time.RFC3339) },
+		db:     db,
+		ipfs:   ipfs,
+		logger: log,
+		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
 }
 
-func (h *CardHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *CardHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	entry, err := anEntry.(*vaults_domain.CardEntry)
 	if !err {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
@@ -41,8 +42,7 @@ func (h *CardHandler) Add(userID string, anEntry any) (*any, error) {
 
 	h.logger.Info("✅ Added card entry for user %d: %s\n", userID, entry.EntryName)
 
-	var result any = entry
-	return &result, nil
+	return &h.Vault, nil
 
 }
 func (h *CardHandler) Edit(userID string, entry any) (*any, error) {
@@ -99,5 +99,10 @@ func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashe
 	return fmt.Errorf("entry with ID %s not found", entryID)
 }
 func (h *CardHandler) SetVault(vault *vault_session.Session) {
-	h.Vault = *vault.Vault
+	p := vault.Vault
+	h.Vault = *p
+}
+func (h *CardHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
 }

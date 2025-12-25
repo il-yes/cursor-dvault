@@ -67,8 +67,8 @@ type Folder struct {
 type BaseVaultContent struct {
 	Folders   []Folder `json:"folders"`
 	Entries   Entries  `json:"entries"`
-	CreatedAt string   `json:"created_at" gorm:"varchar(100)"`
-	UpdatedAt string   `json:"updated_at" gorm:"varchar(100)"`
+	CreatedAt string   `json:"created_at" gorm:"-"`
+	UpdatedAt string   `json:"updated_at" gorm:"-"`
 }
 
 // For vault content

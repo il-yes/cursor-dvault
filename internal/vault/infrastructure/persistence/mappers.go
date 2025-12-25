@@ -53,7 +53,7 @@ type SessionMapper struct {
 
     LastSynced string
     LastUpdated string
-    Runtime *vault_session.RuntimeContext `gorm:"-"`
+    Runtime *vault_session.RuntimeContext `gorm:"-"`	
 }
 
 func (sm *SessionMapper) TableName() string {
@@ -71,9 +71,10 @@ func (sm *SessionMapper) ToDomain() *vault_session.Session {
     }
 }
 func SessionDomainToMapper(session *vault_session.Session) *SessionMapper {
+	v := session.Vault
     return &SessionMapper{
         UserID:   session.UserID,
-        Vault:    session.Vault,
+        Vault:    v,
         Dirty:    session.Dirty,
         LastCID:  session.LastCID,
         LastSynced: session.LastSynced,
@@ -81,3 +82,4 @@ func SessionDomainToMapper(session *vault_session.Session) *SessionMapper {
         Runtime: session.Runtime,
     }
 }
+

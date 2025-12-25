@@ -30,7 +30,7 @@ type LoginResult struct {
 }
 type ManagerInterface interface {
 	Get(userID string) (*vault_session.Session, bool)
-	Prepare(userID string) string
+	Prepare(userID string) (*vault_session.Session, error)
 	AttachVault(
 		userID string,
 		vault *vaults_domain.VaultPayload,
@@ -129,8 +129,11 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 	}
 	utils.LogPretty("Persisted tokens", tokens)
 	// 6. Session - Prepare session (do NOT open vault here)
-	sessionID := h.sessionManager.Prepare(user.ID)
-	utils.LogPretty("Prepared session", sessionID)
+	session, err := h.sessionManager.Prepare(user.ID)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("Prepared session", session)
 
 	// 7. Publish event
 	if h.eventBus != nil {
@@ -144,7 +147,7 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 	return &LoginResult{
 		User:      user,
 		Tokens:    tokens,
-		SessionID: sessionID,
+		SessionID: session.ID,
 	}, nil
 }
 

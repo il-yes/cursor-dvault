@@ -170,6 +170,10 @@ export function RestoreEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2, arg3);
 }
 
+export function SaveSessionTest(arg1) {
+  return window['go']['main']['App']['SaveSessionTest'](arg1);
+}
+
 export function SetupPaymentAndActivate(arg1) {
   return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
 }
@@ -186,8 +190,8 @@ export function SignInWithStellar(arg1) {
   return window['go']['main']['App']['SignInWithStellar'](arg1);
 }
 
-export function SignOut(arg1, arg2, arg3) {
-  return window['go']['main']['App']['SignOut'](arg1, arg2, arg3);
+export function SignOut(arg1) {
+  return window['go']['main']['App']['SignOut'](arg1);
 }
 
 export function SignUp(arg1) {

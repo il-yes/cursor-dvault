@@ -24,7 +24,7 @@ type Logger interface {
 
 type Manager struct {
 	mu                sync.RWMutex
-	sessions          map[string]*Session
+	sessions          map[string]*Session 
 	SessionRepository SessionRepository
 	VaultRepository   vaults_domain.VaultRepository
 
@@ -63,20 +63,40 @@ func (m *Manager) Get(userID string) (*Session, bool) {
 	return s, ok
 }
 
-func (m *Manager) Prepare(userID string) string {
+func (m *Manager) Prepare(userID string) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
+	
+	// 1. If session already exist return it
 	if s, ok := m.sessions[userID]; ok {
-		return s.UserID
+		return s, nil
 	}
 
+	// 2. Fetch in db to find existing session
+	existing, err := m.SessionRepository.GetSession(userID)
+	if err != nil {
+		m.logger.Error("❌ Manager V1 - Prepare - failed to get session for user %s: %v", userID, err)
+		return nil, err
+	}
+
+	// 3. Hydrate session with default values
 	m.sessions[userID] = &Session{
 		UserID: userID,
 		Dirty:  false,
 	}
+	// 4. Hydrate session with existing data if exist
+	if existing != nil {
+		utils.LogPretty("Manager V1 - Prepare - existing", existing)
+		m.sessions[userID].Vault = existing.Vault
+		m.sessions[userID].Dirty = existing.Dirty
+		m.sessions[userID].Runtime = existing.Runtime
+		m.sessions[userID].LastCID = existing.LastCID
+		m.sessions[userID].LastSynced = existing.LastSynced
+		m.sessions[userID].LastUpdated = existing.LastUpdated
+	}	
+	utils.LogPretty("Manager V1 - Prepare - sessions", m.sessions)
 
-	return userID
+	return m.sessions[userID], nil
 }
 
 func (m *Manager) AttachVault(
@@ -150,32 +170,51 @@ func (m *Manager) GetSession(userID string) (*Session, error) {
 	}
 	return session, nil
 }
+func (m *Manager) HasSessionForUser(userID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.sessions[userID]
+	return ok
+}
+func (m *Manager) HasSession() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.sessions) > 0
+}
+func (m *Manager) GetSessions() map[string]*Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.sessions
+}
 func (m *Manager) EndSession(userID string) {
 	if session, ok := m.sessions[userID]; ok {
-		// utils.LogPretty("ssession saved", session)
-		// Persist before deleting
 		if err := m.SessionRepository.SaveSession(userID, session); err != nil {
-			m.logger.Error("❌ failed to save session for user %s: %v", userID, err)
+			m.logger.Error("❌ ManagerV1 - EndSession - failed to save session for user %s: %v", userID, err)
 		} else {
-			m.logger.Info("💾 Session saved for user %s", userID)
+			m.logger.Info("💾 ManagerV1 - EndSession - Session saved for user %s", userID)
 		}
 	}
 
 	delete(m.sessions, userID)
 }
 func (m *Manager) LogoutUser(userID string) error {
+	m.logger.Info("👋 User %s logging out", userID)
 	m.mu.Lock()
 	session, ok := m.sessions[userID]
 	m.mu.Unlock()
+	m.logger.Info("👋 User %s session logged out", session)
 
 	if !ok {
+		m.logger.Info("👋 User %s has no active session", userID)
 		return fmt.Errorf("no active session for user %s", userID)
 	}
 
 	// Persist to DB
 	if err := m.SessionRepository.SaveSession(userID, session); err != nil {
+		m.logger.Error("❌ Manager V1 - LogoutUser - failed to save session for user %s: %v", userID, err)
 		return fmt.Errorf("failed to save session for user %s: %w", userID, err)
 	}
+	m.logger.Info("💾 Session saved for user %s", userID)
 
 	m.pendingMu.Lock()
 	delete(m.pendingCommits, userID)
@@ -184,12 +223,19 @@ func (m *Manager) LogoutUser(userID string) error {
 	m.SessionsMu.Lock()
 	delete(m.sessions, userID)
 	m.SessionsMu.Unlock()
-
 	m.logger.Info("👋 User %s logged out and session saved", userID)
 	return nil
 }
+// todo: to erase
 func (vh *Manager) IsVaultDirty() bool {
 	return vh.IsDirty
+}
+func (vh *Manager) IsMarkedDirty(userID string) bool {
+	session, ok := vh.sessions[userID]
+	if !ok {
+		return false
+	}
+	return session.Dirty
 }
 
 func (vh *Manager) SyncVault(userID string, password string) (string, error) {
@@ -359,3 +405,7 @@ func (vh *Manager) EncryptVault(userID string, password string) (string, error) 
 
 	return string(encrypted), nil
 }
+func (vh *Manager) SetSessions(session map[string]*Session) {
+	s := session
+	vh.sessions = s
+}		

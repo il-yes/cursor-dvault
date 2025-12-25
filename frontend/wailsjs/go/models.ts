@@ -468,7 +468,7 @@ export namespace handlers {
 	}
 	export class LoginResponse {
 	    User: models.User;
-	    Vault: models.VaultPayload;
+	    Vault?: models.VaultPayload;
 	    Tokens?: auth.TokenPairs;
 	    cloud_token: string;
 	    vault_runtime_context?: models.VaultRuntimeContext;

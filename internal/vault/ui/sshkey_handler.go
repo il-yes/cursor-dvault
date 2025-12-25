@@ -13,23 +13,24 @@ import (
 )
 
 type SSHKeyHandler struct {
-	db         models.DBModel
-	ipfs       blockchain.IPFSClient
-	logger     *logger.Logger
-	NowUTC     func() string
-	Vault      vaults_domain.VaultPayload
+	db     models.DBModel
+	ipfs   blockchain.IPFSClient
+	logger *logger.Logger
+	NowUTC func() string
+	Vault  vaults_domain.VaultPayload
+	Session *vault_session.Session
 }
 
 func NewSSHKeyHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *SSHKeyHandler {
 	return &SSHKeyHandler{
-		db:       db,
-		ipfs:     ipfs,
-		logger:   log,
-		NowUTC:   func() string { return time.Now().Format(time.RFC3339) },
+		db:     db,
+		ipfs:   ipfs,
+		logger: log,
+		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
 }
 
-func (h *SSHKeyHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *SSHKeyHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	entry, err := anEntry.(*vaults_domain.SSHKeyEntry)
 	if !err {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
@@ -41,8 +42,7 @@ func (h *SSHKeyHandler) Add(userID string, anEntry any) (*any, error) {
 
 	h.logger.Info("✅ Added ssh key entry for user %s: %s\n", userID, entry.EntryName)
 
-	var result any = entry
-	return &result, nil
+	return &h.Vault, nil
 
 }
 func (h *SSHKeyHandler) Edit(userID string, entry any) (*any, error) {
@@ -69,7 +69,6 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*any, error) {
 
 	h.Vault.Entries.SSHKey = entries
 	// h.MarkDirty(userID)
-
 
 	h.logger.Info("✏️ Updated ssh key entry for user %s: %s\n", userID, updatedEntry.EntryName)
 
@@ -102,5 +101,10 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, tr
 }
 
 func (h *SSHKeyHandler) SetVault(vault *vault_session.Session) {
-	h.Vault = *vault.Vault
+	p := vault.Vault
+	h.Vault = *p
+}
+func (h *SSHKeyHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
 }

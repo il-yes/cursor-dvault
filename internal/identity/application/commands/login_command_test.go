@@ -115,9 +115,9 @@ func (f *fakeSessionManager) Get(userID string) (*vault_session.Session, bool) {
 	return nil, false
 }
 
-func (f *fakeSessionManager) Prepare(userID string) string {
+func (f *fakeSessionManager) Prepare(userID string) (*vault_session.Session, error) {
 	f.prepared = true
-	return f.sessionID
+	return &vault_session.Session{ID: f.sessionID}, nil
 }
 
 func (f *fakeSessionManager) AttachVault(

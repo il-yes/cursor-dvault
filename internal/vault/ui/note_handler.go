@@ -13,23 +13,24 @@ import (
 )
 
 type NoteHandler struct {
-	db       models.DBModel
-	ipfs     blockchain.IPFSClient
-	logger   *logger.Logger
-	NowUTC   func() string
-	Vault    vaults_domain.VaultPayload
+	db     models.DBModel
+	ipfs   blockchain.IPFSClient
+	logger *logger.Logger
+	NowUTC func() string
+	Vault  vaults_domain.VaultPayload
+	Session *vault_session.Session	
 }
 
 func NewNoteHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *NoteHandler {
 	return &NoteHandler{
-		db:       db,
-		ipfs:     ipfs,
-		logger:   log,
-		NowUTC:   func() string { return time.Now().Format(time.RFC3339) },
+		db:     db,
+		ipfs:   ipfs,
+		logger: log,
+		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
 }
 
-func (h *NoteHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *NoteHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	entry, err := anEntry.(*vaults_domain.NoteEntry)
 	if !err {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
@@ -41,8 +42,7 @@ func (h *NoteHandler) Add(userID string, anEntry any) (*any, error) {
 
 	h.logger.Info("✅ Added note entry for user %s: %s\n", userID, entry.EntryName)
 
-	var result any = entry
-	return &result, nil
+	return &h.Vault, nil
 
 }
 func (h *NoteHandler) Edit(userID string, entry any) (*any, error) {
@@ -84,7 +84,7 @@ func (h *NoteHandler) Restore(userID string, entryID string) error {
 }
 func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashed bool) error {
 
-	for i, entry := range h	.Vault.Entries.Note {
+	for i, entry := range h.Vault.Entries.Note {
 		if entry.ID == entryID {
 			h.Vault.Entries.Note[i].Trashed = trashed
 			// h.MarkDirty(userID)
@@ -102,5 +102,10 @@ func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashe
 }
 
 func (h *NoteHandler) SetVault(vault *vault_session.Session) {
-	h.Vault = *vault.Vault
+	p := vault.Vault
+	h.Vault = *p
+}
+func (h *NoteHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
 }

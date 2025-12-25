@@ -46,9 +46,8 @@ const Profile = () => {
 	const user = session?.vault_runtime_context?.CurrentUser
 	const [progressVisible, setProgressVisible] = useState(false);
 	const [showModal, setShowModal] = useState(false);
-	const [verif, setVerif] = useState(null);
 
-	const { encryptFile, uploadToIPFS, createStellarCommit, syncVault, refreshVault, hydrateVault } = useVault();
+	const { encryptFile, uploadToIPFS, createStellarCommit, syncVault, refreshVault } = useVault();
 
 	const [progress, setProgress] = useState(0);
 	const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
@@ -76,9 +75,7 @@ const Profile = () => {
 			lastSynced: vault?.LastSynced,
 		});
 
-		if (vault) {
-			hydrateVault(vault); // This triggers layout re-render
-		}
+
 	}, [vault]); // ✅ This ensures context follows store
 
 	// Updated handleAvatarUpload
@@ -182,7 +179,7 @@ const Profile = () => {
 			title: "Logged out",
 			description: "You have been successfully logged out.",
 		});
-
+		AppAPI.SignOut();
 		navigate("/auth/signin");
 	};
 

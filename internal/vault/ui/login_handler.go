@@ -19,6 +19,7 @@ type LoginHandler struct {
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  *vaults_domain.VaultPayload
+	Session *vault_session.Session
 }
 
 func NewLoginHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *LoginHandler {
@@ -30,7 +31,7 @@ func NewLoginHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.
 	}
 }
 
-func (h *LoginHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	utils.LogPretty("LoginHandler - Add - anEntry request", anEntry)
 	// 1. ---------- Unmarshal entry ----------
 	entry, ok := anEntry.(*vaults_domain.LoginEntry)
@@ -42,9 +43,8 @@ func (h *LoginHandler) Add(userID string, anEntry any) (*any, error) {
 	// 2. ---------- Add entry to vault ----------
 	h.Vault.Entries.Login = append(h.Vault.Entries.Login, *entry)
 	h.logger.Info("✅ Added login entry for user %s: %s\n", userID, entry.EntryName)
-	var result any = entry
-	
-	return &result, nil
+
+	return h.Vault, nil
 }
 func (h *LoginHandler) Edit(userID string, entry any) (*any, error) {
 	// 1. ---------- Unmarshal entry ----------
@@ -107,6 +107,11 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 	return fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *LoginHandler) SetVault(vault *vault_session.Session)  {
-	h.Vault= vault.Vault
+func (h *LoginHandler) SetVault(vault *vault_session.Session) {
+	p := vault.Vault
+	h.Vault = p
+}
+func (h *LoginHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
 }

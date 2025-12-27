@@ -3,6 +3,7 @@ package vault_ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -12,8 +13,11 @@ import (
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
+	vault_commands "vault-app/internal/vault/application/commands"
+	vault_events "vault-app/internal/vault/application/events"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_eventbus "vault-app/internal/vault/infrastructure/eventbus"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 
 	"github.com/google/uuid"
@@ -21,55 +25,148 @@ import (
 )
 
 type VaultHandler struct {
-	OpenVaultHandler *OpenVaultHandler
+	DB *gorm.DB
 
-	SessionManager   *vault_session.Manager
-	FolderRepository vaults_domain.FolderRepository
-	VaultRepository  vaults_domain.VaultRepository
-
-	IPFS                *blockchain.IPFSClient
-	DB                  models.DBModel
-	logger              logger.Logger
-	NowUTC              func() string
+	FolderRepository    vaults_domain.FolderRepository
+	VaultRepository     vaults_domain.VaultRepository
 	EntryRegistry       *registry.EntryRegistry
 	VaultRuntimeContext vault_session.RuntimeContext
 
-	// optionally keep in-memory pending commits per user
-	SessionsMu sync.Mutex
+	IPFS          *blockchain.IPFSClient
+	CryptoService *blockchain.CryptoService
+	logger        logger.Logger
+	NowUTC        func() string
 
-	Ctx context.Context
+	SessionManager *vault_session.Manager
+	SessionsMu     sync.Mutex
+
+	Ctx      context.Context
+	EventBus vault_events.VaultEventBus
 }
 
 func NewVaultHandler(
-	openVaultHandler *OpenVaultHandler,
-	folderRepository vaults_domain.FolderRepository,
-	vaultRepository vaults_domain.VaultRepository,
-	entryRegistry *registry.EntryRegistry,
+	entriesRegistry *registry.EntryRegistry,
 	logger logger.Logger,
 	ctx context.Context,
 	ipfs *blockchain.IPFSClient,
+	crypto *blockchain.CryptoService,
 	db *gorm.DB,
-	sessions map[string]*vault_session.Session,
 ) *VaultHandler {
-	sessionVaultRepo := vaults_persistence.NewGormSessionRepository(db)
-	sessionManager := vault_session.NewManager(sessionVaultRepo, vaultRepository, &logger, ctx, ipfs, sessions)
+	folderRepo := vaults_persistence.NewGormFolderRepository(db)
+	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
+	sessionRepo := vaults_persistence.NewGormSessionRepository(db)
+	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, &logger, ctx, ipfs, make(map[string]*vault_session.Session))
+	eventBus := vault_infrastructure_eventbus.NewMemoryBus()
 
 	return &VaultHandler{
-		OpenVaultHandler: openVaultHandler,
-		FolderRepository: folderRepository,
-		EntryRegistry:    entryRegistry,
+		DB:               db,
+		IPFS:             ipfs,
+		CryptoService:    crypto,
+		logger:           logger,
+		NowUTC:           func() string { return time.Now().UTC().Format(time.RFC3339) },
+		FolderRepository: folderRepo,
+		EntryRegistry:    entriesRegistry,
 		SessionManager:   sessionManager,
+		EventBus:         eventBus,
 	}
 }
 
-func (vh *VaultHandler) GetVault(userID string) (*vault_session.Session, error) {
+// -----------------------------
+// Session Management
+// -----------------------------
+func (vh *VaultHandler) PrepareSession(userID string) (*vault_session.Session, error) {
+	session, err := vh.SessionManager.Prepare(userID)
+	if err != nil {
+		vh.logger.Error(
+			"❌ VaultHandler - PrepareSession - user %s: %v",
+			userID, err,
+		)
+		return nil, err
+	}
+
+	vh.logger.Info("✅ Session prepared for user %s", userID)
+	return session, nil
+}
+
+func (vh *VaultHandler) HasSession() bool {
+	return vh.SessionManager.HasSession()
+}
+
+func (vh *VaultHandler) GetSession(userID string) (*vault_session.Session, error) {
 	return vh.SessionManager.GetSession(userID)
-}	
+}
+
+func (vh *VaultHandler) GetAllSessions() map[string]*vault_session.Session {
+	return vh.SessionManager.GetSessions()
+}
+
+func (vh *VaultHandler) IsMarkedDirty(userID string) bool {
+	return vh.SessionManager.IsMarkedDirty(userID)
+}
+
+func (vh *VaultHandler) MarkDirty(userID string) {
+	vh.SessionManager.MarkDirty(userID)
+}
+
+func (vh *VaultHandler) SessionAttachVault(
+	ctx context.Context,
+	req vault_commands.AttachVaultRequest,
+) error {
+
+	if req.VaultPayload == nil {
+		return errors.New("vault payload is nil")
+	}
+
+	// 🔒 HARD INVARIANT
+	req.VaultPayload.Normalize()
+
+	session, err := vh.SessionManager.AttachVault(
+		req.UserID,
+		req.VaultPayload,
+		req.Runtime,
+		req.LastCID,
+	)
+	if err != nil {
+		vh.logger.Error(
+			"❌ VaultHandler - AttachVault - user %s: %v",
+			req.UserID, err,
+		)
+		return err
+	}	
+
+	vh.logger.Info(
+		"✅ Vault attached to session for user %s",
+		session.UserID,
+	)
+
+	return nil
+}
+func (vh *VaultHandler) LogoutUser(userID string) error {
+	return vh.SessionManager.LogoutUser(userID)
+}
+
+
 // -----------------------------
 // Vault - Crud
 // -----------------------------
+
+func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand) (*vault_commands.OpenVaultResult, error) {
+	openHandler := NewOpenVaultHandler(
+		vault_commands.NewOpenVaultCommandHandler(vh.DB),
+		vh.IPFS,
+		vh.CryptoService,
+		vh.EventBus,
+	)
+	res, err := openHandler.OpenVault(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	
+	return res, nil
+}
+
 // AddEntryFor: resilient behaviour: will always add the entry; Tracecore commit best-effort
-func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*any, error) {
+func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*models.VaultEntry, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			vh.logger.Error("🔥 Panic in AddEntryFor: %v\nStack:\n%s", r, debug.Stack())
@@ -82,34 +179,29 @@ func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*any, error) {
 	}
 	entryType := ve.GetTypeName()
 	vh.logger.Info("✅ Adding %s entry for user %s", entryType, userID)
-	// 2. ---------- Get handler for entry type ----------
+	// 2.1 ---------- Get handler for entry type ----------
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
-	if err != nil {
-		return nil, err 
-	}
-	utils.LogPretty("AddEntryFor - entry", entry)
-
-	// 3. ---------- Set vault from session to the handler ----------
-	vault, err := vh.SessionManager.GetSession(userID)
 	if err != nil {
 		return nil, err
 	}
-	handler.SetVault(vault)
-	vh.logger.Info("✅ Set vault for user %s", userID)
-	utils.LogPretty("AddEntryFor - set vault", vault)
-
-	// 4. ---------- Add entry to vault ----------
-	created, err := handler.Add(userID, entry) // (vault, new_entry)
-	var result any = created
-	utils.LogPretty("AddEntryFor - created", created)
+	utils.LogPretty("AddEntryFor - entry", entry)
+	// 2.2 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return nil, err
+	}
+	// 2.3 ---------- Add entry to vault ----------
+	handler.SetSession(session)
+	sessionWithNewEntry, err := handler.Add(userID, entry) // (vault, new_entry)
 	vh.logger.Info("✅ Created %s entry for user %s", entryType, userID)
+	// 4. ---------- Fire Vault stores entry event ----------
+	vh.SessionManager.SetVault(userID, sessionWithNewEntry)
+	// vh.VaultRuntimeContext.PublishVaultStoredEntry(userID, created)
 
-	// 5. ---------- Mark session as dirty ----------	
-	vh.SessionManager.MarkDirty(userID)
-	
-	return &result, err
+	return &ve, err
 }
-func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
+
+func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (*models.VaultEntry, error) {
 	// 1. ---------- Unmarshal entry ----------
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
@@ -118,31 +210,49 @@ func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMe
 
 	}
 	// 2. ---------- Add entry (route to handler) ----------
-	return vh.AddEntryFor(userID, parsed) // (vault, new_entry)
+	res, err := vh.AddEntryFor(userID, parsed) // (vault, new_entry)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
-func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (any, error) {
+func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*models.VaultEntry, error) {
+	vh.logger.Info("✅ Updating entry for user %s", userID)
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
-
+	// 1.1 ---------- Validate entry type ----------
 	entryType := ve.GetTypeName()
+	vh.logger.Info("✅ Updating %s entry for user %s", entryType, userID)
+	// 1.2 ---------- Get handler for entry type ----------
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
 	if err != nil {
 		return nil, err
 	}
-
-	updated, err := handler.Edit(userID, entry)
+	// 1.3 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
 	if err != nil {
 		return nil, err
 	}
-
+	handler.SetSession(session)
+	utils.LogPretty("VaultHandler - UpdateEntryFor - session Before", session)
+	// 1.4 ---------- Update entry ----------
+	vaultSessionWithUpdatedEntry, err := handler.Edit(userID, entry)
+	if err != nil {
+		return nil, err
+	}
+	// 1.5 ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, vaultSessionWithUpdatedEntry)
+	utils.LogPretty("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
+	// 1.6 ---------- Mark session as dirty ----------
 	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
+	// Fires vault stores Edit entry event
 	vh.SessionManager.MarkDirty(userID)
-
-	return updated, nil
+	return &ve, nil
 }
 func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
+	utils.LogPretty("VaultHandler - UpdateEntry - raw", raw)
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
@@ -150,41 +260,61 @@ func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.Ra
 	return vh.UpdateEntryFor(userID, parsed)
 }
 func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
+	// 1. ---------- Validate entry type ----------	
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
 	}
 	entryID := ve.GetId()
 	entryType := ve.GetTypeName()
-
+	// 2. ---------- Get handler for entry type ----------
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
 	if err != nil {
 		return fmt.Errorf("failed to find an entryRgistry for %s: %w", entryType, err)
 	}
-	err = handler.Trash(userID, entryID)
+	// 3. ---------- Get session ----------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return err
+	}
+	handler.SetSession(session)
+	// 4. ---------- Trash entry ----------
+	sessionWithTrash, err := handler.Trash(userID, entryID)
+	if err != nil {
+		return err
+	}
 	vh.logger.Info("✅ trashed %s entry for user %s", entryType, userID)
-	vh.SessionManager.MarkDirty(userID)
-
+	// 5. ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, sessionWithTrash)
+	// 6. ---------- Fires vault stores Trash entry event ----------
+	
 	return err
 }
-func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) error {
+func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) (*models.VaultEntry, error) {
+	// 1. ---------- Validate entry type ----------	
 	ve, ok := entry.(models.VaultEntry)
 	if !ok {
-		return fmt.Errorf("entry does not implement VaultEntry interface")
+		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
 	entryID := ve.GetId()
 	entryType := ve.GetTypeName()
 
+	// 2. ---------- Get handler for entry type ----------
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to find an entryRgistry for %s: %w", entryType, err)
 	}
-	err = handler.Restore(userID, entryID)
-
+	// 3. ---------- Restore entry ----------
+	sessionWithRestored, err := handler.Restore(userID, entryID)
+	if err != nil {
+		return nil, err
+	}
 	vh.logger.Info("✅ restored %s entry for user %s", entryType, userID)
-	vh.SessionManager.MarkDirty(userID)
+	// 5. ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, sessionWithRestored)
+	// 6. ---------- Fires vault stores Restore entry event ----------
 
-	return err
+	return &ve, nil
 }
 func (vh *VaultHandler) TrashEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
@@ -195,26 +325,22 @@ func (vh *VaultHandler) TrashEntry(userID string, entryType string, raw json.Raw
 	if err != nil {
 		return nil, err
 	}
-	return parsed, nil // Return the restored entry
+	return &parsed, nil // Return the restored entry
 }
-func (vh *VaultHandler) RestoreEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
+func (vh *VaultHandler) RestoreEntry(userID string, entryType string, raw json.RawMessage) (*models.VaultEntry, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
 	}
-	err = vh.RestoreEntryFor(userID, parsed)
+	res, err := vh.RestoreEntryFor(userID, parsed)
 	if err != nil {
 		return nil, err
 	}
-	return parsed, nil // Return the restored entry
+	return res, nil // Return the restored entry
 }
 
 func (vh *VaultHandler) CreateFolder(userID string, name string) (*vaults_domain.VaultPayload, error) {
-	session, err := vh.SessionManager.GetSession(userID)
-	if err != nil {
-		return nil, fmt.Errorf("no active session for user %s", userID)
-	}
-
+	// 1.1 ---------- Create folder ----------
 	folder := &vaults_domain.Folder{
 		ID:        uuid.New().String(),
 		Name:      name,
@@ -222,54 +348,69 @@ func (vh *VaultHandler) CreateFolder(userID string, name string) (*vaults_domain
 		UpdatedAt: time.Now().Format(time.RFC3339),
 		IsDraft:   false,
 	}
-
+	// 1.2 ---------- Save folder ----------
 	if err := vh.FolderRepository.SaveFolder(folder); err != nil {
 		return nil, err
 	}
-
+	// 2.1 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return nil, fmt.Errorf("no active session for user %s", userID)
+	}
+	// 2.2 ---------- Add folder to vault ----------
 	vault := session.Vault
-	vault.Folders = append(vault.Folders, *folder)
+	v, err := vault_session.DecodeSessionVault(vault)			
+	if err != nil {
+		return nil, err
+	}
+	v.Folders = append(v.Folders, *folder)
+	// 2.3 ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, v)
+	// 2.4 ---------- Firers vault stores CreateFolder event ----------
 
-	vh.logger.Info("✅ Added %s folder for user %s", folder.Name, userID)
-	vh.SessionManager.MarkDirty(userID)
-
-	return vault, nil
+	return v, nil
 }
 func (vh *VaultHandler) GetFoldersByVault(vaultCID string) ([]vaults_domain.Folder, error) {
 	return vh.FolderRepository.GetFoldersByVault(vaultCID)
 }
 func (vh *VaultHandler) UpdateFolder(id string, newName string, isDraft bool) (*vaults_domain.Folder, error) {
+	// 1.1 ---------- Get folder ----------
 	folder, err := vh.FolderRepository.GetFolderById(id)
 	if err != nil {
 		return nil, err
 	}
-
+	// 1.2 ---------- Update folder ----------
 	folder.Name = newName
 	folder.IsDraft = isDraft
 	folder.UpdatedAt = time.Now().Format(time.RFC3339)
-
+	// 1.3 ---------- Save folder ----------
 	if err := vh.FolderRepository.UpdateFolder(folder); err != nil {
 		return nil, err
 	}
 	return folder, nil
 }
 func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
-	session, err := vh.SessionManager.GetSession(userID)
+	// 1.1 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
 	if err != nil {
 		return fmt.Errorf("no active session for user %s", userID)
 	}
 
-	// 1. Find the folder
+	// 2.1 ---------- Find the folder ----------
 	folder, err := vh.FolderRepository.GetFolderById(id)
 	if err != nil {
 		return err
 	}
 
-	// 2. Move entries in this folder to unsorted
+	// 2.2 ---------- Move entries in this folder to unsorted ----------
 	vault := session.Vault
-	moved := vault.MoveEntriesToUnsorted(folder.ID)
+	v, err := vault_session.DecodeSessionVault(vault)			
+	if err != nil {
+		return err
+	}
+	moved := v.MoveEntriesToUnsorted(folder.ID)
 
-	// 3. Persist updates (keeping type safety)
+	// 3. ---------- Persist updates (keeping type safety) ----------
 	for _, e := range moved.Login {
 		raw, err := json.Marshal(e)
 		if err != nil {
@@ -321,19 +462,23 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 		}
 	}
 
-	// 4. Delete folder in DB
+	// 4. ---------- Delete folder in DB ----------
 	if err := vh.FolderRepository.DeleteFolder(id); err != nil {
 		return err
 	}
 
-	// 5. Remove from in-memory vault state
+	// 5. ---------- Remove from in-memory vault state ----------
 	newFolders := []vaults_domain.Folder{}
-	for _, f := range vault.Folders {
+	for _, f := range v.Folders {
 		if f.ID != id {
 			newFolders = append(newFolders, f)
 		}
 	}
-	vault.Folders = newFolders
+	v.Folders = newFolders
+
+	// 6. ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, v)
+	// 7. ---------- Fire vault stores DeleteFolder event ----------	
 
 	return nil
 }

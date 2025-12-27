@@ -387,12 +387,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const loginFields = [
         { name: 'user_name', label: 'Username', isSensitive: false },
         { name: 'password', label: 'Password', isSensitive: true },
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
     ];
     const cardFields = [
         { name: 'owner', label: 'Owner' },
         { name: 'number', label: 'Number' },
         { name: 'expiration', label: 'Expiration' },
         { name: 'cvc', label: 'CVC' },
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
     ];
     const identityFields = [
         { name: 'first_name', label: 'First name' },
@@ -411,12 +413,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         { name: 'state', label: 'State' },
         { name: 'zip', label: 'Zip' },
         { name: 'country', label: 'Country' },
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
     ];
 
     const sshkeyFields = [
         { name: 'public_key', label: 'Public key' },
         { name: 'private_key', label: 'Private key' },
         { name: 'e_fingerprint', label: 'Fingerprint' },
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
     ];
 
     return (

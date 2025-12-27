@@ -376,6 +376,7 @@ export const useVaultStore = create<VaultStoreState>()(
       addEntry: async (entry: VaultEntry): Promise<void> => {
         useVaultStore.setState((state) => {
           if (!state.vault) return state;
+          state.vault.Dirty = true;
 
           const type = entry.type as keyof typeof state.vault.Vault.entries;
 

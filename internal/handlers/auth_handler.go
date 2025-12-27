@@ -60,7 +60,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	User                models.User                 `json:"User"`
-	Vault               models.VaultPayload         `json:"Vault"`
+	Vault               *models.VaultPayload         `json:"Vault"`
 	Tokens              *auth.TokenPairs            `json:"Tokens"`
 	CloudToken          string                      `json:"cloud_token"`
 	VaultRuntimeContext *models.VaultRuntimeContext `json:"vault_runtime_context"`
@@ -210,7 +210,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 
 		return &LoginResponse{
 			User:                *user,
-			Vault:               *existingSession.Vault,
+			Vault:               existingSession.Vault,
 			Tokens:              &tokens,
 			CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
 			VaultRuntimeContext: &existingSession.VaultRuntimeContext,
@@ -251,7 +251,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 
 		return &LoginResponse{
 			User:                *user,
-			Vault:               *storedSession.Vault,
+			Vault:               storedSession.Vault,
 			Tokens:              &tokens,
 			CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
 			VaultRuntimeContext: &storedSession.VaultRuntimeContext,
@@ -327,7 +327,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// -----------------------------
 	return &LoginResponse{
 		User:                *user,
-		Vault:               vaultPayload,
+		Vault:               &vaultPayload,
 		Tokens:              &tokens,
 		CloudToken:          cloudLoginResponse.Token,
 		VaultRuntimeContext: runtimeCtx,

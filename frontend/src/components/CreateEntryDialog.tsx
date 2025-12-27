@@ -67,7 +67,7 @@ export function CreateEntryDialog({
       entry_name: entryName,
       type,
       trashed: false,
-      is_draft: false,
+      is_draft: true,
       is_favorite: false,
       created_at: new Date(),
       updated_at: new Date(),

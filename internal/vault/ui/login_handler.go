@@ -19,6 +19,7 @@ type LoginHandler struct {
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  *vaults_domain.VaultPayload
+	Session *vault_session.Session
 }
 
 func NewLoginHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *LoginHandler {
@@ -30,7 +31,7 @@ func NewLoginHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.
 	}
 }
 
-func (h *LoginHandler) Add(userID string, anEntry any) (*any, error) {
+func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	utils.LogPretty("LoginHandler - Add - anEntry request", anEntry)
 	// 1. ---------- Unmarshal entry ----------
 	entry, ok := anEntry.(*vaults_domain.LoginEntry)
@@ -38,15 +39,17 @@ func (h *LoginHandler) Add(userID string, anEntry any) (*any, error) {
 		h.logger.Error("LoginHandler - entry does not implement VaultEntry interface: %v", anEntry)
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
+	if h.Vault == nil {
+		return nil, fmt.Errorf("vault not initialized for user %s", userID)
+	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	// 2. ---------- Add entry to vault ----------
 	h.Vault.Entries.Login = append(h.Vault.Entries.Login, *entry)
 	h.logger.Info("✅ Added login entry for user %s: %s\n", userID, entry.EntryName)
-	var result any = entry
-	
-	return &result, nil
+
+	return h.Vault, nil
 }
-func (h *LoginHandler) Edit(userID string, entry any) (*any, error) {
+func (h *LoginHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	// 1. ---------- Unmarshal entry ----------
 	updatedEntry, ok := entry.(*vaults_domain.LoginEntry)
 	if !ok {
@@ -78,17 +81,16 @@ func (h *LoginHandler) Edit(userID string, entry any) (*any, error) {
 	// 3. ---------- Update vault ----------
 	h.Vault.Entries.Login = entries
 	h.logger.Info("✏️ Updated login entry for user %s: %s\n", userID, updatedEntry.EntryName)
-	var result any = updatedEntry
 
-	return &result, nil
+	return h.Vault, nil
 }
-func (h *LoginHandler) Trash(userID string, entryID string) error {
+func (h *LoginHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashLoginEntryAction(userID, entryID, true)
 }
-func (h *LoginHandler) Restore(userID string, entryID string) error {
+func (h *LoginHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashLoginEntryAction(userID, entryID, false)
 }
-func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, trashed bool) error {
+func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 	for i, entry := range h.Vault.Entries.Login {
 		if entry.ID == entryID {
 			h.Vault.Entries.Login[i].Trashed = trashed
@@ -100,13 +102,20 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 			}
 			h.logger.Info("🗑️ %s login entry %s for user %s", state, entryID, userID)
 
-			return nil
+			return 	h.Vault, nil	
 		}
 	}
 
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *LoginHandler) SetVault(vault *vault_session.Session)  {
-	h.Vault= vault.Vault
+func (h *LoginHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return
+	}
+	h.Vault = payload
+	
 }

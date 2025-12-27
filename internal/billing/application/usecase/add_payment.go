@@ -19,22 +19,25 @@ type AddPaymentMethodResponse struct {
 
 type AddPaymentMethodUseCase struct {
 	repo billing_domain.Repository
-	bus  billing_eventbus.EventBus
-	idGen func() string
 }
 
-func NewAddPaymentMethodUseCase(repo billing_domain.Repository, bus billing_eventbus.EventBus, idGen func() string) *AddPaymentMethodUseCase {
-	return &AddPaymentMethodUseCase{repo: repo, bus: bus, idGen: idGen}
+func NewAddPaymentMethodUseCase(repo billing_domain.Repository) *AddPaymentMethodUseCase {
+	return &AddPaymentMethodUseCase{repo: repo}
 }
 
-func (uc *AddPaymentMethodUseCase) AddPaymentMethod(ctx context.Context, userID string, method billing_domain.PaymentMethod, encryptedPayload string) (*AddPaymentMethodResponse, error) {
-	id := uc.idGen()
-	b := &billing_domain.BillingInstrument{ID: id, UserID: userID, Type: method, EncryptedPayload: encryptedPayload}
+func (uc *AddPaymentMethodUseCase) AddPaymentMethod(
+	ctx context.Context, 
+	addPaymentMethodRequest AddPaymentMethodRequest,
+	idGen func() string,
+	bus billing_eventbus.EventBus,
+) (*AddPaymentMethodResponse, error) {
+	id := idGen()
+	b := &billing_domain.BillingInstrument{ID: id, UserID: addPaymentMethodRequest.UserID, Type: addPaymentMethodRequest.Method, EncryptedPayload: addPaymentMethodRequest.EncryptedPayload}
 	if err := uc.repo.Save(ctx, b); err != nil {
 		return nil, err
 	}
-	if uc.bus != nil {
-		_ = uc.bus.PublishPaymentMethodAdded(ctx, billing_eventbus.PaymentMethodAddedEvent{InstrumentID: id, UserID: userID, Method: string(method)})
+	if bus != nil {
+		_ = bus.PublishPaymentMethodAdded(ctx, billing_eventbus.PaymentMethodAddedEvent{InstrumentID: id, UserID: addPaymentMethodRequest.UserID, Method: string(addPaymentMethodRequest.Method)})
 	}
 	return &AddPaymentMethodResponse{Instrument: *b}, nil
 }

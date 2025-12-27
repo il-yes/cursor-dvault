@@ -20,7 +20,7 @@ export function SharedEntriesLayout() {
 	const loadVault = useVaultStore((state) => state.loadVault);
 
 	useEffect(() => {
-		loadVault();
+		// loadVault();
 	}, []);
 
 

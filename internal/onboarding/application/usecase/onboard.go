@@ -15,7 +15,7 @@ import (
 )
 
 type IdentityHandlerInterface interface {
-	Registers(ctx context.Context, req identity_ui.OnboardRequest) (*identity_domain.User, error)
+	Registers(req identity_ui.OnboardRequest) (*identity_domain.User, error)
 }
 
 type BillingHandlerInterface interface {
@@ -117,7 +117,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	uc.Logger.Info("onboardUser", onboardUser)
 
 	// 2. ------------- Identity registration ------------------
-	userIdentity, err := uc.IdentityHandler.Registers(ctx, identity_ui.OnboardRequest{
+	userIdentity, err := uc.IdentityHandler.Registers(identity_ui.OnboardRequest{
 		Email:            req.Email,
 		Password:         onboardUser.Password,
 		IsAnonymous:      req.IsAnonymous,

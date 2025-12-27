@@ -33,7 +33,7 @@ function AppContent() {
 	const loadVault = useVaultStore((state) => state.loadVault);
 
 	useEffect(() => {
-		loadVault();
+		// loadVault();
 	}, []);
 	// to define
 	const [isOnboarded, setIsOnboarded] = useState(false);

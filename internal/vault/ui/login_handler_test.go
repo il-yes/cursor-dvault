@@ -30,13 +30,12 @@ func TestLoginHandlerAddSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	addedEntry, ok := (*result).(*vaults_domain.LoginEntry)
-	require.True(t, ok)
-	require.NotEmpty(t, addedEntry.ID)
-	require.Equal(t, "Primary Account", addedEntry.EntryName)
+	addedEntry := result
+	require.NotEmpty(t, addedEntry.Entries.Login)
+	require.Equal(t, "Primary Account", addedEntry.Entries.Login[0].EntryName)
 
 	require.Len(t, handler.Vault.Entries.Login, 1)
-	require.Equal(t, addedEntry.ID, handler.Vault.Entries.Login[0].ID)
+	require.Equal(t, addedEntry.Entries.Login[0].ID, handler.Vault.Entries.Login[0].ID)
 }
 
 func TestLoginHandlerAddNoSession(t *testing.T) {
@@ -103,12 +102,11 @@ func TestLoginHandlerEditSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	modifiedEntry, ok := (*result).(*vaults_domain.LoginEntry)
-	require.True(t, ok)
+	modifiedEntry := result.Entries.Login[0]
 	require.True(t, modifiedEntry.IsDraft)
-	require.Equal(t, "Updated Name", handler.Vault.Entries.Login[0].EntryName)
-	require.Equal(t, "new@example.com", handler.Vault.Entries.Login[0].UserName)
-	require.True(t, handler.Vault.Entries.Login[0].IsDraft)
+	require.Equal(t, "Updated Name", modifiedEntry.EntryName)
+	require.Equal(t, "new@example.com", modifiedEntry.UserName)
+	require.True(t, modifiedEntry.IsDraft)
 }
 
 func TestLoginHandlerEditEntryNotFound(t *testing.T) {
@@ -155,11 +153,11 @@ func TestLoginHandlerTrashAndRestore(t *testing.T) {
 	handler.Vault = &vaults_domain.VaultPayload{}
 	handler.Vault.Entries.Login = append(handler.Vault.Entries.Login, entry)
 
-	err := handler.Trash("1", "entry-trashed")
+	_, err := handler.Trash("1", "entry-trashed")
 	require.NoError(t, err)
 	require.True(t, handler.Vault.Entries.Login[0].Trashed)
 
-	err = handler.Restore("1", "entry-trashed")
+	_, err = handler.Restore("1", "entry-trashed")
 	require.NoError(t, err)
 	require.False(t, handler.Vault.Entries.Login[0].Trashed)
 }
@@ -170,7 +168,7 @@ func TestLoginHandlerTrashEntryNotFound(t *testing.T) {
 	handler := newTestLoginHandler()
 	handler.Vault = &vaults_domain.VaultPayload{}
 
-	err := handler.Trash("1", "does-not-exist")
+	_, err := handler.Trash("1", "does-not-exist")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "entry with ID does-not-exist not found")
 }

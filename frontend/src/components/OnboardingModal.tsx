@@ -109,9 +109,9 @@ export function OnboardingModal({ open, onOpenChange, upgradeMode = false }: Onb
       const response = await createVault(payload);
 
       // Hydrate vault context if provided
-      if (response.vaultContext) {
-        hydrateVault(response.vaultContext as VaultContext);
-      }
+      // if (response.vaultContext) {
+      //   hydrateVault(response.vaultContext as VaultContext);
+      // }
 
       toast({
         title: "Vault created successfully 🎉",

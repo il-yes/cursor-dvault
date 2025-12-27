@@ -8,8 +8,9 @@ import {auth} from '../models';
 import {main} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
-import {models} from '../models';
+import {vaults_domain} from '../models';
 import {share_domain} from '../models';
+import {models} from '../models';
 import {identity_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
@@ -33,7 +34,7 @@ export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.Chec
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
-export function CreateFolder(arg1:string,arg2:string):Promise<models.VaultPayload>;
+export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.ShareEntry>;
 
@@ -55,7 +56,7 @@ export function FlushAllSessions():Promise<void>;
 
 export function GetCheckoutURL(arg1:string):Promise<main.CreateCheckoutResponse>;
 
-export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<models.Folder>>;
+export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
 
@@ -99,6 +100,8 @@ export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
+export function SaveSessionTest(arg1:string):Promise<void>;
+
 export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
@@ -107,7 +110,7 @@ export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<handlers.
 
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
-export function SignOut(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function SignOut(arg1:string):Promise<void>;
 
 export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResponse>;
 
@@ -115,6 +118,6 @@ export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
-export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<models.Folder>;
+export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<vaults_domain.Folder>;
 
 export function UploadToIPFS(arg1:string,arg2:string):Promise<string>;

@@ -10,6 +10,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import "./contributionGraph/g-scrollbar.css";
 import { useVaultStore } from "@/store/vaultStore";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { withAuth } from "@/hooks/withAuth";
 
 interface VaultThreeColumnLayoutProps {
   filter: string;
@@ -21,7 +23,6 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   const deleteEntry = useVaultStore((state) => state.deleteEntry);
   const restoreEntry = useVaultStore((state) => state.restoreEntry);
   const toggleFavorite = useVaultStore((state) => state.toggleFavorite);
-  const loadVault = useVaultStore((state) => state.loadVault);
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
@@ -45,7 +46,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   }, [vaultContext]);
 
   useEffect(() => {
-    console.log("🚀 ~ from VaultThreeColumnLayout ~ vaultContext:", {vaultContext})
+    console.log("🚀 ~ from VaultThreeColumnLayout ~ vaultContext:", { vaultContext })
   }, []);
 
   // Derive selectedEntry from vaultContext using the ID - this ensures we always have the latest data
@@ -106,31 +107,57 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
 
   const handleEditEntry = async (updates: Partial<VaultEntry>) => {
     if (selectedEntryId) {
+      console.log("🚀 ~ handleEditEntry ~ selectedEntry for edit:", selectedEntry)
+      // failed to parse entry: unknown entry type: a0f57f02-6fed-44b8-98de-03177b54c73f"
+      const rawEntry = await withAuth((token) => {
+        return AppAPI.EditEntry(
+          selectedEntry!.type,
+          {
+            id: selectedEntry!.id,   // ✅ REQUIRED
+            ...updates,
+          },
+          token
+        )
+      });
+      console.log("🚀 ~ handleEditEntry ~ rawEntry:", rawEntry)
+      // TODO: Update entry in backend (session)
       await updateEntry(selectedEntryId, updates);
       // selectedEntry will be automatically updated via useMemo when vaultContext changes
       setEditMode(false);
     }
   };
 
-  const handleDeleteEntry = async (entryId: string) => {
-    await deleteEntry(entryId);
-    if (selectedEntryId === entryId) {
+  const handleDeleteEntry = async (entry: VaultEntry) => {
+    await withAuth((token) => {
+      return AppAPI.TrashEntry(entry.type, entry.id, token)
+    });
+    // console.log("🚀 ~ handleDeleteEntry ~ rawEntry:", rawEntry)
+    await deleteEntry(entry.id);
+    if (selectedEntryId === entry.id) {
       setSelectedEntryId(null);
     }
   };
 
-  const handleRestoreEntry = async (entryId: string) => {
-    await restoreEntry(entryId);
-    if (selectedEntryId === entryId) {
+  const handleRestoreEntry = async (entry: VaultEntry) => {
+    await withAuth((token) => {
+      return AppAPI.RestoreEntry(entry.type, entry.id, token)
+    });
+    // console.log("🚀 ~ handleRestoreEntry ~ rawEntry:", rawEntry)
+    await restoreEntry(entry.id);
+    if (selectedEntryId === entry.id) {
       setSelectedEntryId(null);
     }
   };
 
-  const handleDeletePermanently = async (entryId: string) => {
+  const handleDeletePermanently = async (entry: VaultEntry) => {
     // TODO: Implement permanent deletion via API (different from trash)
-    console.log('Delete permanently:', entryId);
-    await deleteEntry(entryId);
-    if (selectedEntryId === entryId) {
+    // const rawEntry = await withAuth((token) => {
+    //   return AppAPI.TrashEntry(entry.type, entry.id, token)
+    // });
+    // console.log("🚀 ~ handleDeleteEntry ~ rawEntry:", rawEntry)
+    console.log('Delete permanently:', entry.id);
+    await deleteEntry(entry.id);
+    if (selectedEntryId === entry.id) {
       setSelectedEntryId(null);
     }
   };
@@ -148,7 +175,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
 
   useEffect(() => {
     if (vaultContext?.Dirty) {
-      
+
     }
   }, [vaultContext]);
 
@@ -234,7 +261,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
                   onEdit={() => setEditMode(true)}
                   onSave={handleEditEntry}
                   onCancel={() => setEditMode(false)}
-                  onDelete={() => selectedEntry && handleDeleteEntry(selectedEntry.id)}
+                  onDelete={() => selectedEntry && handleDeleteEntry(selectedEntry)}
                 />
               )}
             </div>
@@ -256,7 +283,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
                 onEdit={() => setEditMode(true)}
                 onSave={handleEditEntry}
                 onCancel={() => setEditMode(false)}
-                onDelete={() => selectedEntry && handleDeleteEntry(selectedEntry.id)}
+                onDelete={() => selectedEntry && handleDeleteEntry(selectedEntry)}
               />
             )}
           </div>

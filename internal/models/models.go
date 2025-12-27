@@ -446,10 +446,16 @@ type VaultSession struct {
 	PendingCommits      []tracecore.CommitEnvelope `json:"pending_commits,omitempty"`
 }
 type UserSession struct {
+	ID          string            `gorm:"primaryKey;column:id" json:"id"`
 	UserID      string            `gorm:"primaryKey;column:user_id" json:"user_id"`
 	SessionData string         `gorm:"type:json" json:"session_data"` // Marshaled VaultSession
+	CreatedAt   string         `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   string         `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
+}
+func (u *UserSession) BeforeCreate(tx *gorm.DB) (err error) {
+	u.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	return
 }
 
 // 🧠 This lives in memory, and is injected into handlers (vault_handler.go, etc.)

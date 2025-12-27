@@ -13,6 +13,7 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 import { normalizePreloadedVault } from "@/services/normalizeVault";
 import { useAppStore } from "@/store/appStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useAuth } from "@/hooks/useAuth";
 
 const LoginStep2 = () => {
   const [searchParams] = useSearchParams();
@@ -26,6 +27,8 @@ const LoginStep2 = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { setJwtToken, setRefreshToken, setUser, setLoggedIn, updateOnboarding } = useAuthStore();
+  const { loginWithStellar, loginWithPassword } = useAuth();
+
 
   const vaultStore = useVaultStore.getState();
 
@@ -72,11 +75,12 @@ const LoginStep2 = () => {
         payload.publicKey = publicKey;
         console.log("Stellar login payload:", payload);
 
-        const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
+        // const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
+        const res = await loginWithStellar(payload);
 
-        if (!res) throw new Error("SignIn failed: empty result");
+        // if (!res) throw new Error("SignIn failed: empty result");
 
-        await handleSuccessfulAuth(res);
+        // await handleSuccessfulAuth(res);
 
         toast({
           title: "Welcome back!",
@@ -86,10 +90,8 @@ const LoginStep2 = () => {
         navigate("/dashboard");
       }
 
-      const response = await login(payload);
-      if (!response) throw new Error("SignIn failed: empty result");
-
-      await handleSuccessfulAuth(response);
+      const response = await loginWithPassword(payload);
+      // if (!response) throw new Error("SignIn failed: empty result");
 
       toast({
         title: "Welcome back!",

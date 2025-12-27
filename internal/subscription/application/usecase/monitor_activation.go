@@ -23,7 +23,7 @@ type BillingPortInterface interface {
 	AddPaymentMethod(ctx context.Context, userID, method, payload string) (string, error)
 }
 type IdentityHandlerInterface interface {
-	Registers(ctx context.Context, req identity_ui.OnboardRequest) (*identity_domain.User, error)
+	Registers(req identity_ui.OnboardRequest) (*identity_domain.User, error)
 }
 type BillingHandlerInterface interface {
 	Onboard(ctx context.Context, req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error)

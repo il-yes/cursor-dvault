@@ -155,7 +155,7 @@ function DashboardNavbar() {
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
-
+    AppAPI.SignOut(auth.user.id);
     navigate("/login/email");
   };
   const handleAddEntry = () => {
@@ -187,20 +187,21 @@ function DashboardNavbar() {
       // 2️⃣ Send to backend (v0 logic)
       // const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
       const rawEntry = await withAuth((token) => {
-        console.log("🚀 ~ withAuth ~ token:", token)
         return AppAPI.AddEntry(entry.type, entryPayload, token)
       });
-      console.log("🚀 ~ handleCreateEntry ~ rawEntry:", rawEntry)
-
+      console.log("🚀 ~ handleCreateEntry ~ backend response:", rawEntry)
+      
       // 3️⃣ Convert backend response if needed
       const newEntry: VaultEntry = {
         ...rawEntry,
         created_at: rawEntry.created_at || new Date().toISOString(),
         updated_at: rawEntry.updated_at || new Date().toISOString(),
       };
+      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
       // 4️⃣ Update Zustand store
       addEntry(newEntry);
+      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
       // 5️⃣ Show feedback
       toast({
@@ -227,7 +228,7 @@ function DashboardNavbar() {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-
+ 
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

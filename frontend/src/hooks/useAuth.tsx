@@ -82,7 +82,7 @@ export function useAuth() {
     try {
       setLoading(true);
       setFeedback({ type: "info", message: "Signing you in..." });
-      const response = await AppAPI.SignIn(credentials);
+      const response = await AppAPI.SignInWithIdentity(credentials);
       loginSuccess(response);
     } catch (err: any) {
       console.error("❌ Login error:", err);

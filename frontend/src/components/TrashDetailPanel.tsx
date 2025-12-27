@@ -8,14 +8,14 @@ import "./contributionGraph/g-scrollbar.css";
 
 interface TrashDetailPanelProps {
   entry: VaultEntry | null;
-  onRestore: (entryId: string) => void;
-  onDeletePermanently: (entryId: string) => void;
+  onRestore: (entry: VaultEntry) => void;
+  onDeletePermanently: (entry: VaultEntry) => void;
 }
 
 export function TrashDetailPanel({ entry, onRestore, onDeletePermanently }: TrashDetailPanelProps) {
   const handleRestore = () => {
     if (entry) {
-      onRestore(entry.id);
+      onRestore(entry);
       toast({
         title: "Entry restored",
         description: `${entry.entry_name} has been restored successfully.`,
@@ -26,7 +26,7 @@ export function TrashDetailPanel({ entry, onRestore, onDeletePermanently }: Tras
   const handleDeletePermanently = () => {
     if (entry) {
       if (confirm(`Are you sure you want to permanently delete "${entry.entry_name}"? This action cannot be undone.`)) {
-        onDeletePermanently(entry.id);
+        onDeletePermanently(entry);
         toast({
           title: "Entry deleted permanently",
           description: "The entry has been removed from your vault.",

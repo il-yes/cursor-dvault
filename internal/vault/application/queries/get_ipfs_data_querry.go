@@ -3,6 +3,7 @@ package vault_queries
 import (
 	"fmt"
 	vault_domain "vault-app/internal/vault/domain"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // -------- QUERRY --------
@@ -37,6 +38,7 @@ func NewGetIPFSDataQuerryHandler(ipfsService IpfsServiceInterface, cryptoService
 }
 
 func (h *GetIPFSDataQuerryHandler) Execute(cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
+	
 	// Fetch vault from IPFS
 	vaultData, err := h.ipfsService.GetFile(cmd.CID)
 	if err != nil {
@@ -56,7 +58,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(cmd GetIPFSDataQuerry) (*GetIPFSDataR
 	}
 
 	// Parse vault
-	vaultPayload := vault_domain.ParseVaultPayload(decrypted)
+	vaultPayload := vaults_domain.ParseVaultPayload(decrypted)
 
 	return &GetIPFSDataResponse{Data: vaultPayload}, nil
 }

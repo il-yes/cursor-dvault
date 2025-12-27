@@ -39,6 +39,9 @@ func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayl
 		h.logger.Error("LoginHandler - entry does not implement VaultEntry interface: %v", anEntry)
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
+	if h.Vault == nil {
+		return nil, fmt.Errorf("vault not initialized for user %s", userID)
+	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	// 2. ---------- Add entry to vault ----------
 	h.Vault.Entries.Login = append(h.Vault.Entries.Login, *entry)
@@ -46,7 +49,7 @@ func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayl
 
 	return h.Vault, nil
 }
-func (h *LoginHandler) Edit(userID string, entry any) (*any, error) {
+func (h *LoginHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	// 1. ---------- Unmarshal entry ----------
 	updatedEntry, ok := entry.(*vaults_domain.LoginEntry)
 	if !ok {
@@ -78,9 +81,8 @@ func (h *LoginHandler) Edit(userID string, entry any) (*any, error) {
 	// 3. ---------- Update vault ----------
 	h.Vault.Entries.Login = entries
 	h.logger.Info("✏️ Updated login entry for user %s: %s\n", userID, updatedEntry.EntryName)
-	var result any = updatedEntry
 
-	return &result, nil
+	return h.Vault, nil
 }
 func (h *LoginHandler) Trash(userID string, entryID string) error {
 	return h.TrashLoginEntryAction(userID, entryID, true)
@@ -107,11 +109,13 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 	return fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *LoginHandler) SetVault(vault *vault_session.Session) {
-	p := vault.Vault
-	h.Vault = p
-}
 func (h *LoginHandler) SetSession(session *vault_session.Session) {
 	s := session
 	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return
+	}
+	h.Vault = payload
+	
 }

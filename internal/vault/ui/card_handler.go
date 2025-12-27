@@ -45,7 +45,7 @@ func (h *CardHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPaylo
 	return &h.Vault, nil
 
 }
-func (h *CardHandler) Edit(userID string, entry any) (*any, error) {
+func (h *CardHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	updatedEntry, ok := entry.(*vaults_domain.CardEntry)
 	if !ok {
 		return nil, fmt.Errorf("invalid type: expected CardEntry")
@@ -73,8 +73,7 @@ func (h *CardHandler) Edit(userID string, entry any) (*any, error) {
 
 	h.logger.Info("✏️ Updated card entry for user %d: %s\n", userID, updatedEntry.EntryName)
 
-	var result any = updatedEntry
-	return &result, nil
+	return &h.Vault, nil
 }
 func (h *CardHandler) Trash(userID string, entryID string) error {
 	return h.TrashCardEntryAction(userID, entryID, true)
@@ -100,7 +99,11 @@ func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashe
 }
 func (h *CardHandler) SetVault(vault *vault_session.Session) {
 	p := vault.Vault
-	h.Vault = *p
+	payload, err := vault_session.DecodeSessionVault(p)
+	if err != nil {
+		return
+	}
+	h.Vault = *payload
 }
 func (h *CardHandler) SetSession(session *vault_session.Session) {
 	s := session

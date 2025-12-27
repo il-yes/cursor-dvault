@@ -3,12 +3,16 @@ package vault_commands
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	utils "vault-app/internal"
+	vault_events "vault-app/internal/vault/application/events"
 	vault_session "vault-app/internal/vault/application/session"
 	vault_domain "vault-app/internal/vault/domain"
+	vaults_domain "vault-app/internal/vault/domain"
+	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
+
+	"gorm.io/gorm"
 )
 
 // -------- COMMAND --------
@@ -22,116 +26,151 @@ type OpenVaultCommand struct {
 // -------- RESULT --------
 
 type OpenVaultResult struct {
-	Vault               *vault_domain.Vault
+	Vault          *vault_domain.Vault
 	Content        *vault_domain.VaultPayload
-	RuntimeContext      *vault_session.RuntimeContext
-	Session             *vault_session.Session
-	LastCID             string
-	ReusedExisting      bool
+	RuntimeContext *vault_session.RuntimeContext
+	Session        *vault_session.Session
+	LastCID        string
+	ReusedExisting bool
 }
 
 // -------- HANDLER --------
 
 type OpenVaultCommandHandler struct {
-	vaultRepo   vault_domain.VaultRepository
-	sessionMgr  *vault_session.Manager
-	ipfs        vault_domain.VaultStorage // abstraction over IPFS
-	crypto      vault_domain.CryptoService
-	now         func() string
+	vaultRepo vault_domain.VaultRepository
+	now       func() string
 }
 
 // -------- CONSTRUCTOR --------
 
 func NewOpenVaultCommandHandler(
-	vaultRepo vault_domain.VaultRepository,
-	sessionMgr *vault_session.Manager,
-	ipfs vault_domain.VaultStorage,
-	crypto vault_domain.CryptoService,
+	db *gorm.DB,
 ) *OpenVaultCommandHandler {
+	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
+
 	return &OpenVaultCommandHandler{
-		vaultRepo:  vaultRepo,
-		sessionMgr: sessionMgr,
-		ipfs:       ipfs,
-		crypto:     crypto,
-		now:        func() string { return time.Now().UTC().Format(time.RFC3339) },
+		vaultRepo: vaultRepo,
+		now:       func() string { return time.Now().UTC().Format(time.RFC3339) },
 	}
 }
 
 // -------- EXECUTION --------
-
 func (h *OpenVaultCommandHandler) Handle(
 	ctx context.Context,
 	cmd OpenVaultCommand,
+	ipfs vault_domain.VaultStorage,
+	crypto vault_domain.CryptoService,
+	eventBus vault_events.VaultEventBus,
 ) (*OpenVaultResult, error) {
-	utils.LogPretty("OpenVaultCommandHandler - cmd", cmd)
-	reusedExisting := true
 
-	// 1. Vault - Use existing if present or Load latest vault metadata
+	// ------------------------------------------------------------
+	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
+	// ------------------------------------------------------------
+	if cmd.Session == nil {
+		utils.LogPretty("OpenVaultCommandHandler - Handle - ENFORCE INVARIANTS session is nil", cmd.Session)
+		cmd.Session = vault_session.InitNewSession(cmd.UserID)
+	}
+
+	runtimeCtx := vault_session.NewRuntimeContext()
+
+	// ------------------------------------------------------------
+	// 1. REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)
+	// ------------------------------------------------------------
+	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
+		utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)	
+		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
+		utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
+
+		evt := vault_events.VaultOpened{
+			UserID:       cmd.UserID,
+			VaultPayload: &payload,
+			LastCID:      cmd.Session.LastCID,
+			LastSynced:   cmd.Session.LastSynced,
+			LastUpdated:  cmd.Session.LastUpdated,
+			Runtime:      runtimeCtx,
+			OccurredAt:   time.Now().Unix(),
+		}
+
+		eventBus.PublishVaultOpened(ctx, evt)
+
+		return &OpenVaultResult{
+			Vault:          nil,
+			Content:        &payload,
+			RuntimeContext: runtimeCtx,
+			Session:        cmd.Session,
+			LastCID:        cmd.Session.LastCID,
+			ReusedExisting: true,
+		}, nil
+	}
+
+	// ------------------------------------------------------------
+	// 2. LOAD OR CREATE VAULT METADATA
+	// ------------------------------------------------------------
+	utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
-		log.Println("OpenVaultCommandHandler - Error loading vault, go for minimal vault", err)
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
-			log.Println("OpenVaultCommandHandler - Create minimal vault")
-			// 3️⃣ Create minimal vault - secure by default
 			vault = vault_domain.NewVault(cmd.UserID, "New Vault")
-			utils.LogPretty("OpenVaultCommandHandler - new minimal vault", vault)
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
-				log.Println("OpenVaultCommandHandler - Error saving minimal vault", err)
 				return nil, err
 			}
-			reusedExisting = false
 		} else {
-			log.Println("OpenVaultCommandHandler - Error loading vault no minimal vault", err)
 			return nil, err
 		}
 	}
-	utils.LogPretty("OpenVaultCommandHandler - vault", vault)
 
-	// 2. Session - Reuse existing session if present
-	if cmd.Session.LastCID != "" {
-		openedResult := &OpenVaultResult{
-			Vault:          vault,
-			Content:        cmd.Session.Vault,
-			RuntimeContext: cmd.Session.Runtime,
-			Session:        cmd.Session,
-			LastCID:        cmd.Session.LastCID,
-			ReusedExisting: reusedExisting,
-		}
-		utils.LogPretty("OpenVaultCommandHandler - reused existing session", cmd)
-		return openedResult, nil
-	}
-
-	// 4️⃣ IPFS - Fetch encrypted vault payload
-	encrypted, err := h.ipfs.GetData(vault.CID)
-	if err != nil {
-		log.Println("OpenVaultCommandHandler - Error fetching encrypted vault payload", err)
-		return nil, err
-	}
-	utils.LogPretty("OpenVaultCommandHandler - encrypted", encrypted)
-
-	// 5️⃣ Crypto - Decrypt vault	
-	decrypted, err := h.crypto.Decrypt(encrypted, cmd.Password)
+	// ------------------------------------------------------------
+	// 3. LOAD ENCRYPTED VAULT CONTENT FROM IPFS
+	// ------------------------------------------------------------
+	encrypted, err := ipfs.GetData(vault.CID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 6️⃣ Vault - Parse vault payload	
-	payload := vault_domain.ParseVaultPayload(decrypted)
-	log.Println("OpenVaultCommandHandler - payload", payload)
+	// ------------------------------------------------------------
+	// 4. DECRYPT VAULT
+	// ------------------------------------------------------------
+	decrypted, err := crypto.Decrypt(encrypted, cmd.Password)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
 
-	// 7️⃣ Session - Create runtime context
-	runtimeCtx := vault_session.NewRuntimeContext()
-	log.Println("OpenVaultCommandHandler - Initialize new runtimeCtx")
+	// ------------------------------------------------------------
+	// 5. PARSE VAULT PAYLOAD
+	// ------------------------------------------------------------
+	payload := vaults_domain.ParseVaultPayload(decrypted)
+	payload.Normalize()
 
-	// 6. Firre event Vault Opened
-	// if h.eventBus != nil {
-	// 	h.eventBus.Publish(vault_domain.NewVaultOpenedEvent(vault.ID, vault.UserID, vault.Name))
-	// }
+	// ------------------------------------------------------------
+	// 6. UPDATE SESSION (IN-MEMORY)
+	// ------------------------------------------------------------
+	cmd.Session.Vault = payload.ToBytes()
+	cmd.Session.LastCID = vault.CID
 
+	// ------------------------------------------------------------
+	// 7. EMIT EVENT
+	// ------------------------------------------------------------
+	evt := vault_events.VaultOpened{
+		UserID:       cmd.UserID,
+		VaultPayload: &payload,
+		LastCID:      vault.CID,
+		LastSynced:   vault.UpdatedAt,
+		LastUpdated:  vault.UpdatedAt,
+		Runtime:      runtimeCtx,
+		OccurredAt:   time.Now().Unix(),
+	}
+
+	eventBus.PublishVaultOpened(ctx, evt)
+
+	// ------------------------------------------------------------
+	// 8. RETURN RESULT
+	// ------------------------------------------------------------
 	return &OpenVaultResult{
 		Vault:          vault,
 		Content:        &payload,
 		RuntimeContext: runtimeCtx,
+		Session:        cmd.Session,
 		LastCID:        vault.CID,
 		ReusedExisting: false,
 	}, nil

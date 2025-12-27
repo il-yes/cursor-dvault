@@ -48,7 +48,7 @@ func (h *IdentityHandler) Add(userID string, anEntry any) (*vaults_domain.VaultP
 	return h.Vault, nil
 
 }
-func (h *IdentityHandler) Edit(userID string, entry any) (*any, error) {
+func (h *IdentityHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	if h.Vault == nil {
 		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
@@ -79,8 +79,7 @@ func (h *IdentityHandler) Edit(userID string, entry any) (*any, error) {
 	h.logger.Info("✏️ Updated identity entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
-	var result any = updatedEntry
-	return &result, nil
+	return h.Vault, nil
 }
 func (h *IdentityHandler) Trash(userID string, entryID string) error {
 	return h.TrashIdentityEntryAction(userID, entryID, true)
@@ -112,7 +111,11 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string
 
 func (h *IdentityHandler) SetVault(vault *vault_session.Session) {
 	p := vault.Vault
-	h.Vault = p
+	payload, err := vault_session.DecodeSessionVault(p)
+	if err != nil {
+		return
+	}
+	h.Vault = payload
 }
 func (h *IdentityHandler) SetSession(session *vault_session.Session) {
 	s := session

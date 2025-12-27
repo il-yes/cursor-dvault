@@ -45,7 +45,7 @@ func (h *SSHKeyHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPay
 	return &h.Vault, nil
 
 }
-func (h *SSHKeyHandler) Edit(userID string, entry any) (*any, error) {
+func (h *SSHKeyHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	updatedEntry, ok := entry.(*vaults_domain.SSHKeyEntry)
 	if !ok {
 		return nil, fmt.Errorf("invalid type: expected SSHKeyEntry")
@@ -72,8 +72,7 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*any, error) {
 
 	h.logger.Info("✏️ Updated ssh key entry for user %s: %s\n", userID, updatedEntry.EntryName)
 
-	var result any = updatedEntry
-	return &result, nil
+	return &h.Vault, nil
 }
 func (h *SSHKeyHandler) Trash(userID string, entryID string) error {
 	return h.TrashSSHKeyEntryAction(userID, entryID, true)
@@ -102,7 +101,11 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, tr
 
 func (h *SSHKeyHandler) SetVault(vault *vault_session.Session) {
 	p := vault.Vault
-	h.Vault = *p
+	payload, err := vault_session.DecodeSessionVault(p)
+	if err != nil {
+		return
+	}
+	h.Vault = *payload
 }
 func (h *SSHKeyHandler) SetSession(session *vault_session.Session) {
 	s := session

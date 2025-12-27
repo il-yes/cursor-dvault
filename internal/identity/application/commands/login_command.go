@@ -7,11 +7,14 @@ import (
 	auth_domain "vault-app/internal/auth/domain"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // internal/identity/application/commands/login_command.go
@@ -26,7 +29,6 @@ type LoginCommand struct {
 type LoginResult struct {
 	User      *identity_domain.User
 	Tokens    auth_domain.TokenPairs
-	SessionID string // optional
 }
 type ManagerInterface interface {
 	Get(userID string) (*vault_session.Session, bool)
@@ -49,30 +51,26 @@ type TokenServiceInterface interface {
 type LoginCommandHandler struct {
 	onboardingRepo onboarding_domain.UserRepository
 	userRepo       identity_domain.UserRepository
-	tokenService   TokenServiceInterface
-	sessionManager ManagerInterface
 	NowUTC         func() string
-	eventBus       identity_eventbus.EventBus
 }
 
 func NewLoginCommandHandler(
-	onboardingRepo onboarding_domain.UserRepository,
-	userRepo identity_domain.UserRepository,
-	tokenService TokenServiceInterface,
-	sessionManager ManagerInterface,
-	eventBus identity_eventbus.EventBus,
+	db *gorm.DB,
 ) *LoginCommandHandler {
+	userRepo := identity_persistence.NewGormUserRepository(db)
+	onboardingRepo := onboarding_persistence.NewGormUserRepository(db)	
+
 	return &LoginCommandHandler{
 		onboardingRepo: onboardingRepo,
 		userRepo:       userRepo,
-		tokenService:   tokenService,
-		sessionManager: sessionManager,
 		NowUTC:         func() string { return time.Now().Format(time.RFC3339) },
-		eventBus:       eventBus,
 	}
 }
 
-func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
+func (h *LoginCommandHandler) Handle(
+	cmd LoginCommand, tokenService TokenServiceInterface, eventBus identity_eventbus.EventBus,
+) (*LoginResult, error) {
+
 	utils.LogPretty("Login command", cmd)
 	// 1. Resolve credentials
 	creds := auth_domain.Credentials{
@@ -116,28 +114,22 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 	}
 
 	// 5. Auth - Generate tokens
-	tokens, err := h.tokenService.GenerateTokenPair(user.ToJwtUser())
+	tokens, err := tokenService.GenerateTokenPair(user.ToJwtUser())
 	if err != nil {
 		utils.LogPretty("Failed to generate tokens", user)
 		return nil, err
 	}
 	utils.LogPretty("Generated tokens", tokens)
 
-	if _, err := h.tokenService.SaveJwtToken(tokens); err != nil {
+	if _, err := tokenService.SaveJwtToken(tokens); err != nil {
 		utils.LogPretty("Failed to persist tokens", tokens)
 		return nil, err
 	}
 	utils.LogPretty("Persisted tokens", tokens)
-	// 6. Session - Prepare session (do NOT open vault here)
-	session, err := h.sessionManager.Prepare(user.ID)
-	if err != nil {
-		return nil, err
-	}
-	utils.LogPretty("Prepared session", session)
 
 	// 7. Publish event
-	if h.eventBus != nil {
-		_ = h.eventBus.PublishUserLoggedIn(context.Background(), identity_eventbus.UserLoggedIn{
+	if eventBus != nil {
+		_ = eventBus.PublishUserLoggedIn(context.Background(), identity_eventbus.UserLoggedIn{
 			UserID:     user.ID,
 			Email:      user.Email,
 			OccurredAt: time.Now(),
@@ -147,7 +139,6 @@ func (h *LoginCommandHandler) Handle(cmd LoginCommand) (*LoginResult, error) {
 	return &LoginResult{
 		User:      user,
 		Tokens:    tokens,
-		SessionID: session.ID,
 	}, nil
 }
 
@@ -155,6 +146,3 @@ func (h *LoginCommandHandler) resolveStellarPassword(cmd LoginCommand) (string, 
 	return "", nil
 }
 
-func (h *LoginCommandHandler) SetTokenService(tokenService TokenServiceInterface) {
-	h.tokenService = tokenService
-}

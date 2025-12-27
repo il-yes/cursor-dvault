@@ -102,12 +102,11 @@ func TestLoginHandlerEditSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	modifiedEntry, ok := (*result).(*vaults_domain.LoginEntry)
-	require.True(t, ok)
+	modifiedEntry := result.Entries.Login[0]
 	require.True(t, modifiedEntry.IsDraft)
-	require.Equal(t, "Updated Name", handler.Vault.Entries.Login[0].EntryName)
-	require.Equal(t, "new@example.com", handler.Vault.Entries.Login[0].UserName)
-	require.True(t, handler.Vault.Entries.Login[0].IsDraft)
+	require.Equal(t, "Updated Name", modifiedEntry.EntryName)
+	require.Equal(t, "new@example.com", modifiedEntry.UserName)
+	require.True(t, modifiedEntry.IsDraft)
 }
 
 func TestLoginHandlerEditEntryNotFound(t *testing.T) {

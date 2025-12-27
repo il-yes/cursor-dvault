@@ -201,6 +201,7 @@ function DashboardNavbar() {
 
       // 4️⃣ Update Zustand store
       addEntry(newEntry);
+      console.log("🚀 ~ handleCreateEntry ~ newEntry:", newEntry)
 
       // 5️⃣ Show feedback
       toast({

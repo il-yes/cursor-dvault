@@ -181,6 +181,7 @@ func (v *VaultPayload) InitFolders() {
 func (v *VaultPayload) InitEntries() {
 	v.Entries = Entries{}
 }
+
 func (v *VaultPayload) InitBaseVaultContent() {
 	v.InitFolders()
 	v.InitEntries()
@@ -188,6 +189,39 @@ func (v *VaultPayload) InitBaseVaultContent() {
 func (v *VaultPayload) GetContentBytes() ([]byte, error) {
 	return json.MarshalIndent(v, "", "  ")
 }
+func (v *VaultPayload) Normalize() {
+	if v.Folders == nil {
+		v.Folders = []Folder{}
+	}
+
+	// Entries struct itself always exists, but slices may not
+	if v.Entries.Login == nil {
+		v.Entries.Login = []LoginEntry{}
+	}
+	if v.Entries.Card == nil {
+		v.Entries.Card = []CardEntry{}
+	}
+	if v.Entries.Identity == nil {
+		v.Entries.Identity = []IdentityEntry{}
+	}
+	if v.Entries.Note == nil {
+		v.Entries.Note = []NoteEntry{}
+	}
+	if v.Entries.SSHKey == nil {
+		v.Entries.SSHKey = []SSHKeyEntry{}
+	}
+}
+
+func (s *VaultPayload) ToBytes() []byte {
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return nil
+	}
+	return raw
+}
+
+
+
 
 
 type EntryType string
@@ -488,3 +522,4 @@ func (j *JSONMap) Scan(value interface{}) error {
 func (j JSONMap) Value() (driver.Value, error) {
 	return json.Marshal(j)
 }
+

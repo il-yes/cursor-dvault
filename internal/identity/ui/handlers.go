@@ -7,25 +7,37 @@ import (
 	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_eventbus "vault-app/internal/identity/application"
 )
 
+// ----------------------------------------
+// - 	LoginHandler 
+// ----------------------------------------
 type LoginHandler struct {
 	loginCommandHandler *identity_commands.LoginCommandHandler
+	tokenService        identity_commands.TokenServiceInterface
+	eventBus            identity_eventbus.EventBus
 }
 
 func NewLoginHandler(
 	loginCommandHandler *identity_commands.LoginCommandHandler,
+	tokenService        identity_commands.TokenServiceInterface,
+	eventBus            identity_eventbus.EventBus,
 ) *LoginHandler {
 	return &LoginHandler{
 		loginCommandHandler: loginCommandHandler,
+		tokenService:        tokenService,
+		eventBus:            eventBus,
 	}
 }
 
 func (h *LoginHandler) Handle(cmd identity_commands.LoginCommand) (*identity_commands.LoginResult, error) {
-	return h.loginCommandHandler.Handle(cmd)
+	return h.loginCommandHandler.Handle(cmd, h.tokenService, h.eventBus)
 }
 
-
+// ----------------------------------------
+// - RegistrationHandler 
+// ----------------------------------------
 type RegistrationHandler struct {
 	RegisterIdentityUC *identity_usecase.RegisterIdentityUseCase
 }
@@ -66,6 +78,9 @@ func (h *RegistrationHandler) Registers(ctx context.Context, req OnboardRequest)
 	return identity_user, nil
 }
 
+// ----------------------------------------
+// - FinderHandler 
+// ----------------------------------------
 type FinderHandler struct {
 	finderQueryHandler *identity_queries.FinderQueryHandler
 }

@@ -1,11 +1,11 @@
 package vault_commands_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_domain "vault-app/internal/vault/domain"
@@ -32,8 +32,7 @@ type fakeVaultRepo struct {
 
 func TestInitializeVault_CreatesNewVault(t *testing.T) {
 	repo := &fakeVaultRepo{}
-
-	handler := vault_commands.NewInitializeVaultCommandHandler(repo)
+	handler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 
 	cmd := vault_commands.InitializeVaultCommand{
 		UserID:    "user-1",
@@ -52,13 +51,10 @@ func TestInitializeVault_CreatesNewVault(t *testing.T) {
 }
 
 func TestInitializeVault_Idempotent_ReturnsExisting(t *testing.T) {
+	repo := &fakeVaultRepo{}
 	existing := vault_domain.NewVault("user-1", "Existing Vault")
 
-	repo := &fakeVaultRepo{
-		existingVault: existing,
-	}
-
-	handler := vault_commands.NewInitializeVaultCommandHandler(repo)
+	handler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 
 	cmd := vault_commands.InitializeVaultCommand{
 		UserID: "user-1",
@@ -74,9 +70,7 @@ func TestInitializeVault_Idempotent_ReturnsExisting(t *testing.T) {
 }
 
 func TestInitializeVault_DefaultName(t *testing.T) {
-	repo := &fakeVaultRepo{}
-
-	handler := vault_commands.NewInitializeVaultCommandHandler(repo)
+	handler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 
 	cmd := vault_commands.InitializeVaultCommand{
 		UserID: "user-42",
@@ -91,11 +85,9 @@ func TestInitializeVault_DefaultName(t *testing.T) {
 }
 
 func TestInitializeVault_PropagatesSaveError(t *testing.T) {
-	repo := &fakeVaultRepo{
-		saveError: errors.New("db failure"),
-	}
 
-	handler := vault_commands.NewInitializeVaultCommandHandler(repo)
+
+	handler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 
 	cmd := vault_commands.InitializeVaultCommand{
 		UserID: "user-1",

@@ -45,7 +45,7 @@ func (h *NoteHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPaylo
 	return &h.Vault, nil
 
 }
-func (h *NoteHandler) Edit(userID string, entry any) (*any, error) {
+func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
 	updatedEntry, ok := entry.(*vaults_domain.NoteEntry)
 	if !ok {
 		return nil, fmt.Errorf("invalid type: expected NoteEntry")
@@ -73,8 +73,7 @@ func (h *NoteHandler) Edit(userID string, entry any) (*any, error) {
 	h.logger.Info("✏️ Updated note entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
-	var result any = updatedEntry
-	return &result, nil
+	return &h.Vault, nil
 }
 func (h *NoteHandler) Trash(userID string, entryID string) error {
 	return h.TrashNoteEntryAction(userID, entryID, true)
@@ -103,7 +102,11 @@ func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashe
 
 func (h *NoteHandler) SetVault(vault *vault_session.Session) {
 	p := vault.Vault
-	h.Vault = *p
+	payload, err := vault_session.DecodeSessionVault(p)
+	if err != nil {
+		return
+	}
+	h.Vault = *payload
 }
 func (h *NoteHandler) SetSession(session *vault_session.Session) {
 	s := session

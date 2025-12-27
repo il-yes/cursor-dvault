@@ -11,10 +11,9 @@ import (
 
 type EntryHandler interface {
 	Add(userID string, entry any) (*vaults_domain.VaultPayload, error)
-	Edit(userID string, entry any) (*any, error)
+	Edit(userID string, entry any) (*vaults_domain.VaultPayload, error)
 	Trash(userID string, entryID string) error
 	Restore(userID string, entryID string) error
-	SetVault(vault *vault_session.Session)
 	SetSession(session *vault_session.Session)
 }
 

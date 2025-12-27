@@ -66,17 +66,6 @@ const Profile = () => {
 		return () => window.runtime?.EventsOff('progress-update');
 	}, []);
 
-	// 3. Verify your VaultProvider useEffect syncs properly
-	// VaultProvider.tsx
-	useEffect(() => {
-		console.log('🔄 VaultProvider: vaultStoreData changed:', {
-			user_id: vault?.user_id,
-			dirty: vault?.Dirty,
-			lastSynced: vault?.LastSynced,
-		});
-
-
-	}, [vault]); // ✅ This ensures context follows store
 
 	// Updated handleAvatarUpload
 	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,7 +168,7 @@ const Profile = () => {
 			title: "Logged out",
 			description: "You have been successfully logged out.",
 		});
-		AppAPI.SignOut();
+		AppAPI.SignOut(useAuthStore.getState().user?.id);
 		navigate("/auth/signin");
 	};
 

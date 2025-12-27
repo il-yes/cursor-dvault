@@ -130,7 +130,6 @@ type fakeIdentityHandler struct {
 }
 
 func (f *fakeIdentityHandler) Registers(
-	ctx context.Context,
 	req identity_ui.OnboardRequest,
 ) (*identity_domain.User, error) {
 	f.called = true

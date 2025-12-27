@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_domain "vault-app/internal/vault/domain"
@@ -83,7 +84,7 @@ func TestCreateVault_Success(t *testing.T) {
 	cryptoService := &fakeCryptoService{}
 	ipfsService := &fakeIPFSService{}
 
-	initHandler := vault_commands.NewInitializeVaultCommandHandler(repo)
+	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, cryptoService, ipfsService)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
@@ -169,7 +170,7 @@ func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
 
 func TestCreateVault_AttachesCIDToVault(t *testing.T) {
 	repo := &fakeVaultRepo{}
-	initHandler := vault_commands.NewInitializeVaultCommandHandler(repo)
+	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 
 	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, &fakeCryptoService{}, &fakeIPFSService{})
 

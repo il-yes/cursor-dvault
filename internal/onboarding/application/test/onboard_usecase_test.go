@@ -23,7 +23,7 @@ type fakeIdentity struct {
 	err    error
 }
 func (f *fakeIdentity) Registers(
-	ctx context.Context, req identity_ui.OnboardRequest) (*identity_domain.User, error) {
+	req identity_ui.OnboardRequest) (*identity_domain.User, error) {
 	f.called = true
 	if f.err != nil {
 		return nil, f.err

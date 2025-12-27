@@ -17,22 +17,16 @@ import (
 	auth_domain "vault-app/internal/auth/domain"
 	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	auth_ui "vault-app/internal/auth/ui"
-	billing_usecase "vault-app/internal/billing/application/usecase"
 	billing_infrastructure_eventbus "vault-app/internal/billing/infrastructure/eventbus"
-	billing_persistence "vault-app/internal/billing/infrastructure/persistence"
 	billing_ui "vault-app/internal/billing/ui"
-	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
 	identity_commands "vault-app/internal/identity/application/commands"
-	identity_queries "vault-app/internal/identity/application/queries"
-	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
-	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
@@ -113,7 +107,7 @@ type App struct {
 	// Core handlers
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
 	Identity                  *identity_ui.IdentityHandler
-	AuthHandler               *auth_ui.AuthHandler	
+	AuthHandler               *auth_ui.AuthHandler
 	Vault                     *vault_ui.VaultHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
@@ -124,7 +118,7 @@ type App struct {
 
 	// New: Global state
 	// RuntimeContext *models.VaultRuntimeContext
-	RuntimeContext *vault_session.RuntimeContext	
+	RuntimeContext *vault_session.RuntimeContext
 	cancel         context.CancelFunc
 }
 
@@ -169,7 +163,6 @@ func NewApp() *App {
 		os.Exit(1)
 	}
 	appLogger.Info("✅ Local DB ready")
-
 	cfg.auth = auth.Auth{
 		Issuer:        cfg.JWTIssuer,
 		Audience:      cfg.JWTAudience,
@@ -192,7 +185,7 @@ func NewApp() *App {
 
 	sessions := make(map[string]*models.VaultSession)
 	sessionsV2 := make(map[string]*vault_session.Session)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	runtimeCtx := &vault_session.RuntimeContext{
 		AppConfig: app_config.AppConfig{
@@ -288,8 +281,6 @@ func NewApp() *App {
 	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
 	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
 
-
-
 	// runtimeCtxV2 := &vault_session.RuntimeContext{
 	// 	AppConfig: app_config.AppConfig{
 	// 		// Load from file/env or defaults
@@ -310,48 +301,20 @@ func NewApp() *App {
 	// 	SessionSecrets: make(map[string]string),
 	// }
 
-
 	cryptoService := blockchain.CryptoService{}
 	authRepository := auth_persistence.NewGormAuthRepository(db.DB)
 	authTokenService := auth_usecases.NewTokenService(authV2, authRepository, db.DB)
 
-	
 	// Vault
-	vaultSessionRepo := vaults_persistence.NewGormSessionRepository(db.DB)
-	vaultRepo := vaults_persistence.NewGormVaultRepository(db.DB)
-	vaultSessionManager := vault_session.NewManager(vaultSessionRepo, vaultRepo, appLogger, ctx, ipfs, sessionsV2)
-	vaultRepository := vaults_persistence.NewGormVaultRepository(db.DB)
-	folderRepository := vaults_persistence.NewGormFolderRepository(db.DB)
-	openVaultHandler := vault_ui.NewOpenVaultHandler(vault_commands.NewOpenVaultCommandHandler(vaultRepo, vaultSessionManager, ipfs, &cryptoService))
-	vaultHandler := vault_ui.NewVaultHandler(openVaultHandler, folderRepository, vaultRepository, reg, *appLogger, ctx, ipfs, db.DB, sessionsV2)
+	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB)
 
-
-	
 	// Identity
-	identityUserRepo := identity_persistence.NewGormUserRepository(db.DB)
-	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
-	identityLoginCommandHandler := identity_commands.NewLoginCommandHandler(onboardingUserRepo, identityUserRepo, authTokenService, vaultSessionManager, identityMemoryBus)
-	identityLoginHandler := identity_ui.NewLoginHandler(identityLoginCommandHandler)
-	identityIdGen := identity_persistence.NewIDGenerator()
-	registerStandardUserUseCase := identity_usecase.NewRegisterStandardUserUseCase(identityUserRepo, identityMemoryBus, identityIdGen)
-	registerAnonymousUserUseCase := identity_usecase.NewRegisterAnonymousUserUseCase(identityUserRepo, identityMemoryBus, identityIdGen)
-	identityRegistrationHandler := identity_ui.NewRegistrationHandler(
-		identity_usecase.NewRegisterIdentityUseCase(
-			registerStandardUserUseCase, 
-			registerAnonymousUserUseCase,
-		),
-	)
-	identityFinderHandler := identity_ui.NewFinderHandler(
-		identity_queries.NewFinderQueryHandler(identityUserRepo),
-	)
-	identityHandler := identity_ui.NewIdentityHandler(identityLoginHandler, identityRegistrationHandler, identityFinderHandler)
-
+	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()
+	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, identityMemoryBus, onboardingUserRepo)
 
 	// Auth
 	tokenUC := auth_usecases.NewGenerateTokensUseCase(authRepository, authTokenService)
 	authHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db.DB)
-
-
 
 	// Stripe webhook listener
 	go func() {
@@ -366,26 +329,26 @@ func NewApp() *App {
 
 	// ⚡ Restore sessions asynchronously to speed up startup
 	/*
-	go func() {
-		appLogger.Info("🔄 Restoring sessions in background...")
-		storedSessions, err := Db.db.GetAllSessions()
-		if err != nil {
-			appLogger.Error("❌ Failed to load stored sessions: %v", err)
-			return
-		}
+		go func() {
+			appLogger.Info("🔄 Restoring sessions in background...")
+			storedSessions, err := Db.db.GetAllSessions()
+			if err != nil {
+				appLogger.Error("❌ Failed to load stored sessions: %v", err)
+				return
+			}
 
-		for _, s := range storedSessions {
-			sessions[s.UserID] = s
-			if len(s.PendingCommits) > 0 {
-				for _, commit := range s.PendingCommits {
-					if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
-						appLogger.Error("❌ Failed to queue commit for user %d: %v", s.UserID, err)
+			for _, s := range storedSessions {
+				sessions[s.UserID] = s
+				if len(s.PendingCommits) > 0 {
+					for _, commit := range s.PendingCommits {
+						if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
+							appLogger.Error("❌ Failed to queue commit for user %d: %v", s.UserID, err)
+						}
 					}
 				}
 			}
-		}
-		appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
-	}()
+			appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
+		}()
 	*/
 	go func() {
 		dbV1 := vaults_persistence.NewDBModel(db.DB)
@@ -425,27 +388,34 @@ func NewApp() *App {
 
 	// ===== New: monitor for post-activation side effects (email, metrics...) =====
 	billingBus := billing_infrastructure_eventbus.NewMemoryBus()
-	billingRepo := billing_persistence.NewGormBillingRepository(db.DB)
-	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(vaultRepo)
-	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(vaultRepo, &cryptoService, ipfs)
-	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(initializeVaultHandler, createIpfsCommandHandler, vaultRepo)
-	billingAddPaymentMethodUC := billing_usecase.NewAddPaymentMethodUseCase(billingRepo, billingBus, identityIdGen)	
-	billingHandler:= billing_ui.NewBillingHandler(
-		billing_ui_handlers.NewAddPaymentHandler(billingAddPaymentMethodUC),
+	billingHandler := billing_ui.NewBillingHandler(db.DB, billingBus)
+
+	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db.DB)
+	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
+		vaultHandler.VaultRepository, &cryptoService, ipfs,
 	)
+	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
+		initializeVaultHandler, createIpfsCommandHandler, vaultHandler.VaultRepository,
+	)
+
 	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(
-		appLogger, 
-		subscriptionBus, 
+		appLogger,
+		subscriptionBus,
 		userSubscriptionRepo,
-		subscriptionSubRepo, 
-		createVaultCommand, 
-		&stellarService, 
+		subscriptionSubRepo,
+		createVaultCommand,
+		&stellarService,
 		onboardingUserRepo,
 		onboardingBus,
 		identityHandler,
 		billingHandler,
 	)
 	go activationMonitor.Listen(ctx)
+
+	// ===== New: vault monitor =====
+	vaultOpenedListener := vault_commands.NewVaultOpenedListener(appLogger, vaultHandler.EventBus, vaultHandler)
+	go vaultOpenedListener.Listen(ctx)
+	appLogger.Info("Vault opened listener started")
 
 	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
@@ -454,21 +424,21 @@ func NewApp() *App {
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
-		config:                    cfg,
-		version:                   version,
-		DB:                        *db,
-		StellarRecoveryHandler:    stellarRecoveryHandler,
-		AuthHandler:               authHandler,
-		Identity:                  identityHandler,
-		Vault:                     vaultHandler,
-		OnBoardingHandler:         onBoardingHandler,
-		SubscriptionHandler:       subscriptionHandler,
-		Vaults:                    vaults,
-		Auth:                      auth,
-		Logger:                    *appLogger,
-		EntryRegistry:             reg,
-		sessions:                  sessions,
-		RuntimeContext:            runtimeCtx,
+		config:                 cfg,
+		version:                version,
+		DB:                     *db,
+		StellarRecoveryHandler: stellarRecoveryHandler,
+		AuthHandler:            authHandler,
+		Identity:               identityHandler,
+		Vault:                  vaultHandler,
+		OnBoardingHandler:      onBoardingHandler,
+		SubscriptionHandler:    subscriptionHandler,
+		Vaults:                 vaults,
+		Auth:                   auth,
+		Logger:                 *appLogger,
+		EntryRegistry:          reg,
+		sessions:               sessions,
+		RuntimeContext:         runtimeCtx,
 		// RuntimeContextV2:          runtimeCtxV2,
 		cancel:                    cancel,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
@@ -487,7 +457,6 @@ func (a *App) CheckPaymentOnResume() {
 	// 	runtime.EventsEmit(a.ctx, "payment:success")
 	// }
 }
-
 
 func (a *App) NotifyPaymentSuccess(subID string) {
 	a.Logger.Info("✅ Subscription created successfully: %v", subID)
@@ -600,7 +569,6 @@ func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest
 	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
 }
 
-
 // -----------------------------
 // OnBoarding - V2
 // -----------------------------
@@ -684,6 +652,7 @@ func (a *App) OpenGoogle() {
 	// Opens default browser to Google
 	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
 }
+
 // -----------------------------
 // Connexion
 // -----------------------------
@@ -697,10 +666,16 @@ func (a *App) SignInWithStellar(req handlers.LoginRequest) (*handlers.LoginRespo
 func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
 	return a.Auth.OnBoarding(setup)
 }
-func (a *App) SignOut(userID string) {
+func (a *App) SignOut(userID string) error {
 	a.Logger.Info("App - SignOut userID", userID)
 	// a.Auth.Logout(userID)
-	a.Vault.SessionManager.LogoutUser(userID)
+	if err := a.Vault.LogoutUser(userID); err != nil {
+		a.Logger.Error("❌ SignOut failed for user %s: %v", userID, err)
+		return err
+	}
+	a.Logger.Info("✅ User %s signed out", userID)
+
+	return nil
 }
 func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
 	utils.LogPretty("CheckSession userID", userID)
@@ -719,8 +694,11 @@ func (a *App) SaveSessionTest(jwtToken string) error {
 	if err != nil {
 		return err
 	}
-	return a.Vault.SaveSession(claims.UserID)
+	a.Logger.Info("App - SaveSessionTest userID", claims.UserID)
+	// return a.Vault.SaveSession(claims.UserID)
+	return nil
 }
+
 // -----------------------------
 // Connexion (identity) - V2
 // -----------------------------
@@ -733,8 +711,9 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		Signature:     req.Signature,
 	}
 	// --------- Identity login ---------
-	result, err := a.Identity.LoginHandler.Handle(cmd)
+	result, err := a.Identity.Login(cmd)
 	if err != nil {
+		a.Logger.Error("❌ App - SignInWithIdentity - failed to identify user %s: %v", result.User.ID, err)
 		return nil, err
 	}
 	a.Logger.Info("Identity login successful: %v", result)
@@ -745,22 +724,31 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		a.Logger.Error("❌ App - SignInWithIdentity - failed to get session for user %s: %v", result.User.ID, err)
 		// return	 nil, err
 	}
-	a.Logger.Info("Session fetched successfully: %v", session)
+	if session == nil {
+		a.Logger.Error("❌ App - SignInWithIdentity - failed to get session for user %s: %v", result.User.ID, err)
+		// return	 nil, err
+	} else {
+		a.Logger.Info("Session fetched successfully: %v", session)
+	}
 
 	// --------- Open vault ---------
-	vaultRes, err := a.Vault.OpenVaultHandler.OpenVault(
+	vaultRes, err := a.Vault.Open(
 		context.Background(),
 		vault_commands.OpenVaultCommand{
 			UserID:   result.User.ID,
 			Password: req.Password,
-			Session: session,
+			Session:  session,
 		},
 	)
 	if err != nil {
 		return nil, err
 	}
-	a.Logger.Info("Vault opened successfully: %v", vaultRes)
-	
+	a.Logger.Info(
+		"Vault opened successfully for user %s (reused=%v)",
+		result.User.ID,
+		vaultRes.ReusedExisting,
+	)
+
 	// --------- Vault response converter for v1 ---------
 	var formerVault *models.VaultPayload
 	if vaultRes.Content != nil {
@@ -771,7 +759,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		formerRuntimeContext = vaultRes.RuntimeContext.ToFormerRuntimeContext()
 	}
 
-	utils.LogPretty("SignInWithIdentity - formerVault", formerVault)
+	utils.LogPretty("SignInWithIdentity - formerVault", formerVault.Name)
 
 	// --------- Login response converter for v1 ---------
 	loginRes := &handlers.LoginResponse{
@@ -783,13 +771,15 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 		LastCID:             vaultRes.LastCID,
 		Dirty:               session.Dirty,
 	}
-	utils.LogPretty("SignInWithIdentity - loginRes", loginRes)
+	utils.LogPretty("SignInWithIdentity - loginRes", loginRes.Vault)
 	return loginRes, nil
 }
+
 type GetSessionResponse struct {
-	Data map[string]interface{}
+	Data  map[string]interface{}
 	Error error
 }
+
 func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 	utils.LogPretty("App - GetSession - userID", userID)
 	if a.Vault.SessionManager == nil {
@@ -801,22 +791,23 @@ func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 	if err != nil {
 		return &GetSessionResponse{Error: err}, nil
 	}
-	user, err := a.Identity.Finder.FindById(a.ctx, userID)	
+	user, err := a.Identity.FindUserById(a.ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	response := map[string]interface{}{
-		"User": 	user,
-		"role": "user",
-		"Vault": userSession.Vault,
-		"SharedEntries": []models.VaultEntry{},
+		"User":                user,
+		"role":                "user",
+		"Vault":               userSession.Vault,
+		"SharedEntries":       []models.VaultEntry{},
 		"VaultRuntimeContext": userSession.Runtime,
-		"LastCID": userSession.LastCID,
-		"Dirty": userSession.Dirty,
-	 }
-	return &GetSessionResponse{Data: response}, nil	
+		"LastCID":             userSession.LastCID,
+		"Dirty":               userSession.Dirty,
+	}
+	return &GetSessionResponse{Data: response}, nil
 }
+
 // -----------------------------
 // JWT Token
 // -----------------------------
@@ -847,12 +838,13 @@ func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.Chal
 func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
+
 // -----------------------------
 // Vault Crud
 // -----------------------------
 func (a *App) GetVault(userID string) (map[string]interface{}, error) {
 	utils.LogPretty("App - GetVault - userID", userID)
-	user, err := a.Identity.Finder.FindById(a.ctx, userID)	
+	user, err := a.Identity.FindUserById(a.ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -860,16 +852,16 @@ func (a *App) GetVault(userID string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	response := map[string]interface{}{
-		"User": 	user,
-		"role": "user",
-		"Vault": session.Vault,
-		"SharedEntries": []models.VaultEntry{},
+		"User":                user,
+		"role":                "user",
+		"Vault":               session.Vault,
+		"SharedEntries":       []models.VaultEntry{},
 		"VaultRuntimeContext": *session.Runtime,
-		"LastCID": session.LastCID,
-		"Dirty": session.Dirty,
-	 }
+		"LastCID":             session.LastCID,
+		"Dirty":               session.Dirty,
+	}
 	return response, nil
 }
 func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
@@ -1129,21 +1121,20 @@ func (a *App) IsVaultDirty(jwtToken string) (bool, error) {
 }
 
 func (a *App) FetchUsers() ([]models.UserDTO, error) {
-	users, err := a.OnBoardingHandler.FetchUsers()		
+	users, err := a.OnBoardingHandler.FetchUsers()
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("FetchUsers - users", users)	
 	var userDTOs []models.UserDTO
 	for _, user := range users {
 		userDTOs = append(userDTOs, models.UserDTO{
-			ID:      user.ID,
-			Email:  user.Email,
-			Role:   "user",
+			ID:              user.ID,
+			Email:           user.Email,
+			Role:            "user",
 			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"),
 		})
 	}
-	
+
 	return userDTOs, nil
 }
 

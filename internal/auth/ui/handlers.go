@@ -27,7 +27,7 @@ func NewAuthHandler(idH *identity_ui.IdentityHandler, tokenUC *auth_usecases.Gen
 func (h *AuthHandler) GenerateTokenPair(userID string) (*auth_domain.TokenPairs, error) {
 	utils.LogPretty("AuthHandler - GenerateTokenPair - userID", userID)
 	// 1. Identity - Load identity user
-	user, err := h.Identity.Finder.FindById(context.Background(), userID)
+	user, err := h.Identity.FindUserById(context.Background(), userID)
 	if err != nil {
 		return nil, err
 	}

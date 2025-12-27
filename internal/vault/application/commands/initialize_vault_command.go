@@ -4,6 +4,8 @@ import (
 	"fmt"
 	utils "vault-app/internal"
 	vault_domain "vault-app/internal/vault/domain"
+	vault_persistence "vault-app/internal/vault/infrastructure/persistence"
+	"gorm.io/gorm"
 )
 
 // -------- COMMAND --------
@@ -20,15 +22,19 @@ type InitializeVaultResult struct {
 }
 
 // -------- HANDLER --------
-type InitializeVaultCommandHandler struct {
+type InitializeVaultCommandHandler struct {	
 	vaultRepo vault_domain.VaultRepository
+	DB *gorm.DB
 }
 
 
 // -------- CONSTRUCTOR --------
-func NewInitializeVaultCommandHandler(vaultRepo vault_domain.VaultRepository) *InitializeVaultCommandHandler {
+func NewInitializeVaultCommandHandler(db *gorm.DB) *InitializeVaultCommandHandler {
+	vaultRepo := vault_persistence.NewGormVaultRepository(db)
+	
 	return &InitializeVaultCommandHandler{
 		vaultRepo: vaultRepo,
+		DB: db,
 	}
 }	
 

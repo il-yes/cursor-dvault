@@ -75,13 +75,13 @@ func (h *CardHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 
 	return &h.Vault, nil
 }
-func (h *CardHandler) Trash(userID string, entryID string) error {
+func (h *CardHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashCardEntryAction(userID, entryID, true)
 }
-func (h *CardHandler) Restore(userID string, entryID string) error {
+func (h *CardHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashCardEntryAction(userID, entryID, false)
 }
-func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashed bool) error {
+func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 	for i, entry := range h.Vault.Entries.Card {
 		if entry.ID == entryID {
 			h.Vault.Entries.Card[i].Trashed = trashed
@@ -92,10 +92,10 @@ func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashe
 			}
 			h.logger.Info("🗑️ %s card entry %s for user %d", state, entryID, userID)
 
-			return nil
+			return &h.Vault, nil
 		}
 	}
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 func (h *CardHandler) SetVault(vault *vault_session.Session) {
 	p := vault.Vault
@@ -108,4 +108,9 @@ func (h *CardHandler) SetVault(vault *vault_session.Session) {
 func (h *CardHandler) SetSession(session *vault_session.Session) {
 	s := session
 	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return
+	}
+	h.Vault = *payload
 }

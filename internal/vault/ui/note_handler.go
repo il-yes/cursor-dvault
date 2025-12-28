@@ -3,6 +3,7 @@ package vault_ui
 import (
 	"fmt"
 	"time"
+	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
@@ -53,7 +54,7 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 
 	entries := h.Vault.Entries.Note
 	updated := false
-
+	utils.LogPretty("NoteHandler - Edit - Vault Before", h.Vault)
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			// Update the fields (you could also do a full replace)
@@ -75,13 +76,13 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 
 	return &h.Vault, nil
 }
-func (h *NoteHandler) Trash(userID string, entryID string) error {
+func (h *NoteHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashNoteEntryAction(userID, entryID, true)
 }
-func (h *NoteHandler) Restore(userID string, entryID string) error {
+func (h *NoteHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashNoteEntryAction(userID, entryID, false)
 }
-func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashed bool) error {
+func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 
 	for i, entry := range h.Vault.Entries.Note {
 		if entry.ID == entryID {
@@ -94,21 +95,18 @@ func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashe
 			}
 			h.logger.Info("🗑️ %s note entry %s for user %s", state, entryID, userID)
 
-			return nil
+			return &h.Vault, nil
 		}
 	}
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *NoteHandler) SetVault(vault *vault_session.Session) {
-	p := vault.Vault
-	payload, err := vault_session.DecodeSessionVault(p)
+func (h *NoteHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
 	if err != nil {
 		return
 	}
 	h.Vault = *payload
-}
-func (h *NoteHandler) SetSession(session *vault_session.Session) {
-	s := session
-	h.Session = s
 }

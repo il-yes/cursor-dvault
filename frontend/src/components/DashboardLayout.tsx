@@ -187,21 +187,21 @@ function DashboardNavbar() {
       // 2️⃣ Send to backend (v0 logic)
       // const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
       const rawEntry = await withAuth((token) => {
-        console.log("🚀 ~ withAuth ~ token:", token)
         return AppAPI.AddEntry(entry.type, entryPayload, token)
       });
-      console.log("🚀 ~ handleCreateEntry ~ rawEntry:", rawEntry)
-
+      console.log("🚀 ~ handleCreateEntry ~ backend response:", rawEntry)
+      
       // 3️⃣ Convert backend response if needed
       const newEntry: VaultEntry = {
         ...rawEntry,
         created_at: rawEntry.created_at || new Date().toISOString(),
         updated_at: rawEntry.updated_at || new Date().toISOString(),
       };
+      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
       // 4️⃣ Update Zustand store
       addEntry(newEntry);
-      console.log("🚀 ~ handleCreateEntry ~ newEntry:", newEntry)
+      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
       // 5️⃣ Show feedback
       toast({
@@ -228,9 +228,7 @@ function DashboardNavbar() {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
 
-  const SaveSessionTest = async () => {
-    await AppAPI.SaveSessionTest(auth.jwtToken);
-  }
+ 
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -245,7 +243,7 @@ function DashboardNavbar() {
 
         <div className="hidden md:flex items-center gap-3">
           {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
-          <span onClick={() => SaveSessionTest()} className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
         </div>
 
         <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >

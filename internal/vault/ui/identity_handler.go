@@ -81,15 +81,15 @@ func (h *IdentityHandler) Edit(userID string, entry any) (*vaults_domain.VaultPa
 
 	return h.Vault, nil
 }
-func (h *IdentityHandler) Trash(userID string, entryID string) error {
+func (h *IdentityHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashIdentityEntryAction(userID, entryID, true)
 }
-func (h *IdentityHandler) Restore(userID string, entryID string) error {
+func (h *IdentityHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashIdentityEntryAction(userID, entryID, false)
 }
-func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string, trashed bool) error {
+func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 	if h.Vault == nil {
-		return fmt.Errorf("no active session for user %s", userID)
+		return nil, fmt.Errorf("no active session for user %s", userID)
 	}
 
 	for i, entry := range h.Vault.Entries.Identity {
@@ -103,21 +103,18 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string
 			}
 			h.logger.Info("🗑️ %s identity entry %s for user %s", state, entryID, userID)
 
-			return nil
+			return h.Vault, nil
 		}
 	}
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *IdentityHandler) SetVault(vault *vault_session.Session) {
-	p := vault.Vault
-	payload, err := vault_session.DecodeSessionVault(p)
+func (h *IdentityHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
 	if err != nil {
 		return
 	}
 	h.Vault = payload
-}
-func (h *IdentityHandler) SetSession(session *vault_session.Session) {
-	s := session
-	h.Session = s
 }

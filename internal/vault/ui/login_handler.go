@@ -84,13 +84,13 @@ func (h *LoginHandler) Edit(userID string, entry any) (*vaults_domain.VaultPaylo
 
 	return h.Vault, nil
 }
-func (h *LoginHandler) Trash(userID string, entryID string) error {
+func (h *LoginHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashLoginEntryAction(userID, entryID, true)
 }
-func (h *LoginHandler) Restore(userID string, entryID string) error {
+func (h *LoginHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashLoginEntryAction(userID, entryID, false)
 }
-func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, trashed bool) error {
+func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 	for i, entry := range h.Vault.Entries.Login {
 		if entry.ID == entryID {
 			h.Vault.Entries.Login[i].Trashed = trashed
@@ -102,11 +102,11 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 			}
 			h.logger.Info("🗑️ %s login entry %s for user %s", state, entryID, userID)
 
-			return nil
+			return 	h.Vault, nil	
 		}
 	}
 
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 
 func (h *LoginHandler) SetSession(session *vault_session.Session) {

@@ -38,6 +38,7 @@ func NewGetIPFSDataQuerryHandler(ipfsService IpfsServiceInterface, cryptoService
 }
 
 func (h *GetIPFSDataQuerryHandler) Execute(cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
+	
 	// Fetch vault from IPFS
 	vaultData, err := h.ipfsService.GetFile(cmd.CID)
 	if err != nil {

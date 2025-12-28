@@ -153,11 +153,11 @@ func TestLoginHandlerTrashAndRestore(t *testing.T) {
 	handler.Vault = &vaults_domain.VaultPayload{}
 	handler.Vault.Entries.Login = append(handler.Vault.Entries.Login, entry)
 
-	err := handler.Trash("1", "entry-trashed")
+	_, err := handler.Trash("1", "entry-trashed")
 	require.NoError(t, err)
 	require.True(t, handler.Vault.Entries.Login[0].Trashed)
 
-	err = handler.Restore("1", "entry-trashed")
+	_, err = handler.Restore("1", "entry-trashed")
 	require.NoError(t, err)
 	require.False(t, handler.Vault.Entries.Login[0].Trashed)
 }
@@ -168,7 +168,7 @@ func TestLoginHandlerTrashEntryNotFound(t *testing.T) {
 	handler := newTestLoginHandler()
 	handler.Vault = &vaults_domain.VaultPayload{}
 
-	err := handler.Trash("1", "does-not-exist")
+	_, err := handler.Trash("1", "does-not-exist")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "entry with ID does-not-exist not found")
 }

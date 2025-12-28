@@ -502,6 +502,7 @@ func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (any, error) {
 	return updated, nil
 }
 func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
+	utils.LogPretty("VaultHandler.UpdateEntry raw", raw)
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
@@ -520,7 +521,7 @@ func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	if err != nil {
 		return fmt.Errorf("failed to find an entryRgistry for %s: %w", entryType, err)
 	}
-	err = handler.Trash(userID, entryID)
+	_, err = handler.Trash(userID, entryID)
 	vh.logger.Info("✅ trashed %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)
 
@@ -538,7 +539,7 @@ func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) error {
 	if err != nil {
 		return err
 	}
-	err = handler.Restore(userID, entryID)
+	_, err = handler.Restore(userID, entryID)
 
 	vh.logger.Info("✅ restored %s entry for user %s", entryType, userID)
 	vh.MarkDirty(userID)

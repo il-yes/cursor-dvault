@@ -252,6 +252,7 @@ func (m *Manager) LogoutUser(userID string) error {
 }
 // Set vault from CRUD entries
 func (m *Manager) SetVault(userID string, vault *vaults_domain.VaultPayload) error {
+	// 1. ---------- Get user session ----------
 	m.mu.Lock()
 	s, ok := m.sessions[userID]
 	m.mu.Unlock()
@@ -260,10 +261,11 @@ func (m *Manager) SetVault(userID string, vault *vaults_domain.VaultPayload) err
 		return errors.New("no active session")
 	}
 
+	// 2. ---------- Set vault ----------
 	s.Vault = vault.ToBytes()
 	s.LastUpdated = m.NowUTC()
+	// 3. ---------- Mark session as dirty ----------	
 	s.Dirty = true
-
 	utils.LogPretty("Manager - SetVault - vault set", vault)
 	return nil
 }	

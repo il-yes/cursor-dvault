@@ -870,6 +870,7 @@ func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (
 		a.Logger.Error("App - AddEntry - error: %v", err)
 		return nil, err
 	}
+	a.Logger.Info("App - AddEntry - auth passed", claims)
 	res, err := a.Vault.AddEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -879,56 +880,72 @@ func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (
 }
 
 func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.UpdateEntry(claims.UserID, entryType, raw)
+	a.Logger.Info("App - EditEntry - auth passed", claims)
+	res, err := a.Vault.UpdateEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - EditEntry - res", res)
+	return res, nil
 }
 
 func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.TrashEntry(claims.UserID, entryType, raw)
+	res, err := a.Vault.TrashEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - TrashEntry - res", res)
+	return res, nil
 }
 
 func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.RestoreEntry(claims.UserID, entryType, raw)
+	res, err := a.Vault.RestoreEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - RestoreEntry - res", res)
+	return res, nil
 }
 
-func (a *App) CreateFolder(name string, jwtToken string) (*models.VaultPayload, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+func (a *App) CreateFolder(name string, jwtToken string) (*vaults_domain.VaultPayload, error) {
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.CreateFolder(claims.UserID, name)
+	return a.Vault.CreateFolder(claims.UserID, name)
 }
-func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]models.Folder, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]vaults_domain.Folder, error) {
+	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.GetFoldersByVault(vaultCID)
+	return a.Vault.GetFoldersByVault(vaultCID)
 }
-func (a *App) UpdateFolder(id string, newName string, isDraft bool, jwtToken string) (*models.Folder, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+func (a *App) UpdateFolder(id string, newName string, isDraft bool, jwtToken string) (*vaults_domain.Folder, error) {
+	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vaults.UpdateFolder(id, newName, isDraft)
+	return a.Vault.UpdateFolder(id, newName, isDraft)
 }
 func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vaults.DeleteFolder(userID, id)
+	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vault.DeleteFolder(userID, id)
 }
 
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {

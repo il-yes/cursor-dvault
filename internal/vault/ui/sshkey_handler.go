@@ -74,13 +74,13 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayl
 
 	return &h.Vault, nil
 }
-func (h *SSHKeyHandler) Trash(userID string, entryID string) error {
+func (h *SSHKeyHandler) Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashSSHKeyEntryAction(userID, entryID, true)
 }
-func (h *SSHKeyHandler) Restore(userID string, entryID string) error {
+func (h *SSHKeyHandler) Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error) {
 	return h.TrashSSHKeyEntryAction(userID, entryID, false)
 }
-func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, trashed bool) error {
+func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, trashed bool) (*vaults_domain.VaultPayload, error) {
 
 	for i, entry := range h.Vault.Entries.SSHKey {
 		if entry.ID == entryID {
@@ -93,21 +93,18 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, tr
 			}
 			h.logger.Info("🗑️ %s ssh key entry %s for user %s", state, entryID, userID)
 
-			return nil
+			return &h.Vault, nil
 		}
 	}
-	return fmt.Errorf("entry with ID %s not found", entryID)
+	return nil, fmt.Errorf("entry with ID %s not found", entryID)
 }
 
-func (h *SSHKeyHandler) SetVault(vault *vault_session.Session) {
-	p := vault.Vault
-	payload, err := vault_session.DecodeSessionVault(p)
+func (h *SSHKeyHandler) SetSession(session *vault_session.Session) {
+	s := session
+	h.Session = s
+	payload, err := vault_session.DecodeSessionVault(s.Vault)
 	if err != nil {
 		return
 	}
 	h.Vault = *payload
-}
-func (h *SSHKeyHandler) SetSession(session *vault_session.Session) {
-	s := session
-	h.Session = s
 }

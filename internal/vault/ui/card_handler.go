@@ -3,7 +3,6 @@ package vault_ui
 import (
 	"fmt"
 	"time"
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"
@@ -14,17 +13,15 @@ import (
 
 type CardHandler struct {
 	db     models.DBModel
-	ipfs   blockchain.IPFSClient
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session
 }
 
-func NewCardHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *CardHandler {
+func NewCardHandler(db models.DBModel, log *logger.Logger) *CardHandler {
 	return &CardHandler{
 		db:     db,
-		ipfs:   ipfs,
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}

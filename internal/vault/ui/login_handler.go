@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 	utils "vault-app/internal"
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"
@@ -15,17 +14,15 @@ import (
 
 type LoginHandler struct {
 	db     models.DBModel
-	ipfs   blockchain.IPFSClient
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  *vaults_domain.VaultPayload
 	Session *vault_session.Session
 }
 
-func NewLoginHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *LoginHandler {
+func NewLoginHandler(db models.DBModel, log *logger.Logger) *LoginHandler {
 	return &LoginHandler{
 		db:     db,
-		ipfs:   ipfs,
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
@@ -94,8 +91,6 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 	for i, entry := range h.Vault.Entries.Login {
 		if entry.ID == entryID {
 			h.Vault.Entries.Login[i].Trashed = trashed
-			// h.MarkDirty(userID)
-
 			state := "restored"
 			if trashed {
 				state = "trashed"

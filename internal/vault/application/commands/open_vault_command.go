@@ -67,7 +67,6 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
 	// ------------------------------------------------------------
 	if cmd.Session == nil {
-		utils.LogPretty("OpenVaultCommandHandler - Handle - ENFORCE INVARIANTS session is nil", cmd.Session)
 		cmd.Session = vault_session.InitNewSession(cmd.UserID)
 	}
 

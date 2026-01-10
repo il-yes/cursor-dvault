@@ -8,9 +8,6 @@ import (
 	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
 )
 
-
-
-
 type ConnectWithStellarResult struct {
     Password     string
     User         *models.User
@@ -42,6 +39,7 @@ func NewConnectWithStellarUseCase(
 
 
 func (uc *ConnectWithStellarUseCase) Execute(ctx context.Context, req handlers.LoginRequest) (*ConnectWithStellarResult, error) {
+    // 1. -------------- Recover password --------------
     password, user, err := uc.StellarPort.RecoverPassword(ctx, shared.RecoverPasswordInput{
         PublicKey: req.PublicKey,
         SignedMessage: req.SignedMessage , // frontend later provides this
@@ -51,9 +49,12 @@ func (uc *ConnectWithStellarUseCase) Execute(ctx context.Context, req handlers.L
         return nil, err
     }
 
+    // 2. -------------- Get vault and subscription --------------
     vault, _ := uc.VaultRepo.GetByUserID(ctx, user.ID)
     sub, _ := uc.SubRepo.GetActiveByUserID(ctx, user.ID)
 
+    // 3. -------------- Fires Connected Vault Event --------------
+    
     return &ConnectWithStellarResult{
         Password:     password,
         User:         user,

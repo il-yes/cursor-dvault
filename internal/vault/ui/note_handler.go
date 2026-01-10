@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 	utils "vault-app/internal"
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"
@@ -15,17 +14,15 @@ import (
 
 type NoteHandler struct {
 	db     models.DBModel
-	ipfs   blockchain.IPFSClient
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session	
 }
 
-func NewNoteHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *NoteHandler {
+func NewNoteHandler(db models.DBModel, log *logger.Logger) *NoteHandler {
 	return &NoteHandler{
 		db:     db,
-		ipfs:   ipfs,
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
@@ -38,8 +35,6 @@ func (h *NoteHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPaylo
 	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	h.Vault.Entries.Note = append(h.Vault.Entries.Note, *entry)
-	// session.LastUpdated = h.NowUTC()
-	// session.Dirty = true
 
 	h.logger.Info("✅ Added note entry for user %s: %s\n", userID, entry.EntryName)
 
@@ -57,7 +52,6 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 	utils.LogPretty("NoteHandler - Edit - Vault Before", h.Vault)
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
-			// Update the fields (you could also do a full replace)
 			entries[i] = *updatedEntry
 			updated = true
 			break
@@ -69,10 +63,8 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 	}
 
 	h.Vault.Entries.Note = entries
-	// h.MarkDirty(userID)
 
 	h.logger.Info("✏️ Updated note entry for user %s: %s\n", userID, updatedEntry.EntryName)
-	// utils.LogPretty("session after update", session)
 
 	return &h.Vault, nil
 }
@@ -87,8 +79,6 @@ func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashe
 	for i, entry := range h.Vault.Entries.Note {
 		if entry.ID == entryID {
 			h.Vault.Entries.Note[i].Trashed = trashed
-			// h.MarkDirty(userID)
-
 			state := "restored"
 			if trashed {
 				state = "trashed"

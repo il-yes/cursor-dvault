@@ -18,16 +18,20 @@ func NewImportKeyUseCase(userRepo stellar_recovery_domain.UserRepository, keySer
 }	
 
 func (uc *ImportKeyUseCase) Execute(ctx context.Context, secret string) (*stellar_recovery_domain.ImportedKey, error) {
+	// 1. -------------- Validate secret --------------
 	pub, err := uc.KeyService.ParseSecret(secret)
 	if err != nil {
 		return nil, stellar_recovery_domain.ErrInvalidKey
 	}
 
+	// 2. -------------- Check if user exists --------------	
 	user, _ := uc.UserRepo.GetByStellarPublicKey(ctx, pub)
 	if user != nil {
 		return nil, stellar_recovery_domain.ErrKeyAlreadyUsed
 	}
 
+	// 2. -------------- Fire Imported key event --------------
+	
 	return &stellar_recovery_domain.ImportedKey{
 		StellarPublic: pub,
 		StellarSecret: secret,

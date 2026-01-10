@@ -221,30 +221,30 @@ func NewApp() *App {
 		{
 			Type:    "login",
 			Factory: func() models.VaultEntry { return &vaults_domain.LoginEntry{} },
-			Handler: vault_ui.NewLoginHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewLoginHandler(*db, appLogger),
 		},
 		{
 			Type:    "card",
 			Factory: func() models.VaultEntry { return &vaults_domain.CardEntry{} },
-			Handler: vault_ui.NewCardHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewCardHandler(*db, appLogger),
 		},
 		{
 			Type:    "note",
 			Factory: func() models.VaultEntry { return &vaults_domain.NoteEntry{} },
-			Handler: vault_ui.NewNoteHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewNoteHandler(*db, appLogger),
 		},
 		{
 			Type:    "identity",
 			Factory: func() models.VaultEntry { return &vaults_domain.IdentityEntry{} },
-			Handler: vault_ui.NewIdentityHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewIdentityHandler(*db, appLogger),
 		},
 		{
 			Type:    "sshkey",
 			Factory: func() models.VaultEntry { return &vaults_domain.SSHKeyEntry{} },
-			Handler: vault_ui.NewSSHKeyHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewSSHKeyHandler(*db, appLogger),
 		},
 	})
-
+	// Legacy vault handler
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth, onboardingUserRepo)
@@ -351,9 +351,9 @@ func NewApp() *App {
 		}()
 	*/
 	go func() {
-		dbV1 := vaults_persistence.NewDBModel(db.DB)
+		sessionDBModel := vaults_persistence.NewSessionDBModel(db.DB)
 		appLogger.Info("🔄 Restoring sessions in background...")
-		storedSessions, err := dbV1.GetAllSessionsV1()
+		storedSessions, err := sessionDBModel.FindAll()
 		if err != nil {
 			appLogger.Error("❌ Failed to load stored sessions: %v", err)
 			return
@@ -463,20 +463,7 @@ func (a *App) NotifyPaymentSuccess(subID string) {
 	runtime.EventsEmit(a.ctx, "payment:success", subID)
 }
 
-// Initialize Stripe secret key
-func (a *App) InitStripe() {
-	stripe.Key = os.Getenv("STRIPE_SECRET")
-	if stripe.Key == "" {
-		log.Fatal("❌ STRIPE_SECRET missing in .env")
-	}
-	log.Println("✅ Stripe initialized")
-}
 
-// Response with session ID
-type CreateCheckoutResponse struct {
-	SessionID string `json:"sessionId"`
-	URL       string `json:"url"`
-}
 
 // -----------------------------
 // OnBoarding
@@ -569,16 +556,24 @@ func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest
 	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
 }
 
-// -----------------------------
-// OnBoarding - V2
-// -----------------------------
+// Response with session ID
+type CreateCheckoutResponse struct {
+	SessionID string `json:"sessionId"`
+	URL       string `json:"url"`
+}
 // GetCheckoutURL returns the cloud backend checkout page URL
 func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
+	// -----------------------------
+	// 0. Generate Session ID
+	// -----------------------------
 	sessionID := uuid.New().String()
 
+	// -----------------------------
+	// 1. Generate Checkout URL
+	// -----------------------------
 	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
 	url := baseURL + sessionID
-	fmt.Println("Checkout URL - backend:", url)
+	
 	res := CreateCheckoutResponse{
 		SessionID: sessionID,
 		URL:       url,
@@ -587,22 +582,21 @@ func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
 }
 
 func (a *App) OpenURL(rawURL string) error {
-	log.Println("🔗 Deep link received:", rawURL)
 	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil
 }
 
 // Poll backend for payment status
 func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string, error) {
-	fmt.Println("🔁 Polling session:", sessionID)
-
+	// 0. ------------- Poll backend for payment status -----------------
+	// fmt.Println("🔁 Polling session:", sessionID)
 	url := "http://localhost:4001/api/payment-status/" + sessionID
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
+	// 1. ------------- Check response status -------------
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("poll failed %d: %s", resp.StatusCode, string(body))
@@ -615,6 +609,7 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 		return "", err
 	}
 
+	// 2. 	------------- Check payment status -------------
 	if r.Status == "paid" {
 		go func() {
 			if err := a.OnPaymentConfirmation(sessionID, plainPassword); err != nil {
@@ -630,14 +625,14 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 
 func (a *App) OnPaymentConfirmation(sessionID string, plainPassword string) error {
 	log.Println("Deep link received:", sessionID)
-
+	// 0. ------------- OnPaymentConfirmation -------------
 	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, plainPassword)
 	if err != nil {
 		return err
 	}
 	a.Logger.Info("✅ Subscription created successfully: %v", response)
 
-	// Notify frontend
+	// 1. ------------- Notify frontend -------------
 	runtime.EventsEmit(a.ctx, "payment:success", response.Subscription)
 	return nil
 }
@@ -781,11 +776,9 @@ type GetSessionResponse struct {
 }
 
 func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
-	utils.LogPretty("App - GetSession - userID", userID)
 	if a.Vault.SessionManager == nil {
 		return &GetSessionResponse{Error: errors.New("session manager not initialized")}, nil
 	}
-	utils.LogPretty("App - GetSession - userID", userID)
 
 	userSession, err := a.Vault.GetSession(userID)
 	if err != nil {
@@ -843,7 +836,6 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 // Vault Crud
 // -----------------------------
 func (a *App) GetVault(userID string) (map[string]interface{}, error) {
-	utils.LogPretty("App - GetVault - userID", userID)
 	user, err := a.Identity.FindUserById(a.ctx, userID)
 	if err != nil {
 		return nil, err
@@ -870,7 +862,6 @@ func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (
 		a.Logger.Error("App - AddEntry - error: %v", err)
 		return nil, err
 	}
-	a.Logger.Info("App - AddEntry - auth passed", claims)
 	res, err := a.Vault.AddEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -884,7 +875,6 @@ func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) 
 	if err != nil {
 		return nil, err
 	}
-	a.Logger.Info("App - EditEntry - auth passed", claims)
 	res, err := a.Vault.UpdateEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -947,6 +937,7 @@ func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, e
 	}
 	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vault.DeleteFolder(userID, id)
 }
+// TODO: ToggleFavorite entries
 
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1114,18 +1105,21 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 func (a *App) FlushAllSessions() {
 	a.Vault.SessionsMu.Lock()
 	defer a.Vault.SessionsMu.Unlock()
-
+	// -----------------------------
+	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
+	// -----------------------------
 	if !a.Vault.HasSession() {
 		a.Logger.Info("No sessions to flush")
 		return
 	}
 
 	a.Logger.Info("💾 Flushing %d active sessions...", len(a.Vault.GetAllSessions()))
-
+	// -----------------------------
+	// 1. FLUSH ALL SESSIONS
+	// -----------------------------
 	for userID := range a.Vault.GetAllSessions() {
 		a.Vault.SessionManager.EndSession(userID)
 	}
-
 	a.Logger.Info("✨ All sessions flushed and cleared")
 }
 
@@ -1155,6 +1149,14 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 	return userDTOs, nil
 }
 
+// Initialize Stripe secret key
+func (a *App) InitStripe() {
+	stripe.Key = os.Getenv("STRIPE_SECRET")
+	if stripe.Key == "" {
+		log.Fatal("❌ STRIPE_SECRET missing in .env")
+	}
+	log.Println("✅ Stripe initialized")
+}
 // -----------------------------
 // Helpers
 // -----------------------------

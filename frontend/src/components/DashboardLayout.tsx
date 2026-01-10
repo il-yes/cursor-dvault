@@ -1,13 +1,10 @@
 import { ReactNode, useState, useMemo, useEffect, forwardRef } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
-  Database, Shield, Settings, LogOut, Menu, Search, User,
+  Shield, Settings, LogOut, Menu, Search, User,
   Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
   LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
-  Plus, Crown, X, Clock, Users
-} from "lucide-react";
-import { useVault } from "@/hooks/useVault";
-import { OnboardingModal } from "@/components/OnboardingModal";
+  Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share  } from "lucide-react";
 import { NewShareModal } from "@/components/NewShareModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -46,7 +43,6 @@ import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
-import { auth } from "wailsjs/go/models";
 
 
 
@@ -77,11 +73,11 @@ CustomNavLink.displayName = "CustomNavLink";
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Vault", url: "/dashboard/vault", icon: Shield },
-  { title: "Shares", url: "/dashboard/shared", icon: Rocket },
-  { title: "Onboarding", url: "/dashboard/on-boarding", icon: Rocket },
+  { title: "Shares", url: "/dashboard/shared", icon: Share },
 ];
 
 const dashboardSecondaryItems = [
+  { title: "Chat", url: "/dashboard/chat", icon: MessageSquare },
   { title: "About", url: "/dashboard/about", icon: Info },
   { title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
 ];
@@ -190,7 +186,7 @@ function DashboardNavbar() {
         return AppAPI.AddEntry(entry.type, entryPayload, token)
       });
       console.log("🚀 ~ handleCreateEntry ~ backend response:", rawEntry)
-      
+
       // 3️⃣ Convert backend response if needed
       const newEntry: VaultEntry = {
         ...rawEntry,
@@ -227,8 +223,6 @@ function DashboardNavbar() {
   useEffect(() => {
     setShowSearchOverlay(searchQuery.trim().length > 0);
   }, [searchQuery]);
-
- 
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -283,29 +277,17 @@ function DashboardNavbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary/10">
-                  <User className="h-4 w-4 text-primary" />
-                </AvatarFallback>
-              </Avatar>
+              <Bell style={{ cursor: "pointer" }} className="h-4 w-4 text-destructive" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/dashboard/profile-beta")}>
-              <User className="mr-2 h-4 w-4" />
-              Profile (beta)
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
+              <User className="mr-2 h-4 w-4 text-primary" />
+              Unread notifications
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/dashboard/settings-beta")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings (beta)
+            <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
+              <MessageCircleWarning className="mr-2 h-4 w-4 text-destructive" />
+              Alerts system
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
@@ -313,6 +295,38 @@ function DashboardNavbar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* <Settings style={{ cursor: "pointer" }} className="mr-4 ml-2 h-4 w-4  rounded-full" onClick={() => navigate("/dashboard/settings-beta")} />
+
+       {/* <Avatar style={{ cursor: "pointer" }} className="h-8 w-8" onClick={() => navigate("/dashboard/profile-beta")}>
+          <AvatarFallback className="bg-primary/10">
+            <User className="h-4 w-4 mr text-primary" />
+          </AvatarFallback>
+        </Avatar>*/}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <EllipsisVertical className=" h-4 w-4 text-primary" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/settings-beta")}>
+              <Settings className="mr-2 h-4 w-4  rounded-full" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/profile-beta")}>
+              <User className="mr-2 h-4 w-4 text-primary" />
+              Account
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} style={{ cursor: "pointer" }} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+
       </div>
 
       {/* Create Entry Dialog */}
@@ -328,8 +342,8 @@ function DashboardNavbar() {
 
 const Avatars = [
   { 'id': "38", src: AvatarImg },
-  { 'id': "37", src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg" },
-  { 'id': "34", src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg' },
+  { 'id': "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e5137", src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg" },
+  { 'id': "2fe989bf-2959-447f-a178-5481c67b887", src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg' },
   { 'id': "39", src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg' }
 ]
 const RenderAvatar = (id: string | number) => {
@@ -355,16 +369,17 @@ function AppSidebar() {
   const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
   const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
 
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (newFolderName.trim()) {
+      await withAuth((token) => {
+        return AppAPI.CreateFolder(newFolderName, token)
+      });
       addFolder(newFolderName);
       setNewFolderName("");
       setIsNewFolderOpen(false);
     }
   };
   const avatar = user && RenderAvatar(user.id)
-
-
 
   return (
     <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
@@ -507,7 +522,7 @@ function AppSidebar() {
 
         {/* User Info */}
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
-          <Avatar className="h-10 w-10 flex-shrink-0">
+          <Avatar className="h-10 w-10 flex-shrink-0" onClick={() => navigate("/dashboard/profile-beta")} style={{ cursor: "pointer" }}>
             <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
               {avatar ? <img src={avatar} alt="User Avatar" className="h-5 w-5" /> : <User className="h-5 w-5 text-primary" />}
             </AvatarFallback>

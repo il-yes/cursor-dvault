@@ -6,10 +6,6 @@ import (
 	vault_session "vault-app/internal/vault/application/session"
 )
 
-// -------- Interfaces --------
-
-
-
 // -------- EVENTS --------
 type VaultOpened struct {
 	UserID  string

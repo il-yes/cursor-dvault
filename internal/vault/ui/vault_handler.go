@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type VaultHandler struct {
@@ -149,7 +150,6 @@ func (vh *VaultHandler) LogoutUser(userID string) error {
 // -----------------------------
 // Vault - Crud
 // -----------------------------
-
 func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand) (*vault_commands.OpenVaultResult, error) {
 	openHandler := NewOpenVaultHandler(
 		vault_commands.NewOpenVaultCommandHandler(vh.DB),
@@ -200,7 +200,6 @@ func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*models.VaultEntr
 
 	return &ve, err
 }
-
 func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (*models.VaultEntry, error) {
 	// 1. ---------- Unmarshal entry ----------
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
@@ -481,4 +480,109 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 	// 7. ---------- Fire vault stores DeleteFolder event ----------	
 
 	return nil
+}
+
+func (vh *VaultHandler) SyncVault(userID string, password string) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
+
+	// 1. ---------- Get session ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("no active session: %w", err)
+	}
+
+	// 2. ---------- Marshal vault ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
+	vaultBytes, err := json.Marshal(session.Vault)
+	if err != nil {
+		return "", fmt.Errorf("marshal failed: %w", err)
+	}
+
+	// 3. ---------- Encrypt vault ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return "", fmt.Errorf("encryption failed: %w", err)
+	}
+
+	// 4. ---------- Upload to IPFS ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
+	newCID, err := vh.IPFS.AddData(encrypted)
+	if err != nil {
+		return "", fmt.Errorf("IPFS upload failed: %w", err)
+	}
+
+	// 5. ---------- Submit to Stellar ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
+	userCfg := session.Runtime.UserConfig
+	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
+	if err != nil {
+		return "", fmt.Errorf("stellar submission failed: %w", err)
+	}
+
+	// 6. ---------- Create new vault ----------
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
+	currentMeta, err := vh.VaultRepository.GetLatestByUserID(userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get vault meta: %w", err)
+	}
+	newVault := vaults_domain.Vault{
+		Name:      currentMeta.Name,
+		Type:      currentMeta.Type,
+		UserID:    userID,
+		CID:       newCID,
+		TxHash:    txHash,
+		CreatedAt: vh.NowUTC(),
+		UpdatedAt: vh.NowUTC(),
+	}
+	saved := vh.VaultRepository.SaveVault(&newVault)
+	vh.logger.Info("💾 Vault saved for user %s: %v", userID, saved)
+	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
+	
+	// 7. ---------- Update session ----------
+	vh.SessionManager.Sync(userID, newCID)
+	vh.logger.Info("✅ Vault sync complete for user %s", userID)
+	// 8. ---------- Emit event ----------
+	runtime.EventsEmit(vh.Ctx, "vault-synced", map[string]interface{}{"userID": userID, "newCID": newCID})
+	// 9. ---------- Fires vault stores Sync event ----------
+	
+	return newCID, nil
+}
+
+func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, error) {
+	newCID, err := vh.IPFS.AddData([]byte(encrypted))
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadToIPFS: failed to upload to IPFS: %w", err)
+	}
+	vh.logger.Info("📤 VaultHandler - UploadToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
+	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
+	
+	return newCID, nil
+}
+
+func (vh *VaultHandler) EncryptVault(userID string, password string) (string, error) {
+	vh.logger.Info("🔄 VaultHandler - EncryptVault: Starting vault encryption for UserID: %s", userID)
+
+	// 1. ----------------- Get session -----------------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - EncryptVault: no active session for user %s: %w", userID, err)
+	}
+	// 2. ----------------- Marshal in-memory vault -----------------
+	vaultBytes, err := json.Marshal(session.Vault) // session.Vault.Sync()
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - EncryptVault: failed to marshal vault: %w", err)
+	}
+	vh.logger.Info("🧱 Vault marshalled (%d bytes)", len(vaultBytes))
+
+	// 3. ----------------- Encrypt -----------------
+	encrypted, err := blockchain.Encrypt(vaultBytes, password)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - EncryptVault: failed to encrypt vault: %w", err)
+	}
+	vh.logger.Info("🔐 VaultHandler - EncryptVault: Vault encrypted")		
+	// 4. ----------------- Fires vault stores Encrypt event -----------------
+
+	return string(encrypted), nil
 }

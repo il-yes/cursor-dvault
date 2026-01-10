@@ -483,7 +483,7 @@ const Profile = () => {
 					<div className="backdrop-blur-xl bg-gradient-to-r from-white/70 to-zinc-100/50 dark:from-zinc-900/70 dark:to-zinc-800/50 rounded-3xl p-8 border border-white/40 shadow-2xl">
 						<div className="flex flex-col sm:flex-row items-center justify-between gap-6">
 							<div className="text-center sm:text-left">
-								<p className="text-xl font-bold text-muted-foreground">VaultCore v1.2.0</p>
+								<p className="text-xl font-bold text-muted-foreground">Ankhora v1.2.0</p>
 								<p className="text-lg text-muted-foreground/70">
 									Last updated: {formatMonthYear(vault?.LastUpdated)}
 								</p>
@@ -506,3 +506,4 @@ const Profile = () => {
 };
 
 export default Profile;
+

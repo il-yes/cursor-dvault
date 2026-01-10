@@ -11,6 +11,7 @@ import { listSharedEntries, listSharedWithMe, updateEntry as updateEntryApi } fr
 import { useAuthStore } from '@/store/useAuthStore';
 import { wailsBridge } from '@/services/wailsBridge';
 import { get } from 'http';
+import { withAuth } from '@/hooks/withAuth';
 
 // TODO: Backend expects file path string, not Uint8Array.
 
@@ -503,10 +504,9 @@ export const useVaultStore = create<VaultStoreState>()(
 
       addFolder: async (name: string) => {
         try {
-          const { jwtToken } = useAuthStore.getState();
-          if (!jwtToken) throw new Error("Authentication token not found");
-
-          await AppAPI.CreateFolder(name, jwtToken);
+            await withAuth(async (token) => {
+              await AppAPI.CreateFolder(name, token);
+            });
           await get().refreshVault();
         } catch (err) {
           console.error("❌ Failed to add folder:", err);

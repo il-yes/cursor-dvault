@@ -78,6 +78,10 @@ export function FlushAllSessions() {
   return window['go']['main']['App']['FlushAllSessions']();
 }
 
+export function GenerateApiKey(arg1) {
+  return window['go']['main']['App']['GenerateApiKey'](arg1);
+}
+
 export function GetCheckoutURL(arg1) {
   return window['go']['main']['App']['GetCheckoutURL'](arg1);
 }

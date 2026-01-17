@@ -497,14 +497,14 @@ func (m *DBModel) FindUserById(id string) (*User, error) {
 }
 
 func (m *DBModel) SaveAppConfig(ac app_config.AppConfig) (*app_config.AppConfig, error) {
-	err := m.DB.Create(&ac).Error
+	err := m.DB.Save(&ac).Error
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to save app config: %w", err)
 	}
 	return &ac, nil
 }
 func (m *DBModel) SaveUserConfig(uc app_config.UserConfig) (*app_config.UserConfig, error) {
-	err := m.DB.Create(&uc).Error
+	err := m.DB.Save(&uc).Error
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to save app config: %w", err)
 	}

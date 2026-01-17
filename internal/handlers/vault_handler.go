@@ -15,6 +15,7 @@ import (
 	share_application_events "vault-app/internal/application/events/share"
 	share_application_use_cases "vault-app/internal/application/use_cases"
 	"vault-app/internal/blockchain"
+	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/logger/logger"
@@ -153,7 +154,7 @@ func (vh *VaultHandler) SyncVault0(userID string, password string) (string, erro
 	// 1. Get session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)	
+		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)
 	}
 	// ✅ Removed noisy LogPretty - too verbose for production
 	// 2. Marshal in-memory vault
@@ -189,16 +190,16 @@ func (vh *VaultHandler) SyncVault0(userID string, password string) (string, erro
 
 	// 5. Decrypt
 	/*
-	decrypted, err := blockchain.Decrypt([]byte(userCfg.StellarAccount.PrivateKey), os.Getenv("TRACECORE_PRIVATE_KEY"))
-	if err != nil {
-		return "", fmt.Errorf("❌ failed to decrypt vault: %w", err)
-	}
-	vh.logger.Info("🔓 Vault decrypted")
-	// 6. Submit to Stellar
-	txHash, errTrx := blockchain.SubmitCID(string(decrypted), newCID)
-	if errTrx != nil {
-		return "", fmt.Errorf("❌ failed to submit CID to Stellar: %w", errTrx)
-	}
+		decrypted, err := blockchain.Decrypt([]byte(userCfg.StellarAccount.PrivateKey), os.Getenv("TRACECORE_PRIVATE_KEY"))
+		if err != nil {
+			return "", fmt.Errorf("❌ failed to decrypt vault: %w", err)
+		}
+		vh.logger.Info("🔓 Vault decrypted")
+		// 6. Submit to Stellar
+		txHash, errTrx := blockchain.SubmitCID(string(decrypted), newCID)
+		if errTrx != nil {
+			return "", fmt.Errorf("❌ failed to submit CID to Stellar: %w", errTrx)
+		}
 	*/
 
 	// 6. Get latest metadata
@@ -615,7 +616,7 @@ func (vh *VaultHandler) UpdateFolder(id string, newName string, isDraft bool) (*
 	}
 	return saved, nil
 }
-func (vh *VaultHandler) DeleteFolder(userID string, id string) error {	
+func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 	session, ok := vh.GetSession(userID)
 	if ok != nil {
 		return fmt.Errorf("no active session for user %s", userID)
@@ -712,7 +713,7 @@ func (vh *VaultHandler) ListSharedEntries(ctx context.Context, userID string) ([
 	}
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 
 	entries, err := uc.ListSharedEntries(ctx, userID, existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
@@ -735,7 +736,7 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, userID string) (
 	}
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 
 	entries, err := uc.ListReceivedShares(ctx, userID, existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"])
 	if err != nil {
@@ -759,13 +760,13 @@ func (vh *VaultHandler) GetShareForAccept(
 	}
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 
 	return uc.GetShareForAccept(ctx, shareID, userID)
 }
 func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.AcceptShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 	result, err := usecase.AcceptShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
@@ -775,7 +776,7 @@ func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID 
 }
 func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.RejectShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 	result, err := usecase.RejectShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
@@ -786,7 +787,7 @@ func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID 
 func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share_application_use_cases.AddReceiverInput) (*share_application_use_cases.AddReceiverResult, error) {
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
 	result, err := usecase.AddReceiver(ctx, userID, in)
 	if err != nil {
 		return nil, err
@@ -799,6 +800,7 @@ type RecipientPayload struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Role  string `json:"role"`
+	PublicKey string `json:"public_key"`
 }
 
 type CreateShareEntryPayload struct {
@@ -815,7 +817,7 @@ type CreateShareEntryPayload struct {
 	Recipients []RecipientPayload `json:"recipients"`
 }
 
-func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID string) (*share_domain.ShareEntry, error) {
+func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID string, configFacade app_config_ui.AppConfigHandler, secret string) (*share_domain.ShareEntry, error) {
 	// Convert JSON string -> domain struct
 	var snapshot share_domain.EntrySnapshot
 	if err := json.Unmarshal([]byte(payload.EntrySnapshot), &snapshot); err != nil {
@@ -852,6 +854,7 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 			Name:  r.Name,
 			Email: r.Email,
 			Role:  r.Role,
+			PublicKey: r.PublicKey,
 			// IDs are assigned by DB
 		})
 	}
@@ -861,10 +864,11 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	tcClient := vh.TracecoreClient   // ensure VaultHandler has TracecoreClient set
 	dispatcher := vh.EventDispatcher // ensure VaultHandler has dispatcher reference (or nil)
+	crypto := &blockchain.CryptoService{}
 
-	uc := share_application_use_cases.NewShareUseCase(repo, tcClient, dispatcher)
+	uc := share_application_use_cases.NewShareUseCase(repo, tcClient, dispatcher, crypto)
 	// call usecase
-	created, err := uc.CreateShare(ctx, s)
+	created, err := uc.CreateProdShareMode(ctx, ownerID, s, configFacade, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,7 +1067,7 @@ func (vh *VaultHandler) StartPendingCommitWorker(ctx context.Context, interval t
 
 					// Try retrying (only log if there are actually pending commits)
 					before := len(vh.pendingCommits[uid])
-					if before > 0 {	
+					if before > 0 {
 						vh.logger.Info("ℹ️ Retrying %d pending commits for user %s", before, uid)
 					}
 					vh.RetryPendingCommits(uid)

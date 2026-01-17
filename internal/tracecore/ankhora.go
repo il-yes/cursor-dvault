@@ -383,3 +383,50 @@ func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessio
 
 	return &sub, nil
 }
+
+
+type ProdCreateCryptoShareRequest struct {
+	SenderID      string                 `json:"SenderID"`
+	Recipients    []string               `json:"Recipients"`
+	VaultPayload  string                 `json:"VaultPayload"`  // already encrypted
+	EncryptedKeys map[string]string      `json:"EncryptedKeys"` // userID -> encrypted key
+	Message       string                 `json:"Message"`
+	PublicKey     string                 `json:"PublicKey"`
+	Signature     string                 `json:"Signature"`
+	Title         string                 `json:"Title"`
+	EntryType     string                 `json:"EntryType"`
+	Metadata      map[string]interface{} `json:"Metadata,omitempty"`
+}
+type ProdCreateCryptoShareResponse struct {
+	Data       json.RawMessage `json:"data"`
+	Status     string          `json:"status"`
+	StatusCode int             `json:"status_code"`
+	Message    string          `json:"message"`
+}
+func (c *TracecoreClient) CreateCloudShare(ctx context.Context, payload ProdCreateCryptoShareRequest) (*ProdCreateCryptoShareResponse, error) {
+	bodyBytes, _ := json.Marshal(payload)
+    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/shares/cryptographic", bytes.NewReader(bodyBytes))
+    req.Header.Set("Content-Type", "application/json")
+    if c.Token != "" {
+        req.Header.Set("Authorization", "Bearer "+c.Token)
+    }
+
+    resp, err := c.HTTPClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    respBytes, _ := io.ReadAll(resp.Body)
+    var cloudResp ProdCreateCryptoShareResponse
+    if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+        return nil, fmt.Errorf("invalid cloud response: %w", err)
+    }
+
+    if cloudResp.Status != "ok" {
+        return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+    }
+	utils.LogPretty("cloud response", cloudResp)
+
+    return &cloudResp, nil
+}

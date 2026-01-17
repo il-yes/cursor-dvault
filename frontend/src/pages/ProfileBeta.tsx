@@ -22,6 +22,7 @@ import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
+import { GenerateApiKey } from "@/services/api";
 
 
 const mockFile = {
@@ -146,11 +147,19 @@ const Profile = () => {
 		});
 	};
 
-	const handleGenerateApiKey = () => {
+	const handleGenerateApiKey = async () => {
+		const { jwtToken } = useAuthStore.getState();
+		const payload = {
+			password: "password",
+			jwtToken
+		}
+		const apiKey = await GenerateApiKey(payload);
+		console.log(apiKey);
 		toast({
 			title: "API Key Generated",
 			description: "Your new API key has been created.",
 		});
+		// TODO: Update API key in session
 	};
 
 	const handleLogout = () => {
@@ -431,7 +440,7 @@ const Profile = () => {
 									className="h-20 rounded-2xl backdrop-blur-xl bg-white/60 dark:bg-zinc-800/60 border-white/40 hover:bg-white/80 shadow-xl hover:shadow-2xl font-semibold"
 								>
 									<Key className="h-6 w-6 mr-3" />
-									API Key
+									Generate API Key
 								</Button>
 							</div>
 						</div>

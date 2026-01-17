@@ -19,7 +19,7 @@ func (r *GormUserConfigRepository) CreateUserConfig(userConfig *app_config_domai
 
 func (r *GormUserConfigRepository) GetUserConfig(id string) (*app_config_domain.UserConfig, error) {
 	var userConfig app_config_domain.UserConfig
-	if err := r.db.First(&userConfig, id).Error; err != nil {
+	if err := r.db.First(&userConfig, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &userConfig, nil
@@ -30,6 +30,6 @@ func (r *GormUserConfigRepository) UpdateUserConfig(userConfig *app_config_domai
 }
 
 func (r *GormUserConfigRepository) DeleteUserConfig(id string) error {
-	return r.db.Delete(&app_config_domain.UserConfig{}, id).Error
+	return r.db.Delete(&app_config_domain.UserConfig{}, "id = ?", id).Error
 }	
 	

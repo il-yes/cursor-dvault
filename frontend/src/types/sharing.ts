@@ -93,6 +93,7 @@ export interface Recipient {
   share_id: string;  // backend-generated
   name: string;
   email: string;
+  public_key: string;
   role: "viewer" | "read" | "editor" | "owner";
   joined_at?: string;  // backend-generated
   created_at?: string;
@@ -116,6 +117,7 @@ export interface CreateShareEntryPayload {
   recipients: {
     name: string;
     email: string;
+    public_key: string;
     role: "viewer" | "editor";
   }[];
   expires_at?: string | null;

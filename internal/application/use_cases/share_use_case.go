@@ -3,13 +3,22 @@ package share_application_use_cases
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 	utils "vault-app/internal"
 	share_application_events "vault-app/internal/application/events/share"
+	blockchain "vault-app/internal/blockchain"
+	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
+	"vault-app/internal/tracecore"
 )
 
+// ---------------------------------------------------------
+//
+//	Interfaces
+//
+// ---------------------------------------------------------
 type TracecoreClientInterface interface {
 	CreateShare(ctx context.Context, s share_domain.ShareEntry) (*share_domain.ShareEntry, error)
 	AcceptShare(ctx context.Context, shareID string) error
@@ -17,19 +26,34 @@ type TracecoreClientInterface interface {
 	GetShareByMe(ctx context.Context) ([]share_domain.ShareEntry, error)
 	GetShareWithMe(ctx context.Context) ([]share_domain.ShareEntry, error)
 	SetToken(token string)
+	CreateCloudShare(ctx context.Context, s tracecore.ProdCreateCryptoShareRequest) (*tracecore.ProdCreateCryptoShareResponse, error)
 }
+
+type ClientCryptoService interface {
+	GenerateSymmetricKey() []byte
+	EncryptPayload(string, []byte) blockchain.CryptoPayload
+	AESEncrypt(plain []byte, key []byte) blockchain.CryptoPayload
+	AESDecrypt(enc []byte, key []byte) blockchain.CryptoPayload
+}
+
+// ---------------------------------------------------------
+//
+//	Share Use Case
+//
+// ---------------------------------------------------------
 type ShareUseCase struct {
 	repo       share_domain.Repository
 	dispatcher share_application_events.EventDispatcher
 	tc         TracecoreClientInterface // new cloud client
-
+	crypto     ClientCryptoService
 }
 
-func NewShareUseCase(repo share_domain.Repository, tc TracecoreClientInterface, d share_application_events.EventDispatcher) *ShareUseCase {
+func NewShareUseCase(repo share_domain.Repository, tc TracecoreClientInterface, d share_application_events.EventDispatcher, crypto ClientCryptoService) *ShareUseCase {
 	return &ShareUseCase{
 		repo:       repo,
 		tc:         tc,
 		dispatcher: d,
+		crypto:     crypto,
 	}
 }
 
@@ -39,11 +63,11 @@ func NewShareUseCase(repo share_domain.Repository, tc TracecoreClientInterface, 
 func (uc *ShareUseCase) CreateShare(ctx context.Context, s share_domain.ShareEntry) (*share_domain.ShareEntry, error) {
 	utils.LogPretty("share - ShareUseCase", s)
 	// Mirror to cloud if client available
-	createdRes, err := uc.tc.CreateShare(ctx, s); 
+	createdRes, err := uc.tc.CreateShare(ctx, s)
 	if err != nil {
 		return nil, fmt.Errorf("cloud CreateShare failed: %w", err)
 	}
-	utils.LogPretty("share - ShareUseCase - createdRes", createdRes)	
+	utils.LogPretty("share - ShareUseCase - createdRes", createdRes)
 
 	// Dispatch event if dispatcher present
 	if uc.dispatcher != nil {
@@ -59,6 +83,112 @@ func (uc *ShareUseCase) CreateShare(ctx context.Context, s share_domain.ShareEnt
 
 	return createdRes, nil
 }
+
+func (uc *ShareUseCase) CreateProdShareMode(
+	ctx context.Context, 
+	userID string, 
+	share share_domain.ShareEntry, 
+	configFacade app_config_ui.AppConfigHandler,
+	secret string,
+) (*share_domain.ShareEntry, error) {
+
+	// ---------------------------------------------------------
+	// 1. Create share
+	// ---------------------------------------------------------
+	pcr, err := uc.BuildProdShareRequest(uc.crypto, userID, share, configFacade, secret)
+	if err != nil {
+		return nil, err
+	}
+
+	// ---------------------------------------------------------
+	// 2. send to Ankhora cloud
+	// ---------------------------------------------------------
+	createdRes, err := uc.tc.CreateCloudShare(ctx, *pcr)
+	if err != nil {
+		return nil, fmt.Errorf("cloud CreateShare failed: %w", err)
+	}
+	utils.LogPretty("share - ShareUseCase - createdRes", createdRes)
+
+	// ---------------------------------------------------------
+	// 3. Publish event after commit
+	// ---------------------------------------------------------
+	// _ = uc.bus.PublishShareCreated(ctx, share_entries_domain.ShareCreated{
+	// 	ShareID:    share.ID,
+	// 	CreatorID:  share.SenderUserID,
+	// 	OccurredAt: time.Now().Unix(),
+	// })
+
+	return &share, nil
+}
+
+func (uc *ShareUseCase) BuildProdShareRequest(
+	crypto ClientCryptoService,
+	userID string,
+	share share_domain.ShareEntry,
+	configFacade app_config_ui.AppConfigHandler,
+	secret string,
+) (*tracecore.ProdCreateCryptoShareRequest, error) {
+	// ---------------------------------------------------------
+	// 1. Generate symmetric key
+	// ---------------------------------------------------------
+	symKey := crypto.GenerateSymmetricKey()
+
+	// ---------------------------------------------------------
+	// 2. Encrypt payload
+	// ---------------------------------------------------------
+	encryptedPayload := crypto.AESEncrypt(
+		[]byte(share.Encryption),
+		symKey,
+	)
+
+	// ---------------------------------------------------------
+	// 3. Encrypt keys
+	// ---------------------------------------------------------
+	encryptedKeys := make(map[string]string)
+
+	for _, rid := range share.Recipients {
+		encKey := crypto.EncryptPayload(rid.PublicKey, symKey)
+
+		encryptedKeys[rid.ID] = encKey.ToString()
+	}
+
+	// ---------------------------------------------------------
+	// 4. Sign share
+	// ---------------------------------------------------------
+	// TODO: Sign share
+	message := "share.Message"	// TODO: improve
+	// fetch userr private key from db
+	userCfg, err := configFacade.GetUserConfigByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user config: %w", err)
+	}
+	encPrivateKey := userCfg.StellarAccount.PrivateKey
+	decryptedSecret, err := blockchain.Encrypt([]byte(encPrivateKey), secret)
+	if err != nil {
+		log.Println("⚠️ Failed to decrypt Stellar private key: %v", err)
+		return nil, err
+	}
+	// TODO: Correct Sign share
+	signature, err := blockchain.SignActorWithStellarPrivateKey(string(decryptedSecret), message)	
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign share: %w", err)
+	}
+
+	// ---------------------------------------------------------
+	// 5. Return request
+	// ---------------------------------------------------------
+	return &tracecore.ProdCreateCryptoShareRequest{
+		SenderID:      share.OwnerID,
+		VaultPayload:  encryptedPayload.ToString(),
+		EncryptedKeys: encryptedKeys,
+		Title:         share.EntryName,
+		EntryType:     share.EntryType,
+		// Metadata:      share.Metadata,
+		Signature:     signature,
+		Message:       message,
+	}, nil
+}
+
 // ------------------------------------------------
 // Use case: list shared entries for a user
 // ------------------------------------------------
@@ -70,9 +200,9 @@ func (s *ShareUseCase) ListSharedEntries(ctx context.Context, userID string, clo
 	if err != nil {
 		return nil, fmt.Errorf("dvault ListReceivedShares failed: %w", err)
 	}
-	utils.LogPretty("share - ListSharedEntries - cloudShares", cloudShares)	
-	
-	return cloudShares, nil	
+	utils.LogPretty("share - ListSharedEntries - cloudShares", cloudShares)
+
+	return cloudShares, nil
 }
 
 // ------------------------------------------------
@@ -86,9 +216,9 @@ func (s *ShareUseCase) ListReceivedShares(ctx context.Context, userID string, cl
 	if err != nil {
 		return nil, fmt.Errorf("dvault ListReceivedShares failed: %w", err)
 	}
-	utils.LogPretty("share - ListSharedEntries - cloudShares", cloudShares)	
-	
-	return cloudShares, nil	
+	utils.LogPretty("share - ListSharedEntries - cloudShares", cloudShares)
+
+	return cloudShares, nil
 }
 
 func (uc *ShareUseCase) GetShareForAccept(

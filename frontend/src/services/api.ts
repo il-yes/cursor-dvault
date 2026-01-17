@@ -450,7 +450,7 @@ export async function getVaultContext(): Promise<any> {
  */
 export async function createSharedEntry(payload: {
   entry_id: string;
-  recipients: { name: string; email: string; role: string }[];
+  recipients: { name: string; email: string; role: string; publicKey: string }[];
   permission: 'read' | 'edit' | 'temporary';
   expiration_date?: string;
   custom_message?: string;
@@ -487,6 +487,7 @@ export async function createSharedEntry(payload: {
         name: r.name,
         email: r.email,
         role: r.role,
+        public_key: r.publicKey,
       })),
     });
 
@@ -881,3 +882,22 @@ export const StellarAsksForChallenge = async (stellarKey: string) => {
 
   return { publicKey, signature, challenge };
 }
+type GenerateApiKeyInput = {
+  password: string;
+  jwtToken: string;
+}
+type GenerateApiKeyResponse = {
+  public_key: string;
+  private_key: string;
+}
+export const GenerateApiKey = async (payload: GenerateApiKeyInput): Promise<GenerateApiKeyResponse> => {
+  alert('ok')
+  const response = await AppAPI.GenerateApiKey(payload);
+  console.log({response })
+
+ // if (!response.ok) {
+ //   throw new Error(`Failed to generate API key: ${response.statusText}`);
+ // }
+
+  return response;
+};

@@ -54,6 +54,8 @@ export function FetchUsers():Promise<Array<models.UserDTO>>;
 
 export function FlushAllSessions():Promise<void>;
 
+export function GenerateApiKey(arg1:main.GenerateApiKeyInput):Promise<main.GenerateApiKeyOutput>;
+
 export function GetCheckoutURL(arg1:string):Promise<main.CreateCheckoutResponse>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;

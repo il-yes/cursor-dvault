@@ -36,6 +36,7 @@ type Recipient struct {
 	ShareID   string `json:"share_id"`
 	Name      string `json:"name"`
 	Email     string `json:"email"`
+	PublicKey string `json:"public_key"`
 	Role      string `json:"role"`
 	JoinedAt  time.Time `json:"joined_at"`
 	CreatedAt time.Time `json:"created_at"`

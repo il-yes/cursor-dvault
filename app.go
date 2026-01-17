@@ -21,6 +21,7 @@ import (
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
@@ -93,6 +94,7 @@ type config struct {
 	JWTIssuer   string
 	JWTAudience string
 	APIKey      string
+	ANCHORA_SECRET string
 }
 
 type App struct {
@@ -105,16 +107,17 @@ type App struct {
 	NowUTC   func() string
 
 	// Core handlers
-	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
-	Identity                  *identity_ui.IdentityHandler
-	AuthHandler               *auth_ui.AuthHandler
-	Vault                     *vault_ui.VaultHandler
-	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
-	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
-	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
-	Vaults                    *handlers.VaultHandler
+	AppConfigHandler          *app_config_ui.AppConfigHandler
 	Auth                      *handlers.AuthHandler
+	AuthHandler               *auth_ui.AuthHandler
+	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
 	EntryRegistry             *registry.EntryRegistry
+	Identity                  *identity_ui.IdentityHandler
+	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
+	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
+	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
+	Vault                     *vault_ui.VaultHandler
+	Vaults                    *handlers.VaultHandler
 
 	// New: Global state
 	// RuntimeContext *models.VaultRuntimeContext
@@ -132,6 +135,7 @@ func NewApp() *App {
 	}
 
 	cfg := loadConfig()
+	utils.LogPretty("cfg", cfg)
 
 	// Use auto-init from env
 	appLogger := logger.NewFromEnv()
@@ -305,6 +309,9 @@ func NewApp() *App {
 	authRepository := auth_persistence.NewGormAuthRepository(db.DB)
 	authTokenService := auth_usecases.NewTokenService(authV2, authRepository, db.DB)
 
+	// AppConfig
+	appConfigHandler := app_config_ui.NewAppConfigHandler(db.DB, *appLogger)
+
 	// Vault
 	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB)
 
@@ -424,25 +431,26 @@ func NewApp() *App {
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
-		config:                 cfg,
-		version:                version,
-		DB:                     *db,
-		StellarRecoveryHandler: stellarRecoveryHandler,
-		AuthHandler:            authHandler,
-		Identity:               identityHandler,
-		Vault:                  vaultHandler,
-		OnBoardingHandler:      onBoardingHandler,
-		SubscriptionHandler:    subscriptionHandler,
-		Vaults:                 vaults,
+		AppConfigHandler:       appConfigHandler,
 		Auth:                   auth,
-		Logger:                 *appLogger,
+		AuthHandler:            authHandler,
+		cancel:                    cancel,
+		ConnectWithStellarHandler: stellarRecoveryHandler,
+		config:                 cfg,
+		DB:                     *db,
 		EntryRegistry:          reg,
+		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
+		Identity:               identityHandler,
+		Logger:                 *appLogger,
+		OnBoardingHandler:      onBoardingHandler,
 		sessions:               sessions,
+		StellarRecoveryHandler: stellarRecoveryHandler,
+		SubscriptionHandler:    subscriptionHandler,
 		RuntimeContext:         runtimeCtx,
 		// RuntimeContextV2:          runtimeCtxV2,
-		cancel:                    cancel,
-		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
-		ConnectWithStellarHandler: stellarRecoveryHandler,
+		Vault:                  vaultHandler,  // internal/vault/ui/vault_handler.go
+		Vaults:                 vaults,        // internal/handlers/vault_handler.go
+		version:                version,
 	}
 
 }
@@ -462,8 +470,6 @@ func (a *App) NotifyPaymentSuccess(subID string) {
 	a.Logger.Info("✅ Subscription created successfully: %v", subID)
 	runtime.EventsEmit(a.ctx, "payment:success", subID)
 }
-
-
 
 // -----------------------------
 // OnBoarding
@@ -561,6 +567,7 @@ type CreateCheckoutResponse struct {
 	SessionID string `json:"sessionId"`
 	URL       string `json:"url"`
 }
+
 // GetCheckoutURL returns the cloud backend checkout page URL
 func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
 	// -----------------------------
@@ -573,7 +580,7 @@ func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
 	// -----------------------------
 	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
 	url := baseURL + sessionID
-	
+
 	res := CreateCheckoutResponse{
 		SessionID: sessionID,
 		URL:       url,
@@ -734,6 +741,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 			Password: req.Password,
 			Session:  session,
 		},
+		*a.AppConfigHandler,
 	)
 	if err != nil {
 		return nil, err
@@ -937,6 +945,7 @@ func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, e
 	}
 	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vault.DeleteFolder(userID, id)
 }
+
 // TODO: ToggleFavorite entries
 
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
@@ -1041,7 +1050,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 		return nil, err
 	}
 	userID := claims.UserID
-	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID)
+	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
 }
 
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
@@ -1100,6 +1109,80 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 
 	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
 }
+// -----------------------------
+// Vault Config
+// -----------------------------
+type GenerateApiKeyInput struct {
+	Password string `json:"password"`
+	JwtToken string `json:"jwtToken"`
+}	
+type GenerateApiKeyOutput struct {
+	PublicKey   string `json:"public_key"`
+	PrivateKey  string `json:"private_key"`
+}
+func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
+	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	if err != nil {
+		return nil, err
+	}
+	userID := claims.UserID
+	utils.LogPretty("userID", userID)
+
+	var stellarAccount *app_config.StellarAccountConfig
+	stellarService := blockchain.StellarService{Logger: &a.Logger}
+	res, err := stellarService.CreatAccountWithFriendbotFunding(input.Password)
+	if err != nil {
+		a.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		return nil, err	
+	}
+	utils.LogPretty("res", res)
+	// Encrypt the user password with Stellar secret
+	salt, nonce, ct, err := blockchain.EncryptPasswordWithStellarSecure(input.Password, res.PrivateKey)
+	if err != nil {
+		a.Logger.Warn("⚠️ Failed to encrypt password with Stellar secret: %v", err)
+		return nil, err
+	}
+
+	// TODO: encrypt the Stellar private key before storing (server-side master key or KMS)
+	utils.LogPretty("anchorSecret", a.config.ANCHORA_SECRET)
+	if a.config.ANCHORA_SECRET == "" {
+		a.Logger.Warn("⚠️ Anchora secret not found")
+		return nil, errors.New("anchora secret not found")
+	}
+	encryptedSecret, err := blockchain.Encrypt([]byte(res.PrivateKey), a.config.ANCHORA_SECRET)
+	if err != nil {
+		a.Logger.Warn("⚠️ Failed to encrypt Stellar private key: %v", err)
+		return nil, err
+	}
+
+	stellarAccount = &app_config.StellarAccountConfig{
+		PublicKey:   res.PublicKey,
+		PrivateKey:  string(encryptedSecret),
+		EncSalt:     salt,
+		EncNonce:    nonce,
+		EncPassword: ct,
+	}
+	a.Logger.Info("✅ Stellar account created: %s - txID: %s", stellarAccount.PublicKey, res.TxID)
+	
+	// Handle stellar config 
+	userCfg, err := a.Vaults.DB.GetUserConfigByUserID(userID)
+	if userCfg == nil {
+		userCfg = &app_config.UserConfig{}
+	}
+	userCfg.StellarAccount = *stellarAccount
+
+	// Save user config
+	savedUserCfg, err := a.Vaults.DB.SaveUserConfig(*userCfg)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("savedUserCfg", savedUserCfg)	
+
+	return &GenerateApiKeyOutput{
+		PublicKey:   res.PublicKey,
+		PrivateKey:  string(encryptedSecret),
+		}, nil
+}
 
 // FlushAllSessions persists and clears all active sessions.
 func (a *App) FlushAllSessions() {
@@ -1157,6 +1240,7 @@ func (a *App) InitStripe() {
 	}
 	log.Println("✅ Stripe initialized")
 }
+
 // -----------------------------
 // Helpers
 // -----------------------------
@@ -1172,6 +1256,7 @@ func loadConfig() config {
 		db: struct{ dsn string }{
 			dsn: os.Getenv("DB_DSN"), // or default
 		},
+		ANCHORA_SECRET: os.Getenv("ANCHORA_SECRET"),
 	}
 }
 func (a *App) startup(ctx context.Context) {

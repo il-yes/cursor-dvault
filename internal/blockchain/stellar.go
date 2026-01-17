@@ -32,7 +32,7 @@ type StellarBlockchainService interface {
 }
 
 type StellarService struct {
-	logger *logger.Logger
+	Logger *logger.Logger
 }
 
 type CreateAccountRes struct {
@@ -54,12 +54,12 @@ func (s *StellarService) CreateKeypair() (publicKey string, secretKey string, tr
 func (s *StellarService) CreatAccountWithFriendbotFunding(plainPassword string) (*CreateAccountRes, error) {
 	pub, secret, txID, err := s.CreateKeypair()
 	if err != nil {
-		s.logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		s.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
 		return nil, err
 	}
 	
 	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
-	s.logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+	s.Logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
 
 	return &CreateAccountRes{
 		PublicKey:   pub,
@@ -74,12 +74,12 @@ func (s *StellarService) CreatAccountWithFriendbotFunding(plainPassword string) 
 func (s *StellarService) CreateAccount(plainPassword string) (*CreateAccountRes, error) {
 	pub, secret, txID, err := s.CreateKeypair()
 	if err != nil {
-		s.logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		s.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
 		return nil, err
 	}
 
 	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
-	s.logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+	s.Logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
 
 	return &CreateAccountRes{
 		PublicKey:   pub,

@@ -10,6 +10,7 @@ import (
 	"time"
 	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
+	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
@@ -21,8 +22,8 @@ import (
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gorm.io/gorm"
 )
 
 type VaultHandler struct {
@@ -150,14 +151,14 @@ func (vh *VaultHandler) LogoutUser(userID string) error {
 // -----------------------------
 // Vault - Crud
 // -----------------------------
-func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand) (*vault_commands.OpenVaultResult, error) {
+func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*vault_commands.OpenVaultResult, error) {
 	openHandler := NewOpenVaultHandler(
 		vault_commands.NewOpenVaultCommandHandler(vh.DB),
 		vh.IPFS,
 		vh.CryptoService,
 		vh.EventBus,
 	)
-	res, err := openHandler.OpenVault(ctx, req)
+	res, err := openHandler.OpenVault(ctx, req, appConfigHandler)
 	if err != nil {
 		return nil, err
 	}

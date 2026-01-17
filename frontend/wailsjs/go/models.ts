@@ -386,6 +386,7 @@ export namespace handlers {
 	    name: string;
 	    email: string;
 	    role: string;
+	    public_key: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RecipientPayload(source);
@@ -396,6 +397,7 @@ export namespace handlers {
 	        this.name = source["name"];
 	        this.email = source["email"];
 	        this.role = source["role"];
+	        this.public_key = source["public_key"];
 	    }
 	}
 	export class CreateShareEntryPayload {
@@ -642,6 +644,34 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class GenerateApiKeyInput {
+	    password: string;
+	    jwtToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateApiKeyInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.password = source["password"];
+	        this.jwtToken = source["jwtToken"];
+	    }
+	}
+	export class GenerateApiKeyOutput {
+	    public_key: string;
+	    private_key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateApiKeyOutput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.public_key = source["public_key"];
+	        this.private_key = source["private_key"];
+	    }
 	}
 	export class GetSessionResponse {
 	    Data: Record<string, any>;
@@ -1326,6 +1356,7 @@ export namespace share_domain {
 	    share_id: string;
 	    name: string;
 	    email: string;
+	    public_key: string;
 	    role: string;
 	    // Go type: time
 	    joined_at: any;
@@ -1345,6 +1376,7 @@ export namespace share_domain {
 	        this.share_id = source["share_id"];
 	        this.name = source["name"];
 	        this.email = source["email"];
+	        this.public_key = source["public_key"];
 	        this.role = source["role"];
 	        this.joined_at = this.convertValues(source["joined_at"], null);
 	        this.created_at = this.convertValues(source["created_at"], null);

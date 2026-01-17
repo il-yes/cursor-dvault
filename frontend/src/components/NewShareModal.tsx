@@ -51,6 +51,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 
 	const handleAddRecipient = () => {
 		const trimmed = recipientInput.trim();
+		console.log('recipientInput', recipientInput);
 		if (trimmed && !recipients.includes(trimmed)) {
 			setRecipients([...recipients, trimmed]);
 			setRecipientInput("");
@@ -101,6 +102,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 				recipients: recipients.map(email => ({
 					name: email.split("@")[0],
 					email,
+					public_key: "",
 					role: permission === "edit" ? "editor" : "viewer",
 				})),
 
@@ -174,12 +176,38 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			// 2️⃣ Add optimistic entry and get temp ID
 			const tempId = addSharedEntry(optimisticPayload);
 
+			
+			const getPublicKey = async (email: string) => {
+				const response = await fetch(`http://localhost:4001/api/check-email?email=${email}`, {
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+					},
+				});
+				const data = await response.json();
+				console.log({data});
+				return data.public_key;
+			};
+			// Get public key for recipients
+			const publicKeys = await Promise.all(recipients.map(email => getPublicKey(email)));
+			console.log({publicKeys});
+			console.log(publicKeys[0]);
+			
+			if (!publicKeys) {
+				toast({
+					title: "Error",
+					description: "No public key found for this email",
+				});
+				return;
+			}
+
 			// 3️⃣ Create real shared entry via backend
 			const cloudResponse = await createSharedEntry({
 				entry_id: selectedEntry,
-				recipients: recipients.map(email => ({
+				recipients: recipients.map((email, index) => ({
 					name: email.split("@")[0],
 					email,
+					publicKey: publicKeys[index],
 					role: permission,
 				})),
 				permission: permission as "read" | "edit" | "temporary",

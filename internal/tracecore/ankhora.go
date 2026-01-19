@@ -202,7 +202,7 @@ func (c *TracecoreClient) CreateShare(ctx context.Context, s share_domain.ShareE
 	return &created, nil
 }
 func (c *TracecoreClient) GetShareByMe(ctx context.Context) ([]share_domain.ShareEntry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/by-me", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/by-me", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +243,7 @@ func (c *TracecoreClient) GetShareByMe(ctx context.Context) ([]share_domain.Shar
 	return list, nil
 }
 func (c *TracecoreClient) GetShareWithMe(ctx context.Context) ([]share_domain.ShareEntry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/with-me", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/with-me", nil)
 	if err != nil {
 		return nil, err
 	}

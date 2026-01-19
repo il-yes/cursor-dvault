@@ -2,6 +2,7 @@ package share_application_use_cases
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -99,6 +100,7 @@ func (uc *ShareUseCase) CreateProdShareMode(
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("share - ShareUseCase - pcr", pcr)
 
 	// ---------------------------------------------------------
 	// 2. send to Ankhora cloud
@@ -136,8 +138,13 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// ---------------------------------------------------------
 	// 2. Encrypt payload
 	// ---------------------------------------------------------
+	entrySnapshotRawJson, err := json.Marshal(share.EntrySnapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal entry snapshot: %w", err)
+	}
+	utils.LogPretty("share - ShareUseCase - entrySnapshotRawJson", entrySnapshotRawJson)
 	encryptedPayload := crypto.AESEncrypt(
-		[]byte(share.Encryption),
+		[]byte(entrySnapshotRawJson),
 		symKey,
 	)
 
@@ -149,7 +156,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	for _, rid := range share.Recipients {
 		encKey := crypto.EncryptPayload(rid.PublicKey, symKey)
 
-		encryptedKeys[rid.ID] = encKey.ToString()
+		encryptedKeys[rid.Email] = encKey.ToString()
 	}
 
 	// ---------------------------------------------------------
@@ -163,16 +170,17 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 		return nil, fmt.Errorf("failed to get user config: %w", err)
 	}
 	encPrivateKey := userCfg.StellarAccount.PrivateKey
-	decryptedSecret, err := blockchain.Encrypt([]byte(encPrivateKey), secret)
+	decryptedPrivateKey, err := blockchain.Decrypt([]byte(encPrivateKey), secret)
 	if err != nil {
 		log.Println("⚠️ Failed to decrypt Stellar private key: %v", err)
 		return nil, err
 	}
 	// TODO: Correct Sign share
-	signature, err := blockchain.SignActorWithStellarPrivateKey(string(decryptedSecret), message)	
+	signature, err := blockchain.SignActorWithStellarPrivateKey(string(decryptedPrivateKey), message)	
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign share: %w", err)
 	}
+	utils.LogPretty("share - ShareUseCase - signature", signature)
 
 	// ---------------------------------------------------------
 	// 5. Return request
@@ -184,6 +192,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 		Title:         share.EntryName,
 		EntryType:     share.EntryType,
 		// Metadata:      share.Metadata,
+		PublicKey: userCfg.StellarAccount.PublicKey,
 		Signature:     signature,
 		Message:       message,
 	}, nil

@@ -1054,7 +1054,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 }
 
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("ListSharedEntries - auth failed: %w", err)
 	}
@@ -1149,7 +1149,7 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 		a.Logger.Warn("⚠️ Anchora secret not found")
 		return nil, errors.New("anchora secret not found")
 	}
-	encryptedSecret, err := blockchain.Encrypt([]byte(res.PrivateKey), a.config.ANCHORA_SECRET)
+	encryptedPrivateKey, err := blockchain.Encrypt([]byte(res.PrivateKey), a.config.ANCHORA_SECRET)
 	if err != nil {
 		a.Logger.Warn("⚠️ Failed to encrypt Stellar private key: %v", err)
 		return nil, err
@@ -1157,7 +1157,7 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 
 	stellarAccount = &app_config.StellarAccountConfig{
 		PublicKey:   res.PublicKey,
-		PrivateKey:  string(encryptedSecret),
+		PrivateKey:  string(encryptedPrivateKey),
 		EncSalt:     salt,
 		EncNonce:    nonce,
 		EncPassword: ct,
@@ -1180,7 +1180,7 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 
 	return &GenerateApiKeyOutput{
 		PublicKey:   res.PublicKey,
-		PrivateKey:  string(encryptedSecret),
+		PrivateKey:  string(encryptedPrivateKey),
 		}, nil
 }
 

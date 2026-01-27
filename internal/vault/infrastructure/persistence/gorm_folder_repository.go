@@ -29,7 +29,7 @@ func (r *GormFolderRepository) UpdateFolder(folder *vaults_domain.Folder) error 
 	return r.db.Save(folder).Error
 }	
 func (r *GormFolderRepository) DeleteFolder(folderID string) error {
-	return r.db.Delete(&vaults_domain.Folder{}, folderID).Error
+	return r.db.Delete(&vaults_domain.Folder{}, "id = ?", folderID).Error
 }	
 func (r *GormFolderRepository) GetFoldersByUserID(userID string) ([]vaults_domain.Folder, error) {
 	var folders []vaults_domain.Folder

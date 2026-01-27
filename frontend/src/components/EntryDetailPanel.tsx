@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Copy, Shield, Edit, Share2, Trash2, Sparkles } from "lucide-react";
-import { VaultEntry } from "@/types/vault";
+import { Folder, VaultEntry } from "@/types/vault";
 import { decryptField, logAuditEvent } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,9 @@ import { Clock } from "lucide-react";
 import "./contributionGraph/g-scrollbar.css";
 import { Textarea } from "./ui/textarea";
 import { FileUploadWidget } from "./FileUploadWidget";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useVaultStore } from "@/store/vaultStore";
+
 
 interface EntryDetailPanelProps {
     entry: VaultEntry | null;
@@ -37,13 +40,23 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [isRevealing, setIsRevealing] = useState<string | null>(null);
     const [decryptingField, setDecryptingField] = useState<string | null>(null);
     const [editData, setEditData] = useState<Partial<VaultEntry>>({});
+    const [folderId, setFolderId] = useState<string | null>(null);
     // keep localEntry typed explicitly
     const [localEntry, setLocalEntry] = useState<VaultEntry | null>(entry ?? null);
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
+    const vaultContext = useVaultStore((state) => state.vault);
+    const folders: Folder[] = vaultContext.Vault.folders || [];
+
     // Sync localEntry with prop changes
     useEffect(() => {
         setLocalEntry(entry ?? null);
+    }, [entry]);
+
+    useEffect(() => {
+        if (entry) {
+            setFolderId(entry.folder_id);
+        }
     }, [entry]);
 
     // Cleanup timeouts on unmount / when revealedFields changes
@@ -91,6 +104,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const handleSaveEdit = () => {
         if (onSave) {
             // pass only the edited changes (editData)
+            if (folderId != null) {
+                // find folder by id
+                const f = folders.find(f => f.id === folderId);
+                if (f) {
+                    editData.folder_id = f.id;
+                }
+            }
+            console.log({ editData });
             onSave(editData);
             setEditData({});
         }
@@ -262,7 +283,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 value={isRevealed ? revealed!.value : "••••••••••••"}
                                 readOnly
                                 className={cn(
-                                    'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                    'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2ll shadow-inner',
                                     editMode && 'border-primary/50 shadow-primary/20',
                                 )}
                             />
@@ -319,7 +340,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             onChange={(e) => handleFieldChange(fieldName, e.target.value)}
                             readOnly={!editMode}
                             className={cn(
-                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner',
+                                'h-14 text-2xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl shadow-inner',
                                 editMode && 'border-primary/50 shadow-primary/20',
                             )}
                         />
@@ -387,14 +408,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const loginFields = [
         { name: 'user_name', label: 'Username', isSensitive: false },
         { name: 'password', label: 'Password', isSensitive: true },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
+        // { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
     const cardFields = [
         { name: 'owner', label: 'Owner' },
         { name: 'number', label: 'Number' },
         { name: 'expiration', label: 'Expiration' },
         { name: 'cvc', label: 'CVC' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
     const identityFields = [
         { name: 'first_name', label: 'First name' },
@@ -413,14 +434,13 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         { name: 'state', label: 'State' },
         { name: 'zip', label: 'Zip' },
         { name: 'country', label: 'Country' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
-
     const sshkeyFields = [
         { name: 'public_key', label: 'Public key' },
         { name: 'private_key', label: 'Private key' },
         { name: 'e_fingerprint', label: 'Fingerprint' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },  
+        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
 
     return (
@@ -512,19 +532,48 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             onChange={(e) => editMode && handleFieldChange("entry_name", e.target.value)}
                             readOnly={!editMode}
                             className={cn(
-                                "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
+                                "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl shadow-inner",
                                 editMode && "border-primary/50 shadow-primary/20"
                             )}
                         />
                     </div>
 
-                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-6 border border-white/40 dark:border-zinc-700/40  hover:shadow-2xl transition-all duration-500">
-                        {/* Date createdAt and updatedAt */}
+                    <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40  hover:shadow-2xl transition-all duration-500">
+
+                        <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+                            {!editMode ? "Folder" : "Select Folder *"}
+                        </Label>
+                        {!editMode &&
+                            <>
+                                <Input
+                                    value={folders.find(f => f.id === current?.folder_id)?.name ?? ""}
+                                    readOnly={!editMode}
+                                    className={cn(
+                                        "h-14 text-2xl font-bold  backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl p-4 shadow-inner",
+                                        editMode && "border-primary/50 shadow-primary/20"
+                                    )}
+                                />
+                            </>}
+                        {editMode && (
+                            <>
+                                <Select value={folderId} onValueChange={setFolderId}>
+                                    <SelectTrigger id="entry">
+                                        <SelectValue placeholder="Choose an entry from your vault" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {folders.map((folder) => (
+                                            <SelectItem key={folder.id} value={folder.id}>
+                                                <span className="capitalize">{folder.name}</span>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </>)}
                     </div>
                 </div>
 
                 {/* Sensitive Fields Section */}
-                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl p-8 border border-white/30 dark:border-zinc-700/30 ">
+                <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl border border-white/30 dark:border-zinc-700/30 ">
                     {current?.type === 'login' || current?.type === 'card' || current?.type === 'identity' || current?.type === 'sshkey' && <div className="flex items-center justify-between">
                         <h3 className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-lg">
                             <Shield className="h-6 w-6" />
@@ -650,12 +699,12 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                     )}
                 </div>
                 <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl  border border-white/30 dark:border-zinc-700/30 ">
-                    <div className="space-y-6">
+                    <div className="">
                         <div className={cn(
-        "group relative rounded-3xl p-10 transition-all cursor-pointer backdrop-blur-xl",
-        "border-2 border-white/30 bg-white/50 dark:bg-zinc-900/50 shadow-2xl hover:shadow-primary/20 hover:shadow-3xl",
-        "hover:border-primary/50 hover:bg-white/70 dark:hover:bg-zinc-900/70"
-      )}>
+                            "group relative rounded-3xl p-10 transition-all cursor-pointer backdrop-blur-xl",
+                            "border-2 border-white/30 bg-white/50 dark:bg-zinc-900/50 shadow-2xl hover:shadow-primary/20 hover:shadow-3xl",
+                            "hover:border-primary/50 hover:bg-white/70 dark:hover:bg-zinc-900/70"
+                        )}>
                             <Label className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                                 Note
                             </Label>

@@ -7,6 +7,7 @@ import (
 	share_domain "vault-app/internal/domain/shared"
 
 	"gorm.io/gorm"
+	"gorm.io/datatypes"
 )
 
 type GormShareRepository struct {
@@ -28,6 +29,8 @@ type ShareEntryModel struct {
 	EntryType     string
 	Status        string
 	AccessMode    string
+	AccessLog     datatypes.JSON `json:"access_log"`
+	EncryptedPayload string
 	Encryption    string
 	EntrySnapshot []byte `gorm:"column:entry_snapshot"` // <---- JSON in DB
 	ExpiresAt     *time.Time
@@ -64,6 +67,8 @@ func (m *ShareEntryModel) ToDomain() share_domain.ShareEntry {
 		EntryType:     m.EntryType,
 		Status:        m.Status,
 		AccessMode:    m.AccessMode,
+		AccessLog:     m.AccessLog,
+		EncryptedPayload: m.EncryptedPayload,
 		Encryption:    m.Encryption,
 		EntrySnapshot: snap,
 		ExpiresAt:     m.ExpiresAt,

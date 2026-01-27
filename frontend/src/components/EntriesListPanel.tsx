@@ -9,7 +9,7 @@ interface EntriesListPanelProps {
   entries: VaultEntry[];
   selectedEntryId: string | null;
   onSelectEntry: (entry: VaultEntry) => void;
-  onToggleFavorite: (entryId: string) => void;
+  onToggleFavorite: (entry: Partial<VaultEntry>) => void;
 }
 
 const entryTypeIcons = {
@@ -91,7 +91,7 @@ export function EntriesListPanel({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onToggleFavorite(entry.id);
+                            onToggleFavorite(entry);
                           }}
                           className="ml-auto flex-shrink-0 hover:scale-110 transition-transform"
                         >

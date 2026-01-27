@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 	utils "vault-app/internal"
+	share_application_dto "vault-app/internal/application"
 	share_application "vault-app/internal/application/use_cases"
 	"vault-app/internal/auth"
 	auth_usecases "vault-app/internal/auth/application/use_cases"
@@ -129,6 +130,9 @@ type App struct {
 func NewApp() *App {
 	startTime := time.Now()
 
+	// -----------------------------------
+	// Initialize
+	// -----------------------------------
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -896,6 +900,7 @@ func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string)
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("App - TrashEntry - payload", map[string]interface{}{"raw": raw, "entryType": entryType})
 	res, err := a.Vault.TrashEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -916,7 +921,19 @@ func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken strin
 	utils.LogPretty("App - RestoreEntry - res", res)
 	return res, nil
 }
-
+func (a *App) DeleteEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Implement permanent deletion via API (different from trash)
+	res, err := a.Vault.TrashEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - DeleteEntry - res", res)
+	return res, nil
+}
 func (a *App) CreateFolder(name string, jwtToken string) (*vaults_domain.VaultPayload, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -932,18 +949,19 @@ func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]vaults_doma
 	return a.Vault.GetFoldersByVault(vaultCID)
 }
 func (a *App) UpdateFolder(id string, newName string, isDraft bool, jwtToken string) (*vaults_domain.Folder, error) {
-	_, err := a.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vault.UpdateFolder(id, newName, isDraft)
+	return a.Vault.UpdateFolder(claims.UserID, newName, isDraft)
 }
-func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, error) {
-	_, err := a.RequireAuth(jwtToken)
+func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vault.DeleteFolder(userID, id)
+	a.Vault.DeleteFolder(claims.UserID, id)
+	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
 
 // TODO: ToggleFavorite entries
@@ -1039,41 +1057,108 @@ func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
 	return encryptedPath, nil
 }
 
+// -----------------------------
+// Link shares
+// -----------------------------
+type CreateLinkShareOutput struct {
+	Data  *share_domain.LinkShare `json:"data"`
+	Status string                 `json:"status"`
+	Error  string                 `json:"error"`
+	Code   string                 `json:"code"`
+}
+func (a *App) CreateLinkShare(payload share_application_dto.LinkShareCreateRequest, jwtToken string) (*CreateLinkShareOutput, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - User", claims)
+	output := CreateLinkShareOutput{}
+	output.Data, err = a.Vaults.CreateLinkShare(claims.Email, payload)
+	if err != nil {
+		output.Error = err.Error()
+		output.Code = "500"
+		return nil, err
+	}
+	output.Code = "200"
+	output.Status = "success"
+	return &output, nil
+}
+type ListLinkSharesByMeResponse struct {
+	Data *[]tracecore.WailsLinkShare `json:"data"`
+	Status string `json:"status"`
+	Error string `json:"error"`
+	StatusCode string `json:"status_code"`
+}
+func (a *App) ListLinkSharesByMe(jwtToken string) (*ListLinkSharesByMeResponse, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	res := ListLinkSharesByMeResponse{}
+	res.Data, err = a.Vaults.ListLinkSharesByMe(claims.Email)
+	if err != nil {
+		res.Error = err.Error()
+		res.StatusCode = "500"
+		return nil, err
+	}
+	res.StatusCode = "200"
+	res.Status = "success"
+
+	utils.LogPretty("res", res)
+	return &res, nil
+}
+func (a *App) ListLinkSharesWithMe(jwtToken string) (*[]tracecore.WailsLinkShare, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	return a.Vaults.ListLinkSharesWithMe(claims.Email)
+}
+// func (a *App) DeleteLinkShare(jwtToken string, shareID string) (string, error) {
+// 	claims, err := a.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return a.Vaults.DeleteLinkShare(claims.UserID, shareID)
+// }	
+
+
+// -----------------------------
+// Cryptographic shares
+// -----------------------------
 type CreateShareInput struct {
 	Payload  handlers.CreateShareEntryPayload `json:"payload"`
 	JwtToken string                           `json:"jwtToken"`
 }
-
 func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	claims, err := a.RequireAuth(input.JwtToken)
 	if err != nil {
 		return nil, err
 	}
-	userID := claims.UserID
-	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
+	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, claims.UserID, claims.Email, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
 }
-
+// Cryptographic share by me
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("ListSharedEntries - auth failed: %w", err)
 	}
-	utils.LogPretty("ListSharedEntries - claims", claims)
 
-	entries, err := a.Vaults.ListSharedEntries(context.Background(), claims.UserID)
+	entries, err := a.Vaults.ListSharedEntries(context.Background(), claims.Email)
 	if err != nil {
 		return nil, err
 	}
 
 	return &entries, nil
 }
+// Cryptographic share with by me	
 func (a *App) ListReceivedShares(jwtToken string) (*[]share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := a.Vaults.ListReceivedShares(context.Background(), claims.UserID)
+	entries, err := a.Vaults.ListReceivedShares(context.Background(), claims.Email)
 	if err != nil {
 		return nil, err
 	}

@@ -1,11 +1,13 @@
 import { ReactNode, useState, useMemo, useEffect, forwardRef } from "react";
-import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Shield, Settings, LogOut, Menu, Search, User,
   Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
   LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
-  Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share  } from "lucide-react";
-import { NewShareModal } from "@/components/NewShareModal";
+  Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share,
+  Trash
+} from "lucide-react";
+import { NewShareModal } from "@/components/NewCryptoShareModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +33,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CreateEntryDialog } from "@/components/CreateEntryDialog"
 import { SearchOverlay } from "./SearchOverlay";
-import { VaultEntry, VaultPayload } from "@/types/vault";
+import { Folder as FolderVault, VaultEntry, VaultPayload } from "@/types/vault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "@/hooks/use-toast";
 import * as AppAPI from "../../wailsjs/go/main/App";
@@ -69,7 +71,6 @@ const CustomNavLink = forwardRef<HTMLAnchorElement, CustomNavLinkProps>(
 );
 CustomNavLink.displayName = "CustomNavLink";
 
-
 const dashboardNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Vault", url: "/dashboard/vault", icon: Shield },
@@ -89,6 +90,59 @@ const sharedEntriesItems = [
   { title: "Pending", filter: "pending", url: "/dashboard/shared?filter=pending", icon: Clock },
   { title: "Revoked", filter: "revoked", url: "/dashboard/shared?filter=revoked", icon: X },
   { title: "With me", filter: "withme", url: "/dashboard/shared?filter=withme", icon: Users },
+];
+// Main categories for Shares
+const sharesSidebarItems = [
+  {
+    category: "Link Share",
+    filters: [
+      {
+        label: "By me",
+        value: "byme",
+        subFilters: [
+          { label: "All", value: "all" },
+          { label: "Sent", value: "sent" },
+          { label: "Pending", value: "pending" },
+          { label: "Revoked", value: "revoked" },
+        ]
+      },
+      {
+        label: "With me",
+        value: "withme",
+        subFilters: [
+          { label: "All", value: "all" },
+          { label: "Sent", value: "sent" },
+          { label: "Pending", value: "pending" },
+          { label: "Revoked", value: "revoked" },
+        ]
+      }
+    ]
+  },
+  {
+    category: "Cryptographic Share",
+    filters: [
+      {
+        label: "By me",
+        value: "byme",
+        subFilters: [
+          { label: "All", value: "all" },
+          { label: "Sent", value: "sent" },
+          { label: "Pending", value: "pending" },
+          { label: "Revoked", value: "revoked" },
+        ]
+      },
+      {
+        label: "With me",
+        value: "withme",
+        subFilters: [
+          { label: "All", value: "all" },
+          { label: "Sent", value: "sent" },
+          { label: "Pending", value: "pending" },
+          { label: "Revoked", value: "revoked" },
+        ]
+      }
+    ]
+  }
 ];
 
 const vaultMainItems = [
@@ -213,7 +267,6 @@ function DashboardNavbar() {
       });
     }
   };
-
   const handleSelectEntry = (entry: VaultEntry) => {
     navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
     setSearchQuery("");
@@ -359,26 +412,58 @@ function AppSidebar() {
 
   const vaultContext = useVaultStore((state) => state.vault);
   const addFolder = useVaultStore((state) => state.addFolder);
+  const removeFolder = useVaultStore((state) => state.removeFolder);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [isNewShareOpen, setIsNewShareOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
   const { user } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shareType = searchParams.get("type") || "linkshare"; // "linkshare" or "cryptographicshare"
+  const scope = searchParams.get("scope") || "byme"; // "byme" or "withme"
+  const filter = searchParams.get("filter") || "all"; // "all", "sent", etc.
+
+  const handleTabChange = (type) => {
+    setSearchParams({ ...Object.fromEntries(searchParams), type });
+  };
+
+  const handleScopeChange = (scope) => {
+    setSearchParams({ ...Object.fromEntries(searchParams), scope });
+  };
 
   const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
   const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
 
   const handleCreateFolder = async () => {
     if (newFolderName.trim()) {
+      // TODO: centralize in api.ts & add loading state
       await withAuth((token) => {
         return AppAPI.CreateFolder(newFolderName, token)
       });
+      // Update folder in zustand (session) 
       addFolder(newFolderName);
+      // Empty folder form
       setNewFolderName("");
+      // Close folder form
       setIsNewFolderOpen(false);
     }
   };
+
+  const handleDeleteFolder = async (folder: FolderVault) => {
+    console.log("🚀 ~ handleDeleteFolder ~ folder button clicked !!!")
+    if (!folder.id || folder.id === "") {
+      return;
+    }
+    // TODO: centralize in api.ts & add loading state
+    await withAuth((token) => {
+      console.log("🚀 ~ handleDeleteFolder ~ folder for delete:", folder)
+      return AppAPI.DeleteFolder(folder.id, token)
+    });
+    // Update folder in zustand (session) 
+    removeFolder(folder.id);
+  };
+
   const avatar = user && RenderAvatar(user.id)
 
   return (
@@ -404,7 +489,7 @@ function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
+              {!isSharedContext && mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -479,7 +564,7 @@ function AppSidebar() {
                       <NavLink
                         to={`/dashboard/vault/folder/${folder.id}`}
                         className={({ isActive }) =>
-                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+                          `relative group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
                             ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
                             : "text-muted-foreground hover:text-foreground"
                           }`
@@ -487,6 +572,7 @@ function AppSidebar() {
                       >
                         <Folder className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
                         <span className="text-sm font-medium">{folder.name}</span>
+                        <Trash2 onClick={() => handleDeleteFolder(folder)} className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform " style={{ position: "absolute", right: "15px" }} />
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -496,17 +582,78 @@ function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* New Share Button (Shared Entries only) */}
+        {/* New Share Menu (Shared Entries only) */}
         {isSharedContext && (
-          <div className="mt-auto p-6 bg-white/20 dark:bg-zinc-900/20 backdrop-blur-sm">
-            <Button
-              onClick={() => setIsNewShareOpen(true)}
-              className="w-full h-12 rounded-2xl bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-xl hover:shadow-[#C9A44A]/25 text-white font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Share
-            </Button>
-          </div>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              {/* Top-level tabs */}
+              <div className="mb-4 px-2 gap-2">
+                <button
+                  className={`w-[100%] mb-5 px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "linkshare"
+                    ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
+                    : "text-muted-foreground hover:text-foreground bg-transparent"
+                    }`}
+                  onClick={() => handleTabChange("linkshare")}
+                >
+                  Link Share
+                </button>
+                <button
+                  className={`w-[100%] px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "cryptographicshare"
+                    ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
+                    : "text-muted-foreground hover:text-foreground bg-transparent"
+                    }`}
+                  onClick={() => handleTabChange("cryptographicshare")}
+                >
+                  Cryptographic Share
+                </button>
+              </div>
+              {/* Scope buttons */}
+              {shareType === "cryptographicshare" &&
+                <>
+                  <div className="flex mb-2 px-4 gap-2">
+                    <button
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground bg-transparent"
+                        }`}
+                      onClick={() => handleScopeChange("byme")}
+                    >
+                      By me
+                    </button>
+                    <button
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground bg-transparent"
+                        }`}
+                      onClick={() => handleScopeChange("withme")}
+                    >
+                      With me
+                    </button>
+                  </div>
+                  {/* Sub-filters */}
+                  <SidebarMenu>
+                    {["all", "sent", "pending", "revoked"].map((sub) => (
+                      <SidebarMenuItem key={sub}>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub}`}
+                            className={({ isActive }) =>
+                              `group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
+                                ? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
+                                : "text-muted-foreground hover:text-foreground"
+                              }`
+                            }
+                          >
+                            <span className="text-xs capitalize">{sub}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </>
+              }
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
       </SidebarContent>
 

@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { VaultContext, VaultEntry } from '@/types/vault';
-import { CreateShareEntryPayload, Recipient, SharedEntry } from '@/types/sharing';
+import { CreateLinkShareEntryPayload, CreateShareEntryPayload, LinkShareEntry, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 import * as AppAPI from "../../wailsjs/go/main/App";
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
-import { listSharedEntries, listSharedWithMe, updateEntry as updateEntryApi } from '@/services/api';
+import { listSharedEntries, listSharedWithMe, listLinkSharesByMe, listLinkSharesWithMe, updateEntry as updateEntryApi } from '@/services/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { wailsBridge } from '@/services/wailsBridge';
 import { get } from 'http';
@@ -18,11 +18,19 @@ import { withAuth } from '@/hooks/withAuth';
 
 interface VaultStoreState {
   vault: VaultContext | null;
-  shared: {
+  linkSharedByMe: {
+    status: 'idle' | 'loading' | 'loaded';
+    items: LinkShareEntry[];
+  };
+  linkSharedWithMe: {
+    status: 'idle' | 'loading' | 'loaded';
+    items: LinkShareEntry[];
+  };
+  shared: { // cryptographic share
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };
-  sharedWithMe: {
+  sharedWithMe: { // cryptographic share
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };
@@ -33,12 +41,18 @@ interface VaultStoreState {
   loadVault: (preloaded?: PreloadedVaultResponse) => Promise<void>;
   setVault: (vault: VaultContext) => void;
   clearVault: () => void;
+  // Cryptographic share
   setSharedEntries: (sharedEntries: SharedEntry[]) => void;
   addSharedEntry: (entry: CreateShareEntryPayload) => string | null;
   updateSharedEntry: (entryId: string, updates: Partial<SharedEntry>) => void;
   removeSharedEntry: (entryId: string) => void;
   updateSharedEntryRecipients: (entryId: string, recipients: Recipient[]) => void;
   setSharedWithMe: (sharedWithMe: SharedEntry[]) => void;
+  // Link share
+  setLinkSharedEntries: (linkSharedEntries: LinkShareEntry[]) => void;
+  addLinkSharedEntry: (entry: LinkShareEntry) => void;
+  updateLinkSharedEntry: (entryId: string, updates: Partial<LinkShareEntry>) => void;
+  removeLinkSharedEntry: (entryId: string) => void;
 
   // From useVault
 
@@ -53,6 +67,7 @@ interface VaultStoreState {
   restoreEntry: (entryId: string) => Promise<void>;
 
   addFolder: (name: string) => Promise<void>;
+  removeFolder: (folderId: string) => Promise<void>;
 
 
   sync: (jwtToken: string) => Promise<void>;
@@ -89,6 +104,14 @@ export const useVaultStore = create<VaultStoreState>()(
   persist(
     (set, get) => ({
       vault: null,
+      linkSharedByMe: {
+        status: 'idle',
+        items: [],
+      },
+      linkSharedWithMe: {
+        status: 'idle',
+        items: [],
+      },
       shared: {
         status: 'idle',
         items: [],
@@ -100,7 +123,7 @@ export const useVaultStore = create<VaultStoreState>()(
       isLoading: false,
       lastSyncTime: null,
 
-      // 🔹 New: load vault from SignIn response or fetch from backend
+      // 🔹 Vault
       loadVault: async (preloaded?: PreloadedVaultResponse) => {
         set({ isLoading: true });
         try {
@@ -169,21 +192,30 @@ export const useVaultStore = create<VaultStoreState>()(
             hasRuntimeContext: !!vaultObject.vault_runtime_context,
           });
 
-          // share by me
-          const sharedEntries = []  // await listSharedEntries();
-          // console.log('✅ Listed shared entries:', sharedEntries);
+          // Cryptographic share by me
+          const sharedEntries = await listSharedEntries();
           // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
           const finalSharedEntries = (sharedEntries && sharedEntries.length > 0)
             ? sharedEntries
             : (data.SharedEntries || []);
 
-          // share with me
-          const sharedWithMe = [] // await listSharedWithMe();
-          // console.log('✅ Listed shared with me:', sharedWithMe);
-          // Use the fetched sharedEntries if available, otherwise fall back to preloaded data.SharedEntries
+          // Cryptographic share with me
+          const sharedWithMe = await listSharedWithMe();
           const finalSharedWithMe = (sharedWithMe && sharedWithMe.length > 0)
             ? sharedWithMe
-            : (data.Sha || []);
+            : (data.SharedWithMe || []);
+
+          // Link share by me
+          const linkSharedByMe = await listLinkSharesByMe();
+          const finalLinkSharedByMe = (linkSharedByMe && linkSharedByMe.length > 0)
+            ? linkSharedByMe
+            : (data.linkSharedByMe || []);
+
+          // Link share with me
+          const linkSharedWithMe = await listLinkSharesWithMe();
+          const finalLinkSharedWithMe = (linkSharedWithMe && linkSharedWithMe.length > 0)
+            ? linkSharedWithMe
+            : (data.linkSharedWithMe || []);
 
           set({
             vault: vaultObject,
@@ -194,6 +226,14 @@ export const useVaultStore = create<VaultStoreState>()(
             sharedWithMe: {
               status: 'loaded',
               items: finalSharedWithMe,
+            },
+            linkSharedByMe: {
+              status: 'loaded',
+              items: finalLinkSharedByMe,
+            },
+            linkSharedWithMe: {
+              status: 'loaded',
+              items: finalLinkSharedWithMe,
             },
             lastSyncTime: new Date().toISOString(),
             isLoading: false,
@@ -231,6 +271,7 @@ export const useVaultStore = create<VaultStoreState>()(
         });
       },
 
+      // 🔹 Cryptographic Share
       addSharedEntry: (payload: CreateShareEntryPayload) => {
         try {
           const { shared } = get();
@@ -324,6 +365,49 @@ export const useVaultStore = create<VaultStoreState>()(
                 ? { ...item, recipients: [...recipients] }
                 : item
             ),
+          },
+        });
+      },
+
+      // 🔹 Link Share
+      setLinkSharedEntries: (linkSharedEntries: LinkShareEntry[]) => {
+        set({
+          linkSharedByMe: {
+            status: 'loaded',
+            items: linkSharedEntries,
+          },
+        });
+      },
+
+      addLinkSharedEntry: (entry: LinkShareEntry) => {
+        const { linkSharedByMe } = get();
+
+        set({
+          linkSharedByMe: {
+            ...linkSharedByMe,
+            items: [...linkSharedByMe.items, entry],
+          },
+        });
+      },
+
+      updateLinkSharedEntry: (entryId: string, updates: Partial<LinkShareEntry>) => {
+        const { linkSharedByMe } = get();
+        set({
+          linkSharedByMe: {
+            ...linkSharedByMe,
+            items: linkSharedByMe.items.map((item) =>
+              item.id === entryId ? { ...item, ...updates } : item
+            ),
+          },
+        });
+      },
+
+      removeLinkSharedEntry: (entryId: string) => {
+        const { linkSharedByMe } = get();
+        set({
+          linkSharedByMe: {
+            ...linkSharedByMe,
+            items: linkSharedByMe.items.filter((item) => item.id !== entryId),
           },
         });
       },
@@ -485,6 +569,7 @@ export const useVaultStore = create<VaultStoreState>()(
               e.id === entryId ? { ...e, is_favorite: !e.is_favorite } : e
             );
           }
+          console.log("🚀 ~ toggleFavorite ~ newEntries:", newEntries)
 
           return {
             vault: {
@@ -503,20 +588,55 @@ export const useVaultStore = create<VaultStoreState>()(
       /* ------------------------------------------------------------------ */
 
       addFolder: async (name: string) => {
-        try {
-            await withAuth(async (token) => {
-              await AppAPI.CreateFolder(name, token);
-            });
-          await get().refreshVault();
-        } catch (err) {
-          console.error("❌ Failed to add folder:", err);
-          toast({
-            title: "Error",
-            description: `Failed to create folder: ${(err as Error).message}`,
-            variant: "destructive",
-          });
-          throw err;
-        }
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+          state.vault.Dirty = true;
+
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                folders: [...state.vault.Vault.folders, { id: name, name }],
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
+        // try {
+        //     await withAuth(async (token) => {
+        //       await AppAPI.CreateFolder(name, token);
+        //     });
+        //   await get().refreshVault();
+        // } catch (err) {
+        //   console.error("❌ Failed to add folder:", err);
+        //   toast({
+        //     title: "Error",
+        //     description: `Failed to create folder: ${(err as Error).message}`,
+        //     variant: "destructive",
+        //   });
+        //   throw err;
+        // }
+      },
+
+      removeFolder: async (folderId: string) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+          state.vault.Dirty = true;
+
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                folders: state.vault.Vault.folders.filter((folder) => folder.id !== folderId),
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
       },
 
       sync: async (jwtToken: string) => {
@@ -565,8 +685,6 @@ export const useVaultStore = create<VaultStoreState>()(
       onRehydrateStorage: () => (state) => {
         console.log("💾 REHYDRATED STATE:", state?.vault);
       },
-
-
     }),
     {
       name: "vault-storage",

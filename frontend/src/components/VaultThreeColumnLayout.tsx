@@ -101,14 +101,32 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
     return filtered;
   }, [allEntries, filter]);
 
-  const handleToggleFavorite = async (entryId: string) => {
-    await toggleFavorite(entryId);
+  const handleToggleFavorite = async (entry: Partial<VaultEntry>) => {
+    if (!entry.id) return;
+    if (entry.is_favorite) {
+      entry.is_favorite = false;
+    } else {
+      entry.is_favorite = true;
+    }
+
+    const rawEntry = await withAuth((token) => {
+      return AppAPI.EditEntry(
+        entry.type,
+        {
+            id: entry.id,   // ✅ REQUIRED
+            ...entry,
+          },
+          token
+        )
+      });
+
+    console.log("🚀 ~ handleToggleFavorite ~ entry:", entry)
+    await updateEntry(entry.id, entry);
   };
 
   const handleEditEntry = async (updates: Partial<VaultEntry>) => {
     if (selectedEntryId) {
       console.log("🚀 ~ handleEditEntry ~ selectedEntry for edit:", selectedEntry)
-      // failed to parse entry: unknown entry type: a0f57f02-6fed-44b8-98de-03177b54c73f"
       const rawEntry = await withAuth((token) => {
         return AppAPI.EditEntry(
           selectedEntry!.type,
@@ -120,7 +138,7 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
         )
       });
       console.log("🚀 ~ handleEditEntry ~ rawEntry:", rawEntry)
-      // TODO: Update entry in backend (session)
+      // TODO: Update entry in zustand (session)
       await updateEntry(selectedEntryId, updates);
       // selectedEntry will be automatically updated via useMemo when vaultContext changes
       setEditMode(false);
@@ -128,10 +146,20 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   };
 
   const handleDeleteEntry = async (entry: VaultEntry) => {
-    await withAuth((token) => {
-      return AppAPI.TrashEntry(entry.type, entry.id, token)
-    });
-    // console.log("🚀 ~ handleDeleteEntry ~ rawEntry:", rawEntry)
+    if(entry) {
+      console.log("🚀 ~ handleDeleteEntry ~ selectedEntry for delete:", entry)
+      const rawEntry = await withAuth((token) => {
+        return AppAPI.TrashEntry(
+          entry.type, 
+          {
+            id: entry.id,
+            ...entry,
+          },
+          token
+        )
+      });
+      console.log("🚀 ~ handleDeleteEntry ~ rawEntry:", rawEntry)
+    }
     await deleteEntry(entry.id);
     if (selectedEntryId === entry.id) {
       setSelectedEntryId(null);
@@ -139,10 +167,20 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   };
 
   const handleRestoreEntry = async (entry: VaultEntry) => {
-    await withAuth((token) => {
-      return AppAPI.RestoreEntry(entry.type, entry.id, token)
-    });
-    // console.log("🚀 ~ handleRestoreEntry ~ rawEntry:", rawEntry)
+    if(entry) {
+      console.log("🚀 ~ handleRestoreEntry ~ selectedEntry for restore:", entry)
+      const rawEntry = await withAuth((token) => {
+        return AppAPI.RestoreEntry(
+          entry.type, 
+          {
+            id: entry.id,
+            ...entry,
+          },
+          token
+        )
+      });
+      console.log("🚀 ~ handleRestoreEntry ~ rawEntry:", rawEntry)
+    }
     await restoreEntry(entry.id);
     if (selectedEntryId === entry.id) {
       setSelectedEntryId(null);
@@ -150,11 +188,20 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
   };
 
   const handleDeletePermanently = async (entry: VaultEntry) => {
-    // TODO: Implement permanent deletion via API (different from trash)
-    // const rawEntry = await withAuth((token) => {
-    //   return AppAPI.TrashEntry(entry.type, entry.id, token)
-    // });
-    // console.log("🚀 ~ handleDeleteEntry ~ rawEntry:", rawEntry)
+    if(entry) {
+      console.log("🚀 ~ handleDeletePermanently ~ selectedEntry for delete permanently:", entry)
+      const rawEntry = await withAuth((token) => {
+        return AppAPI.DeleteEntry(
+          entry.type, 
+          {
+            id: entry.id,
+            ...entry,
+          },
+          token
+        )
+      });
+      console.log("🚀 ~ handleDeletePermanently ~ rawEntry:", rawEntry)
+    }
     console.log('Delete permanently:', entry.id);
     await deleteEntry(entry.id);
     if (selectedEntryId === entry.id) {

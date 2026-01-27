@@ -27,7 +27,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	});
 	const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);	
 
-
 	const [recipients, setRecipients] = useState<Recipient[]>([]);
 
 	useEffect(() => {
@@ -81,7 +80,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
 	};
 
-
 	if (!entry) {
 		return (
 			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
@@ -109,6 +107,8 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
 	const handleChangeRole = (id: string, newRole: "viewer" | "read" | "editor" | "owner") => {
 		setRecipients(recipients.map(r => r.id === id ? { ...r, role: newRole } : r));
+		// call Ankhora cloud backend to update role
+		updateRecipients(entry.id, recipients);
 
 		toast({
 			title: "Role updated",

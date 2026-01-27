@@ -9,6 +9,7 @@ import {main} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
 import {vaults_domain} from '../models';
+import {share_application_dto} from '../models';
 import {share_domain} from '../models';
 import {models} from '../models';
 import {identity_domain} from '../models';
@@ -36,11 +37,15 @@ export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Pr
 
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
+export function CreateLinkShare(arg1:share_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
+
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.ShareEntry>;
 
 export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
 
-export function DeleteFolder(arg1:string,arg2:string,arg3:string):Promise<string>;
+export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function DeleteFolder(arg1:string,arg2:string):Promise<string>;
 
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
@@ -75,6 +80,10 @@ export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.
 export function InitStripe():Promise<void>;
 
 export function IsVaultDirty(arg1:string):Promise<boolean>;
+
+export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
+
+export function ListLinkSharesWithMe(arg1:string):Promise<any>;
 
 export function ListReceivedShares(arg1:string):Promise<any>;
 

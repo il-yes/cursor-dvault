@@ -6,13 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 	utils "vault-app/internal"
+	share_application_dto "vault-app/internal/application"
 	share_domain "vault-app/internal/domain/shared"
 	subscription_domain "vault-app/internal/subscription/domain"
+
+	"gorm.io/datatypes"
 )
 
 func (c *TracecoreClient) GetVault(ctx context.Context) ([]byte, error) {
@@ -23,26 +27,10 @@ func (c *TracecoreClient) GetVault(ctx context.Context) ([]byte, error) {
 	return resp.Data, err
 }
 
-func (c *TracecoreClient) SaveVault(ctx context.Context, encryptedVault []byte) error {
-	body := map[string][]byte{"data": encryptedVault}
-	return c.doRequest(ctx, "POST", "/api/vault", body, nil)
-}
-
 type WrappedResponse[T any] struct {
 	Result T   `json:"result"`
 	Error  any `json:"error"`
 }
-
-// Ensure these imports exist:
-//   "bytes"
-//   "context"
-//   "encoding/json"
-//   "errors"
-//   "fmt"
-//   "io"
-//   "net/http"
-//   "net/url"
-//   "strings"
 
 type wrappedResultUser struct {
 	Result *User       `json:"result"`
@@ -106,195 +94,21 @@ func (c *TracecoreClient) GetUserByEmail(ctx context.Context, email string) (*Us
 	return nil, ErrUserNotFound
 }
 
-type CloudShareRequest struct {
-	EntryName     string                     `json:"entry_name"`
-	EntryType     string                     `json:"entry_type"`
-	EntryRef      string                     `json:"entry_ref"`
-	Status        string                     `json:"status"`
-	AccessMode    string                     `json:"access_mode"`
-	Encryption    string                     `json:"encryption"`
-	EntrySnapshot share_domain.EntrySnapshot `json:"entry_snapshot"` // pass as object
-	ExpiresAt     *time.Time                 `json:"expires_at,omitempty"`
-	Recipients    []CloudRecipient           `json:"recipients"`
-	SharedAt      time.Time                  `json:"shared_at"`
-}
-type CloudRecipient struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Email    string    `json:"email"`
-	Role     string    `json:"role"`
-	JoinedAt time.Time `json:"joined_at"`
-}
-
-// implement the interface
-
-// CreateShare sends a share entry to the cloud backend
-func (c *TracecoreClient) CreateShare(ctx context.Context, s share_domain.ShareEntry) (*share_domain.ShareEntry, error) {
-	// Ensure SharedAt is set
-	if s.SharedAt.IsZero() {
-		s.SharedAt = time.Now().UTC()
-	}
-
-	// Convert recipients to cloud format
-	recipients := make([]CloudRecipient, len(s.Recipients))
-	for i, r := range s.Recipients {
-		recipients[i] = CloudRecipient{
-			ID:       r.Email, // cloud uses email as ID
-			Name:     r.Name,
-			Email:    r.Email,
-			Role:     r.Role,
-			JoinedAt: time.Now().UTC(), // pass time.Time, NOT string
-		}
-	}
-
-	// Build cloud payload
-	payload := CloudShareRequest{
-		EntryName:     s.EntryName,
-		EntryType:     s.EntryType,
-		EntryRef:      s.EntryRef,
-		Status:        s.Status,
-		AccessMode:    s.AccessMode,
-		Encryption:    s.Encryption,
-		EntrySnapshot: s.EntrySnapshot,
-		ExpiresAt:     s.ExpiresAt, // *time.Time, nullable
-		Recipients:    recipients,
-		SharedAt:      s.SharedAt,
-	}
-
-	
-    bodyBytes, _ := json.Marshal(payload)
-    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/shares", bytes.NewReader(bodyBytes))
-    req.Header.Set("Content-Type", "application/json")
-    if c.Token != "" {
-        req.Header.Set("Authorization", "Bearer "+c.Token)
-    }
-
-    resp, err := c.HTTPClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    respBytes, _ := io.ReadAll(resp.Body)
-    var cloudResp struct {
-        Data       json.RawMessage `json:"data"`
-        Status     string          `json:"status"`
-        StatusCode int             `json:"status_code"`
-        Message    string          `json:"message"`
-    }
-    if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-        return nil, fmt.Errorf("invalid cloud response: %w", err)
-    }
-
-    if cloudResp.Status != "ok" {
-        return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
-    }
-	utils.LogPretty("cloud response", cloudResp)
-
-    // unmarshal the data to domain struct
-    var created share_domain.ShareEntry
-    if err := json.Unmarshal(cloudResp.Data, &created); err != nil {
-        return nil, fmt.Errorf("invalid cloud data: %w", err)
-    }
-
-		utils.LogPretty("created", &created)	
-
-	return &created, nil
-}
-func (c *TracecoreClient) GetShareByMe(ctx context.Context) ([]share_domain.ShareEntry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/by-me", nil)
-	if err != nil {
-		return nil, err
-	}
-	utils.LogPretty("GetShareByMe - c.Token", c.Token)
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBytes, _ := io.ReadAll(resp.Body)
-
-	var cloudResp struct {
-		Data       json.RawMessage `json:"data"`
-		Status     string          `json:"status"`
-		StatusCode int             `json:"status_code"`
-		Message    string          `json:"message"`
-	}
-
-	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		return nil, fmt.Errorf("invalid cloud response: %w", err)
-	}
-	utils.LogPretty("cloud response", cloudResp)
-
-	if cloudResp.Status != "ok" {
-		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
-	}
-
-	var list []share_domain.ShareEntry
-	if err := json.Unmarshal(cloudResp.Data, &list); err != nil {
-		return nil, fmt.Errorf("invalid cloud data: %w", err)
-	}
-
-	return list, nil
-}
-func (c *TracecoreClient) GetShareWithMe(ctx context.Context) ([]share_domain.ShareEntry, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/with-me", nil)
-	if err != nil {
-		return nil, err
-	}
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBytes, _ := io.ReadAll(resp.Body)
-
-	var cloudResp struct {
-		Data       json.RawMessage `json:"data"`
-		Status     string          `json:"status"`
-		StatusCode int             `json:"status_code"`
-		Message    string          `json:"message"`
-	}
-
-	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		return nil, fmt.Errorf("invalid cloud response: %w", err)
-	}
-
-	if cloudResp.Status != "ok" {
-		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
-	}
-
-	var list []share_domain.ShareEntry
-	if err := json.Unmarshal(cloudResp.Data, &list); err != nil {
-		return nil, fmt.Errorf("invalid cloud data: %w", err)
-	}
-
-	return list, nil
-}
-
-
+// ---------------------------------------------------------
+// Payment Setup
+// ---------------------------------------------------------
 type PaymentSetupRequest struct {
-	PaymentIntentID       string                               `json:"payment_intent_id"`
-	Rail                  string                               `json:"rail"`
-	Wallet                string                               `json:"wallet"`	
-	Month                 int64                                `json:"month"`
-	TxHash                string                               `json:"tx_hash"`	
-	Email                 string 
+	PaymentIntentID       string `json:"payment_intent_id"`
+	Rail                  string `json:"rail"`
+	Wallet                string `json:"wallet"`
+	Month                 int64  `json:"month"`
+	TxHash                string `json:"tx_hash"`
+	Email                 string
 	FirstName             string                               `json:"first_name"`
 	LastName              string                               `json:"last_name"`
 	CardBrand             string                               `json:"card_brand"`
-	ExpiryMonth           string                                  `json:"exp_month"`
-	ExpiryYear            string                                  `json:"exp_year"`
+	ExpiryMonth           string                               `json:"exp_month"`
+	ExpiryYear            string                               `json:"exp_year"`
 	Currency              string                               `json:"currency"`
 	Amount                string                               `json:"amount"`
 	Plan                  string                               `json:"plan"`
@@ -316,33 +130,37 @@ type PaymentSetupResponse struct {
 	StatusCode int             `json:"status_code"`
 	Message    string          `json:"message"`
 }
+
+// ---------------------------------------------------------
+// Subscription
+// ---------------------------------------------------------
 func (c *TracecoreClient) SetupSubscription(ctx context.Context, payload PaymentSetupRequest) (*PaymentSetupResponse, error) {
 	bodyBytes, _ := json.Marshal(payload)
-    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/stripe", bytes.NewReader(bodyBytes))
-    req.Header.Set("Content-Type", "application/json")
-    if c.Token != "" {
-        req.Header.Set("Authorization", "Bearer "+c.Token)
-    }
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/stripe", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
-    resp, err := c.HTTPClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    respBytes, _ := io.ReadAll(resp.Body)
-    var cloudResp PaymentSetupResponse
-    if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-        return nil, fmt.Errorf("invalid cloud response: %w", err)
-    }
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp PaymentSetupResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
 
-    if cloudResp.Status != "ok" {
-        return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
-    }
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
 	utils.LogPretty("cloud response", cloudResp)
 
-    return &cloudResp, nil
-}	
+	return &cloudResp, nil
+}
 
 func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessionID string) (*subscription_domain.Subscription, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions?session_id="+sessionID, nil)
@@ -384,18 +202,53 @@ func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessio
 	return &sub, nil
 }
 
+// ---------------------------------------------------------
+//
+//	Crypto Share
+//
+// ---------------------------------------------------------
+type WrappedShare struct {
+	Data       CloudCryptographicShare  `json:"data"`
+	Recipients []share_domain.Recipient `json:"recipients"`
+}
+type CloudCryptographicShare struct {
+	ID               string
+	EncryptedPayload string // AES-256-GCM encrypted vault entry
+	SenderUserID     string
+	SenderEmail      string
+	SenderPublicKey  string // Stellar public key
+	CreatedAt        time.Time
+	RevokedAt        *time.Time
+	AccessMode       string
+	AccessLog        datatypes.JSON
+	Signature        string
 
+	Title           string         // optional
+	EntryType       string         // optional
+	DownloadAllowed bool           // optional
+	Metadata        datatypes.JSON // flexible extra info
+
+}
+type CryptoRecipient struct {
+	EncryptedKeys string     `json:"EncryptedKeys"`
+	Role          string     `json:"Role"`
+	RevokedAt     *time.Time `json:"RevokedAt"`
+}
 type ProdCreateCryptoShareRequest struct {
-	SenderID      string                 `json:"SenderID"`
-	Recipients    []string               `json:"Recipients"`
-	VaultPayload  string                 `json:"VaultPayload"`  // already encrypted
-	EncryptedKeys map[string]string      `json:"EncryptedKeys"` // userID -> encrypted key
-	Message       string                 `json:"Message"`
-	PublicKey     string                 `json:"PublicKey"`
-	Signature     string                 `json:"Signature"`
-	Title         string                 `json:"Title"`
-	EntryType     string                 `json:"EntryType"`
-	Metadata      map[string]interface{} `json:"Metadata,omitempty"`
+	SenderID      string                     `json:"SenderID"`
+	SenderEmail   string                     `json:"SenderEmail"`
+	Recipients    map[string]CryptoRecipient `json:"Recipients"`
+	VaultPayload  string                     `json:"VaultPayload"`  // already encrypted
+	EncryptedKeys map[string]string          `json:"EncryptedKeys"` // userID -> encrypted key
+	Message       string                     `json:"Message"`
+	PublicKey     string                     `json:"PublicKey"`
+	Signature     string                     `json:"Signature"`
+	Title         string                     `json:"Title"`
+	EntryType     string                     `json:"EntryType"`
+	Metadata      map[string]interface{}     `json:"Metadata,omitempty"`
+	AccessMode    string                     `json:"AccessMode"`
+	ExpiresAt    *time.Time                       `json:"ExpiresAt,omitempty"`
+	DownloadAllowed bool                       `json:"DownloadAllowed,omitempty"`
 }
 type ProdCreateCryptoShareResponse struct {
 	Data       json.RawMessage `json:"data"`
@@ -403,30 +256,309 @@ type ProdCreateCryptoShareResponse struct {
 	StatusCode int             `json:"status_code"`
 	Message    string          `json:"message"`
 }
-func (c *TracecoreClient) CreateCloudShare(ctx context.Context, payload ProdCreateCryptoShareRequest) (*ProdCreateCryptoShareResponse, error) {
+
+func (c *TracecoreClient) CreateShare(ctx context.Context, payload ProdCreateCryptoShareRequest) (*ProdCreateCryptoShareResponse, error) {
+	utils.LogPretty("TracecoreClient - CreateCloudShare - payload", payload)
 	bodyBytes, _ := json.Marshal(payload)
-    req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/shares/cryptographic", bytes.NewReader(bodyBytes))
-    req.Header.Set("Content-Type", "application/json")
-    if c.Token != "" {
-        req.Header.Set("Authorization", "Bearer "+c.Token)
-    }
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/shares/cryptographic", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
-    resp, err := c.HTTPClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    respBytes, _ := io.ReadAll(resp.Body)
-    var cloudResp ProdCreateCryptoShareResponse
-    if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-        return nil, fmt.Errorf("invalid cloud response: %w", err)
-    }
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp ProdCreateCryptoShareResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
 
-    if cloudResp.Status != "ok" {
-        return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
-    }
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - CreateCloudShare - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+// ---------------------------------------------------------
+// Get Share By Me
+// ---------------------------------------------------------
+func (c *TracecoreClient) GetShareByMe(ctx context.Context, email string) ([]share_domain.ShareEntry, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/by-me/"+email, nil)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("GetShareByMe - email", email)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	utils.LogPretty("GetShareByMe - respBytes", respBytes)
+	var cloudResp struct {
+		Data       []WrappedShare `json:"data"`
+		Status     string         `json:"status"`
+		StatusCode int            `json:"status_code"`
+		Message    string         `json:"message"`
+	}
+
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	utils.LogPretty("GetShareByMe - cloud response", cloudResp)
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	// convert to share_domain.ShareEntry
+	list := CryptoShareConvertor(cloudResp.Data)
+
+	return list, nil
+}
+
+// ---------------------------------------------------------
+// Get Share With Me
+// ---------------------------------------------------------
+func (c *TracecoreClient) GetShareWithMe(ctx context.Context, email string) ([]share_domain.ShareEntry, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/cryptographic/with-me/"+email, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+
+	var cloudResp struct {
+		Data       []WrappedShare `json:"data"`
+		Status     string         `json:"status"`
+		StatusCode int            `json:"status_code"`
+		Message    string         `json:"message"`
+	}
+
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	list := CryptoShareConvertor(cloudResp.Data)
+
+	return list, nil
+}
+
+// ---------------------------------------------------------
+//
+//	Link Share
+//
+// ---------------------------------------------------------
+type LinkShare struct {
+	ID        string    `json:"ID"`
+	Payload   string    `json:"Payload"`
+	CreatedAt time.Time `json:"CreatedAt"`
+
+	ExpiresAt *time.Time `json:"ExpiresAt"`
+	MaxViews  *int       `json:"MaxViews"`
+	ViewCount int        `json:"ViewCount"`
+
+	PasswordHash    *string `json:"PasswordHash"`
+	DownloadAllowed bool    `json:"DownloadAllowed"`
+
+	CreatorUserID string `json:"CreatorUserID"`
+	CreatorEmail  string `json:"CreatorEmail"`
+
+	Metadata Metadata `json:"Metadata"`
+}
+
+type Metadata struct {
+	EntryType string `json:"entry_type"`
+	Title     string `json:"title"`
+}
+
+func (l *LinkShare) ToWailsLinkShare() *WailsLinkShare {
+	var expiry string
+	if l.ExpiresAt != nil {
+		expiry = l.ExpiresAt.Format("2006-01-02")
+	} else {
+		expiry = "never"
+	}
+
+	var usesLeft int
+	if l.MaxViews != nil {
+		usesLeft = *l.MaxViews - l.ViewCount
+	} else {
+		usesLeft = -1 // infinite
+	}
+
+	var password string
+	if l.PasswordHash != nil {
+		password = *l.PasswordHash
+	}
+
+	return &WailsLinkShare{
+		ID:            l.ID,
+		EntryName:     l.Metadata.Title,
+		Status:        "active",
+		Expiry:        expiry,
+		UsesLeft:      usesLeft,
+		Link:          "https://ankhora.app/shares/" + l.ID,
+		AuditLog:      nil,
+		Payload:       l.Payload,
+		AllowDownload: l.DownloadAllowed,
+		Password:      password,
+	}
+}
+
+type WailsLinkShare struct {
+	ID            string        `json:"id"`
+	EntryName     string        `json:"entry_name"`
+	Status        string        `json:"status"`
+	Expiry        string        `json:"expiry"`
+	UsesLeft      int           `json:"uses_left"`
+	Link          string        `json:"link"`
+	AuditLog      []interface{} `json:"audit_log"`
+	Payload       string        `json:"payload"`
+	AllowDownload bool          `json:"allow_download"`
+	Password      string        `json:"password"`
+}
+
+type CreateLinkShareResponse struct {
+	Data       LinkShare `json:"data"`
+	Status     string    `json:"status"`
+	StatusCode int       `json:"status_code"`
+	Message    string    `json:"message"`
+}
+type LinkShareResponse struct {
+	Data       []LinkShare `json:"data"`
+	Status     string      `json:"status"`
+	StatusCode int         `json:"status_code"`
+	Message    string      `json:"message"`
+}
+
+func (c *TracecoreClient) CreateLinkShare(ctx context.Context, sh share_application_dto.LinkShareCreateRequest) (*CreateLinkShareResponse, error) {
+	bodyBytes, _ := json.Marshal(sh)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/shares/link", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp CreateLinkShareResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
 	utils.LogPretty("cloud response", cloudResp)
 
-    return &cloudResp, nil
+	return &cloudResp, nil
+}
+
+func (c *TracecoreClient) ListLinkSharesByMe(ctx context.Context, email string) (*LinkShareResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/link/by-me/"+email, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	utils.LogPretty("ListLinkSharesByMe - respBytes", respBytes)
+	var cloudResp LinkShareResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		log.Printf("invalid cloud response: %v", err)
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	utils.LogPretty("ListLinkSharesByMe - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+func (c *TracecoreClient) ListLinkSharesWithMe(ctx context.Context, email string) (*LinkShareResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/shares/link/with-me/"+email, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp LinkShareResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		log.Printf("invalid cloud response: %w", err)
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	utils.LogPretty("ListLinkSharesWithMe - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+// ---------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------
+func CryptoShareConvertor(cloudResp []WrappedShare) []share_domain.ShareEntry {
+	var list []share_domain.ShareEntry
+	for _, v := range cloudResp {
+		list = append(list, share_domain.ShareEntry{
+			ID:               v.Data.ID,
+			OwnerID:          v.Data.SenderUserID,
+			EntryName:        v.Data.Title,
+			EntryType:        v.Data.EntryType,
+			EntryRef:         v.Data.ID,
+			Status:           "ok",
+			AccessMode:       "cryptographic",
+			AccessLog:        v.Data.AccessLog,
+			Encryption:       "aes-256-gcm",
+			EncryptedPayload: v.Data.EncryptedPayload,
+			Recipients:       v.Recipients,
+			ExpiresAt:        nil,
+			SharedAt:         v.Data.CreatedAt,
+			CreatedAt:        v.Data.CreatedAt,
+		})
+	}
+	return list
 }

@@ -10,10 +10,12 @@ export default function ShareEntries() {
 
   const sharedByMe = useVaultStore(state => state.shared.items);
   const sharedWithMe = useVaultStore(state => (state as any).sharedWithMe?.items || []); // existing store slice
+  const typeFilter = new URLSearchParams(location.search).get("type") || "link";
+  const scopeFilter = new URLSearchParams(location.search).get("scope") || "byme";
   const urlFilter = new URLSearchParams(location.search).get("filter") || "all";
 
   // Choose data source based on tab
-  const tab = urlFilter === "withme" ? "withme" : "byme";
+  const tab = scopeFilter    // urlFilter === "withme" ? "withme" : "byme";
 
   const baseList = tab === "byme" ? sharedByMe : sharedWithMe;
 

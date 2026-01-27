@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -176,7 +175,6 @@ func TestLoginHandlerTrashEntryNotFound(t *testing.T) {
 func newTestLoginHandler() *LoginHandler {
 	return NewLoginHandler(
 		models.DBModel{},
-		blockchain.IPFSClient{},
 		logger.New(logger.ERROR),
 	)
 }

@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.8
 
 require (
+	filippo.io/edwards25519 v1.1.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
@@ -23,7 +24,6 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect

@@ -1,3 +1,4 @@
+import { VaultEntry } from "./vault";
 
 export interface AuditEvent {
   id: string;
@@ -93,6 +94,7 @@ export interface Recipient {
   share_id: string;  // backend-generated
   name: string;
   email: string;
+  public_key: string;
   role: "viewer" | "read" | "editor" | "owner";
   joined_at?: string;  // backend-generated
   created_at?: string;
@@ -116,8 +118,32 @@ export interface CreateShareEntryPayload {
   recipients: {
     name: string;
     email: string;
+    public_key: string;
     role: "viewer" | "editor";
   }[];
   expires_at?: string | null;
+  download_allowed?: boolean;
 }
-
+export interface LinkShareEntry {
+  id: string;
+  entry_name: string;
+  status: "active" | "pending"  | "expired" | "revoked";    
+  expiry: string;
+  uses_left: number;
+  link: string;
+  audit_log: AuditEvent[];
+  payload?: string;
+  allow_download?: boolean;
+  password?: string;
+}
+export interface CreateLinkShareEntryPayload {
+  payload: VaultEntry;
+  expires_at: string;
+  max_views: number;
+  creator_user_id: string;
+  creator_email: string;
+  entry_type: string;
+  title: string;
+  download_allowed?: boolean;
+  password?: string;
+} 

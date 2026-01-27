@@ -3,7 +3,6 @@ package vault_ui
 import (
 	"fmt"
 	"time"
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"
@@ -14,17 +13,15 @@ import (
 
 type IdentityHandler struct {
 	db     models.DBModel
-	ipfs   blockchain.IPFSClient
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  *vaults_domain.VaultPayload
 	Session *vault_session.Session
 }
 
-func NewIdentityHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *IdentityHandler {
+func NewIdentityHandler(db models.DBModel, log *logger.Logger) *IdentityHandler {
 	return &IdentityHandler{
 		db:     db,
-		ipfs:   ipfs,
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
@@ -40,8 +37,6 @@ func (h *IdentityHandler) Add(userID string, anEntry any) (*vaults_domain.VaultP
 	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	h.Vault.Entries.Identity = append(h.Vault.Entries.Identity, *entry)
-	// session.LastUpdated = h.NowUTC()
-	// session.Dirty = true
 
 	h.logger.Info("✅ Added identity entry for user %s: %s\n", userID, entry.EntryName)
 
@@ -62,7 +57,6 @@ func (h *IdentityHandler) Edit(userID string, entry any) (*vaults_domain.VaultPa
 
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
-			// Update the fields (you could also do a full replace)
 			entries[i] = *updatedEntry
 			updated = true
 			break
@@ -74,10 +68,8 @@ func (h *IdentityHandler) Edit(userID string, entry any) (*vaults_domain.VaultPa
 	}
 
 	h.Vault.Entries.Identity = entries
-	// h.MarkDirty(userID)
 
 	h.logger.Info("✏️ Updated identity entry for user %s: %s\n", userID, updatedEntry.EntryName)
-	// utils.LogPretty("session after update", session)
 
 	return h.Vault, nil
 }
@@ -95,8 +87,6 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string
 	for i, entry := range h.Vault.Entries.Identity {
 		if entry.ID == entryID {
 			h.Vault.Entries.Identity[i].Trashed = trashed
-			// h.MarkDirty(userID)
-
 			state := "restored"
 			if trashed {
 				state = "trashed"

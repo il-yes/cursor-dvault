@@ -29,37 +29,37 @@ func NewRecoverVaultUseCase(
 
 
 func (uc *RecoverVaultUseCase) Execute(ctx context.Context, secret string) (*stellar_recovery_domain.RecoveredVault, error) {
-	// Parse public key
+	// 1. -------------- Parse public key --------------
 	pub, err := uc.verifier.ParseSecret(secret)
 	if err != nil {
 		return nil, stellar_recovery_domain.ErrInvalidKey
 	}
 
-	// Lookup user
+	// 2. -------------- Lookup user --------------
 	user, err := uc.users.GetByStellarPublicKey(ctx, pub)
 	if err != nil || user == nil {
 		return nil, stellar_recovery_domain.ErrUserNotFound
 	}
 
-	// Verify ownership (throws error if verification fails)
+	// 3. -------------- Verify ownership --------------
 	if err := uc.verifier.VerifyOwnership(secret, user.StellarPublicKey); err != nil {
 		return nil, stellar_recovery_domain.ErrKeyVerification
 	}
 
-	// Load vault
+	// 4. -------------- Load vault --------------
 	vault, err := uc.vaults.GetByUserID(ctx, user.ID)
 	if err != nil || vault == nil {
 		return nil, stellar_recovery_domain.ErrVaultNotFound
 	}
 
-	// Optionally load subscription
+	// 5. -------------- Optionally load subscription --------------
 	sub, _ := uc.subs.GetActiveByUserID(ctx, user.ID)
 
-	// Publish domain event
+	// 6. -------------- Publish domain event --------------
 	evt := stellar_recovery_domain.NewVaultRecovered(user.ID, vault.ID, pub)
 	_ = uc.events.Dispatch(evt)
 
-	// Generate session token
+	// 7. -------------- Generate session token --------------
 	token, _ := uc.tokenGen.NewSessionToken(user.ID)
 
 	return &stellar_recovery_domain.RecoveredVault{

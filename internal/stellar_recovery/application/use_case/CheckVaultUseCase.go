@@ -29,6 +29,7 @@ type CheckKeyResult struct {
 }
 
 func (uc *CheckKeyUseCase) Execute(ctx context.Context, pub string) (*CheckKeyResult, error) {
+	// 1. -------------- Validate public key --------------
 	// pub, err := uc.verifier.ParseSecret(secret)
 	if pub == "" {
 		// invalid secret format -> return VaultExists false and the parsed public key empty
@@ -38,6 +39,7 @@ func (uc *CheckKeyUseCase) Execute(ctx context.Context, pub string) (*CheckKeyRe
 		}, nil
 	}
 
+	// 2. -------------- Check if user exists --------------
 	user, err := uc.users.GetByStellarPublicKey(ctx, pub)
 	if err != nil {
 		// no user found -> vault does not exist
@@ -47,8 +49,11 @@ func (uc *CheckKeyUseCase) Execute(ctx context.Context, pub string) (*CheckKeyRe
 		}, nil
 	}
 
+	// 3. -------------- Get vault and subscription --------------
 	vault, _ := uc.vaults.GetByUserID(ctx, user.ID)
 	sub, _ := uc.subs.GetActiveByUserID(ctx, user.ID)
+
+	// 4. -------------- Fires Checked Vault Event --------------
 
 	return &CheckKeyResult{
 		VaultExists: true,

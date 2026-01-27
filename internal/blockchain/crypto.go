@@ -5,11 +5,15 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
 
+	"filippo.io/edwards25519"
+	"github.com/stellar/go/strkey"
 	"golang.org/x/crypto/hkdf"
+	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/scrypt"
 )
 const (
@@ -208,6 +212,103 @@ func (c *CryptoService) Encrypt(data []byte, password string) ([]byte, error) {
 	final = append(final, ciphertext...)
 	return final, nil
 }
+
+
+type CryptoPayload struct {
+	Encrypted []byte
+	Decrypted string
+}
+
+func (e *CryptoPayload) ToString() string {
+	if e.Decrypted != "" {
+		return e.Decrypted
+	}
+	return base64.StdEncoding.EncodeToString(e.Encrypted)
+}
+// GenerateSymmetricKey returns a 32‑byte AES key encoded as base64 string.
+func (c *CryptoService) GenerateSymmetricKey() []byte {
+	symKey := make([]byte, 32)
+	_, err := rand.Read(symKey)
+	Must(err)
+
+	return symKey
+}
+// -------------------------------------
+// Helper functions
+// -------------------------------------
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+// -------------------------------------
+// AES
+// -------------------------------------
+func (c *CryptoService) AESEncrypt(plain []byte, key []byte) CryptoPayload {
+	block, err := aes.NewCipher(key)
+	Must(err)
+
+	gcm, err := cipher.NewGCM(block)
+	Must(err)
+
+	nonce := make([]byte, gcm.NonceSize())
+	_, err = rand.Read(nonce)
+	Must(err)
+
+	return CryptoPayload{
+		Encrypted: append(nonce, gcm.Seal(nil, nonce, plain, nil)...),
+	}
+}
+
+func (c *CryptoService) AESDecrypt(enc []byte, key []byte) CryptoPayload {
+	block, err := aes.NewCipher(key)
+	Must(err)
+
+	gcm, err := cipher.NewGCM(block)
+	Must(err)
+
+	nonce := enc[:gcm.NonceSize()]
+	ciphertext := enc[gcm.NonceSize():]
+
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	Must(err)
+	return CryptoPayload{
+		Encrypted: enc,
+		Decrypted: string(plain),
+	}
+}
+
+// -------------------------------------
+// Box
+// -------------------------------------	
+func (c *CryptoService) EncryptPayload(pub string, symKey []byte) CryptoPayload {
+	edPub, err := strkey.Decode(strkey.VersionByteAccountID, pub)
+	Must(err)
+
+	curvePub := Ed25519PubToCurve(edPub)
+
+	encKey, err := box.SealAnonymous(nil, symKey, curvePub, rand.Reader)
+	Must(err)
+
+	return CryptoPayload{
+		Encrypted: encKey,
+	}
+}
+
+// -------------------------------------
+// ED25519 → CURVE25519
+// -------------------------------------
+// PUBLIC (used for encryption)
+func Ed25519PubToCurve(pub []byte) *[32]byte {
+	var out [32]byte
+	p, err := new(edwards25519.Point).SetBytes(pub)
+	Must(err)
+	copy(out[:], p.BytesMontgomery())
+	return &out
+}
+
+
+
 
 // -----------------------------
 // V1 Crypto
@@ -409,3 +510,4 @@ func DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSec
 
 	return string(plaintext), nil
 }
+

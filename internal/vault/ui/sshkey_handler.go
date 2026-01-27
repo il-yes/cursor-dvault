@@ -3,7 +3,6 @@ package vault_ui
 import (
 	"fmt"
 	"time"
-	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"
@@ -14,17 +13,15 @@ import (
 
 type SSHKeyHandler struct {
 	db     models.DBModel
-	ipfs   blockchain.IPFSClient
 	logger *logger.Logger
 	NowUTC func() string
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session
 }
 
-func NewSSHKeyHandler(db models.DBModel, ipfs blockchain.IPFSClient, log *logger.Logger) *SSHKeyHandler {
+func NewSSHKeyHandler(db models.DBModel, log *logger.Logger) *SSHKeyHandler {
 	return &SSHKeyHandler{
 		db:     db,
-		ipfs:   ipfs,
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
@@ -37,8 +34,6 @@ func (h *SSHKeyHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPay
 	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	h.Vault.Entries.SSHKey = append(h.Vault.Entries.SSHKey, *entry)
-	// session.LastUpdated = h.NowUTC()
-	// session.Dirty = true
 
 	h.logger.Info("✅ Added ssh key entry for user %s: %s\n", userID, entry.EntryName)
 
@@ -56,7 +51,6 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayl
 
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
-			// Update the fields (you could also do a full replace)
 			entries[i] = *updatedEntry
 			updated = true
 			break
@@ -68,8 +62,6 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayl
 	}
 
 	h.Vault.Entries.SSHKey = entries
-	// h.MarkDirty(userID)
-
 	h.logger.Info("✏️ Updated ssh key entry for user %s: %s\n", userID, updatedEntry.EntryName)
 
 	return &h.Vault, nil
@@ -85,8 +77,6 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, tr
 	for i, entry := range h.Vault.Entries.SSHKey {
 		if entry.ID == entryID {
 			h.Vault.Entries.SSHKey[i].Trashed = trashed
-			// h.MarkDirty(userID)
-
 			state := "restored"
 			if trashed {
 				state = "trashed"

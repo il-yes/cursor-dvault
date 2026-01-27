@@ -24,12 +24,13 @@
  */
 import { LoginRequest, User, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_application_dto } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
+import { CreateLinkShareEntryPayload, LinkShareEntry } from "@/types/sharing";
 
 export interface CheckoutPayload {
   amount: number;
@@ -450,10 +451,11 @@ export async function getVaultContext(): Promise<any> {
  */
 export async function createSharedEntry(payload: {
   entry_id: string;
-  recipients: { name: string; email: string; role: string }[];
+  recipients: { name: string; email: string; role:'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
   permission: 'read' | 'edit' | 'temporary';
-  expiration_date?: string;
+  expires_at?: string;
   custom_message?: string;
+  download_allowed?: boolean; 
 }): Promise<any> {
   try {
     const jwtToken = useAuthStore.getState().jwtToken;
@@ -481,13 +483,15 @@ export async function createSharedEntry(payload: {
       status: "active",
       access_mode: payload.permission === 'edit' ? 'edit' : 'read',
       encryption: "AES-256-GCM",
-      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
-      expires_at: payload.expiration_date || "",
+      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),  
+      expires_at: payload.expires_at || "",
       recipients: payload.recipients.map(r => ({
         name: r.name,
         email: r.email,
         role: r.role,
+        public_key: r.publicKey,
       })),
+      download_allowed: payload.download_allowed || false,
     });
 
     // Wails backend is exposed via the global App object
@@ -507,29 +511,116 @@ export async function createSharedEntry(payload: {
     throw err;
   }
 }
+type CreateLinkShareEntryResponse = {
+  data: LinkShareEntry;
+  status: string;
+  error: string;
+  code: string;
+}
+export async function createLinkShareEntry(payload: CreateLinkShareEntryPayload): Promise<CreateLinkShareEntryResponse> {
+  try {
+    const jwtToken = useAuthStore.getState().jwtToken;
+    const request = new share_application_dto.LinkShareCreateRequest({
+      payload: JSON.stringify(payload.payload),
+      expires_at: payload.expires_at,
+      max_views: payload.max_views,
+      download_allowed: payload.download_allowed || false,
+      creator_email: payload.creator_email,
+      entry_type: payload.entry_type,
+      title: payload.title,
+      password: payload.password,
+    });
+    const result: main.CreateLinkShareOutput = await AppAPI.CreateLinkShare(request, jwtToken);
+    console.log("CreateLinkShareEntry result:", result);
 
+    // convert mainn.LinkShare to wails.LinkShare
+    const backendLinkShare = result.data;
+    const linkShare: LinkShareEntry = {
+      id: backendLinkShare.ID,
+      entry_name: backendLinkShare.Metadata.Title,
+      status: "active",
+      expiry: backendLinkShare.ExpiresAt,
+      uses_left: backendLinkShare.MaxViews - backendLinkShare.ViewCount,
+      link: `https://ankhora.app/share/${backendLinkShare.ID}`,
+      audit_log: [],
+      payload: backendLinkShare.Payload,
+      allow_download: backendLinkShare.DownloadAllowed,
+    };
+
+    return {
+      data: linkShare,
+      status: result.status,
+      error: result.error,
+      code: result.code,
+    };
+  } catch (err) {
+    console.error("Failed to create link share entry:", err);
+    throw err;
+  }
+}
+
+// Cryptographic share by me
 export async function listSharedEntries(): Promise<any> {
   try {
     const jwtToken = useAuthStore.getState().jwtToken;
-    console.log("jwtToken:", jwtToken);
     const result = await AppAPI.ListSharedEntries(jwtToken);
     console.log("Listed shared by me:", result);
     return result;
   } catch (err) {
     console.error("Failed to list shared entries:", err);
-    throw err;
+    // throw err;
   }
 }
+// Cryptographic share with me
 export async function listSharedWithMe(): Promise<any> {
   try {
     const jwtToken = useAuthStore.getState().jwtToken;
-    console.log("jwtToken:", jwtToken);
     const result = await AppAPI.ListReceivedShares(jwtToken);
     console.log("Listed shared with me:", result);
     return result;
   } catch (err) {
     console.error("Failed to list shared entries:", err);
+    // throw err;
+  }
+}
+
+
+// Link share by me
+export async function listLinkSharesByMe(): Promise<LinkShareEntry[]> {
+  try {
+    const jwtToken = useAuthStore.getState().jwtToken;
+    const result: any = await AppAPI.ListLinkSharesByMe(jwtToken);
+    console.log("Listed link shares by me:", result);
+
+    if (result && result.data) {
+      return result.data.map((item: any) => ({
+        id: item.id,
+        entry_name: item.entry_name,
+        status: item.status as LinkShareEntry['status'],
+        expiry: item.expiry,
+        uses_left: item.uses_left,
+        link: item.link,
+        audit_log: item.audit_log || [],
+        payload: item.payload,
+        allow_download: item.allow_download,
+        password: item.password,
+      }));
+    }
+    return [];
+  } catch (err) {
+    console.error("Failed to list link shares by me:", err);
     throw err;
+  }
+}
+// Link share with me
+export async function listLinkSharesWithMe(): Promise<any> {
+  try {
+    const jwtToken = useAuthStore.getState().jwtToken;
+    const result = await AppAPI.ListLinkSharesWithMe(jwtToken);
+    console.log("Listed link shares with me:", result);
+    return result;
+  } catch (err) {
+    console.error("Failed to list link shares with me:", err);
   }
 }
 
@@ -682,8 +773,8 @@ type PaymentSetupRequest = {
   exp: string;
   cvc: string;
   exp_month: string;
-  exp_year: string; 
-  last_four: string;  
+  exp_year: string;
+  last_four: string;
   currency: string;
   amount: string;
   plan: string;
@@ -881,3 +972,22 @@ export const StellarAsksForChallenge = async (stellarKey: string) => {
 
   return { publicKey, signature, challenge };
 }
+type GenerateApiKeyInput = {
+  password: string;
+  jwtToken: string;
+}
+type GenerateApiKeyResponse = {
+  public_key: string;
+  private_key: string;
+}
+export const GenerateApiKey = async (payload: GenerateApiKeyInput): Promise<GenerateApiKeyResponse> => {
+  alert('ok')
+  const response = await AppAPI.GenerateApiKey(payload);
+  console.log({ response })
+
+  // if (!response.ok) {
+  //   throw new Error(`Failed to generate API key: ${response.statusText}`);
+  // }
+
+  return response;
+};

@@ -6,6 +6,7 @@ import (
 	vault_events "vault-app/internal/vault/application/events"
 	vault_session "vault-app/internal/vault/application/session"
 	vault_domain "vault-app/internal/vault/domain"
+	app_config_ui "vault-app/internal/config/ui"
 )
 
 // -------- REQUESTS --------
@@ -22,7 +23,7 @@ type AttachVaultRequest struct {
 
 // -------- INTERFACES --------
 type VaultHandlerInterface interface {
-	Open(ctx context.Context, req OpenVaultCommand) (*OpenVaultResult, error)
+	Open(ctx context.Context, req OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*OpenVaultResult, error)
 	SessionAttachVault(ctx context.Context, req AttachVaultRequest) error
 }
 

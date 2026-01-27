@@ -27,19 +27,39 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	});
 	const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);	
 
-
 	const [recipients, setRecipients] = useState<Recipient[]>([]);
 
 	useEffect(() => {
 		setRecipients(entry?.recipients || []);
 	}, [entry?.id]);
 
+	const getPublicKey = async (email: string) => {
+		const response = await fetch(`http://localhost:4001/api/check-email?email=${email}`, {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		});
+		const data = await response.json();
+		console.log({data});
+		return data.public_key;
+	};
 
+	const handleAddRecipient = async () => {
+		// TODO: get public key from cloud backend
+		const publicKey = await getPublicKey(newRecipient.email);
+		if (!publicKey) {
+			toast({
+				title: "Error",
+				description: "No public key found for this email",
+			});
+			return;
+		}
 
-	const handleAddRecipient = () => {
 		const recipient: Recipient = {
 			id: `rec-${Date.now()}`,
 			share_id: entry.id,
+			public_key: publicKey,
 			...newRecipient,
 			joined_at: new Date().toISOString(),
 		};
@@ -59,7 +79,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		});
 
 	};
-
 
 	if (!entry) {
 		return (
@@ -88,6 +107,8 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
 	const handleChangeRole = (id: string, newRole: "viewer" | "read" | "editor" | "owner") => {
 		setRecipients(recipients.map(r => r.id === id ? { ...r, role: newRole } : r));
+		// call Ankhora cloud backend to update role
+		updateRecipients(entry.id, recipients);
 
 		toast({
 			title: "Role updated",

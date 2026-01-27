@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 	utils "vault-app/internal"
+	share_application_dto "vault-app/internal/application"
 	share_application "vault-app/internal/application/use_cases"
 	"vault-app/internal/auth"
 	auth_usecases "vault-app/internal/auth/application/use_cases"
@@ -21,6 +22,7 @@ import (
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
@@ -93,6 +95,7 @@ type config struct {
 	JWTIssuer   string
 	JWTAudience string
 	APIKey      string
+	ANCHORA_SECRET string
 }
 
 type App struct {
@@ -105,16 +108,17 @@ type App struct {
 	NowUTC   func() string
 
 	// Core handlers
-	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
-	Identity                  *identity_ui.IdentityHandler
-	AuthHandler               *auth_ui.AuthHandler
-	Vault                     *vault_ui.VaultHandler
-	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
-	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
-	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
-	Vaults                    *handlers.VaultHandler
+	AppConfigHandler          *app_config_ui.AppConfigHandler
 	Auth                      *handlers.AuthHandler
+	AuthHandler               *auth_ui.AuthHandler
+	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
 	EntryRegistry             *registry.EntryRegistry
+	Identity                  *identity_ui.IdentityHandler
+	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
+	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
+	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
+	Vault                     *vault_ui.VaultHandler
+	Vaults                    *handlers.VaultHandler
 
 	// New: Global state
 	// RuntimeContext *models.VaultRuntimeContext
@@ -126,12 +130,16 @@ type App struct {
 func NewApp() *App {
 	startTime := time.Now()
 
+	// -----------------------------------
+	// Initialize
+	// -----------------------------------
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
 	cfg := loadConfig()
+	utils.LogPretty("cfg", cfg)
 
 	// Use auto-init from env
 	appLogger := logger.NewFromEnv()
@@ -221,30 +229,30 @@ func NewApp() *App {
 		{
 			Type:    "login",
 			Factory: func() models.VaultEntry { return &vaults_domain.LoginEntry{} },
-			Handler: vault_ui.NewLoginHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewLoginHandler(*db, appLogger),
 		},
 		{
 			Type:    "card",
 			Factory: func() models.VaultEntry { return &vaults_domain.CardEntry{} },
-			Handler: vault_ui.NewCardHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewCardHandler(*db, appLogger),
 		},
 		{
 			Type:    "note",
 			Factory: func() models.VaultEntry { return &vaults_domain.NoteEntry{} },
-			Handler: vault_ui.NewNoteHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewNoteHandler(*db, appLogger),
 		},
 		{
 			Type:    "identity",
 			Factory: func() models.VaultEntry { return &vaults_domain.IdentityEntry{} },
-			Handler: vault_ui.NewIdentityHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewIdentityHandler(*db, appLogger),
 		},
 		{
 			Type:    "sshkey",
 			Factory: func() models.VaultEntry { return &vaults_domain.SSHKeyEntry{} },
-			Handler: vault_ui.NewSSHKeyHandler(*db, *ipfs, appLogger),
+			Handler: vault_ui.NewSSHKeyHandler(*db, appLogger),
 		},
 	})
-
+	// Legacy vault handler
 	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tcClient, *runtimeCtx)
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
 	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tcClient, cfg.auth, onboardingUserRepo)
@@ -305,6 +313,9 @@ func NewApp() *App {
 	authRepository := auth_persistence.NewGormAuthRepository(db.DB)
 	authTokenService := auth_usecases.NewTokenService(authV2, authRepository, db.DB)
 
+	// AppConfig
+	appConfigHandler := app_config_ui.NewAppConfigHandler(db.DB, *appLogger)
+
 	// Vault
 	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB)
 
@@ -351,9 +362,9 @@ func NewApp() *App {
 		}()
 	*/
 	go func() {
-		dbV1 := vaults_persistence.NewDBModel(db.DB)
+		sessionDBModel := vaults_persistence.NewSessionDBModel(db.DB)
 		appLogger.Info("🔄 Restoring sessions in background...")
-		storedSessions, err := dbV1.GetAllSessionsV1()
+		storedSessions, err := sessionDBModel.FindAll()
 		if err != nil {
 			appLogger.Error("❌ Failed to load stored sessions: %v", err)
 			return
@@ -424,25 +435,26 @@ func NewApp() *App {
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
-		config:                 cfg,
-		version:                version,
-		DB:                     *db,
-		StellarRecoveryHandler: stellarRecoveryHandler,
-		AuthHandler:            authHandler,
-		Identity:               identityHandler,
-		Vault:                  vaultHandler,
-		OnBoardingHandler:      onBoardingHandler,
-		SubscriptionHandler:    subscriptionHandler,
-		Vaults:                 vaults,
+		AppConfigHandler:       appConfigHandler,
 		Auth:                   auth,
-		Logger:                 *appLogger,
+		AuthHandler:            authHandler,
+		cancel:                    cancel,
+		ConnectWithStellarHandler: stellarRecoveryHandler,
+		config:                 cfg,
+		DB:                     *db,
 		EntryRegistry:          reg,
+		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
+		Identity:               identityHandler,
+		Logger:                 *appLogger,
+		OnBoardingHandler:      onBoardingHandler,
 		sessions:               sessions,
+		StellarRecoveryHandler: stellarRecoveryHandler,
+		SubscriptionHandler:    subscriptionHandler,
 		RuntimeContext:         runtimeCtx,
 		// RuntimeContextV2:          runtimeCtxV2,
-		cancel:                    cancel,
-		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
-		ConnectWithStellarHandler: stellarRecoveryHandler,
+		Vault:                  vaultHandler,  // internal/vault/ui/vault_handler.go
+		Vaults:                 vaults,        // internal/handlers/vault_handler.go
+		version:                version,
 	}
 
 }
@@ -461,21 +473,6 @@ func (a *App) CheckPaymentOnResume() {
 func (a *App) NotifyPaymentSuccess(subID string) {
 	a.Logger.Info("✅ Subscription created successfully: %v", subID)
 	runtime.EventsEmit(a.ctx, "payment:success", subID)
-}
-
-// Initialize Stripe secret key
-func (a *App) InitStripe() {
-	stripe.Key = os.Getenv("STRIPE_SECRET")
-	if stripe.Key == "" {
-		log.Fatal("❌ STRIPE_SECRET missing in .env")
-	}
-	log.Println("✅ Stripe initialized")
-}
-
-// Response with session ID
-type CreateCheckoutResponse struct {
-	SessionID string `json:"sessionId"`
-	URL       string `json:"url"`
 }
 
 // -----------------------------
@@ -569,16 +566,25 @@ func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest
 	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
 }
 
-// -----------------------------
-// OnBoarding - V2
-// -----------------------------
+// Response with session ID
+type CreateCheckoutResponse struct {
+	SessionID string `json:"sessionId"`
+	URL       string `json:"url"`
+}
+
 // GetCheckoutURL returns the cloud backend checkout page URL
 func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
+	// -----------------------------
+	// 0. Generate Session ID
+	// -----------------------------
 	sessionID := uuid.New().String()
 
+	// -----------------------------
+	// 1. Generate Checkout URL
+	// -----------------------------
 	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
 	url := baseURL + sessionID
-	fmt.Println("Checkout URL - backend:", url)
+
 	res := CreateCheckoutResponse{
 		SessionID: sessionID,
 		URL:       url,
@@ -587,22 +593,21 @@ func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
 }
 
 func (a *App) OpenURL(rawURL string) error {
-	log.Println("🔗 Deep link received:", rawURL)
 	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil
 }
 
 // Poll backend for payment status
 func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string, error) {
-	fmt.Println("🔁 Polling session:", sessionID)
-
+	// 0. ------------- Poll backend for payment status -----------------
+	// fmt.Println("🔁 Polling session:", sessionID)
 	url := "http://localhost:4001/api/payment-status/" + sessionID
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
+	// 1. ------------- Check response status -------------
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("poll failed %d: %s", resp.StatusCode, string(body))
@@ -615,6 +620,7 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 		return "", err
 	}
 
+	// 2. 	------------- Check payment status -------------
 	if r.Status == "paid" {
 		go func() {
 			if err := a.OnPaymentConfirmation(sessionID, plainPassword); err != nil {
@@ -630,14 +636,14 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 
 func (a *App) OnPaymentConfirmation(sessionID string, plainPassword string) error {
 	log.Println("Deep link received:", sessionID)
-
+	// 0. ------------- OnPaymentConfirmation -------------
 	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, plainPassword)
 	if err != nil {
 		return err
 	}
 	a.Logger.Info("✅ Subscription created successfully: %v", response)
 
-	// Notify frontend
+	// 1. ------------- Notify frontend -------------
 	runtime.EventsEmit(a.ctx, "payment:success", response.Subscription)
 	return nil
 }
@@ -739,6 +745,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*handlers.LoginResp
 			Password: req.Password,
 			Session:  session,
 		},
+		*a.AppConfigHandler,
 	)
 	if err != nil {
 		return nil, err
@@ -781,11 +788,9 @@ type GetSessionResponse struct {
 }
 
 func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
-	utils.LogPretty("App - GetSession - userID", userID)
 	if a.Vault.SessionManager == nil {
 		return &GetSessionResponse{Error: errors.New("session manager not initialized")}, nil
 	}
-	utils.LogPretty("App - GetSession - userID", userID)
 
 	userSession, err := a.Vault.GetSession(userID)
 	if err != nil {
@@ -843,7 +848,6 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 // Vault Crud
 // -----------------------------
 func (a *App) GetVault(userID string) (map[string]interface{}, error) {
-	utils.LogPretty("App - GetVault - userID", userID)
 	user, err := a.Identity.FindUserById(a.ctx, userID)
 	if err != nil {
 		return nil, err
@@ -870,7 +874,6 @@ func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (
 		a.Logger.Error("App - AddEntry - error: %v", err)
 		return nil, err
 	}
-	a.Logger.Info("App - AddEntry - auth passed", claims)
 	res, err := a.Vault.AddEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -884,7 +887,6 @@ func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) 
 	if err != nil {
 		return nil, err
 	}
-	a.Logger.Info("App - EditEntry - auth passed", claims)
 	res, err := a.Vault.UpdateEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -898,6 +900,7 @@ func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string)
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("App - TrashEntry - payload", map[string]interface{}{"raw": raw, "entryType": entryType})
 	res, err := a.Vault.TrashEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		return nil, err
@@ -918,7 +921,19 @@ func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken strin
 	utils.LogPretty("App - RestoreEntry - res", res)
 	return res, nil
 }
-
+func (a *App) DeleteEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Implement permanent deletion via API (different from trash)
+	res, err := a.Vault.TrashEntry(claims.UserID, entryType, raw)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - DeleteEntry - res", res)
+	return res, nil
+}
 func (a *App) CreateFolder(name string, jwtToken string) (*vaults_domain.VaultPayload, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -934,19 +949,22 @@ func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]vaults_doma
 	return a.Vault.GetFoldersByVault(vaultCID)
 }
 func (a *App) UpdateFolder(id string, newName string, isDraft bool, jwtToken string) (*vaults_domain.Folder, error) {
-	_, err := a.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	return a.Vault.UpdateFolder(id, newName, isDraft)
+	return a.Vault.UpdateFolder(claims.UserID, newName, isDraft)
 }
-func (a *App) DeleteFolder(userID string, id string, jwtToken string) (string, error) {
-	_, err := a.RequireAuth(jwtToken)
+func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Folder deleted %d successfuly", id), a.Vault.DeleteFolder(userID, id)
+	a.Vault.DeleteFolder(claims.UserID, id)
+	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
+
+// TODO: ToggleFavorite entries
 
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1039,41 +1057,108 @@ func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
 	return encryptedPath, nil
 }
 
+// -----------------------------
+// Link shares
+// -----------------------------
+type CreateLinkShareOutput struct {
+	Data  *share_domain.LinkShare `json:"data"`
+	Status string                 `json:"status"`
+	Error  string                 `json:"error"`
+	Code   string                 `json:"code"`
+}
+func (a *App) CreateLinkShare(payload share_application_dto.LinkShareCreateRequest, jwtToken string) (*CreateLinkShareOutput, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("App - User", claims)
+	output := CreateLinkShareOutput{}
+	output.Data, err = a.Vaults.CreateLinkShare(claims.Email, payload)
+	if err != nil {
+		output.Error = err.Error()
+		output.Code = "500"
+		return nil, err
+	}
+	output.Code = "200"
+	output.Status = "success"
+	return &output, nil
+}
+type ListLinkSharesByMeResponse struct {
+	Data *[]tracecore.WailsLinkShare `json:"data"`
+	Status string `json:"status"`
+	Error string `json:"error"`
+	StatusCode string `json:"status_code"`
+}
+func (a *App) ListLinkSharesByMe(jwtToken string) (*ListLinkSharesByMeResponse, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	res := ListLinkSharesByMeResponse{}
+	res.Data, err = a.Vaults.ListLinkSharesByMe(claims.Email)
+	if err != nil {
+		res.Error = err.Error()
+		res.StatusCode = "500"
+		return nil, err
+	}
+	res.StatusCode = "200"
+	res.Status = "success"
+
+	utils.LogPretty("res", res)
+	return &res, nil
+}
+func (a *App) ListLinkSharesWithMe(jwtToken string) (*[]tracecore.WailsLinkShare, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	return a.Vaults.ListLinkSharesWithMe(claims.Email)
+}
+// func (a *App) DeleteLinkShare(jwtToken string, shareID string) (string, error) {
+// 	claims, err := a.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return a.Vaults.DeleteLinkShare(claims.UserID, shareID)
+// }	
+
+
+// -----------------------------
+// Cryptographic shares
+// -----------------------------
 type CreateShareInput struct {
 	Payload  handlers.CreateShareEntryPayload `json:"payload"`
 	JwtToken string                           `json:"jwtToken"`
 }
-
 func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	claims, err := a.RequireAuth(input.JwtToken)
 	if err != nil {
 		return nil, err
 	}
-	userID := claims.UserID
-	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, userID)
+	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, claims.UserID, claims.Email, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
 }
-
+// Cryptographic share by me
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("ListSharedEntries - auth failed: %w", err)
 	}
-	utils.LogPretty("ListSharedEntries - claims", claims)
 
-	entries, err := a.Vaults.ListSharedEntries(context.Background(), claims.UserID)
+	entries, err := a.Vaults.ListSharedEntries(context.Background(), claims.Email)
 	if err != nil {
 		return nil, err
 	}
 
 	return &entries, nil
 }
+// Cryptographic share with by me	
 func (a *App) ListReceivedShares(jwtToken string) (*[]share_domain.ShareEntry, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 
-	entries, err := a.Vaults.ListReceivedShares(context.Background(), claims.UserID)
+	entries, err := a.Vaults.ListReceivedShares(context.Background(), claims.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -1109,23 +1194,100 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 
 	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
 }
+// -----------------------------
+// Vault Config
+// -----------------------------
+type GenerateApiKeyInput struct {
+	Password string `json:"password"`
+	JwtToken string `json:"jwtToken"`
+}	
+type GenerateApiKeyOutput struct {
+	PublicKey   string `json:"public_key"`
+	PrivateKey  string `json:"private_key"`
+}
+func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
+	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	if err != nil {
+		return nil, err
+	}
+	userID := claims.UserID
+	utils.LogPretty("userID", userID)
+
+	var stellarAccount *app_config.StellarAccountConfig
+	stellarService := blockchain.StellarService{Logger: &a.Logger}
+	res, err := stellarService.CreatAccountWithFriendbotFunding(input.Password)
+	if err != nil {
+		a.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
+		return nil, err	
+	}
+	utils.LogPretty("res", res)
+	// Encrypt the user password with Stellar secret
+	salt, nonce, ct, err := blockchain.EncryptPasswordWithStellarSecure(input.Password, res.PrivateKey)
+	if err != nil {
+		a.Logger.Warn("⚠️ Failed to encrypt password with Stellar secret: %v", err)
+		return nil, err
+	}
+
+	// TODO: encrypt the Stellar private key before storing (server-side master key or KMS)
+	utils.LogPretty("anchorSecret", a.config.ANCHORA_SECRET)
+	if a.config.ANCHORA_SECRET == "" {
+		a.Logger.Warn("⚠️ Anchora secret not found")
+		return nil, errors.New("anchora secret not found")
+	}
+	encryptedPrivateKey, err := blockchain.Encrypt([]byte(res.PrivateKey), a.config.ANCHORA_SECRET)
+	if err != nil {
+		a.Logger.Warn("⚠️ Failed to encrypt Stellar private key: %v", err)
+		return nil, err
+	}
+
+	stellarAccount = &app_config.StellarAccountConfig{
+		PublicKey:   res.PublicKey,
+		PrivateKey:  string(encryptedPrivateKey),
+		EncSalt:     salt,
+		EncNonce:    nonce,
+		EncPassword: ct,
+	}
+	a.Logger.Info("✅ Stellar account created: %s - txID: %s", stellarAccount.PublicKey, res.TxID)
+	
+	// Handle stellar config 
+	userCfg, err := a.Vaults.DB.GetUserConfigByUserID(userID)
+	if userCfg == nil {
+		userCfg = &app_config.UserConfig{}
+	}
+	userCfg.StellarAccount = *stellarAccount
+
+	// Save user config
+	savedUserCfg, err := a.Vaults.DB.SaveUserConfig(*userCfg)
+	if err != nil {
+		return nil, err
+	}
+	utils.LogPretty("savedUserCfg", savedUserCfg)	
+
+	return &GenerateApiKeyOutput{
+		PublicKey:   res.PublicKey,
+		PrivateKey:  string(encryptedPrivateKey),
+		}, nil
+}
 
 // FlushAllSessions persists and clears all active sessions.
 func (a *App) FlushAllSessions() {
 	a.Vault.SessionsMu.Lock()
 	defer a.Vault.SessionsMu.Unlock()
-
+	// -----------------------------
+	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
+	// -----------------------------
 	if !a.Vault.HasSession() {
 		a.Logger.Info("No sessions to flush")
 		return
 	}
 
 	a.Logger.Info("💾 Flushing %d active sessions...", len(a.Vault.GetAllSessions()))
-
+	// -----------------------------
+	// 1. FLUSH ALL SESSIONS
+	// -----------------------------
 	for userID := range a.Vault.GetAllSessions() {
 		a.Vault.SessionManager.EndSession(userID)
 	}
-
 	a.Logger.Info("✨ All sessions flushed and cleared")
 }
 
@@ -1155,6 +1317,15 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 	return userDTOs, nil
 }
 
+// Initialize Stripe secret key
+func (a *App) InitStripe() {
+	stripe.Key = os.Getenv("STRIPE_SECRET")
+	if stripe.Key == "" {
+		log.Fatal("❌ STRIPE_SECRET missing in .env")
+	}
+	log.Println("✅ Stripe initialized")
+}
+
 // -----------------------------
 // Helpers
 // -----------------------------
@@ -1170,6 +1341,7 @@ func loadConfig() config {
 		db: struct{ dsn string }{
 			dsn: os.Getenv("DB_DSN"), // or default
 		},
+		ANCHORA_SECRET: os.Getenv("ANCHORA_SECRET"),
 	}
 }
 func (a *App) startup(ctx context.Context) {

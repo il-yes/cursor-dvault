@@ -42,6 +42,10 @@ export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
 
+export function CreateLinkShare(arg1, arg2) {
+  return window['go']['main']['App']['CreateLinkShare'](arg1, arg2);
+}
+
 export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
 }
@@ -50,8 +54,12 @@ export function CreateStellarCommit(arg1, arg2) {
   return window['go']['main']['App']['CreateStellarCommit'](arg1, arg2);
 }
 
-export function DeleteFolder(arg1, arg2, arg3) {
-  return window['go']['main']['App']['DeleteFolder'](arg1, arg2, arg3);
+export function DeleteEntry(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteEntry'](arg1, arg2, arg3);
+}
+
+export function DeleteFolder(arg1, arg2) {
+  return window['go']['main']['App']['DeleteFolder'](arg1, arg2);
 }
 
 export function DummyExposeEntries(arg1) {
@@ -76,6 +84,10 @@ export function FetchUsers() {
 
 export function FlushAllSessions() {
   return window['go']['main']['App']['FlushAllSessions']();
+}
+
+export function GenerateApiKey(arg1) {
+  return window['go']['main']['App']['GenerateApiKey'](arg1);
 }
 
 export function GetCheckoutURL(arg1) {
@@ -116,6 +128,14 @@ export function InitStripe() {
 
 export function IsVaultDirty(arg1) {
   return window['go']['main']['App']['IsVaultDirty'](arg1);
+}
+
+export function ListLinkSharesByMe(arg1) {
+  return window['go']['main']['App']['ListLinkSharesByMe'](arg1);
+}
+
+export function ListLinkSharesWithMe(arg1) {
+  return window['go']['main']['App']['ListLinkSharesWithMe'](arg1);
 }
 
 export function ListReceivedShares(arg1) {

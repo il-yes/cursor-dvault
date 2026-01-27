@@ -6,8 +6,34 @@ import (
 	"gorm.io/datatypes"
 )
 
+
+// --------------------------------------------------------------------
+// Tier 1: Free - Link-Based Shares (Ephemeral)
+// --------------------------------------------------------------------
+type LinkShare struct {
+	ID        string
+	Payload   string
+	CreatedAt time.Time	
+
+	ExpiresAt   *time.Time
+	MaxViews    *int
+	ViewCount   int
+	Password *string
+    DownloadAllowed bool
+
+	CreatorUserID string
+	CreatorEmail string
+	Metadata      Metadata 
+}
+
+type Metadata struct {
+	EntryType string
+	Title     string
+}
+
+
 // -----------------------
-// Aggregate root
+// Cryptography - Aggregate root
 // -----------------------
 type ShareEntry struct {
 	ID            string		`json:"id"`
@@ -19,10 +45,13 @@ type ShareEntry struct {
 	AccessMode    string `json:"access_mode"`
 	Encryption    string `json:"encryption"`	
 	EntrySnapshot EntrySnapshot `json:"entry_snapshot"`
+	EncryptedPayload string `json:"encrypted_payload"`
+	AccessLog        datatypes.JSON `json:"access_log"`
 	ExpiresAt     *time.Time `json:"expires_at"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	SharedAt      time.Time `json:"shared_at"`	
+	DownloadAllowed bool `json:"download_allowed"`
 
 	Recipients []Recipient `gorm:"foreignKey:ShareID;constraint:OnDelete:CASCADE" json:"recipients"`
  
@@ -36,6 +65,7 @@ type Recipient struct {
 	ShareID   string `json:"share_id"`
 	Name      string `json:"name"`
 	Email     string `json:"email"`
+	PublicKey string `json:"public_key"`
 	Role      string `json:"role"`
 	JoinedAt  time.Time `json:"joined_at"`
 	CreatedAt time.Time `json:"created_at"`

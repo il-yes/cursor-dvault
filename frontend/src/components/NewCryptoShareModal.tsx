@@ -28,10 +28,8 @@ interface NewShareModalProps {
 export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareModalProps) {
 	const { toast } = useToast();
 	const vault = useVaultStore((state) => state.vault);
-	const setSharedEntries = useVaultStore((state) => state.setSharedEntries);	
+	const setSharedEntries = useVaultStore((state) => state.setSharedEntries);
 	const addSharedEntry = useVaultStore((state) => state.addSharedEntry);
-	const updateSharedEntry = useVaultStore((state) => state.updateSharedEntry);
-	const removeSharedEntry = useVaultStore((state) => state.removeSharedEntry);
 	const [selectedEntry, setSelectedEntry] = useState("");
 	const [recipients, setRecipients] = useState<string[]>([]);
 	const [recipientInput, setRecipientInput] = useState("");
@@ -39,6 +37,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 	const [expirationDate, setExpirationDate] = useState<Date>();
 	const [customMessage, setCustomMessage] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [allowDownload, setAllowDownload] = useState(false);
 
 	// Get vault entries from store
 	const vaultEntries: VaultEntry[] = vault?.Vault ? [
@@ -51,6 +50,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 
 	const handleAddRecipient = () => {
 		const trimmed = recipientInput.trim();
+		console.log('recipientInput', recipientInput);
 		if (trimmed && !recipients.includes(trimmed)) {
 			setRecipients([...recipients, trimmed]);
 			setRecipientInput("");
@@ -59,82 +59,6 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 
 	const handleRemoveRecipient = (recipient: string) => {
 		setRecipients(recipients.filter(r => r !== recipient));
-	};
-
-	const handleShare2 = async () => {
-		if (!selectedEntry || recipients.length === 0) {
-			toast({
-				title: "Missing Information",
-				description: "Please select an entry and add at least one recipient.",
-				variant: "destructive",
-			});
-			return;
-		}
-
-		setIsSubmitting(true);
-		try {
-			// Call API to create shared entry
-			const response = await createSharedEntry({
-				entry_id: selectedEntry,
-				recipients: recipients.map(email => ({ name: email.split("@")[0], email, role: permission })),
-				permission: permission as 'read' | 'edit' | 'temporary',
-				expiration_date: expirationDate?.toISOString(),
-				custom_message: customMessage,
-			});
-			console.log('✅ Shared entry created: --------------------', response);
-
-
-			// we have to fetch the entry from the vault and fill the fields 
-
-			// Add to local store
-			const selectedVaultEntry = vaultEntries.find(e => e.id === selectedEntry);
-
-			const newSharedEntry: CreateShareEntryPayload = {
-				entry_name: selectedVaultEntry?.entry_name || "Shared Entry",
-				entry_type: selectedVaultEntry?.type || "note",
-				status: "active",
-				access_mode: permission === "edit" ? "edit" : "read",
-				encryption: "AES-256-GCM",
-
-				entry_snapshot: buildEntrySnapshot(selectedVaultEntry!),
-
-				recipients: recipients.map(email => ({
-					name: email.split("@")[0],
-					email,
-					role: permission === "edit" ? "editor" : "viewer",
-				})),
-
-				expires_at: expirationDate?.toISOString() || null,
-			};
-
-			addSharedEntry(newSharedEntry);
-
-			toast({
-				title: "✅ Entry shared successfully",
-				description: "Now visible in your Shared Entries",
-			});
-
-			// Notify parent to refresh the list
-			onShareSuccess?.();
-
-			// Reset and close
-			setSelectedEntry("");
-			setRecipients([]);
-			setRecipientInput("");
-			setPermission("read");
-			setExpirationDate(undefined);
-			setCustomMessage("");
-			onOpenChange(false);
-		} catch (error) {
-			console.error('Failed to share entry:', error);
-			toast({
-				title: "Failed to share",
-				description: "Could not share entry. Please try again.",
-				variant: "destructive",
-			});
-		} finally {
-			setIsSubmitting(false);
-		}
 	};
 
 	const handleShare = async () => {
@@ -169,22 +93,48 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 				recipients: [],
 
 				expires_at: expirationDate?.toISOString() || null,
+				download_allowed: allowDownload,
 			};
 
 			// 2️⃣ Add optimistic entry and get temp ID
 			const tempId = addSharedEntry(optimisticPayload);
 
+			const getPublicKey = async (email: string) => {
+				const response = await fetch(`http://localhost:4001/api/check-email?email=${email}`, {
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+					},
+				});
+				const data = await response.json();
+				console.log({ data });
+				return data.public_key;
+			};
+			// Get public key for recipients
+			const publicKeys = await Promise.all(recipients.map(email => getPublicKey(email)));
+			console.log({ publicKeys });
+
+			if (!publicKeys) {
+				toast({
+					title: "Error",
+					description: "No public key found for this email",
+				});
+				return;
+			}
+
 			// 3️⃣ Create real shared entry via backend
 			const cloudResponse = await createSharedEntry({
 				entry_id: selectedEntry,
-				recipients: recipients.map(email => ({
-					name: email.split("@")[0],
+				recipients: recipients.map((email, index) => ({
+					name: email.split("@")[0],	// TODO: useless
 					email,
-					role: permission,
+					publicKey: publicKeys[index],
+					role: permission == "edit" ? "editor" : "viewer",
 				})),
 				permission: permission as "read" | "edit" | "temporary",
-				expiration_date: expirationDate?.toISOString(),
+				expires_at: expirationDate?.toISOString(),
 				custom_message: customMessage,
+				download_allowed: allowDownload,
 			});
 
 			console.log("☁️ Cloud shared entry:", cloudResponse);
@@ -227,7 +177,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
-					<DialogTitle>Share Entry</DialogTitle>
+					<DialogTitle>Cryptographic Share Entry</DialogTitle>
 				</DialogHeader>
 
 				<div className="space-y-6 py-4">
@@ -339,6 +289,29 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 							</Popover>
 						</div>
 					)}
+
+
+					{/* Allow Download */}
+					<div className="space-y-3">
+						<Label>AllowDownload</Label>
+						<RadioGroup
+							value={allowDownload ? "true" : "false"}
+							onValueChange={(value: string) => setAllowDownload(value === "true")}
+						>
+							<div className="flex items-center space-x-2">
+								<RadioGroupItem value="true" id="true" />
+								<Label htmlFor="true" className="font-normal cursor-pointer">
+									Yes
+								</Label>
+							</div>
+							<div className="flex items-center space-x-2">
+								<RadioGroupItem value="false" id="false" />
+								<Label htmlFor="false" className="font-normal cursor-pointer">
+									No
+								</Label>
+							</div>
+						</RadioGroup>
+					</div>
 
 					{/* Custom Message */}
 					<div className="space-y-2">

@@ -1,5 +1,4 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +21,7 @@ import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
+import { GenerateApiKey } from "@/services/api";
 
 
 const mockFile = {
@@ -146,11 +146,19 @@ const Profile = () => {
 		});
 	};
 
-	const handleGenerateApiKey = () => {
+	const handleGenerateApiKey = async () => {
+		const { jwtToken } = useAuthStore.getState();
+		const payload = {
+			password: "password",
+			jwtToken
+		}
+		const apiKey = await GenerateApiKey(payload);
+		console.log(apiKey);
 		toast({
 			title: "API Key Generated",
 			description: "Your new API key has been created.",
 		});
+		// TODO: Update API key in session
 	};
 
 	const handleLogout = () => {
@@ -169,7 +177,7 @@ const Profile = () => {
 			description: "You have been successfully logged out.",
 		});
 		AppAPI.SignOut(useAuthStore.getState().user?.id);
-		navigate("/auth/signin");
+		navigate("/login/email");
 	};
 
 	const handleSyncBeta = async () => {
@@ -431,7 +439,7 @@ const Profile = () => {
 									className="h-20 rounded-2xl backdrop-blur-xl bg-white/60 dark:bg-zinc-800/60 border-white/40 hover:bg-white/80 shadow-xl hover:shadow-2xl font-semibold"
 								>
 									<Key className="h-6 w-6 mr-3" />
-									API Key
+									Generate API Key
 								</Button>
 							</div>
 						</div>
@@ -483,7 +491,7 @@ const Profile = () => {
 					<div className="backdrop-blur-xl bg-gradient-to-r from-white/70 to-zinc-100/50 dark:from-zinc-900/70 dark:to-zinc-800/50 rounded-3xl p-8 border border-white/40 shadow-2xl">
 						<div className="flex flex-col sm:flex-row items-center justify-between gap-6">
 							<div className="text-center sm:text-left">
-								<p className="text-xl font-bold text-muted-foreground">VaultCore v1.2.0</p>
+								<p className="text-xl font-bold text-muted-foreground">Ankhora v1.2.0</p>
 								<p className="text-lg text-muted-foreground/70">
 									Last updated: {formatMonthYear(vault?.LastUpdated)}
 								</p>
@@ -506,3 +514,4 @@ const Profile = () => {
 };
 
 export default Profile;
+

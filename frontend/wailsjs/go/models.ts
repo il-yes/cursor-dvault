@@ -386,6 +386,7 @@ export namespace handlers {
 	    name: string;
 	    email: string;
 	    role: string;
+	    public_key: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RecipientPayload(source);
@@ -396,6 +397,7 @@ export namespace handlers {
 	        this.name = source["name"];
 	        this.email = source["email"];
 	        this.role = source["role"];
+	        this.public_key = source["public_key"];
 	    }
 	}
 	export class CreateShareEntryPayload {
@@ -408,6 +410,7 @@ export namespace handlers {
 	    entry_snapshot: string;
 	    expires_at: string;
 	    recipients: RecipientPayload[];
+	    download_allowed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateShareEntryPayload(source);
@@ -424,6 +427,7 @@ export namespace handlers {
 	        this.entry_snapshot = source["entry_snapshot"];
 	        this.expires_at = source["expires_at"];
 	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
+	        this.download_allowed = source["download_allowed"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -611,6 +615,42 @@ export namespace main {
 	        this.url = source["url"];
 	    }
 	}
+	export class CreateLinkShareOutput {
+	    data?: share_domain.LinkShare;
+	    status: string;
+	    error: string;
+	    code: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateLinkShareOutput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = this.convertValues(source["data"], share_domain.LinkShare);
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.code = source["code"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CreateShareInput {
 	    payload: handlers.CreateShareEntryPayload;
 	    jwtToken: string;
@@ -643,6 +683,34 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class GenerateApiKeyInput {
+	    password: string;
+	    jwtToken: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateApiKeyInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.password = source["password"];
+	        this.jwtToken = source["jwtToken"];
+	    }
+	}
+	export class GenerateApiKeyOutput {
+	    public_key: string;
+	    private_key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateApiKeyOutput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.public_key = source["public_key"];
+	        this.private_key = source["private_key"];
+	    }
+	}
 	export class GetSessionResponse {
 	    Data: Record<string, any>;
 	    Error: any;
@@ -656,6 +724,42 @@ export namespace main {
 	        this.Data = source["Data"];
 	        this.Error = source["Error"];
 	    }
+	}
+	export class ListLinkSharesByMeResponse {
+	    data?: tracecore.WailsLinkShare[];
+	    status: string;
+	    error: string;
+	    status_code: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListLinkSharesByMeResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = this.convertValues(source["data"], tracecore.WailsLinkShare);
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.status_code = source["status_code"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class OnboardingStep1Response {
 	    identity: string;
@@ -1190,6 +1294,56 @@ export namespace onboarding_usecase {
 
 }
 
+export namespace share_application_dto {
+	
+	export class LinkShareCreateRequest {
+	    payload: string;
+	    // Go type: time
+	    expires_at?: any;
+	    max_views?: number;
+	    password?: string;
+	    download_allowed: boolean;
+	    creator_email: string;
+	    entry_type: string;
+	    title: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkShareCreateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.payload = source["payload"];
+	        this.expires_at = this.convertValues(source["expires_at"], null);
+	        this.max_views = source["max_views"];
+	        this.password = source["password"];
+	        this.download_allowed = source["download_allowed"];
+	        this.creator_email = source["creator_email"];
+	        this.entry_type = source["entry_type"];
+	        this.title = source["title"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace share_application_use_cases {
 	
 	export class AddReceiverInput {
@@ -1321,11 +1475,79 @@ export namespace share_domain {
 	        this.extra_fields = source["extra_fields"];
 	    }
 	}
+	export class Metadata {
+	    EntryType: string;
+	    Title: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Metadata(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.EntryType = source["EntryType"];
+	        this.Title = source["Title"];
+	    }
+	}
+	export class LinkShare {
+	    ID: string;
+	    Payload: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    ExpiresAt?: any;
+	    MaxViews?: number;
+	    ViewCount: number;
+	    Password?: string;
+	    DownloadAllowed: boolean;
+	    CreatorUserID: string;
+	    CreatorEmail: string;
+	    Metadata: Metadata;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkShare(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Payload = source["Payload"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.ExpiresAt = this.convertValues(source["ExpiresAt"], null);
+	        this.MaxViews = source["MaxViews"];
+	        this.ViewCount = source["ViewCount"];
+	        this.Password = source["Password"];
+	        this.DownloadAllowed = source["DownloadAllowed"];
+	        this.CreatorUserID = source["CreatorUserID"];
+	        this.CreatorEmail = source["CreatorEmail"];
+	        this.Metadata = this.convertValues(source["Metadata"], Metadata);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class Recipient {
 	    id: string;
 	    share_id: string;
 	    name: string;
 	    email: string;
+	    public_key: string;
 	    role: string;
 	    // Go type: time
 	    joined_at: any;
@@ -1345,6 +1567,7 @@ export namespace share_domain {
 	        this.share_id = source["share_id"];
 	        this.name = source["name"];
 	        this.email = source["email"];
+	        this.public_key = source["public_key"];
 	        this.role = source["role"];
 	        this.joined_at = this.convertValues(source["joined_at"], null);
 	        this.created_at = this.convertValues(source["created_at"], null);
@@ -1380,6 +1603,8 @@ export namespace share_domain {
 	    access_mode: string;
 	    encryption: string;
 	    entry_snapshot: EntrySnapshot;
+	    encrypted_payload: string;
+	    access_log: number[];
 	    // Go type: time
 	    expires_at?: any;
 	    // Go type: time
@@ -1388,6 +1613,7 @@ export namespace share_domain {
 	    updated_at: any;
 	    // Go type: time
 	    shared_at: any;
+	    download_allowed: boolean;
 	    recipients: Recipient[];
 	
 	    static createFrom(source: any = {}) {
@@ -1405,10 +1631,13 @@ export namespace share_domain {
 	        this.access_mode = source["access_mode"];
 	        this.encryption = source["encryption"];
 	        this.entry_snapshot = this.convertValues(source["entry_snapshot"], EntrySnapshot);
+	        this.encrypted_payload = source["encrypted_payload"];
+	        this.access_log = source["access_log"];
 	        this.expires_at = this.convertValues(source["expires_at"], null);
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
 	        this.shared_at = this.convertValues(source["shared_at"], null);
+	        this.download_allowed = source["download_allowed"];
 	        this.recipients = this.convertValues(source["recipients"], Recipient);
 	    }
 	
@@ -1821,6 +2050,41 @@ export namespace subscription_domain {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace tracecore {
+	
+	export class WailsLinkShare {
+	    id: string;
+	    entry_name: string;
+	    status: string;
+	    expiry: string;
+	    uses_left: number;
+	    link: string;
+	    audit_log: any[];
+	    payload: string;
+	    allow_download: boolean;
+	    password: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WailsLinkShare(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.entry_name = source["entry_name"];
+	        this.status = source["status"];
+	        this.expiry = source["expiry"];
+	        this.uses_left = source["uses_left"];
+	        this.link = source["link"];
+	        this.audit_log = source["audit_log"];
+	        this.payload = source["payload"];
+	        this.allow_download = source["allow_download"];
+	        this.password = source["password"];
+	    }
 	}
 
 }

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { VaultEntry } from "@/types/vault";
+import { useEffect, useState } from "react";
+import { Folder, VaultEntry } from "@/types/vault";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import "./ContributionGraph/g-scrollbar.css";
+import { useVaultStore } from "@/store/vaultStore";
 
 interface CreateEntryDialogProps {
   open: boolean;
@@ -37,6 +38,10 @@ export function CreateEntryDialog({
 }: CreateEntryDialogProps) {
   const [entryName, setEntryName] = useState("");
   const [type, setType] = useState<VaultEntry["type"]>("login");
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
+
+  const vaultContext = useVaultStore((state) => state.vault);
 
   // LOGIN
   const [loginUsername, setLoginUsername] = useState("");
@@ -59,6 +64,10 @@ export function CreateEntryDialog({
   const [sshPrivate, setSSHPrivate] = useState("");
   const [sshPublic, setSSHPublic] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+
+  useEffect(() => {
+    vaultContext && setFolders(vaultContext.Vault.folders || []);
+  }, [vaultContext]); 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +127,7 @@ export function CreateEntryDialog({
         };
         break;
     }
+    entry.folder_id = folderId;
 
     onSubmit(entry);
 
@@ -297,6 +307,20 @@ export function CreateEntryDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} style={{ padding: "30px" }} className="space-y-4 max-h-[70vh] overflow-y-auto scrollbar-glassmorphism thin-scrollbar pr-2">
+
+          <Select value={folderId} onValueChange={setFolderId}>
+            <SelectTrigger id="entry">
+              <SelectValue placeholder="Choose an entry from your vault" />
+            </SelectTrigger>
+            <SelectContent>
+              {folders && folders.map((folder) => (
+                <SelectItem key={folder.id} value={folder.id}>
+                  <span className="capitalize">{folder.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="space-y-2">
             <Label>Entry Name</Label>
             <Input
@@ -325,15 +349,15 @@ export function CreateEntryDialog({
           {renderFields()}
 
 
-            {/* File Upload Widget */}
-            <div className="space-y-2">
-              <Label>Attachments</Label>
-              <FileUploadWidget
-                onFileSelect={setAttachedFiles}
-                value={attachedFiles}
-                maxFiles={5}
-              />
-            </div>
+          {/* File Upload Widget */}
+          <div className="space-y-2">
+            <Label>Attachments</Label>
+            <FileUploadWidget
+              onFileSelect={setAttachedFiles}
+              value={attachedFiles}
+              maxFiles={5}
+            />
+          </div>
 
           <DialogFooter>
             <Button

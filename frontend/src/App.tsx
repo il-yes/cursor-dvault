@@ -25,6 +25,7 @@ import OnboardingWizardBeta from "@/components/onBoardingWizardBeta";
 import { Elements } from '@stripe/react-stripe-js';
 import { stripePromise } from '@/lib/stripe';
 import PaymentSuccess from "./components/PaymentSuccess";
+import SubscriptionManager from "./components/Subscription/subscriptionManager";
 
 
 const queryClient = new QueryClient();
@@ -105,6 +106,7 @@ function AppContent() {
 			<Route path="/dashboard/feedback" element={<Feedback />} />
 			<Route path="/dashboard/about" element={<About />} />
 			<Route path="/payment/success" element={<PaymentSuccess />} />
+			<Route path="/dashboard/subscription" element={<SubscriptionManager />} />
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 			<Route path="*" element={<NotFound />} />
 		</Routes>

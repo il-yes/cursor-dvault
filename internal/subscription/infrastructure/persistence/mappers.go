@@ -78,6 +78,9 @@ type SubscriptionMapper struct {
 	EndedAt               int64                `json:"ended_at"`
 	CreatedAt             time.Time            `json:"created_at"`
 	UpdatedAt             time.Time            `json:"updated_at"`
+	CancelReason          string               `json:"cancel_reason"`
+	CancelledAt           time.Time            `json:"cancelled_at"`
+	Version               int64                `json:"version"`
 }
 func (s *SubscriptionMapper) ToDomain() *subscription_domain.Subscription {
 	return &subscription_domain.Subscription{
@@ -108,6 +111,9 @@ func (s *SubscriptionMapper) ToDomain() *subscription_domain.Subscription {
 		EndedAt:               s.EndedAt,
 		CreatedAt:             s.CreatedAt,
 		UpdatedAt:             s.UpdatedAt,
+		CancelReason:          s.CancelReason,
+		CancelledAt:           s.CancelledAt,
+		Version:               s.Version,
 	}
 }	
 func SubscriptionToDB(s *subscription_domain.Subscription) *SubscriptionMapper {
@@ -139,6 +145,9 @@ func SubscriptionToDB(s *subscription_domain.Subscription) *SubscriptionMapper {
 		EndedAt:               s.EndedAt,
 		CreatedAt:             s.CreatedAt,
 		UpdatedAt:             s.UpdatedAt,
+		CancelReason:          s.CancelReason,
+		CancelledAt:           s.CancelledAt,
+		Version:               s.Version,
 	}
 }
 func (SubscriptionMapper) TableName() string {

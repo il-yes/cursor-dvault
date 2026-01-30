@@ -9,10 +9,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	utils "vault-app/internal"
 	share_application_dto "vault-app/internal/application"
+	billing_domain "vault-app/internal/billing/domain"
 	share_domain "vault-app/internal/domain/shared"
 	subscription_domain "vault-app/internal/subscription/domain"
 
@@ -130,7 +132,6 @@ type PaymentSetupResponse struct {
 	StatusCode int             `json:"status_code"`
 	Message    string          `json:"message"`
 }
-
 // ---------------------------------------------------------
 // Subscription
 // ---------------------------------------------------------
@@ -161,7 +162,7 @@ func (c *TracecoreClient) SetupSubscription(ctx context.Context, payload Payment
 
 	return &cloudResp, nil
 }
-
+// when onboarding new user, we dont have user id yet, so we use session id to get the subscription
 func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessionID string) (*subscription_domain.Subscription, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions?session_id="+sessionID, nil)
 	if err != nil {
@@ -201,7 +202,370 @@ func (c *TracecoreClient) GetSubscriptionBySessionID(ctx context.Context, sessio
 
 	return &sub, nil
 }
+// after onboarding, we have user id, so we use user id to get the subscription
+func (c *TracecoreClient) GetSubscriptionByUserID(ctx context.Context, userID string) (*subscription_domain.Subscription, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions?user_id="+userID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	var sub subscription_domain.Subscription
+	if err := json.Unmarshal(cloudResp.Data, &sub); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+
+	return &sub, nil
+}
+func (c *TracecoreClient) GetPendingPaymentRequests(ctx context.Context, userID string) ([]*billing_domain.PaymentRequest, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions?user_id="+userID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	var prs []*billing_domain.PaymentRequest
+	if err := json.Unmarshal(cloudResp.Data, &prs); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+
+	return prs, nil
+}	
+type ClientPaymentResponse struct {
+	PaymentID string `json:"payment_id"`
+	PaymentRequest *billing_domain.PaymentRequest `json:"payment_request"`
+}
+func (c *TracecoreClient) ProcessEncryptedPayment(ctx context.Context, request *billing_domain.ClientPaymentRequest) (*ClientPaymentResponse, error) {
+	utils.LogPretty("request", request)
+	reqBody, _ := json.Marshal(request)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/process-encrypted-payment", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	var pr ClientPaymentResponse
+	if err := json.Unmarshal(cloudResp.Data, &pr); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+	return &pr, nil
+}
+func (c *TracecoreClient) HandleClientInitiatedPayment(ctx context.Context, request *billing_domain.ClientPaymentRequest) (*ClientPaymentResponse, error) {
+	utils.LogPretty("request", request)
+	reqBody, _ := json.Marshal(request)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/handle-client-initiated-payment", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	var pr ClientPaymentResponse
+	if err := json.Unmarshal(cloudResp.Data, &pr); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+	return &pr, nil
+}
+func (c *TracecoreClient) GetBillingHistory(ctx context.Context, userID string, limit int) ([]*billing_domain.PaymentHistory, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions/billing-history?user_id="+userID+"&limit="+strconv.Itoa(limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	var ph []*billing_domain.PaymentHistory
+	if err := json.Unmarshal(cloudResp.Data, &ph); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+	return ph, nil	
+}
+func (c *TracecoreClient) GenerateReceipt(ctx context.Context, userID string, paymentID string) (*billing_domain.Receipt, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions/generate-receipt?user_id="+userID+"&payment_id="+paymentID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	var r billing_domain.Receipt
+	if err := json.Unmarshal(cloudResp.Data, &r); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+	return &r, nil	
+}
+func (c *TracecoreClient) CancelSubscription(ctx context.Context, userID string, reason string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/cancel", nil)
+	if err != nil {
+		return err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	return nil	
+}
+func (c *TracecoreClient) UpdatePaymentMethod(ctx context.Context, reqPaymentMethod *billing_domain.UpdatePaymentMethodRequest) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/update-payment-method", nil)
+	if err != nil {
+		return err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	return nil	
+}
+func (c *TracecoreClient) GetStorageUsage(ctx context.Context, userID string) (*billing_domain.StorageUsage, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/subscriptions/storage-usage?user_id="+userID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	var su billing_domain.StorageUsage
+	if err := json.Unmarshal(cloudResp.Data, &su); err != nil {
+		return nil, fmt.Errorf("invalid cloud data: %w", err)
+	}
+	return &su, nil	
+}	
+func (c *TracecoreClient) HandleUpgrade(ctx context.Context, userID string, newTier subscription_domain.SubscriptionTier, paymentMethod subscription_domain.PaymentMethod) error {
+	rerq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/handle-upgrade", nil)
+	if err != nil {
+		return err
+	}
+	if c.Token != "" {
+		rerq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", rerq)
+	resp, err := c.HTTPClient.Do(rerq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	return nil	
+}
+func (c *TracecoreClient) ReactivateSubscription(ctx context.Context, userID string, tier subscription_domain.SubscriptionTier, paymentMethod subscription_domain.PaymentMethod) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/subscriptions/reactivate", nil)
+	if err != nil {
+		return err
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	utils.LogPretty("request", req)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp struct {
+		Data       json.RawMessage `json:"data"`
+		Status     string          `json:"status"`
+		StatusCode int             `json:"status_code"`
+		Message    string          `json:"message"`
+	}
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+	if cloudResp.Status != "ok" {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	return nil	
+}
 // ---------------------------------------------------------
 //
 //	Crypto Share

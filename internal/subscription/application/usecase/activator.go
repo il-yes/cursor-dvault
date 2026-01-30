@@ -16,10 +16,6 @@ import (
 // ------------------------------------------------------
 
 type VaultPort interface {
-    UpdateStorage(ctx context.Context, userID string, gb int) error
-    EnableCloudBackup(ctx context.Context, userID string, enabled bool) error
-    EnableVersionHistory(ctx context.Context, userID string, days int) error
-    EnableTracecore(ctx context.Context, userID string) error
 }
 
 type StellarPort interface {

@@ -18,6 +18,7 @@ import (
 	auth_domain "vault-app/internal/auth/domain"
 	auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	auth_ui "vault-app/internal/auth/ui"
+	billing_domain "vault-app/internal/billing/domain"
 	billing_infrastructure_eventbus "vault-app/internal/billing/infrastructure/eventbus"
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
@@ -90,11 +91,11 @@ type config struct {
 	}
 	Domain string
 	// Jwt auth
-	auth        auth.Auth
-	JWTSecret   string
-	JWTIssuer   string
-	JWTAudience string
-	APIKey      string
+	auth           auth.Auth
+	JWTSecret      string
+	JWTIssuer      string
+	JWTAudience    string
+	APIKey         string
 	ANCHORA_SECRET string
 }
 
@@ -111,6 +112,7 @@ type App struct {
 	AppConfigHandler          *app_config_ui.AppConfigHandler
 	Auth                      *handlers.AuthHandler
 	AuthHandler               *auth_ui.AuthHandler
+	BillingHandler            *billing_ui.BillingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
 	EntryRegistry             *registry.EntryRegistry
 	Identity                  *identity_ui.IdentityHandler
@@ -384,7 +386,7 @@ func NewApp() *App {
 	}()
 
 	// Event bus (single memory bus for subscription domain)
-	subscriptionService := subscription_infrastructure.NewSubscriptionService()
+	subscriptionService := subscription_infrastructure.NewSubscriptionSyncService(db.DB, tcClient)
 	// ===== New: core activator (business logic) =====
 	// Note: pass a Stellar port implementation if you have one, otherwise nil
 	activator := subscription_usecase.NewSubscriptionActivator(
@@ -399,7 +401,7 @@ func NewApp() *App {
 
 	// ===== New: monitor for post-activation side effects (email, metrics...) =====
 	billingBus := billing_infrastructure_eventbus.NewMemoryBus()
-	billingHandler := billing_ui.NewBillingHandler(db.DB, billingBus)
+	billingHandler := billing_ui.NewBillingHandler(db.DB, billingBus, subscriptionService, tcClient)
 
 	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db.DB)
 	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
@@ -435,26 +437,27 @@ func NewApp() *App {
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
 	return &App{
-		AppConfigHandler:       appConfigHandler,
-		Auth:                   auth,
-		AuthHandler:            authHandler,
+		AppConfigHandler:          appConfigHandler,
+		Auth:                      auth,
+		BillingHandler:            billingHandler,
+		AuthHandler:               authHandler,
 		cancel:                    cancel,
 		ConnectWithStellarHandler: stellarRecoveryHandler,
-		config:                 cfg,
-		DB:                     *db,
-		EntryRegistry:          reg,
+		config:                    cfg,
+		DB:                        *db,
+		EntryRegistry:             reg,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
-		Identity:               identityHandler,
-		Logger:                 *appLogger,
-		OnBoardingHandler:      onBoardingHandler,
-		sessions:               sessions,
-		StellarRecoveryHandler: stellarRecoveryHandler,
-		SubscriptionHandler:    subscriptionHandler,
-		RuntimeContext:         runtimeCtx,
+		Identity:                  identityHandler,
+		Logger:                    *appLogger,
+		OnBoardingHandler:         onBoardingHandler,
+		sessions:                  sessions,
+		StellarRecoveryHandler:    stellarRecoveryHandler,
+		SubscriptionHandler:       subscriptionHandler,
+		RuntimeContext:            runtimeCtx,
 		// RuntimeContextV2:          runtimeCtxV2,
-		Vault:                  vaultHandler,  // internal/vault/ui/vault_handler.go
-		Vaults:                 vaults,        // internal/handlers/vault_handler.go
-		version:                version,
+		Vault:   vaultHandler, // internal/vault/ui/vault_handler.go
+		Vaults:  vaults,       // internal/handlers/vault_handler.go
+		version: version,
 	}
 
 }
@@ -1061,11 +1064,12 @@ func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
 // Link shares
 // -----------------------------
 type CreateLinkShareOutput struct {
-	Data  *share_domain.LinkShare `json:"data"`
-	Status string                 `json:"status"`
-	Error  string                 `json:"error"`
-	Code   string                 `json:"code"`
+	Data   *share_domain.LinkShare `json:"data"`
+	Status string                  `json:"status"`
+	Error  string                  `json:"error"`
+	Code   string                  `json:"code"`
 }
+
 func (a *App) CreateLinkShare(payload share_application_dto.LinkShareCreateRequest, jwtToken string) (*CreateLinkShareOutput, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1083,12 +1087,14 @@ func (a *App) CreateLinkShare(payload share_application_dto.LinkShareCreateReque
 	output.Status = "success"
 	return &output, nil
 }
+
 type ListLinkSharesByMeResponse struct {
-	Data *[]tracecore.WailsLinkShare `json:"data"`
-	Status string `json:"status"`
-	Error string `json:"error"`
-	StatusCode string `json:"status_code"`
+	Data       *[]tracecore.WailsLinkShare `json:"data"`
+	Status     string                      `json:"status"`
+	Error      string                      `json:"error"`
+	StatusCode string                      `json:"status_code"`
 }
+
 func (a *App) ListLinkSharesByMe(jwtToken string) (*ListLinkSharesByMeResponse, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1114,14 +1120,14 @@ func (a *App) ListLinkSharesWithMe(jwtToken string) (*[]tracecore.WailsLinkShare
 	}
 	return a.Vaults.ListLinkSharesWithMe(claims.Email)
 }
+
 // func (a *App) DeleteLinkShare(jwtToken string, shareID string) (string, error) {
 // 	claims, err := a.RequireAuth(jwtToken)
 // 	if err != nil {
 // 		return "", err
 // 	}
 // 	return a.Vaults.DeleteLinkShare(claims.UserID, shareID)
-// }	
-
+// }
 
 // -----------------------------
 // Cryptographic shares
@@ -1130,6 +1136,7 @@ type CreateShareInput struct {
 	Payload  handlers.CreateShareEntryPayload `json:"payload"`
 	JwtToken string                           `json:"jwtToken"`
 }
+
 func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(input.JwtToken)
 	if err != nil {
@@ -1137,6 +1144,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 	}
 	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, claims.UserID, claims.Email, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
 }
+
 // Cryptographic share by me
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(jwtToken)
@@ -1151,7 +1159,8 @@ func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, er
 
 	return &entries, nil
 }
-// Cryptographic share with by me	
+
+// Cryptographic share with by me
 func (a *App) ListReceivedShares(jwtToken string) (*[]share_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1194,17 +1203,19 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 
 	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
 }
+
 // -----------------------------
 // Vault Config
 // -----------------------------
 type GenerateApiKeyInput struct {
 	Password string `json:"password"`
 	JwtToken string `json:"jwtToken"`
-}	
-type GenerateApiKeyOutput struct {
-	PublicKey   string `json:"public_key"`
-	PrivateKey  string `json:"private_key"`
 }
+type GenerateApiKeyOutput struct {
+	PublicKey  string `json:"public_key"`
+	PrivateKey string `json:"private_key"`
+}
+
 func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
 	claims, err := a.Auth.RequireAuth(input.JwtToken)
 	if err != nil {
@@ -1218,7 +1229,7 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 	res, err := stellarService.CreatAccountWithFriendbotFunding(input.Password)
 	if err != nil {
 		a.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
-		return nil, err	
+		return nil, err
 	}
 	utils.LogPretty("res", res)
 	// Encrypt the user password with Stellar secret
@@ -1248,8 +1259,8 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 		EncPassword: ct,
 	}
 	a.Logger.Info("✅ Stellar account created: %s - txID: %s", stellarAccount.PublicKey, res.TxID)
-	
-	// Handle stellar config 
+
+	// Handle stellar config
 	userCfg, err := a.Vaults.DB.GetUserConfigByUserID(userID)
 	if userCfg == nil {
 		userCfg = &app_config.UserConfig{}
@@ -1261,12 +1272,12 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("savedUserCfg", savedUserCfg)	
+	utils.LogPretty("savedUserCfg", savedUserCfg)
 
 	return &GenerateApiKeyOutput{
-		PublicKey:   res.PublicKey,
-		PrivateKey:  string(encryptedPrivateKey),
-		}, nil
+		PublicKey:  res.PublicKey,
+		PrivateKey: string(encryptedPrivateKey),
+	}, nil
 }
 
 // FlushAllSessions persists and clears all active sessions.
@@ -1324,6 +1335,195 @@ func (a *App) InitStripe() {
 		log.Fatal("❌ STRIPE_SECRET missing in .env")
 	}
 	log.Println("✅ Stripe initialized")
+}
+
+// -----------------------------
+// Billing
+// -----------------------------
+// GetPendingPaymentRequests returns all pending payment requests for current user
+func (a *App) GetPendingPaymentRequests(jwtToken string) ([]*billing_domain.PaymentRequest, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	return a.BillingHandler.GetPendingPaymentRequestsByUserID(a.ctx, claims.UserID)
+}
+
+type ClientPaymentRequest struct {
+	PaymentRequestID      string `json:"payment_request_id"`
+	StripePaymentMethodID string `json:"stripe_payment_method_id"`
+}
+
+// ProcessEncryptedPayment processes payment using decrypted card data
+func (a *App) ProcessEncryptedPayment(req *ClientPaymentRequest) error {
+	// return a.billingService.HandleClientInitiatedPayment(a.ctx, req)
+	fmt.Println("✅ ProcessEncryptedPayment")
+	return nil
+}
+
+type Subscription struct {
+	ID          string `json:"id"`
+	Amount      int    `json:"amount"`
+	Currency    string `json:"currency"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	UserID      string `json:"user_id"`
+}
+
+// GetSubscriptionDetails returns current subscription details
+func (a *App) GetSubscriptionDetails(jwtToken string) (*Subscription, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.GetActiveSubscription(a.ctx, claims.UserID)
+	return &Subscription{
+		ID:          "1",
+		Amount:      10,
+		Currency:    "USD",
+		Description: "Monthly subscription",
+		Status:      "active",
+		UserID:      claims.UserID,
+	}, nil
+}
+
+// CancelSubscription cancels current subscription
+func (a *App) CancelSubscription(jwtToken string, reason string) error {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.CancelSubscription(a.ctx, claims.UserID, reason)
+	return nil
+}
+
+type UpdatePaymentMethodRequest struct {
+	UserID        string `json:"user_id"`
+	PaymentMethod string `json:"payment_method"`
+}
+
+// UpdatePaymentMethod updates payment method for subscription
+func (a *App) UpdatePaymentMethod(jwtToken string, req *UpdatePaymentMethodRequest) error {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	fmt.Println("userID", claims.UserID)
+	req.UserID = claims.UserID
+	// return a.subscriptionService.UpdatePaymentMethod(a.ctx, req)
+	return nil
+}
+
+type PaymentHistory struct {
+	ID          string `json:"id"`
+	Amount      int    `json:"amount"`
+	Currency    string `json:"currency"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	UserID      string `json:"user_id"`
+}
+
+// GetBillingHistory returns payment history
+func (a *App) GetBillingHistory(jwtToken string, limit int) ([]*PaymentHistory, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.billingService.GetPaymentHistory(a.ctx, claims.UserID, limit)
+	return nil, nil
+}
+
+type Receipt struct {
+	ID          string `json:"id"`
+	Amount      int    `json:"amount"`
+	Currency    string `json:"currency"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+	UserID      string `json:"user_id"`
+}
+
+// DownloadReceipt downloads blockchain-verified receipt
+func (a *App) DownloadReceipt(jwtToken string, paymentID string) (*Receipt, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.billingService.GenerateReceipt(a.ctx, claims.UserID, paymentID)
+	return nil, nil
+}
+
+type StorageUsage struct {
+	Used   int    `json:"used"`
+	Quota  int    `json:"quota"`
+	UserID string `json:"user_id"`
+}
+
+// GetStorageUsage returns current storage usage vs quota
+func (a *App) GetStorageUsage(jwtToken string) (*StorageUsage, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.GetStorageUsage(a.ctx, claims.UserID)
+	return nil, nil
+}
+
+type UpgradeRequest struct {
+	UserID        string `json:"user_id"`
+	NewTier       string `json:"new_tier"`
+	PaymentMethod string `json:"payment_method"`
+}
+
+// UpgradeSubscription upgrades to a higher tier
+func (a *App) UpgradeSubscription(jwtToken string, req *UpgradeRequest) error {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	fmt.Println("userID", claims.UserID)
+	req.UserID = claims.UserID
+	// return a.subscriptionService.HandleUpgrade(a.ctx, req.UserID, req.NewTier, req.PaymentMethod)
+	return nil
+}
+
+// ReactivateSubscription reactivates a cancelled subscription
+func (a *App) ReactivateSubscription(jwtToken string, tier string, paymentMethod string) error {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.ReactivateSubscription(a.ctx, claims.UserID, tier, paymentMethod)
+	return nil
+}
+
+func (a *App) getCurrentUserID() string {
+	// Get user ID from session/context
+	// This would be set during authentication
+	return a.ctx.Value("user_id").(string)
+}
+func (a *App) GetUserVaultKey(jwtToken string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.GetUserVaultKey(a.ctx, claims.UserID)
+	return "", nil
+}
+func (a *App) DecryptVaultEntry(jwtToken string, entry *models.VaultEntry) (*models.VaultEntry, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+	// return a.subscriptionService.DecryptVaultEntry(a.ctx, claims.UserID, entry)
+	return nil, nil
 }
 
 // -----------------------------

@@ -14,6 +14,10 @@ export function AuthVerify(arg1) {
   return window['go']['main']['App']['AuthVerify'](arg1);
 }
 
+export function CancelSubscription(arg1, arg2) {
+  return window['go']['main']['App']['CancelSubscription'](arg1, arg2);
+}
+
 export function CheckEmail(arg1) {
   return window['go']['main']['App']['CheckEmail'](arg1);
 }
@@ -54,12 +58,20 @@ export function CreateStellarCommit(arg1, arg2) {
   return window['go']['main']['App']['CreateStellarCommit'](arg1, arg2);
 }
 
+export function DecryptVaultEntry(arg1, arg2) {
+  return window['go']['main']['App']['DecryptVaultEntry'](arg1, arg2);
+}
+
 export function DeleteEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteEntry'](arg1, arg2, arg3);
 }
 
 export function DeleteFolder(arg1, arg2) {
   return window['go']['main']['App']['DeleteFolder'](arg1, arg2);
+}
+
+export function DownloadReceipt(arg1, arg2) {
+  return window['go']['main']['App']['DownloadReceipt'](arg1, arg2);
 }
 
 export function DummyExposeEntries(arg1) {
@@ -90,12 +102,20 @@ export function GenerateApiKey(arg1) {
   return window['go']['main']['App']['GenerateApiKey'](arg1);
 }
 
+export function GetBillingHistory(arg1, arg2) {
+  return window['go']['main']['App']['GetBillingHistory'](arg1, arg2);
+}
+
 export function GetCheckoutURL(arg1) {
   return window['go']['main']['App']['GetCheckoutURL'](arg1);
 }
 
 export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
+}
+
+export function GetPendingPaymentRequests(arg1) {
+  return window['go']['main']['App']['GetPendingPaymentRequests'](arg1);
 }
 
 export function GetRecommendedTier(arg1) {
@@ -110,8 +130,20 @@ export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }
 
+export function GetStorageUsage(arg1) {
+  return window['go']['main']['App']['GetStorageUsage'](arg1);
+}
+
+export function GetSubscriptionDetails(arg1) {
+  return window['go']['main']['App']['GetSubscriptionDetails'](arg1);
+}
+
 export function GetTierFeatures() {
   return window['go']['main']['App']['GetTierFeatures']();
+}
+
+export function GetUserVaultKey(arg1) {
+  return window['go']['main']['App']['GetUserVaultKey'](arg1);
 }
 
 export function GetVault(arg1) {
@@ -164,6 +196,14 @@ export function OpenURL(arg1) {
 
 export function PollPaymentStatus(arg1, arg2) {
   return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2);
+}
+
+export function ProcessEncryptedPayment(arg1) {
+  return window['go']['main']['App']['ProcessEncryptedPayment'](arg1);
+}
+
+export function ReactivateSubscription(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ReactivateSubscription'](arg1, arg2, arg3);
 }
 
 export function RecoverVaultWithKey(arg1) {
@@ -228,6 +268,14 @@ export function TrashEntry(arg1, arg2, arg3) {
 
 export function UpdateFolder(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateFolder'](arg1, arg2, arg3, arg4);
+}
+
+export function UpdatePaymentMethod(arg1, arg2) {
+  return window['go']['main']['App']['UpdatePaymentMethod'](arg1, arg2);
+}
+
+export function UpgradeSubscription(arg1, arg2) {
+  return window['go']['main']['App']['UpgradeSubscription'](arg1, arg2);
 }
 
 export function UploadToIPFS(arg1, arg2) {

@@ -23,6 +23,8 @@ export function AddReceiver(arg1:string,arg2:share_application_use_cases.AddRece
 
 export function AuthVerify(arg1:blockchain.SignatureVerification):Promise<string>;
 
+export function CancelSubscription(arg1:string,arg2:string):Promise<void>;
+
 export function CheckEmail(arg1:string):Promise<handlers.CheckEmailResponse>;
 
 export function CheckPaymentOnResume():Promise<void>;
@@ -43,9 +45,13 @@ export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.Sha
 
 export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
 
+export function DecryptVaultEntry(arg1:string,arg2:models.VaultEntry):Promise<models.VaultEntry>;
+
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function DeleteFolder(arg1:string,arg2:string):Promise<string>;
+
+export function DownloadReceipt(arg1:string,arg2:string):Promise<main.Receipt>;
 
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
@@ -61,9 +67,13 @@ export function FlushAllSessions():Promise<void>;
 
 export function GenerateApiKey(arg1:main.GenerateApiKeyInput):Promise<main.GenerateApiKeyOutput>;
 
+export function GetBillingHistory(arg1:string,arg2:number):Promise<Array<main.PaymentHistory>>;
+
 export function GetCheckoutURL(arg1:string):Promise<main.CreateCheckoutResponse>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
+
+export function GetPendingPaymentRequests(arg1:string):Promise<Array<main.PaymentRequest>>;
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
 
@@ -71,7 +81,13 @@ export function GetSession(arg1:string):Promise<main.GetSessionResponse>;
 
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_domain.ShareAcceptData>;
 
+export function GetStorageUsage(arg1:string):Promise<main.StorageUsage>;
+
+export function GetSubscriptionDetails(arg1:string):Promise<main.Subscription>;
+
 export function GetTierFeatures():Promise<Record<string, onboarding_domain.SubscriptionFeatures>>;
+
+export function GetUserVaultKey(arg1:string):Promise<string>;
 
 export function GetVault(arg1:string):Promise<Record<string, any>>;
 
@@ -98,6 +114,10 @@ export function OpenGoogle():Promise<void>;
 export function OpenURL(arg1:string):Promise<void>;
 
 export function PollPaymentStatus(arg1:string,arg2:string):Promise<string>;
+
+export function ProcessEncryptedPayment(arg1:main.ClientPaymentRequest):Promise<void>;
+
+export function ReactivateSubscription(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain.RecoveredVault>;
 
@@ -130,5 +150,9 @@ export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<vaults_domain.Folder>;
+
+export function UpdatePaymentMethod(arg1:string,arg2:main.UpdatePaymentMethodRequest):Promise<void>;
+
+export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
 
 export function UploadToIPFS(arg1:string,arg2:string):Promise<string>;

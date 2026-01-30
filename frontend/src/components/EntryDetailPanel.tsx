@@ -41,12 +41,16 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [decryptingField, setDecryptingField] = useState<string | null>(null);
     const [editData, setEditData] = useState<Partial<VaultEntry>>({});
     const [folderId, setFolderId] = useState<string | null>(null);
+    const [folders, setFolders] = useState<Folder[]>([]);
     // keep localEntry typed explicitly
     const [localEntry, setLocalEntry] = useState<VaultEntry | null>(entry ?? null);
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
     const vaultContext = useVaultStore((state) => state.vault);
-    const folders: Folder[] = vaultContext.Vault.folders || [];
+
+    useEffect(() => {
+        vaultContext && setFolders(vaultContext.Vault.folders || []);
+    }, [vaultContext]);
 
     // Sync localEntry with prop changes
     useEffect(() => {

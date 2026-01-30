@@ -45,6 +45,8 @@ import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
+import PaymentRequestModal from "./Payments/PaymentRequestModal";
+import { useVault } from "@/hooks/useVault";
 
 
 
@@ -368,7 +370,7 @@ function DashboardNavbar() {
               <Settings className="mr-2 h-4 w-4  rounded-full" />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/profile-beta")}>
+            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/subscription")}>
               <User className="mr-2 h-4 w-4 text-primary" />
               Account
             </DropdownMenuItem>
@@ -411,6 +413,7 @@ function AppSidebar() {
   const isSharedContext = location.pathname.startsWith("/dashboard/shared");
 
   const vaultContext = useVaultStore((state) => state.vault);
+    const { clearVault: clearVaultContext } = useVault();
   const addFolder = useVaultStore((state) => state.addFolder);
   const removeFolder = useVaultStore((state) => state.removeFolder);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -423,6 +426,7 @@ function AppSidebar() {
   const shareType = searchParams.get("type") || "linkshare"; // "linkshare" or "cryptographicshare"
   const scope = searchParams.get("scope") || "byme"; // "byme" or "withme"
   const filter = searchParams.get("filter") || "all"; // "all", "sent", etc.
+	const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
 
   const handleTabChange = (type) => {
     setSearchParams({ ...Object.fromEntries(searchParams), type });
@@ -463,6 +467,25 @@ function AppSidebar() {
     // Update folder in zustand (session) 
     removeFolder(folder.id);
   };
+
+    const handleLogout = () => {
+      // Clear all stores and state
+      clearVaultStore();                   // Clear vault store (entries, vault data)
+      clearVaultContext();                 // Clear vault context provider
+      useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+      useAppStore.getState().reset();      // Clear app store (session)
+  
+      // Clear specific localStorage items (not all, to preserve settings)
+      localStorage.removeItem('userId');
+      localStorage.removeItem('vault-storage');
+  
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      AppAPI.SignOut(useAuthStore.getState().user?.id);
+      navigate("/login/email");
+    };
 
   const avatar = user && RenderAvatar(user.id)
 
@@ -659,13 +682,13 @@ function AppSidebar() {
 
       {/* Premium Footer */}
       <div className="mt-auto p-6 border-t border-zinc-200/30 dark:border-zinc-700/30 bg-gradient-to-b from-white/50 to-white/30 dark:from-zinc-900/50 dark:to-zinc-900/30 backdrop-blur-sm space-y-4">
-        <Button
+        {/* <Button
           onClick={() => setIsUpgradeOpen(true)}
           className="w-full h-12 py-3 px-4 bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-2xl hover:shadow-[#C9A44A]/30 text-white font-semibold rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <Crown className="h-4 w-4 mr-2" />
           Upgrade to Premium
-        </Button>
+        </Button> */}
 
         {/* User Info */}
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
@@ -678,6 +701,8 @@ function AppSidebar() {
             <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{user?.username}</p>
             <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           </div>
+
+          
         </div>
       </div>
 

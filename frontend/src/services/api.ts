@@ -609,7 +609,7 @@ export async function listLinkSharesByMe(): Promise<LinkShareEntry[]> {
     return [];
   } catch (err) {
     console.error("Failed to list link shares by me:", err);
-    throw err;
+    // throw err;
   }
 }
 // Link share with me

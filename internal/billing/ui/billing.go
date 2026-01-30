@@ -3,9 +3,11 @@ package billing_ui
 import (
 	"context"
 	billing_eventbus "vault-app/internal/billing/application"
-	billing_persistence "vault-app/internal/billing/infrastructure/persistence"
 	billing_usecase "vault-app/internal/billing/application/usecase"
+	billing_domain "vault-app/internal/billing/domain"
+	billing_persistence "vault-app/internal/billing/infrastructure/persistence"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
+
 	"gorm.io/gorm"
 )
 
@@ -13,10 +15,23 @@ type BillingHandler struct {
 	Db *gorm.DB
 	EventBus billing_eventbus.EventBus
 	PaymentHandler *billing_ui_handlers.AddPaymentHandler
+	BillingAppUC *billing_usecase.BillingApp
+	SubscriptionService billing_usecase.SubscriptionServiceInterface
+	AnkhoraService billing_usecase.AnkhoraCloudServiceInterface
 }
 
-func NewBillingHandler(db *gorm.DB, eventBus billing_eventbus.EventBus) *BillingHandler {
-	return &BillingHandler{Db: db, EventBus: eventBus}
+func NewBillingHandler(
+	db *gorm.DB, 
+	eventBus billing_eventbus.EventBus, 
+	sub billing_usecase.SubscriptionServiceInterface, 
+	ankh billing_usecase.AnkhoraCloudServiceInterface,
+) *BillingHandler {
+	return &BillingHandler{
+		Db: db, 
+		EventBus: eventBus, 
+		SubscriptionService: sub, 
+		AnkhoraService: ankh,
+	}
 }
 
 func (h *BillingHandler) Onboard(ctx context.Context, req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error) {
@@ -25,4 +40,12 @@ func (h *BillingHandler) Onboard(ctx context.Context, req billing_ui_handlers.Ad
 	paymentHandler := billing_ui_handlers.NewAddPaymentHandler(addPaymentMethodUseCase, h.EventBus, func() string { return "pm-x" })
 
 	return paymentHandler.AddPaymentMethod(ctx, req.UserID, req.Method, req.EncryptedPayload)
-}	
+}
+
+
+func (h *BillingHandler) GetPendingPaymentRequestsByUserID(ctx context.Context, userID string) ([]*billing_domain.PaymentRequest, error) {
+	billingAppH := billing_ui_handlers.NewBillingAppHandler(ctx, h.SubscriptionService, h.AnkhoraService)
+	return  billingAppH.GetPendingPaymentRequests(userID)
+
+}
+

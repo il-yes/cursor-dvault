@@ -601,6 +601,20 @@ export namespace main {
 	        this.ok = source["ok"];
 	    }
 	}
+	export class ClientPaymentRequest {
+	    payment_request_id: string;
+	    stripe_payment_method_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ClientPaymentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.payment_request_id = source["payment_request_id"];
+	        this.stripe_payment_method_id = source["stripe_payment_method_id"];
+	    }
+	}
 	export class CreateCheckoutResponse {
 	    sessionId: string;
 	    url: string;
@@ -771,6 +785,142 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.identity = source["identity"];
+	    }
+	}
+	export class PaymentHistory {
+	    id: string;
+	    amount: number;
+	    currency: string;
+	    description: string;
+	    status: string;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+	export class PaymentRequest {
+	    id: string;
+	    amount: number;
+	    currency: string;
+	    description: string;
+	    status: string;
+	    user_id: string;
+	    encrypted_payment_entry_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.user_id = source["user_id"];
+	        this.encrypted_payment_entry_id = source["encrypted_payment_entry_id"];
+	    }
+	}
+	export class Receipt {
+	    id: string;
+	    amount: number;
+	    currency: string;
+	    description: string;
+	    status: string;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Receipt(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+	export class StorageUsage {
+	    used: number;
+	    quota: number;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageUsage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.used = source["used"];
+	        this.quota = source["quota"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+	export class Subscription {
+	    id: string;
+	    amount: number;
+	    currency: string;
+	    description: string;
+	    status: string;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+	export class UpdatePaymentMethodRequest {
+	    user_id: string;
+	    payment_method: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdatePaymentMethodRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.payment_method = source["payment_method"];
+	    }
+	}
+	export class UpgradeRequest {
+	    user_id: string;
+	    new_tier: string;
+	    payment_method: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpgradeRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.new_tier = source["new_tier"];
+	        this.payment_method = source["payment_method"];
 	    }
 	}
 

@@ -36,6 +36,7 @@ const (
 	SubscriptionStatusActive   SubscriptionStatus = "active"
 	SubscriptionStatusInactive SubscriptionStatus = "inactive"
 	SubscriptionStatusUpgraded SubscriptionStatus = "upgraded"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
 )
 
 type Subscription struct {
@@ -68,6 +69,9 @@ type Subscription struct {
 	EndedAt               int64                `json:"ended_at"`
 	CreatedAt             time.Time            `json:"created_at"`
 	UpdatedAt             time.Time            `json:"updated_at"`
+	CancelReason          string               `json:"cancel_reason"`
+	CancelledAt           time.Time            `json:"cancelled_at"`
+	Version               int64                `json:"version"`
 }
 
 func (s *Subscription) BeforeCreate(tx *gorm.DB) (err error) {

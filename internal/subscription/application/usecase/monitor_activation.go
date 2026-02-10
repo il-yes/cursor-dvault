@@ -75,13 +75,13 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 	m.Logger.Info("🛰️ Listening for subscription activations")
 
 	m.Bus.SubscribeToActivation(func(ctx context.Context, event subscription_eventbus.SubscriptionActivated) {
-		m.Logger.Info("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d password=%s",
-			event.SubscriptionID, event.UserID, event.Tier, event.Ledger, event.Password)
+		m.Logger.Info("🚀 Activated subscription=%s for user=%s tier=%s ledger=%d  email=%s password=%s",
+			event.SubscriptionID, event.UserID, event.Tier, event.Ledger, event.UserEmail, event.Password)
 
 		// 1. ------------ I.  Register User Subscription ------------
 		userSubscription := subscription_domain.UserSubscription{
 			ID:    event.SubscriptionID,
-			Email: event.UserID,
+			Email: event.UserEmail,
 			Role:  "user",
 		}
 		if err := m.UserSubscriptionRepository.Save(ctx, &userSubscription); err != nil {

@@ -126,6 +126,16 @@ type PaymentSetupRequest struct {
 	EncryptedPaymentData  string                               `json:"encrypted_payment_data,omitempty"` // Encrypted client-side
 	StellarPublicKey      string                               `json:"stellar_public_key,omitempty"`
 }
+type PaymentSetupRequestBeta struct {
+	Rail                  string `json:"rail"`
+	Tier                  string `json:"tier"`
+	Email             string `json:"email"`
+
+	Plan                  string `json:"plan"`
+	PeriodMonths          int    `json:"period_months"`
+	SessionID             string `json:"session_id"`
+}
+
 type PaymentSetupResponse struct {
 	Data       json.RawMessage `json:"data"`
 	Status     string          `json:"status"`

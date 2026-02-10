@@ -3,6 +3,7 @@ package subscription_usecase
 import (
 	"context"
 	"time"
+	utils "vault-app/internal"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 )
@@ -25,19 +26,21 @@ type TraditionalSubscriptionResponse struct {
 	OccurredAt     int64  `json:"occurred_at"`
 }
 
-func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string, plainPassword string) (*subscription_domain.Subscription, error) {
+func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string, email string, plainPassword string) (*subscription_domain.Subscription, error) {
 	// I. ---------- Fetch subscription from payment from Ankhora cloud ----------
 	subscriptionFromPayment, err := uc.AnkhorClient.GetSubscriptionBySessionID(ctx, subID)
 	if err != nil {
 		return nil, err
 	}
-	// utils.LogPretty("Subscription from payment:", subscriptionFromPayment)
 
 	// II. ---------- Validate subscription ----------
 	if err := subscriptionFromPayment.Validate(); err != nil {
 		return nil, err
 	}
 	// fmt.Println("Subscription from payment validated:", subscriptionFromPayment.Validate())
+
+	subscriptionFromPayment.Email = email
+	utils.LogPretty("Subscription from payment with email added:", subscriptionFromPayment)
 
 	// III. ---------- Save subscription ----------
 	if err := uc.repo.Save(ctx, subscriptionFromPayment); err != nil {
@@ -49,6 +52,7 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, subID string, 
 		_ = uc.bus.PublishCreated(ctx, subscription_eventbus.SubscriptionCreated{
 			SubscriptionID: subscriptionFromPayment.ID,
 			UserID:         subscriptionFromPayment.UserID,
+			UserEmail:      subscriptionFromPayment.Email,
 			Password:       plainPassword,
 			Tier:           subscriptionFromPayment.Tier,
 			OccurredAt:     time.Now().Unix(),

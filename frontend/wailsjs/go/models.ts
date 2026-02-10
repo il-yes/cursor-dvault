@@ -319,6 +319,35 @@ export namespace auth {
 
 }
 
+export namespace billing_domain {
+	
+	export class PaymentRequest {
+	    id: string;
+	    amount: number;
+	    currency: string;
+	    description: string;
+	    status: string;
+	    user_id: string;
+	    encrypted_payment_entry_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.amount = source["amount"];
+	        this.currency = source["currency"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.user_id = source["user_id"];
+	        this.encrypted_payment_entry_id = source["encrypted_payment_entry_id"];
+	    }
+	}
+
+}
+
 export namespace blockchain {
 	
 	export class ChallengeRequest {
@@ -807,30 +836,6 @@ export namespace main {
 	        this.description = source["description"];
 	        this.status = source["status"];
 	        this.user_id = source["user_id"];
-	    }
-	}
-	export class PaymentRequest {
-	    id: string;
-	    amount: number;
-	    currency: string;
-	    description: string;
-	    status: string;
-	    user_id: string;
-	    encrypted_payment_entry_id: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PaymentRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.amount = source["amount"];
-	        this.currency = source["currency"];
-	        this.description = source["description"];
-	        this.status = source["status"];
-	        this.user_id = source["user_id"];
-	        this.encrypted_payment_entry_id = source["encrypted_payment_entry_id"];
 	    }
 	}
 	export class Receipt {
@@ -2146,6 +2151,10 @@ export namespace subscription_domain {
 	    created_at: any;
 	    // Go type: time
 	    updated_at: any;
+	    cancel_reason: string;
+	    // Go type: time
+	    cancelled_at: any;
+	    version: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Subscription(source);
@@ -2181,6 +2190,9 @@ export namespace subscription_domain {
 	        this.ended_at = source["ended_at"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.cancel_reason = source["cancel_reason"];
+	        this.cancelled_at = this.convertValues(source["cancelled_at"], null);
+	        this.version = source["version"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

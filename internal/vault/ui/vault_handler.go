@@ -29,6 +29,10 @@ import (
 type VaultHandler struct {
 	DB *gorm.DB
 
+	InitializeVaultCommandHandler *vault_commands.InitializeVaultCommandHandler
+	CreateIPFSPayloadCommandHandler *vault_commands.CreateIPFSPayloadCommandHandler
+	CreateVaultCommandHandler *vault_commands.CreateVaultCommandHandler
+
 	FolderRepository    vaults_domain.FolderRepository
 	VaultRepository     vaults_domain.VaultRepository
 	EntryRegistry       *registry.EntryRegistry
@@ -60,6 +64,15 @@ func NewVaultHandler(
 	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, &logger, ctx, ipfs, make(map[string]*vault_session.Session))
 	eventBus := vault_infrastructure_eventbus.NewMemoryBus()
 
+
+	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db)
+	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
+		vaultRepo, crypto, ipfs,
+	)
+	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
+		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
+	)
+
 	return &VaultHandler{
 		DB:               db,
 		IPFS:             ipfs,
@@ -70,6 +83,9 @@ func NewVaultHandler(
 		EntryRegistry:    entriesRegistry,
 		SessionManager:   sessionManager,
 		EventBus:         eventBus,
+		InitializeVaultCommandHandler: initializeVaultHandler,
+		CreateIPFSPayloadCommandHandler: createIpfsCommandHandler,
+		CreateVaultCommandHandler: createVaultCommand,
 	}
 }
 

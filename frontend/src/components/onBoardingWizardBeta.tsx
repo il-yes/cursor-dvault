@@ -670,7 +670,14 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                             <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
                                 <h3 className="text-xl font-bold mb-4">💳 Card Payment</h3>
 
-                                <StripePayButton onComplete={onPaymentSuccess} plainPassword={password} />
+                                <StripePayButton 
+                                    onComplete={onPaymentSuccess} 
+                                    plainPassword={password} 
+                                    email={email}
+                                    tier={selectedTier}
+                                    isAnonymous={isAnonymous}
+                                    identity={identity}
+                                />
                             </div>
 
 

@@ -13,6 +13,7 @@ import {share_application_dto} from '../models';
 import {share_domain} from '../models';
 import {models} from '../models';
 import {identity_domain} from '../models';
+import {billing_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {subscription_domain} from '../models';
@@ -69,11 +70,11 @@ export function GenerateApiKey(arg1:main.GenerateApiKeyInput):Promise<main.Gener
 
 export function GetBillingHistory(arg1:string,arg2:number):Promise<Array<main.PaymentHistory>>;
 
-export function GetCheckoutURL(arg1:string):Promise<main.CreateCheckoutResponse>;
+export function GetCheckoutURL(arg1:identity_domain.IdentityChoice,arg2:boolean,arg3:string,arg4:string,arg5:string,arg6:string):Promise<main.CreateCheckoutResponse>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
 
-export function GetPendingPaymentRequests(arg1:string):Promise<Array<main.PaymentRequest>>;
+export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
 
@@ -107,13 +108,13 @@ export function ListSharedEntries(arg1:string):Promise<any>;
 
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
 
-export function OnPaymentConfirmation(arg1:string,arg2:string):Promise<void>;
+export function OnPaymentConfirmation(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function OpenGoogle():Promise<void>;
 
 export function OpenURL(arg1:string):Promise<void>;
 
-export function PollPaymentStatus(arg1:string,arg2:string):Promise<string>;
+export function PollPaymentStatus(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function ProcessEncryptedPayment(arg1:main.ClientPaymentRequest):Promise<void>;
 

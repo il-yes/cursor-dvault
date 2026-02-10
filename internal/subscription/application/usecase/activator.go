@@ -87,6 +87,7 @@ func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_e
     activated := subscription_application_eventbus.SubscriptionActivated{
         SubscriptionID: sub.ID,
         UserID:         sub.UserID,
+        UserEmail:      evt.UserEmail,
         Password:       evt.Password,
         Tier:           sub.Tier,
         TxHash:         sub.TxHash,

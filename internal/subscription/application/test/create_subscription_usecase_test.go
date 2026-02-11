@@ -175,7 +175,7 @@ func TestCreateSubscription_Success(t *testing.T) {
 	req := validCreateSubscriptionRequest()
 
 	t.Log("📩 Executing use case")
-	sub, err := uc.Execute(ctx, req.ID, req.Password)
+	sub, err := uc.Execute(ctx, req.ID, req.Email, req.Password)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}
@@ -229,7 +229,7 @@ func TestCreateSubscription_SaveFails(t *testing.T) {
 
 	req := validCreateSubscriptionRequest()
 
-	_, err := uc.Execute(ctx, req.ID, req.Password)
+	_, err := uc.Execute(ctx, req.ID, req.Email, req.Password)
 	if err == nil || err.Error() != "save-fail" {
 		t.Fatalf("❌ expected save-fail, got %v", err)
 	}
@@ -252,7 +252,7 @@ func TestCreateSubscription_NoEventBus(t *testing.T) {
 
 	req := validCreateSubscriptionRequest()
 
-	_, err := uc.Execute(ctx, req.ID, req.Password)
+	_, err := uc.Execute(ctx, req.ID, req.Email, req.Password)
 	if err != nil {
 		t.Fatalf("❌ expected no error, got %v", err)
 	}

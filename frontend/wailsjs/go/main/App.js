@@ -106,8 +106,8 @@ export function GetBillingHistory(arg1, arg2) {
   return window['go']['main']['App']['GetBillingHistory'](arg1, arg2);
 }
 
-export function GetCheckoutURL(arg1) {
-  return window['go']['main']['App']['GetCheckoutURL'](arg1);
+export function GetCheckoutURL(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['GetCheckoutURL'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function GetFoldersByVault(arg1, arg2) {
@@ -182,8 +182,8 @@ export function NotifyPaymentSuccess(arg1) {
   return window['go']['main']['App']['NotifyPaymentSuccess'](arg1);
 }
 
-export function OnPaymentConfirmation(arg1, arg2) {
-  return window['go']['main']['App']['OnPaymentConfirmation'](arg1, arg2);
+export function OnPaymentConfirmation(arg1, arg2, arg3) {
+  return window['go']['main']['App']['OnPaymentConfirmation'](arg1, arg2, arg3);
 }
 
 export function OpenGoogle() {
@@ -194,8 +194,8 @@ export function OpenURL(arg1) {
   return window['go']['main']['App']['OpenURL'](arg1);
 }
 
-export function PollPaymentStatus(arg1, arg2) {
-  return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2);
+export function PollPaymentStatus(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2, arg3);
 }
 
 export function ProcessEncryptedPayment(arg1) {

@@ -34,7 +34,6 @@ import (
 	"vault-app/internal/logger/logger"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
-	onboarding_infrastructure_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	"vault-app/internal/registry"
@@ -47,10 +46,7 @@ import (
 	"vault-app/internal/stellar_recovery/infrastructure/token"
 	stellar_recovery_ui_api "vault-app/internal/stellar_recovery/ui/api"
 	payments "vault-app/internal/stripe"
-	subscription_usecase "vault-app/internal/subscription/application/usecase"
 	subscription_domain "vault-app/internal/subscription/domain"
-	subscription_infrastructure "vault-app/internal/subscription/infrastructure"
-	subscription_infrastructure_eventbus "vault-app/internal/subscription/infrastructure/eventbus"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
@@ -280,16 +276,20 @@ func NewApp() *App {
 
 	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)
 	userSubscriptionRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
-	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: db.DB}
-	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
+	
 	stellarService := blockchain.StellarService{}
-	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(&stellarService, onboardingUserRepo, onboardingBus, appLogger)
 	stellarRecoveryHandler := stellar_recovery_ui_api.NewStellarRecoveryHandler(checkUC, recoverUC, importUC, connectUC)
-	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient)
-	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(&getRecommendedTierUC, onboardingCreateAccountUC, onboardingSetupPaymentUseCase, db.DB)
-	subscriptionBus := subscription_infrastructure_eventbus.NewMemoryBus()
-	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tcClient)
-	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(*createSubscriptionUC, subscriptionSubRepo)
+	
+	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(
+		&stellarService, 
+		userSubscriptionRepo, 
+		subscriptionSubRepo, 
+		tcClient, 
+		db.DB, 
+		appLogger,
+	)
+	
+	
 
 	// runtimeCtxV2 := &vault_session.RuntimeContext{
 	// 	AppConfig: app_config.AppConfig{
@@ -323,7 +323,26 @@ func NewApp() *App {
 
 	// Identity
 	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()
-	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, identityMemoryBus, onboardingUserRepo)
+	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, identityMemoryBus, onBoardingHandler.UserRepo)
+
+	// Subscription
+	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(
+		db.DB, 
+		tcClient, 
+		vaultHandler.CreateVaultCommandHandler, 
+		&stellarService,
+		onBoardingHandler.UserRepo,
+		onBoardingHandler.Bus,
+		identityHandler,
+		*appLogger,
+		
+	)
+	// app.SubscriptionHandler = subscriptionHandler
+	
+	// Billing
+	billingBus := billing_infrastructure_eventbus.NewMemoryBus()
+	billingHandler := billing_ui.NewBillingHandler(db.DB, billingBus, &subscriptionHandler.SubscriptionSyncService, tcClient)
+	subscriptionHandler.SetBillingHandler(*billingHandler)
 
 	// Auth
 	tokenUC := auth_usecases.NewGenerateTokensUseCase(authRepository, authTokenService)
@@ -386,44 +405,33 @@ func NewApp() *App {
 	}()
 
 	// Event bus (single memory bus for subscription domain)
-	subscriptionService := subscription_infrastructure.NewSubscriptionSyncService(db.DB, tcClient)
+	// subscriptionService := subscription_infrastructure.NewSubscriptionSyncService(db.DB, tcClient)
 	// ===== New: core activator (business logic) =====
 	// Note: pass a Stellar port implementation if you have one, otherwise nil
-	activator := subscription_usecase.NewSubscriptionActivator(
-		subscriptionSubRepo, // repo
-		subscriptionBus,
-		subscriptionService, // vault port (implements ActivationVaultPort)
-	)
+	// activator := subscription_usecase.NewSubscriptionActivator(
+	// 	subscriptionSubRepo, // repo
+	// 	subscriptionBus,
+	// 	subscriptionService, // vault port (implements ActivationVaultPort)
+	// )
 
 	// ===== New: listener which only forwards SubscriptionCreated -> activator =====
-	createdListener := subscription_usecase.NewSubscriptionCreatedListener(appLogger, activator, subscriptionBus)
-	go createdListener.Listen(ctx)
+	go subscriptionHandler.CreateListener.Listen(ctx)
 
 	// ===== New: monitor for post-activation side effects (email, metrics...) =====
-	billingBus := billing_infrastructure_eventbus.NewMemoryBus()
-	billingHandler := billing_ui.NewBillingHandler(db.DB, billingBus, subscriptionService, tcClient)
 
-	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db.DB)
-	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
-		vaultHandler.VaultRepository, &cryptoService, ipfs,
-	)
-	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
-		initializeVaultHandler, createIpfsCommandHandler, vaultHandler.VaultRepository,
-	)
-
-	activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(
-		appLogger,
-		subscriptionBus,
-		userSubscriptionRepo,
-		subscriptionSubRepo,
-		createVaultCommand,
-		&stellarService,
-		onboardingUserRepo,
-		onboardingBus,
-		identityHandler,
-		billingHandler,
-	)
-	go activationMonitor.Listen(ctx)
+	// activationMonitor := subscription_usecase.NewSubscriptionActivationMonitor(
+	// 	appLogger,
+	// 	subscriptionHandler.Bus,
+	// 	subscriptionHandler.UserSubscriptionRepository,
+	// 	subscriptionSubRepo,
+	// 	vaultHandler.CreateVaultCommandHandler,
+	// 	&stellarService,
+	// 	onboardingUserRepo,
+	// 	onboardingBus,
+	// 	identityHandler,
+	// 	billingHandler,
+	// )
+	go subscriptionHandler.MonitorActivationService.Listen(ctx)
 
 	// ===== New: vault monitor =====
 	vaultOpenedListener := vault_commands.NewVaultOpenedListener(appLogger, vaultHandler.EventBus, vaultHandler)
@@ -576,17 +584,18 @@ type CreateCheckoutResponse struct {
 }
 
 // GetCheckoutURL returns the cloud backend checkout page URL
-func (a *App) GetCheckoutURL(plan string) (CreateCheckoutResponse, error) {
+func (a *App) GetCheckoutURL(identity identity_domain.IdentityChoice, isAnonymous bool, rail string, email, tier, plan string) (CreateCheckoutResponse, error) {
 	// -----------------------------
 	// 0. Generate Session ID
 	// -----------------------------
 	sessionID := uuid.New().String()
+	periodMonths := "1"
 
 	// -----------------------------
 	// 1. Generate Checkout URL
 	// -----------------------------
-	baseURL := "http://localhost:4002/checkout?session_id=" // your cloud page URL
-	url := baseURL + sessionID
+	baseURL := "http://localhost:4002/checkout" // your cloud page URL
+	url := fmt.Sprintf("%s?session_id=%s&identity=%s&rail=%s&email=%s&tier=%s&plan=%s&period_months=%s&isAnonymous=%t", baseURL, sessionID, identity, rail, email, tier, plan, periodMonths, isAnonymous)
 
 	res := CreateCheckoutResponse{
 		SessionID: sessionID,
@@ -601,10 +610,10 @@ func (a *App) OpenURL(rawURL string) error {
 }
 
 // Poll backend for payment status
-func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string, error) {
+func (a *App) PollPaymentStatus(sessionID string, email string, plainPassword string) (string, error) {
 	// 0. ------------- Poll backend for payment status -----------------
 	// fmt.Println("🔁 Polling session:", sessionID)
-	url := "http://localhost:4001/api/payment-status/" + sessionID
+	url := "http://localhost:4001/api/billing/payment-status/" + sessionID
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -626,7 +635,7 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 	// 2. 	------------- Check payment status -------------
 	if r.Status == "paid" {
 		go func() {
-			if err := a.OnPaymentConfirmation(sessionID, plainPassword); err != nil {
+			if err := a.OnPaymentConfirmation(sessionID, email, plainPassword); err != nil {
 				a.Logger.Error("Payment confirmation failed:", err)
 			}
 		}()
@@ -637,10 +646,10 @@ func (a *App) PollPaymentStatus(sessionID string, plainPassword string) (string,
 
 }
 
-func (a *App) OnPaymentConfirmation(sessionID string, plainPassword string) error {
+func (a *App) OnPaymentConfirmation(sessionID string, email string, plainPassword string) error {
 	log.Println("Deep link received:", sessionID)
 	// 0. ------------- OnPaymentConfirmation -------------
-	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, plainPassword)
+	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, email, plainPassword)
 	if err != nil {
 		return err
 	}

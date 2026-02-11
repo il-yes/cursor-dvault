@@ -5,6 +5,7 @@ import "context"
 type SubscriptionCreated struct {
 	SubscriptionID string
 	UserID         string
+	UserEmail      string
 	Password       string
 	Tier           string
 	TxHash         string
@@ -15,6 +16,7 @@ type SubscriptionCreated struct {
 type SubscriptionActivated struct {
 	SubscriptionID string
 	UserID         string
+	UserEmail      string
 	Password       string
 	Tier           string
 	TxHash         string

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -16,7 +17,7 @@ type VaultMapper struct {
 	Type      string `json:"type" gorm:"column:type"`
 	UserID    string    `json:"user_id" gorm:"column:user_id"`
 	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
-	TxHash    string `json:"tx_hash" gorm:"column:tx_hash"`
+	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"`
 	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"`
 }
@@ -37,6 +38,8 @@ func (vm *VaultMapper) ToDomain() *vaults_domain.Vault {
 	}
 }
 func VaultDomainToMapper(vault *vaults_domain.Vault) *VaultMapper {
+	utils.LogPretty("VaultDomainToMapper input", vault)
+
 	return &VaultMapper{
 		ID:        vault.ID,
 		Name:      vault.Name,

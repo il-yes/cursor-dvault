@@ -1,7 +1,7 @@
 package vault_commands
 
 import (
-	"log"
+	"errors"
 	utils "vault-app/internal"
 	vault_domain "vault-app/internal/vault/domain"
 )
@@ -80,11 +80,16 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// 3. Update vault with IPFS CID
 	// -----------------------------
 	vault.Vault.AttachCID(ipfsRecord.CID)
-	log.Println("CreateVaultCommandHandler - vault attached CID", vault)
+	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault.Vault)
+
+	if vault.Vault == nil {
+		return nil, errors.New("vault is nil before UpdateVault")
+	}
+
 	if err := h.vaultRepo.UpdateVault(vault.Vault); err != nil {
 		return nil, err
 	}
-	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
+	// utils.LogPretty("CreateVaultCommandHandler - vault", vault.Vault)
 
 	// -----------------------------
 	// 4. (Optional) Return event "VaultCreated"

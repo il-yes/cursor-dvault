@@ -111,6 +111,7 @@ func (a *SetupPaymentAndActivateUseCase) Execute(req PaymentSetupRequest) (*subs
 	}
 	utils.LogPretty("cloudReq", cloudReq)
 
+
 	// -----------------------------------------------------
 	// 3. Call Ankhora Cloud
 	// -----------------------------------------------------

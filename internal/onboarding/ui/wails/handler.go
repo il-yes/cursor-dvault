@@ -1,29 +1,59 @@
 package onboarding_ui_wails
 
 import (
-    "gorm.io/gorm"
 	identity_domain "vault-app/internal/identity/domain"
+	"vault-app/internal/logger/logger"
+	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_infrastructure_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_domain "vault-app/internal/subscription/domain"
+	"vault-app/internal/tracecore"
+
+	"gorm.io/gorm"
 )
 
 
 type OnBoardingHandler struct {
-	uc *onboarding_usecase.GetRecommendedTierUseCase
-	createAccountUseCase *onboarding_usecase.CreateAccountUseCase   
-    setupPaymentUseCase *onboarding_usecase.SetupPaymentAndActivateUseCase
+	uc onboarding_usecase.GetRecommendedTierUseCase
+	createAccountUseCase onboarding_usecase.CreateAccountUseCase   
+    setupPaymentUseCase onboarding_usecase.SetupPaymentAndActivateUseCase
+    GetRecommendedTierUseCase onboarding_usecase.GetRecommendedTierUseCase
     DB *gorm.DB
+    appLogger *logger.Logger
+    Bus onboarding_application_events.OnboardingEventBus
+	UserRepo onboarding_domain.UserRepository
 }
 
 func NewOnBoardingHandler(
-    uc *onboarding_usecase.GetRecommendedTierUseCase, 
-    createAccountUseCase *onboarding_usecase.CreateAccountUseCase,
-    setupPaymentUseCase *onboarding_usecase.SetupPaymentAndActivateUseCase,
+    stellarService onboarding_usecase.StellarServiceInterface,
+    userSubscriptionRepo subscription_domain.UserRepository,
+    subscriptionSubRepo subscription_domain.SubscriptionRepository,
+    tcClient *tracecore.TracecoreClient,
     DB *gorm.DB,
+    appLogger *logger.Logger,
     ) *OnBoardingHandler {
-	return &OnBoardingHandler{uc: uc, createAccountUseCase: createAccountUseCase, setupPaymentUseCase: setupPaymentUseCase, DB: DB}
+
+	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(DB)
+	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: DB}
+	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
+	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(stellarService, onboardingUserRepo, onboardingBus, appLogger)
+
+	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(
+        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
+    )
+
+	return &OnBoardingHandler{
+        uc: getRecommendedTierUC, 
+        createAccountUseCase: *onboardingCreateAccountUC, 
+        setupPaymentUseCase: *onboardingSetupPaymentUseCase, 
+        GetRecommendedTierUseCase: getRecommendedTierUC,
+        DB: DB,
+        appLogger: appLogger,
+        Bus: onboardingBus,
+		UserRepo: onboardingUserRepo,
+    }
 }
 
 

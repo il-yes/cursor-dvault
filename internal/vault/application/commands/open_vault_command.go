@@ -87,9 +87,9 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 1. REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)
 	// ------------------------------------------------------------
 	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
-		utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
+		// utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
 		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
-		utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
+		// utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
 
 		evt := vault_events.VaultOpened{
 			UserID:       cmd.UserID,
@@ -116,7 +116,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 2. LOAD OR CREATE VAULT METADATA
 	// ------------------------------------------------------------
-	utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
+	// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
@@ -144,7 +144,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
+	// utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
 
 	// ------------------------------------------------------------
 	// 5. PARSE VAULT PAYLOAD
@@ -185,7 +185,6 @@ func (h *OpenVaultCommandHandler) Handle(
 		ReusedExisting: false,
 	}, nil
 }
-
 
 func (h *OpenVaultCommandHandler) GetRuntimeContext(ctx context.Context, userID string, configFacade app_config_ui.AppConfigHandler) (*vault_session.RuntimeContext, error) {
 	// -----------------------------
@@ -274,4 +273,9 @@ func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Contex
 	}
 
 	return appCfg, userCfg, nil
+}
+
+type AttachRuntimeRequest struct {
+	UserID  string
+	Runtime *vault_session.RuntimeContext
 }

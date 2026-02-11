@@ -113,30 +113,27 @@ func (m *Manager) AttachVault(
 	if !ok {
 		return nil, fmt.Errorf("no session for user %s", userID)
 	}
-	if s.Vault != nil {
-        // 🔥 DO NOT overwrite restored vault
-		utils.LogPretty("Manager - AttachVault - vault already exists", s.Vault)
-        return s, nil
+	if s.Vault == nil {
+		vault.Normalize()
+		s.Vault = vault.ToBytes()
+		s.LastCID = lastCID
+		s.LastUpdated = m.NowUTC()
+		s.Dirty = false
     }
-
-	// Just for monitoring
-	// before := vault.Hash()
-	// vault.Normalize()
-	// after := vault.Hash()
-
-	// if before != after {
-	// 	m.logger.Warn("Normalize mutated vault structure")
-	// }
-
-	vault.Normalize()
-	s.Vault = vault.ToBytes()
+	
 	s.Runtime = runtime
-	s.LastCID = lastCID
-	s.LastUpdated = m.NowUTC()
-	s.Dirty = false
+	return s, nil
+}
 
-	utils.LogPretty("Manager - AttachVault - vault attached", s.Vault)
-	// s.Normalize()
+func (m *Manager) AttachRuntime(userID string, runtime *RuntimeContext) (*Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	s, ok := m.sessions[userID]
+	if !ok {
+		return nil, fmt.Errorf("no session for user %s", userID)
+	}
+	s.Runtime = runtime
 	return s, nil
 }
 

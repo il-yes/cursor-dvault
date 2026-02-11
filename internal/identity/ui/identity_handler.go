@@ -24,24 +24,24 @@ type IdentityHandler struct {
 	loginHandler *LoginHandler
 	registrationHandler *RegistrationHandler
 	finderHandler *FinderHandler
+	Bus identity_eventbus.EventBus
 }
 
 func NewIdentityHandler(
 	db *gorm.DB, 
 	tokenService identity_commands.TokenServiceInterface,
-	eventBus identity_eventbus.EventBus,
 	onboardingUserRepo onboarding_domain.UserRepository,
 	) *IdentityHandler {
 	
 	identityUserRepo := identity_persistence.NewGormUserRepository(db)
 	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
 
-	
 	return &IdentityHandler{
 		DB: db,
 		IdentityUserRepo: identityUserRepo,
 		eventBus: identityMemoryBus,
 		tokenService:        tokenService,
+		Bus: identityMemoryBus,
 	}
 }
 

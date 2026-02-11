@@ -17,6 +17,7 @@ import {billing_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {subscription_domain} from '../models';
+import {vault_application} from '../models';
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -138,7 +139,7 @@ export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequ
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
-export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
+export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_application.LoginResponse>;
 
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 

@@ -41,6 +41,7 @@ func (r *EntryRegistry) RegisterDefinitions(defs []EntryDefinition) {
 	}
 }
 func NewRegistry(logger *logger.Logger) *EntryRegistry {
+	logger.Info("🔧 Registry - Initializing Registry...")
 	return &EntryRegistry{
 		logger:   *logger,
 		handlers: make(map[string]EntryHandler),
@@ -50,7 +51,7 @@ func NewRegistry(logger *logger.Logger) *EntryRegistry {
 func (r *EntryRegistry) HandlerFor(entryType string) (EntryHandler, error) {
 	h, ok := r.handlers[entryType]
 	if !ok {
-		return nil, fmt.Errorf("handler not found for type: %s", entryType)
+		return nil, fmt.Errorf("🔧 Registry - handler not found for type: %s", entryType)
 	}
 	return h, nil
 }
@@ -60,7 +61,7 @@ var entryFactories = map[string]func() models.VaultEntry{}
 func (r *EntryRegistry) UnmarshalEntry(entryType string, raw []byte) (models.VaultEntry, error) {
 	factory, ok := entryFactories[entryType]
 	if !ok {
-		return nil, fmt.Errorf("unknown entry type: %s", entryType)
+		return nil, fmt.Errorf("🔧 Registry - unknown entry type: %s", entryType)
 	}
 	entry := factory()
 	if err := json.Unmarshal(raw, entry); err != nil {

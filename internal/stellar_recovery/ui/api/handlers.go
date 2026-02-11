@@ -5,8 +5,15 @@ import (
 	"fmt"
 	"time"
 	"vault-app/internal/handlers"
+	shared "vault-app/internal/shared/stellar"
 	stellar_recovery_usecase "vault-app/internal/stellar_recovery/application/use_case"
 	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
+	stellar "vault-app/internal/stellar_recovery/infrastructure"
+	"vault-app/internal/stellar_recovery/infrastructure/events"
+	stellar_recovery_persistence "vault-app/internal/stellar_recovery/infrastructure/persistence"
+	"vault-app/internal/stellar_recovery/infrastructure/token"
+
+	"gorm.io/gorm"
 )
 
 type StellarRecoveryHandler struct {
@@ -14,19 +21,38 @@ type StellarRecoveryHandler struct {
 	recoverUC *stellar_recovery_usecase.RecoverVaultUseCase
 	importUC  *stellar_recovery_usecase.ImportKeyUseCase
 	connectUC *stellar_recovery_usecase.ConnectWithStellarUseCase
+	loginAdapter *shared.StellarLoginAdapter
+	Db *gorm.DB		
 }
 
 func NewStellarRecoveryHandler(
-	checkUC *stellar_recovery_usecase.CheckKeyUseCase,
-	recoverUC *stellar_recovery_usecase.RecoverVaultUseCase,
-	importUC *stellar_recovery_usecase.ImportKeyUseCase,
-	connectUC *stellar_recovery_usecase.ConnectWithStellarUseCase,
+	db *gorm.DB,
+	eventDisp *events.LocalDispatcher,
+	tokenGen *token.SimpleTokenGen,
+	loginAdapter *shared.StellarLoginAdapter,
 ) *StellarRecoveryHandler {
+	stellarRecoverySubRepo := stellar_recovery_persistence.NewGormSubscriptionRepository(db)
+	verifier := stellar.NewStellarKeyAdapter()
+
+	userRepo := stellar_recovery_persistence.NewGormUserRepository(db)
+	vaultStellarRepo := stellar_recovery_persistence.NewGormVaultRepository(db)   
+
+	checkUC := stellar_recovery_usecase.NewCheckKeyUseCase(userRepo, vaultStellarRepo, stellarRecoverySubRepo, verifier)
+	recoverUC := stellar_recovery_usecase.NewRecoverVaultUseCase(userRepo, vaultStellarRepo, stellarRecoverySubRepo, verifier, eventDisp, tokenGen)
+	importUC := stellar_recovery_usecase.NewImportKeyUseCase(userRepo, verifier)
+	connectUC := stellar_recovery_usecase.NewConnectWithStellarUseCase(
+		loginAdapter,
+		vaultStellarRepo,
+		stellarRecoverySubRepo,
+	)    
+
 	return &StellarRecoveryHandler{
 		checkUC:   checkUC,
 		recoverUC: recoverUC,
 		importUC:  importUC,
 		connectUC: connectUC,
+		loginAdapter: loginAdapter,
+		Db: db,	
 	}
 }
 type CheckKeyResponse struct {

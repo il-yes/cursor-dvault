@@ -139,14 +139,15 @@ func VerifySignature(publicKey, challenge, signatureB64 string) bool {
 
 // SubmitCID anchors an IPFS CID on the Stellar Testnet using ManageData.
 func SubmitCID(secretKey, ipfsCID string) (string, error) {
+	utils.LogPretty("SubmitCID - secretKey", secretKey)
 	kp, err := keypair.ParseFull(secretKey)
 	if err != nil {
 		return "", fmt.Errorf("invalid secret key: %w", err)
 	}
 
 	client := horizonclient.DefaultTestNetClient
-
 	acctReq := horizonclient.AccountRequest{AccountID: kp.Address()}
+	utils.LogPretty("SubmitCID - acctReq", acctReq)
 	sourceAccount, err := client.AccountDetail(acctReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to load account: %w", err)
@@ -156,9 +157,11 @@ func SubmitCID(secretKey, ipfsCID string) (string, error) {
 		Name:  "vault_cid_+",
 		Value: []byte(ipfsCID),
 	}
+	utils.LogPretty("SubmitCID - op", op)
 
 	// 🔁 Corrected: set minTime = 0, maxTime = now + 5 min
 	maxTime := time.Now().Add(5 * time.Minute).Unix()
+	utils.LogPretty("SubmitCID - maxTime", maxTime)
 
 	txParams := txnbuild.TransactionParams{
 		SourceAccount:        &sourceAccount,
@@ -169,6 +172,7 @@ func SubmitCID(secretKey, ipfsCID string) (string, error) {
 			TimeBounds: txnbuild.NewTimebounds(0, maxTime),
 		},
 	}
+	utils.LogPretty("SubmitCID - txParams", txParams)
 
 	tx, err := txnbuild.NewTransaction(txParams)
 	if err != nil {

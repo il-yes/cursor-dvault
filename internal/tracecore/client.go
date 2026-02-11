@@ -36,6 +36,7 @@ func NewTracecoreClient(baseURL, token string) *TracecoreClient {
 	if token == "" {
 		log.Println("⚠️ TRACECORE_TOKEN is empty — Tracecore features will be disabled")
 	}
+	log.Println("🔧 Initializing Tracecore client...", baseURL, token)
 
 	return &TracecoreClient{
 		BaseURL: baseURL,

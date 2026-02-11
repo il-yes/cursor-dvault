@@ -13,6 +13,7 @@ type IPFSClient struct {
 
 // NewIPFSClient creates a new IPFS client connected to a node (default: localhost).
 func NewIPFSClient(endpoint string) *IPFSClient {
+	fmt.Println("🔧 Initializing IPFS client...")
 	if endpoint == "" {
 		endpoint = "localhost:5001"
 	}
@@ -23,6 +24,7 @@ func NewIPFSClient(endpoint string) *IPFSClient {
 
 // AddData adds encrypted data to IPFS and returns the CID.
 func (client *IPFSClient) AddData(data []byte) (string, error) {
+	fmt.Println("Adding data to IPFS...")
 	reader := bytes.NewReader(data)
 	cid, err := client.shell.Add(reader)
 	if err != nil {

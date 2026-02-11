@@ -21,7 +21,7 @@ type Session struct {
 	LastCID     string
 	LastSynced  string
 	LastUpdated string
-	Runtime     *RuntimeContext `json:"-" gorm:"-"`
+	Runtime     *RuntimeContext `json:"runtime,omitempty" gorm:"-"`
 	Dirty       bool
 	PendingCommits []tracecore.CommitEnvelope `json:"pending_commits,omitempty" gorm:"-"`
 }

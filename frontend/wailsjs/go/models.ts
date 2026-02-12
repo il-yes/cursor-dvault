@@ -319,6 +319,27 @@ export namespace auth {
 
 }
 
+export namespace auth_domain {
+	
+	export class TokenPairs {
+	    access_token: string;
+	    refresh_token: string;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TokenPairs(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.access_token = source["access_token"];
+	        this.refresh_token = source["refresh_token"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+
+}
+
 export namespace billing_domain {
 	
 	export class PaymentRequest {
@@ -583,6 +604,55 @@ export namespace handlers {
 	        this.Vault = this.convertValues(source["Vault"], models.VaultPayload);
 	        this.User = this.convertValues(source["User"], models.User);
 	        this.Tokens = this.convertValues(source["Tokens"], auth.TokenPairs);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace identity_domain {
+	
+	export class User {
+	    ID: string;
+	    Email: string;
+	    PasswordHash: string;
+	    IsAnonymous: boolean;
+	    StellarPublicKey: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    LastConnectedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Email = source["Email"];
+	        this.PasswordHash = source["PasswordHash"];
+	        this.IsAnonymous = source["IsAnonymous"];
+	        this.StellarPublicKey = source["StellarPublicKey"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.LastConnectedAt = this.convertValues(source["LastConnectedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2247,6 +2317,94 @@ export namespace tracecore {
 	        this.allow_download = source["allow_download"];
 	        this.password = source["password"];
 	    }
+	}
+
+}
+
+export namespace vault_application {
+	
+	export class LoginResponse {
+	    User: identity_domain.User;
+	    Tokens: auth_domain.TokenPairs;
+	    SessionID: string;
+	    Vault: vaults_domain.VaultPayload;
+	    VaultRuntimeContext: vault_session.RuntimeContext;
+	    LastCID: string;
+	    Dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoginResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.User = this.convertValues(source["User"], identity_domain.User);
+	        this.Tokens = this.convertValues(source["Tokens"], auth_domain.TokenPairs);
+	        this.SessionID = source["SessionID"];
+	        this.Vault = this.convertValues(source["Vault"], vaults_domain.VaultPayload);
+	        this.VaultRuntimeContext = this.convertValues(source["VaultRuntimeContext"], vault_session.RuntimeContext);
+	        this.LastCID = source["LastCID"];
+	        this.Dirty = source["Dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace vault_session {
+	
+	export class RuntimeContext {
+	    AppConfig: app_config.AppConfig;
+	    UserConfig: app_config.UserConfig;
+	    SessionSecrets: Record<string, string>;
+	    WorkingBranch: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuntimeContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.AppConfig = this.convertValues(source["AppConfig"], app_config.AppConfig);
+	        this.UserConfig = this.convertValues(source["UserConfig"], app_config.UserConfig);
+	        this.SessionSecrets = source["SessionSecrets"];
+	        this.WorkingBranch = source["WorkingBranch"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

@@ -137,7 +137,7 @@ export const useVaultStore = create<VaultStoreState>()(
             }
 
             data = preloaded;
-            console.log("✅ Using preloaded vault from SignIn");
+            console.log("✅ Using preloaded vault from SignIn", data);
           }
           else if (USE_MOCK) {
             // ✅ Use mock data
@@ -174,9 +174,12 @@ export const useVaultStore = create<VaultStoreState>()(
           }
 
           const vaultObject = {
-            user_id: data.User.id,
+            user_id: data.User.id || data?.User?.ID,
             role: data.User.role,
-            Vault: data.Vault,
+            Vault: {
+              ...data.Vault,
+              entries: data.Vault.entries
+            },
             LastCID: data.last_cid || data.LastCID || 'main',
             Dirty: data.dirty || data.Dirty || false,
             LastSynced: data.LastSynced || new Date().toISOString(),
@@ -534,6 +537,8 @@ export const useVaultStore = create<VaultStoreState>()(
           }
 
           if (!updated) return state;
+
+          state.vault.Dirty = true;
 
           return {
             vault: {

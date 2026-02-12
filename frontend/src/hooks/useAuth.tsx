@@ -35,7 +35,7 @@ export function useAuth() {
       setJwtToken(normalized.Tokens.access_token);
       setRefreshToken(normalized.Tokens.refresh_token);
     }
-    // Save tokens
+    // Save Cloud tokens
     if (normalized.CloudTokens) {
       setJwtCloudToken(normalized.CloudTokens?.access_token);
     }

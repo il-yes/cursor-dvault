@@ -211,6 +211,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
 	const sync = async (jwtToken: string) => {
 		try {
+			const context = useVaultStore.getState().vault;
+			if (!context) throw new Error("Vault context not found");
+			context.Dirty = false;
+			context.LastSynced = new Date().toISOString();
+			useVaultStore.getState().setVault(context);
 			await AppAPI.SynchronizeVault(jwtToken, ""); // Password might be needed depending on implementation
 			await refreshVault();
 		} catch (err) {
@@ -248,6 +253,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	};
 
 	const syncVault = async (jwtToken: string, vaultPassword: string) => {
+		const context = useVaultStore.getState().vault;
+		if (!context) throw new Error("Vault context not found");
+		context.Dirty = false;
+		context.LastSynced = new Date().toISOString();
+		useVaultStore.getState().setVault(context);
 		return await AppAPI.SynchronizeVault(jwtToken, vaultPassword);
 	};
 

@@ -25,8 +25,20 @@ func NewOpenVaultHandler(openVaultCommandHandler *vault_commands.OpenVaultComman
 	}
 }
 
-func (h *OpenVaultHandler) OpenVault(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*vault_commands.OpenVaultResult, error) {
-	return h.openVaultCommandHandler.Handle(ctx, req, h.ipfs, h.crypto, h.EventBus, appConfigHandler)
+func (h *OpenVaultHandler) OpenVault(
+	ctx context.Context, 
+	req vault_commands.OpenVaultCommand, 
+	appConfigHandler app_config_ui.AppConfigHandler,
+) (*vault_commands.OpenVaultResult, error) {
+	
+	return h.openVaultCommandHandler.Handle(
+		ctx, 
+		req, 
+		h.ipfs, 
+		h.crypto, 
+		h.EventBus, 
+		appConfigHandler,
+	)
 }
 
 

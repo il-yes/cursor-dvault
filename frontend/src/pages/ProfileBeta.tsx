@@ -42,8 +42,7 @@ const Profile = () => {
 	const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
 	const usagePercent = Math.ceil((totalEntries / maxEntries) * 100);
 	const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
-	const session = useAppStore.getState().session;
-	const user = session?.vault_runtime_context?.CurrentUser
+	
 	const [progressVisible, setProgressVisible] = useState(false);
 	const [showModal, setShowModal] = useState(false);
 
@@ -51,6 +50,10 @@ const Profile = () => {
 
 	const [progress, setProgress] = useState(0);
 	const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
+
+	const session = useAppStore.getState().session;
+	const user = session?.user
+	const stellar = vault?.vault_runtime_context?.UserConfig?.stellar_account	
 
 	useEffect(() => {
 		const callback = (payload: { percent: number, stage: string } | number) => {
@@ -214,6 +217,8 @@ const Profile = () => {
 			// After some delay, hide the progress bar like a toast
 			setTimeout(() => setProgressVisible(false), 2000);
 
+			
+
 		} catch (error) {
 			setProgressVisible(false);
 
@@ -317,7 +322,7 @@ const Profile = () => {
 									<Input
 										id="email"
 										type="email"
-										defaultValue={session?.user?.email}
+										defaultValue={user && user?.Email}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>
@@ -352,7 +357,7 @@ const Profile = () => {
 										</Label>
 										<div className="flex gap-3">
 											<Input
-												value={user?.stellar_account?.public_key}
+												value={stellar && stellar?.public_key}
 												readOnly
 												className="flex-1 h-14 font-mono text-lg bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm rounded-2xl border-primary/30 shadow-inner font-semibold"
 											/>
@@ -373,7 +378,7 @@ const Profile = () => {
 										</Label>
 										<div className="flex gap-3">
 											<Input
-												value={user?.stellar_account?.private_key}
+												value={stellar && stellar?.private_key}
 												readOnly
 												type="password"
 												className="flex-1 h-14 font-mono text-lg bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm rounded-2xl border-destructive/30 shadow-inner font-semibold text-destructive/80"

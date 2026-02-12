@@ -558,9 +558,83 @@ Would you like me to now turn this into a **designed pitch deck (10–12 slides)
 
 
 
-
-
-
+____
+------------------------------------------------------------------------
+*  Manager - AttachVault - vault already exists
+------------------------------------------------------------------------
+"eyJ....iOiIifQ=="
+_____
+2026/02/11 09:46:20 [INFO]  ✅ Vault attached to session for user 9d9fae5d-c7d6-493a-bbf8-dd969b0a6e51
+2026/02/11 09:46:20 [INFO]  ✅ VaultOpenedListener - vault opened for user 9d9fae5d-c7d6-493a-bbf8-dd969b0a6e51
+------------------------------------------------------------------------
+*  VaultOpenedListener - VaultOpened - session
+------------------------------------------------------------------------
+{
+  "UserID": "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e51",
+  "vault_blob": "eyJ2ZXJz...ttFXus6j8dtJ",
+  "LastSynced": "2025-12-26T15:29:13-08:00",
+  "LastUpdated": "2026-02-11T07:37:06-08:00",
+  "Dirty": true
+}
+_____
+------------------------------------------------------------------------
+*  VaultOpenedListener - VaultOpened - Runtime
+------------------------------------------------------------------------
+{
+  "AppConfig": {
+    "id": "1de6e32b-0cad-4e62-907f-edce44b983ec",
+    "repo_id": "",
+    "branch": "main",
+    "tracecore_enabled": false,
+    "commit_rules": null,
+    "branching_model": "",
+    "encryption_policy": "AES-256-GCM",
+    "actors": null,
+    "federated_providers": null,
+    "default_phase": "",
+    "default_vault_path": "",
+    "vault_settings": {
+      "max_entries": 1000,
+      "auto_sync_enabled": false,
+      "encryption_scheme": "AES-256-GCM"
+    },
+    "blockchain": {
+      "stellar": {
+        "network": "testnet",
+        "horizon_url": "https://horizon-testnet.stellar.org",
+        "fee": 100,
+        "sync_frequency": ""
+      },
+      "ipfs": {
+        "api_endpoint": "",
+        "gateway_url": ""
+      }
+    },
+    "user_id": "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e51",
+    "auto_lock_timeout": "",
+    "remask_delay": "",
+    "theme": "",
+    "animations_enabled": false
+  },
+  "UserConfig": {
+    "id": "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e51",
+    "role": "user",
+    "signature": "",
+    "connected_orgs": null,
+    "stellar_account": {
+      "public_key": "GCMDBOZ4OK2JX5PJQSZKCZ62T4ZZNC5YMDLIC3G4TO5TM4X4GT67NVCY",
+      "private_key": "5��^�\tXGy��xO'���\u0002��\u001eYvY�\u0018:/|�R���\u0002���D\\�g/��nY\u0000-�\u0005Y숣�m+3�]\u001f��Ĭ�Xn�\u0001��+|��\u0005^ߏyOY7m\nA��9B��$iЦ�",
+      "EncPassword": "atamMYeZuMpu9uC8JDA/+bwyEmVc4xYm",
+      "EncNonce": "cH+xJ7wXXQpdW7RE",
+      "EncSalt": "aYaGaVIoSxBzwRhcFKBcyg=="
+    },
+    "sharing_rules": null,
+    "two_factor_enabled": false
+  },
+  "SessionSecrets": {},
+  "WorkingBranch": "main"
+}
+_____
 
 
 

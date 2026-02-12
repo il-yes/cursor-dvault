@@ -72,13 +72,12 @@ func NewSubscriptionHandler(
 		subscriptionBus,
 		subscriptionService, // vault port (implements ActivationVaultPort)
 	)
+	
+	// ===== New: create subscription use case =====
+	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tracecoreClt)
 
 	// ===== New: listener which only forwards SubscriptionCreated -> activator =====
 	createdListener := subscription_usecase.NewSubscriptionCreatedListener(&logger, activator, subscriptionBus)
-	
-	createSubscriptionUC := subscription_usecase.NewCreateSubscriptionUseCase(subscriptionSubRepo, subscriptionBus, tracecoreClt)
-	
-
 
 	return &SubscriptionHandler{
 		CreateUC: *createSubscriptionUC, 

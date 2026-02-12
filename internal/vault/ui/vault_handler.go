@@ -2,6 +2,7 @@ package vault_ui
 
 import (
 	"context"
+	// "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
+	app_config "vault-app/internal/config"
 	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
@@ -29,9 +31,10 @@ import (
 type VaultHandler struct {
 	DB *gorm.DB
 
-	InitializeVaultCommandHandler *vault_commands.InitializeVaultCommandHandler
+	InitializeVaultCommandHandler   *vault_commands.InitializeVaultCommandHandler
 	CreateIPFSPayloadCommandHandler *vault_commands.CreateIPFSPayloadCommandHandler
-	CreateVaultCommandHandler *vault_commands.CreateVaultCommandHandler
+	CreateVaultCommandHandler       *vault_commands.CreateVaultCommandHandler
+	VaultOpenedListener             *vault_commands.VaultOpenedListener
 
 	FolderRepository    vaults_domain.FolderRepository
 	VaultRepository     vaults_domain.VaultRepository
@@ -57,13 +60,13 @@ func NewVaultHandler(
 	ipfs *blockchain.IPFSClient,
 	crypto *blockchain.CryptoService,
 	db *gorm.DB,
+	appConfig app_config.AppConfig,
 ) *VaultHandler {
 	folderRepo := vaults_persistence.NewGormFolderRepository(db)
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
 	sessionRepo := vaults_persistence.NewGormSessionRepository(db)
 	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, &logger, ctx, ipfs, make(map[string]*vault_session.Session))
 	eventBus := vault_infrastructure_eventbus.NewMemoryBus()
-
 
 	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db)
 	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
@@ -73,20 +76,27 @@ func NewVaultHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
 	)
 
+
 	return &VaultHandler{
-		DB:               db,
-		IPFS:             ipfs,
-		CryptoService:    crypto,
-		logger:           logger,
-		NowUTC:           func() string { return time.Now().UTC().Format(time.RFC3339) },
-		FolderRepository: folderRepo,
-		EntryRegistry:    entriesRegistry,
-		SessionManager:   sessionManager,
-		EventBus:         eventBus,
-		InitializeVaultCommandHandler: initializeVaultHandler,
+		DB:                              db,
+		IPFS:                            ipfs,
+		CryptoService:                   crypto,
+		logger:                          logger,
+		NowUTC:                          func() string { return time.Now().UTC().Format(time.RFC3339) },
+		FolderRepository:                folderRepo,
+		EntryRegistry:                   entriesRegistry,
+		SessionManager:                  sessionManager,
+		EventBus:                        eventBus,
+		InitializeVaultCommandHandler:   initializeVaultHandler,
 		CreateIPFSPayloadCommandHandler: createIpfsCommandHandler,
-		CreateVaultCommandHandler: createVaultCommand,
+		CreateVaultCommandHandler:       createVaultCommand,
+		VaultRepository:                 vaultRepo,
 	}
+}
+
+func (vh *VaultHandler) InitializeVaultOpenedListener() {
+	vh.logger.Info("Initializing vault opened listener")
+	vh.VaultOpenedListener = vault_commands.NewVaultOpenedListener(&vh.logger, vh.EventBus, vh)
 }
 
 // -----------------------------
@@ -157,6 +167,14 @@ func (vh *VaultHandler) SessionAttachVault(
 		session.UserID,
 	)
 
+	return nil
+}
+func (vh *VaultHandler) SessionAttachRuntime(ctx context.Context, req vault_commands.AttachRuntimeRequest) error {
+	session, err := vh.SessionManager.AttachRuntime(req.UserID, req.Runtime)
+	if err != nil {
+		return err
+	}
+	utils.LogPretty("SessionAttachRuntime - session", session)
 	return nil
 }
 func (vh *VaultHandler) LogoutUser(userID string) error {
@@ -507,51 +525,74 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 	return nil
 }
 
-func (vh *VaultHandler) SyncVault(userID string, password string) (string, error) {
+func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password string) (string, error) {
 	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
+	if ctx == nil {
+		vh.logger.Error("❌ SyncVault aborted: ctx is nil")
+		return "", errors.New("runtime context is nil")
+	}
+	vh.logger.Info("CTX = %#v", ctx)
+
 
 	// 1. ---------- Get session ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+	vh.logger.Info("🔄 SyncVault - Retrieving session for UserID: %s", userID)
 	session, err := vh.GetSession(userID)
 	if err != nil {
 		return "", fmt.Errorf("no active session: %w", err)
 	}
+	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)
 
 	// 2. ---------- Marshal vault ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
 	vaultBytes, err := json.Marshal(session.Vault)
 	if err != nil {
 		return "", fmt.Errorf("marshal failed: %w", err)
 	}
 
 	// 3. ---------- Encrypt vault ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
 	encrypted, err := blockchain.Encrypt(vaultBytes, password)
 	if err != nil {
 		return "", fmt.Errorf("encryption failed: %w", err)
 	}
+	vh.logger.Info("🔄 SyncVault - Vault encrypted for UserID: %s", userID)
+	utils.LogPretty("SyncVault - session", session)
 
 	// 4. ---------- Upload to IPFS ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
 	newCID, err := vh.IPFS.AddData(encrypted)
 	if err != nil {
 		return "", fmt.Errorf("IPFS upload failed: %w", err)
 	}
+	vh.logger.Info("🔄 SyncVault - Vault uploaded to IPFS - cid: %s", newCID)
 
 	// 5. ---------- Submit to Stellar ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
 	userCfg := session.Runtime.UserConfig
+	utils.LogPretty("SyncVault - userCfg", userCfg)
+
+	// cipherBytes, _ := base64.StdEncoding.DecodeString(userCfg.StellarAccount.PrivateKey)
+	// decryptedPrivateKey, err := blockchain.Decrypt(cipherBytes, "password")
+	// if err != nil {
+	// 	return "", fmt.Errorf("stellar submission failed: %w", err)
+	// }
+	// utils.LogPretty("SyncVault - decryptedPrivateKey", decryptedPrivateKey)
 	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
 	if err != nil {
 		return "", fmt.Errorf("stellar submission failed: %w", err)
 	}
+	vh.logger.Info("🔄 SyncVault - Vault submitted to Stellar - txHash: %s", txHash)
 
+	fmt.Println("SyncVault - CTX", ctx)
+	utils.LogPretty("SyncVault - Vault repository", vh.VaultRepository)
 	// 6. ---------- Create new vault ----------
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
 	currentMeta, err := vh.VaultRepository.GetLatestByUserID(userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get vault meta: %w", err)
 	}
+	utils.LogPretty("SyncVault - currentMeta", currentMeta)
 	newVault := vaults_domain.Vault{
 		Name:      currentMeta.Name,
 		Type:      currentMeta.Type,
@@ -561,15 +602,16 @@ func (vh *VaultHandler) SyncVault(userID string, password string) (string, error
 		CreatedAt: vh.NowUTC(),
 		UpdatedAt: vh.NowUTC(),
 	}
-	saved := vh.VaultRepository.SaveVault(&newVault)
+	utils.LogPretty("SyncVault - newVault to save", newVault)
+	saved := vh.VaultRepository.UpdateVault(&newVault)
 	vh.logger.Info("💾 Vault saved for user %s: %v", userID, saved)
-	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
+	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
 
 	// 7. ---------- Update session ----------
 	vh.SessionManager.Sync(userID, newCID)
 	vh.logger.Info("✅ Vault sync complete for user %s", userID)
 	// 8. ---------- Emit event ----------
-	runtime.EventsEmit(vh.Ctx, "vault-synced", map[string]interface{}{"userID": userID, "newCID": newCID})
+	runtime.EventsEmit(ctx, "vault-synced", map[string]interface{}{"userID": userID, "newCID": newCID})
 	// 9. ---------- Fires vault stores Sync event ----------
 
 	return newCID, nil

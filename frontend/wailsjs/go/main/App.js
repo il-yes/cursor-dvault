@@ -82,6 +82,10 @@ export function EditEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['EditEntry'](arg1, arg2, arg3);
 }
 
+export function EditUserInfos(arg1, arg2) {
+  return window['go']['main']['App']['EditUserInfos'](arg1, arg2);
+}
+
 export function EncryptFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['EncryptFile'](arg1, arg2, arg3);
 }
@@ -152,10 +156,6 @@ export function GetVault(arg1) {
 
 export function ImportVaultWithKey(arg1) {
   return window['go']['main']['App']['ImportVaultWithKey'](arg1);
-}
-
-export function InitStripe() {
-  return window['go']['main']['App']['InitStripe']();
 }
 
 export function IsVaultDirty(arg1) {

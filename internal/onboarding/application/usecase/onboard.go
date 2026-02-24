@@ -12,6 +12,7 @@ import (
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	vault_commands "vault-app/internal/vault/application/commands"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type IdentityHandlerInterface interface {
@@ -60,6 +61,7 @@ type OnboardRequest struct {
 	PaymentMethod        string
 	EncryptedPaymentData string
 	SubscriptionID       string
+	UserSubscriptionID   string
 }
 
 // ----------- UseCase Result -----------
@@ -130,8 +132,9 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	// 3. ------------- Vault creation ------------------
 	result, err := uc.Vault.CreateVault(vault_commands.CreateVaultCommand{
 		UserID:    userIdentity.ID,
-		VaultName: "Default Vault",
+		VaultName: vaults_domain.DefaultVaultName,
 		Password:  req.Password,
+		UserSubscriptionID: req.UserSubscriptionID,
 	})
 	if err != nil {
 		return nil, err

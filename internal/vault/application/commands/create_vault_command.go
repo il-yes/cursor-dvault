@@ -2,15 +2,16 @@ package vault_commands
 
 import (
 	"errors"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
 )
 
 // -------- COMMAND query --------
 type CreateVaultCommand struct {
-	UserID    string
-	VaultName string
-	Password  string
+	UserID             string
+	VaultName          string
+	Password           string
+	UserSubscriptionID string
 }
 
 // -------- COMMAND result --------
@@ -68,7 +69,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
 
 	// -----------------------------
-	// 2. Create IPFS payload
+	// 2. Create IPFS payload	
 	// -----------------------------
 	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(CreateIPFSPayloadCommand{Vault: vault.Vault, Password: cmd.Password})
 	if err != nil {
@@ -80,6 +81,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// 3. Update vault with IPFS CID
 	// -----------------------------
 	vault.Vault.AttachCID(ipfsRecord.CID)
+	vault.Vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)
 	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault.Vault)
 
 	if vault.Vault == nil {

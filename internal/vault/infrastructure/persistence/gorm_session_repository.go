@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/blockchain"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -53,11 +53,10 @@ func (r *GormSessionRepository) SaveSession(userID string, session *vault_sessio
 		LastSynced:  session.LastSynced,
 		LastUpdated: time.Now().Format(time.RFC3339),
 	}
-	v, err := vault_session.DecodeSessionVault(session.Vault)
+	_, err = vault_session.DecodeSessionVault(session.Vault)
 	if err != nil {
 		return err
 	}
-	utils.LogPretty("GormSessionRepository - SaveSession - session	", v)
 
 	// Upsert: if exists, update; else insert
 	return r.db.Clauses(clause.OnConflict{

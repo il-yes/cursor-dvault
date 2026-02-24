@@ -60,5 +60,16 @@ func (r *MemoryUserRepository) Update(ctx context.Context, u *identity_domain.Us
 	return nil
 }	
 
+func (r *MemoryUserRepository) FindByPublicKey(ctx context.Context, publicKey string) (*identity_domain.User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, u := range r.byID {
+		if u.StellarPublicKey == publicKey {
+			return u, nil
+		}
+	}
+	return nil, nil
+}
+
 // Ensure interface satisfaction at compile-time
 var _ identity_domain.UserRepository = (*MemoryUserRepository)(nil)

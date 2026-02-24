@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	"vault-app/internal/models"

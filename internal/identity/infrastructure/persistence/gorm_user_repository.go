@@ -2,7 +2,7 @@ package identity_persistence
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 
@@ -51,6 +51,14 @@ func (r *GormUserRepository) Update(ctx context.Context, u *identity_domain.User
 func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*identity_domain.User, error) {
 	var u identity_domain.User
 	if err := r.db.Model(&identity_domain.User{}).Where("email = ?", email).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *GormUserRepository) FindByPublicKey(ctx context.Context, publicKey string) (*identity_domain.User, error) {
+	var u identity_domain.User
+	if err := r.db.Model(&identity_domain.User{}).Where("stellar_public_key = ?", publicKey).First(&u).Error; err != nil {
 		return nil, err
 	}
 	return &u, nil

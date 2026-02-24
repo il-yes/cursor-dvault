@@ -1,7 +1,7 @@
 package auth_usecases
 
 import (
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/auth/domain"
 )
 

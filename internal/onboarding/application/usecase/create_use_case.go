@@ -91,8 +91,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 			StellarPublicKey: pub,
 			OccurredAt:       time.Now(),
 		}
-        // utils.LogPretty("accountCreatedEvent", accountCreatedEvent)
-        // a.Logger.Info("accountCreatedEvent", accountCreatedEvent)   
+    	a.Logger.Info("accountCreatedEvent", accountCreatedEvent)   
 
 		if err := a.Bus.PublishCreated(context.Background(), accountCreatedEvent); err != nil {
 			return nil, err
@@ -126,7 +125,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("createdUser", createdUser)
+	a.Logger.Info("createdUser: %v", createdUser)
 
 	// 3. ---------- Fire Onboarding creation event ----------
 	accountCreatedEvent := onboarding_application_events.AccountCreatedEvent{

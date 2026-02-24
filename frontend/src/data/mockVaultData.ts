@@ -199,6 +199,38 @@ const mockIdentityEntries: IdentityEntry[] = [
   },
 ];
 
+export const mockLinkShares = [
+  {
+    id: "1",
+    entry_name: "aws keys",
+    status: "active", // or "expired", "revoked"
+    expiry: "2026-01-28",
+    uses_left: 2,
+    link: "https://ankhora.app/share/abcdef123456",
+    audit_log: [/* ... */],
+  },
+  {
+    id: "2",
+    entry_name: "google keys",
+    status: "active", // or "expired", "revoked"
+    expiry: "2026-01-28",
+    uses_left: 2,
+    link: "https://ankhora.app/share/abcdef123456",
+    audit_log: [/* ... */],
+  },
+  {
+    id: "3",
+    entry_name: "github keys",
+    status: "expired", // or "expired", "revoked"
+    expiry: "2025-12-28",
+    uses_left: 0,
+    link: "https://ankhora.app/share/abcdef123456",
+    audit_log: [/* ... */],
+  },
+  // ...
+];
+
+
 export const getMockVaultEntries = () => ({
   login: mockLoginEntries as VaultEntry[],
   card: mockCardEntries as VaultEntry[],

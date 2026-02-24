@@ -2,7 +2,7 @@ package vault_commands
 
 import (
 	"fmt"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
 	vault_persistence "vault-app/internal/vault/infrastructure/persistence"
 	"gorm.io/gorm"

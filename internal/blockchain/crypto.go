@@ -25,7 +25,7 @@ const (
 	saltSize  = 16
 	keySize   = 32 // AES-256
 	nonceSize = 12 // GCM standard nonce size
-	scryptN   = 32768
+	scryptN   = 32768	// Consider increasing to 65536 later if UX allows
 	scryptR   = 8
 	scryptP   = 1
 )
@@ -313,12 +313,11 @@ func Ed25519PubToCurve(pub []byte) *[32]byte {
 // -----------------------------
 // V1 Crypto
 // -----------------------------   
-
+// Vault root Encryption
 // DeriveKey derives a key from password using scrypt.
 func DeriveKey(password string, salt []byte) ([]byte, error) {
 	return scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keySize)
 }
-
 // Encrypt encrypts plain data using a password.
 func Encrypt(data []byte, password string) ([]byte, error) {
 	// Generate random salt
@@ -412,7 +411,7 @@ func deriveKeyFromStellarSecure(stellarSecret string, salt []byte) ([]byte, erro
 	return key, nil
 }
 
-
+// Blockchain Identity Encryption
 // EncryptPasswordWithStellar encrypts the password using the Stellar private key
 func EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error) {
 	key, err := deriveKeyFromStellar(stellarSecret)

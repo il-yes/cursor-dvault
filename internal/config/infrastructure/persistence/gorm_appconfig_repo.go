@@ -32,3 +32,11 @@ func (r *GormAppConfigRepository) UpdateAppConfig(appConfig *app_config_domain.A
 func (r *GormAppConfigRepository) DeleteAppConfig(id string) error {
 	return r.db.Delete(&app_config_domain.AppConfig{}, "user_id = ?", id).Error
 }	
+
+func (r *GormAppConfigRepository) GetAppConfigByUserID(userID string) (*app_config_domain.AppConfig, error) {
+	var appConfig app_config_domain.AppConfig
+	if err := r.db.First(&appConfig, "user_id = ?", userID).Error; err != nil {
+		return nil, err
+	}
+	return &appConfig, nil
+}

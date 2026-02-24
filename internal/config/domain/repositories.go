@@ -3,6 +3,7 @@ package app_config_domain
 type AppConfigRepository interface {
 	CreateAppConfig(appConfig *AppConfig) error
 	GetAppConfig(id string) (*AppConfig, error)
+	GetAppConfigByUserID(userID string) (*AppConfig, error)
 	UpdateAppConfig(appConfig *AppConfig) error
 	DeleteAppConfig(id string) error
 }

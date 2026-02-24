@@ -36,6 +36,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
 	const handleAccessModeToggle = (checked: boolean) => {
 		setAccessMode(checked ? "edit" : "read");
 		// In real app, this would trigger an API call
+		// send UpdateShareRequest payload to Ankhora cloud backend
 	};
 
 	return (

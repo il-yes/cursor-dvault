@@ -1,4 +1,4 @@
-package tracecore
+package tracecore_types
 
 import "time"
 

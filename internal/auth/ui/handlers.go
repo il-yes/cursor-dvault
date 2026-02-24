@@ -2,7 +2,7 @@ package auth_ui
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/auth/application/use_cases"
 	auth_domain "vault-app/internal/auth/domain"
 	identity_ui "vault-app/internal/identity/ui"

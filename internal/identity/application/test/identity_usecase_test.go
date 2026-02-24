@@ -26,7 +26,9 @@ type fakeRepoHandler struct {
 func (f *fakeRepoHandler) FindByEmail(ctx context.Context, email string) (*identity_domain.User, error) {
 	return f.user, nil
 }
-
+func (f *fakeRepoHandler) FindByPublicKey(ctx context.Context, publicKey string) (*identity_domain.User, error) {
+	return f.user, nil
+}
 func (f *fakeRepoHandler) FindByID(ctx context.Context, id string) (*identity_domain.User, error) {
 	return f.user, nil
 }

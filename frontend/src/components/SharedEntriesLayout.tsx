@@ -10,37 +10,6 @@ import "./contributionGraph/g-scrollbar.css";
 import QRCode from "react-qr-code"; // npm install qrcode.react
 import { NewLinkShareModal } from "./NewLinkShare";
 
-const linkSharesMocked = [
-	{
-		id: "1",
-		entry_name: "aws keys",
-		status: "active", // or "expired", "revoked"
-		expiry: "2026-01-28",
-		uses_left: 2,
-		link: "https://ankhora.app/share/abcdef123456",
-		audit_log: [/* ... */],
-	},
-	{
-		id: "2",
-		entry_name: "google keys",
-		status: "active", // or "expired", "revoked"
-		expiry: "2026-01-28",
-		uses_left: 2,
-		link: "https://ankhora.app/share/abcdef123456",
-		audit_log: [/* ... */],
-	},
-	{
-		id: "3",
-		entry_name: "github keys",
-		status: "expired", // or "expired", "revoked"
-		expiry: "2025-12-28",
-		uses_left: 0,
-		link: "https://ankhora.app/share/abcdef123456",
-		audit_log: [/* ... */],
-	},
-	// ...
-];
-
 export function SharedEntriesLayout() {
 	// const sharedEntries = useVaultStore((state) => state.shared.items);
 	const [isNewShareOpen, setIsNewShareOpen] = useState(false);
@@ -188,7 +157,9 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 	const [qrShare, setQrShare] = useState(null);
 
 	const onCopyLink = (share) => {
+		alert('ok')
 		navigator.clipboard.writeText(share.link);
+		console.log(share.link)
 		setQrShare(share);
 	};
 
@@ -197,7 +168,7 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 	};
 
 	const onViewAuditLog = (share) => {
-		alert(`View audit log for: ${share.entry_name}`);
+		alert(`View audit log for: ${share.encrypted_payload}`);
 	};
 
 
@@ -312,16 +283,13 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 				</tbody>
 			</table>
 
-
-
-
 			{/* QR Code Modal */}
 			{qrShare && (
 				<div className="fixed inset-0 flex items-center justify-center z-50 bg-black/40">
 					<div className="bg-white rounded-xl p-6 shadow-xl flex flex-col items-center">
 						<QRCode value={qrShare.link} size={180} />
-						<div className="mt-3 text-xs font-semibold">
-							{qrShare.entry_name}
+						<div className="mt-3 text-xs font-bold">
+							<a href={qrShare.link} target="_blank" rel="noopener noreferrer" className="text-[#C9A44A] hover:underline">{qrShare.link}</a>
 						</div>
 						<button
 							className="mt-4 px-4 py-2 bg-[#C9A44A] text-white rounded-lg font-medium"

@@ -2,11 +2,14 @@ package identity_usecase
 
 import (
 	"context"
+	"log"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
+	"vault-app/internal/blockchain"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // IDGen defines a function that generates unique IDs
@@ -36,30 +39,35 @@ func (uc *LoginUseCase) Execute(
 	// 1️⃣ Lookup user by email
 	user, _ := uc.repo.FindByEmail(ctx, email)
 
-	// 2️⃣ Resolve password if publicKey login
 	if publicKey != "" {
+		// 2️⃣ Resolve password if publicKey login
 		var err error
-		password, err = uc.resolveStellarPassword(publicKey, signedMessage, signature)
+		isAuthenticated, err := uc.resolveStellarPassword(publicKey, signedMessage, signature, email)
 		if err != nil {
+			log.Println("❌ resolveStellarPassword - Error: ", err)
 			return nil, identity_domain.ErrInvalidCredentials
 		}
-	}
+		if !isAuthenticated {
+			log.Println("❌ resolveStellarPassword - Authentication failed")
+			return nil, identity_domain.ErrInvalidCredentials
+		}
+	} else {
+		// 3️⃣ Safe password comparison to prevent timing attacks
+		storedHash := ""
+		if user != nil {
+			storedHash = user.PasswordHash
+		}
+		if err := uc.safePasswordCompare(storedHash, password); err != nil {
+			return nil, identity_domain.ErrInvalidCredentials
+		}
 
-	// 3️⃣ Safe password comparison to prevent timing attacks
-	storedHash := ""
-	if user != nil {
-		storedHash = user.PasswordHash
-	}
-	if err := uc.safePasswordCompare(storedHash, password); err != nil {
-		return nil, identity_domain.ErrInvalidCredentials
-	}
-
-	// 4️⃣ If user does not exist, create new one (optional behavior)
-	if user == nil {
-		id := uc.idGen()
-		user = identity_domain.NewStandardUser(id, email, password)
-		if err := uc.repo.Save(ctx, user); err != nil {
-			return nil, err
+		// 4️⃣ If user does not exist, create new one (optional behavior)
+		if user == nil {
+			id := uc.idGen()
+			user = identity_domain.NewStandardUser(id, email, password)
+			if err := uc.repo.Save(ctx, user); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -93,11 +101,20 @@ func (uc *LoginUseCase) safePasswordCompare(storedHash, password string) error {
 }
 
 // resolveStellarPassword resolves a password from public key login
-func (uc *LoginUseCase) resolveStellarPassword(pubKey, signedMessage, signature string) (string, error) {
+func (uc *LoginUseCase) resolveStellarPassword(pubKey string, signedMessage, signature string, email string) (bool, error) {
 	if pubKey == "" || signedMessage == "" || signature == "" {
-		return "", identity_domain.ErrInvalidCredentials
+		return false, identity_domain.ErrInvalidCredentials
 	}
 	// TODO: verify signature against pubKey (Stellar logic)
-	// For now, return a derived placeholder password
-	return "derived-password", nil
+	isVerified := blockchain.VerifySignature(pubKey, signedMessage, signature)
+	if !isVerified {
+		log.Println("❌ resolveStellarPassword - Signature verification failed")
+		return false, identity_domain.ErrInvalidCredentials
+	}
+	// Find user by pubKey
+	user, err := uc.repo.FindByPublicKey(context.Background(), pubKey)
+	if err != nil {
+		return false, identity_domain.ErrInvalidCredentials
+	}
+	return user.Email == email, nil
 }

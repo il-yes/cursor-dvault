@@ -15,6 +15,9 @@ import { Textarea } from "./ui/textarea";
 import { FileUploadWidget } from "./FileUploadWidget";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useVaultStore } from "@/store/vaultStore";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { Keypair } from "stellar-sdk";
+import { Buffer } from 'buffer';
 
 
 interface EntryDetailPanelProps {
@@ -47,6 +50,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
     const vaultContext = useVaultStore((state) => state.vault);
+    const stellar = vaultContext?.vault_runtime_context?.UserConfig?.stellar_account
 
     useEffect(() => {
         vaultContext && setFolders(vaultContext.Vault.folders || []);
@@ -128,9 +132,22 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         setDecryptingField(fieldName);
 
         try {
+            // 1. Generate keypair
+            const keypair = Keypair.fromSecret(stellar.private_key);
+
+            // 2. Request challenge from backend
+            const { challenge } = await AppAPI.RequestChallenge({ public_key: stellar.public_key });
+
+            // 3. Sign challenge
+            const signature = Buffer.from(
+                keypair.sign(Buffer.from(challenge))
+            ).toString("base64");
+            
             const { plaintext, expires_in } = await decryptField({
                 entry_id: entry.id,
                 field_name: fieldName,
+                challenge,
+                signature,
             });
 
             await logAuditEvent({
@@ -139,7 +156,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 field_name: fieldName,
                 timestamp: new Date().toISOString(),
                 user_id: 'current_user',
-            });
+            }); // send AccessCryptoShareRequest payload to Ankhora cloud backend
 
             const timeout = setTimeout(() => {
                 handleMaskField(fieldName);
@@ -330,7 +347,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         const inputValueForEdit = editValue !== "" ? editValue : (isRevealed ? revealed!.value : "");
 
         return (
-            <div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
+            <div key={fieldName} className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
                 <Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
                     {label}
                     <Shield className="h-3 w-3 text-primary" />
@@ -557,7 +574,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                         editMode && "border-primary/50 shadow-primary/20"
                                     )}
                                 />
-                            </>}
+                            </>
+                        }
                         {editMode && (
                             <>
                                 <Select value={folderId} onValueChange={setFolderId}>

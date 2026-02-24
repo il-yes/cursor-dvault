@@ -13,6 +13,7 @@ import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import StripePayButton from './StripePayButton';
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { Button } from './ui/button';
+import StellarPayForm from './StellarPayForm';
 
 
 type Tier = 'free' | 'pro' | 'pro_plus' | 'business' | string;
@@ -375,7 +376,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     const GetSession = async () => {
         const session = await AppAPI.GetSession(userId);
         console.log("Session:", session);
-    };  
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-3xl p-6">
@@ -670,9 +671,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                             <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
                                 <h3 className="text-xl font-bold mb-4">💳 Card Payment</h3>
 
-                                <StripePayButton 
-                                    onComplete={onPaymentSuccess} 
-                                    plainPassword={password} 
+                                <StripePayButton
+                                    onComplete={onPaymentSuccess}
+                                    plainPassword={password}
                                     email={email}
                                     tier={selectedTier}
                                     isAnonymous={isAnonymous}
@@ -683,10 +684,26 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
                             {/* STELLAR */}
                             <div className="space-y-4 p-6 rounded-3xl bg-white/80 border border-white/40 shadow-xl">
+
                                 <h3 className="text-xl font-bold mb-4">⭐ Stellar Wallet</h3>
-                                <button className="w-full h-14 border border-amber-300 bg-amber-50 hover:bg-amber-100">
-                                    Connect Stellar Wallet
-                                </button>
+                                <StellarPayForm
+                                    tier={selectedTier}
+                                    userId={userId}
+                                    onComplete={onPaymentSuccess}
+                                />
+
+                            </div>
+
+
+                            <div className="flex justify-end">
+                                {step > 1 && (
+                                    <button
+                                        onClick={prevStep}
+                                        className="bg-[#C9A44A]/20 backdrop-blur-sm rounded-xl px-6 py-3 font-semibold text-[#C9A44A] hover:bg-opacity-40 shadow-md hover:shadow-xl transition"
+                                    >
+                                        Back
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

@@ -2,7 +2,7 @@ package identity_ui
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"

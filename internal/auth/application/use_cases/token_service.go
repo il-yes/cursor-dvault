@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	auth_domain "vault-app/internal/auth/domain"
     "gorm.io/gorm"  
 	"github.com/golang-jwt/jwt/v4"

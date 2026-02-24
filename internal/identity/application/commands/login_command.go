@@ -2,9 +2,11 @@ package identity_commands
 
 import (
 	"context"
+	"log"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	auth_domain "vault-app/internal/auth/domain"
+	"vault-app/internal/blockchain"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
@@ -76,58 +78,71 @@ func (h *LoginCommandHandler) Handle(
 	creds := auth_domain.Credentials{
 		Email:    cmd.Email,
 		Password: cmd.Password,
+		PublicKey: cmd.PublicKey,
+		SignedMessage: cmd.SignedMessage,
+		Signature: cmd.Signature,
 	}
-	utils.LogPretty("Resolved credentials", creds)
-	if cmd.PublicKey != "" {
-		plain, err := h.resolveStellarPassword(cmd)
-		if err != nil {
-			return nil, err
-		}
-		creds.Password = plain
-	}
-	utils.LogPretty("Resolved credentials", creds)
-	// 2. Onboarding - Authenticate
-	onboardingUser, err := h.onboardingRepo.FindByEmail(creds.Email)
-	if err != nil || onboardingUser == nil {
-		return nil, auth_domain.ErrInvalidCredentials
-	}
-	utils.LogPretty("Authenticated user", onboardingUser)
 
-	if err := bcrypt.CompareHashAndPassword(
-		[]byte(onboardingUser.Password),
-		[]byte(creds.Password),
-	); err != nil {
-		return nil, auth_domain.ErrInvalidCredentials
+	// 2. Identity - Authenticate
+	if cmd.PublicKey != "" {
+		// 2.1. Resolve stellar credentials if publicKey login
+		var err error
+		email, err := h.resolveStellarPassword(cmd.PublicKey, cmd.SignedMessage, cmd.Signature)
+		if err != nil {
+			log.Println("❌ resolveStellarPassword - Error: ", err)
+			return nil, identity_domain.ErrInvalidCredentials
+		}
+		if email == nil {
+			log.Println("❌ LoginCommandHandler.  resolveStellarPassword - Authentication failed")
+			return nil, identity_domain.ErrInvalidCredentials
+		}
+		creds.Email = *email
+		utils.LogPretty("Authenticated with stellar", creds.Email)
+	} else {
+		// 2.2. Onboarding - Load user
+		onboardingUser, err := h.onboardingRepo.FindByEmail(creds.Email)
+		if err != nil || onboardingUser == nil {
+			return nil, auth_domain.ErrInvalidCredentials
+		}
+		utils.LogPretty("LoginCommandHandler - Onboarded user", onboardingUser)
+		// 2.3. Resolve password if publicKey login
+		if err := bcrypt.CompareHashAndPassword(
+			[]byte(onboardingUser.Password),
+			[]byte(creds.Password),
+		); err != nil {
+			return nil, auth_domain.ErrInvalidCredentials
+		}
+		utils.LogPretty("LoginCommandHandler - Authenticated with bcrypt", "true")
 	}
-	utils.LogPretty("Authenticated bcrypt checked", "true")
+	
 	// 3. Identity - Load identity user
-	utils.LogPretty("Loading identity user by email", creds.Email)
+	utils.LogPretty("LoginCommandHandler - Loading identity user by email", creds.Email)
 	user, err := h.userRepo.FindByEmail(context.Background(), creds.Email)
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("Loaded identity user", user)
+	utils.LogPretty("LoginCommandHandler - Loaded identity user", user)
 
 	user.LastConnectedAt = time.Now()
 	if err := h.userRepo.Update(context.Background(), user); err != nil {
 		return nil, err
 	}
 
-	// 5. Auth - Generate tokens
+	// 4. Auth - Generate tokens
 	tokens, err := tokenService.GenerateTokenPair(user.ToJwtUser())
 	if err != nil {
 		utils.LogPretty("Failed to generate tokens", user)
 		return nil, err
 	}
-	utils.LogPretty("Generated tokens", tokens)
+	utils.LogPretty("LoginCommandHandler - Generated tokens", tokens)
 
 	if _, err := tokenService.SaveJwtToken(tokens); err != nil {
 		utils.LogPretty("Failed to persist tokens", tokens)
 		return nil, err
 	}
-	utils.LogPretty("Persisted tokens", tokens)
+	utils.LogPretty("LoginCommandHandler - Persisted tokens", tokens)
 
-	// 7. Publish event
+	// 5. Publish event
 	if eventBus != nil {
 		_ = eventBus.PublishUserLoggedIn(context.Background(), identity_eventbus.UserLoggedIn{
 			UserID:     user.ID,
@@ -142,7 +157,26 @@ func (h *LoginCommandHandler) Handle(
 	}, nil
 }
 
-func (h *LoginCommandHandler) resolveStellarPassword(cmd LoginCommand) (string, error) {
-	return "", nil
+
+// resolveStellarPassword resolves a password from public key login
+func (uc *LoginCommandHandler) resolveStellarPassword(pubKey string, signedMessage, signature string) (*string, error) {
+	if pubKey == "" || signedMessage == "" || signature == "" {
+		return nil, identity_domain.ErrInvalidCredentials
+	}
+	// TODO: verify signature against pubKey (Stellar logic)
+	isVerified := blockchain.VerifySignature(pubKey, signedMessage, signature)
+	if !isVerified {
+		log.Println("❌ resolveStellarPassword - Signature verification failed")
+		return 	nil, identity_domain.ErrInvalidCredentials
+	}
+	utils.LogPretty("resolveStellarPassword - Signature verified", isVerified)
+	// Find user by pubKey
+	user, err := uc.userRepo.FindByPublicKey(context.Background(), pubKey)
+	if err != nil {
+		return nil, identity_domain.ErrInvalidCredentials
+	}
+
+	return &user.Email, nil
 }
+
 

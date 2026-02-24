@@ -9,7 +9,7 @@ import (
 	"time"
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
-	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
 
 	"gorm.io/gorm"
 )
@@ -443,7 +443,7 @@ type VaultSession struct {
 	LastUpdated         string
 	Mutex               sync.Mutex                 `json:"-"`
 	VaultRuntimeContext VaultRuntimeContext        `json:"vault_runtime_context"`
-	PendingCommits      []tracecore.CommitEnvelope `json:"pending_commits,omitempty"`
+	PendingCommits      []tracecore_models.CommitEnvelope `json:"pending_commits,omitempty"`
 }
 type UserSession struct {
 	ID          string            `gorm:"primaryKey;column:id" json:"id"`

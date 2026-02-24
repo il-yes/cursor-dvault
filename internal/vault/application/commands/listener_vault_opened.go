@@ -2,7 +2,6 @@ package vault_commands
 
 import (
 	"context"
-	utils "vault-app/internal"
 	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	vault_events "vault-app/internal/vault/application/events"
@@ -67,14 +66,6 @@ func (l *VaultOpenedListener) Listen(ctx context.Context) {
 			return
 		}
 		l.Logger.Info("✅ VaultOpenedListener - vault opened for user %s", e.UserID)
-
-		session, err := l.VaultHandler.GetSession(e.UserID)
-		if err != nil {
-			l.Logger.Error("❌ VaultOpenedListener - failed to get session after attaching vault for user %s: %v", e.UserID, err)
-			return
-		}
-		utils.LogPretty("VaultOpenedListener - VaultOpened - session", session)
-		utils.LogPretty("VaultOpenedListener - VaultOpened - Runtime", e.Runtime)
 	})
 
 	<-ctx.Done()

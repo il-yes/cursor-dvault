@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	// "log"
 	"strconv"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	share_application_events "vault-app/internal/application/events/share"
 	blockchain "vault-app/internal/blockchain"
 	app_config_ui "vault-app/internal/config/ui"
@@ -155,15 +155,15 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user config: %w", err)
 	}
-	encPrivateKey := userCfg.StellarAccount.PrivateKey
-	decryptedPrivateKey, err := blockchain.Decrypt([]byte(encPrivateKey), secret)
-	if err != nil {
-		log.Println("⚠️ Failed to decrypt Stellar private key: %v", err)
-		return nil, err
-	}
+	// encPrivateKey := userCfg.StellarAccount.PrivateKey
+	// decryptedPrivateKey, err := blockchain.Decrypt([]byte(encPrivateKey), secret)
+	// if err != nil {
+	// 	log.Println("⚠️ Failed to decrypt Stellar private key: %v", err)
+	// 	return nil, err
+	// }
 	// TODO: Correct Sign share
 	message := "share.Message"	// TODO: improve
-	signature, err := blockchain.SignActorWithStellarPrivateKey(string(decryptedPrivateKey), message)	
+	signature, err := blockchain.SignActorWithStellarPrivateKey(string(userCfg.StellarAccount.PrivateKey), message)	
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign share: %w", err)
 	}

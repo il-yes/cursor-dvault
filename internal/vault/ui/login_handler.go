@@ -3,7 +3,7 @@ package vault_ui
 import (
 	"fmt"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	vault_session "vault-app/internal/vault/application/session"

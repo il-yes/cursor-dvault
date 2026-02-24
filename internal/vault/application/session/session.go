@@ -3,9 +3,8 @@ package vault_session
 
 import (
 	"encoding/json"
-	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
 	vaults_domain "vault-app/internal/vault/domain"
-
 )
 
 type SessionState string
@@ -23,7 +22,7 @@ type Session struct {
 	LastUpdated string
 	Runtime     *RuntimeContext `json:"runtime,omitempty" gorm:"-"`
 	Dirty       bool
-	PendingCommits []tracecore.CommitEnvelope `json:"pending_commits,omitempty" gorm:"-"`
+	PendingCommits []tracecore_models.CommitEnvelope `json:"pending_commits,omitempty" gorm:"-"`
 }
 
 func InitNewSession(userID string) *Session {
@@ -35,7 +34,7 @@ func InitNewSession(userID string) *Session {
 		LastUpdated: "",
 		Runtime:     nil,
 		Dirty:       false,
-		PendingCommits: []tracecore.CommitEnvelope{},
+		PendingCommits: []tracecore_models.CommitEnvelope{},
 	}
 }
 

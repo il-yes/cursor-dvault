@@ -1,7 +1,7 @@
 package app_config
 
 import (
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"

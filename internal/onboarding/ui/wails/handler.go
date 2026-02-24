@@ -26,7 +26,7 @@ type OnBoardingHandler struct {
 	UserRepo onboarding_domain.UserRepository
 }
 
-func NewOnBoardingHandler(
+func  NewOnBoardingHandler(
     stellarService onboarding_usecase.StellarServiceInterface,
     userSubscriptionRepo subscription_domain.UserRepository,
     subscriptionSubRepo subscription_domain.SubscriptionRepository,

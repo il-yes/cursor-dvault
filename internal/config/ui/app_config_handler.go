@@ -65,3 +65,15 @@ func (vh *AppConfigHandler) UpdateAppConfig(appConfig *app_config_domain.AppConf
 func (vh *AppConfigHandler) UpdateUserConfig(userConfig *app_config_domain.UserConfig) error {
 	return vh.UserConfigRepository.UpdateUserConfig(userConfig)
 }
+
+// -------- EVENT HANDLERS --------
+func (vh *AppConfigHandler) OnGenerateApiKey(userID string, stellarAccount *app_config_domain.StellarAccountConfig) (*app_config_domain.UserConfig, error) {
+	userConfig, err := vh.UserConfigRepository.GetUserConfig(userID)
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: OnGenerateApiKey - Failed to get user config: %v", err)
+		return nil, err
+	}
+	userConfig.OnGenerateApiKey(stellarAccount)
+	
+	return userConfig , vh.UserConfigRepository.UpdateUserConfig(userConfig)
+}

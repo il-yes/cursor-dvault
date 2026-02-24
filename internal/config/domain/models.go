@@ -1,12 +1,12 @@
 package app_config_domain
 
 import (
-	utils "vault-app/internal"
+	"vault-app/internal/blockchain"
+	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
 
 type CommitRule struct {
 	ID          uint     `json:"id" gorm:"primaryKey"`
@@ -20,27 +20,27 @@ func (c *CommitRule) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-
 // 🔧 Load this on boot from embedded JSON/YAML or system file (e.g., $HOME/.dvault/config.json)
 type AppConfig struct {
-	ID                 string           `json:"id" yaml:"id" gorm:"primaryKey"`
-	RepoID             string           `json:"repo_id" yaml:"repo_id"`
-	Branch             string           `json:"branch" yaml:"branch"`
-	TracecoreEnabled   bool             `json:"tracecore_enabled" yaml:"tracecore_enabled"`
-	CommitRules        []CommitRule     `json:"commit_rules" yaml:"commit_rules" gorm:"serializer:json"`
-	BranchingModel     string           `json:"branching_model" yaml:"branching_model"`
-	EncryptionPolicy   string           `json:"encryption_policy" yaml:"encryption_policy"`
-	Actors             []string         `json:"actors" yaml:"actors" gorm:"type:json;serializer:json"`
-	FederatedProviders []string         `json:"federated_providers" yaml:"federated_providers" gorm:"type:json;serializer:json"`
-	DefaultPhase       string           `json:"default_phase" yaml:"default_phase"`
-	DefaultVaultPath   string           `json:"default_vault_path" yaml:"default_vault_path"`
-	VaultSettings      VaultConfig      `json:"vault_settings" yaml:"vault_settings" gorm:"embedded"`
-	Blockchain         BlockchainConfig `json:"blockchain" yaml:"blockchain" gorm:"embedded"`
-	UserID             string           `json:"user_id" gorm:"string"`
-	AutoLockTimeout    string           `json:"auto_lock_timeout" yaml:"auto_lock_timeout"`
-	RemaskDelay        string           `json:"remask_delay" yaml:"remask_delay"`
-	Theme              string           `json:"theme" yaml:"theme"`
-	AnimationsEnabled  bool             `json:"animations_enabled" yaml:"animations_enabled"`
+	ID                   string           `json:"id" gorm:"primaryKey"`
+	RepoID               string           `json:"repo_id" gorm:"repo_id"`
+	Branch               string           `json:"branch" gorm:"branch"`
+	TracecoreEnabled     bool             `json:"tracecore_enabled" gorm:"tracecore_enabled"`
+	CommitRules          []CommitRule     `json:"commit_rules" gorm:"serializer:json"`
+	BranchingModel       string           `json:"branching_model" gorm:"branching_model"`
+	EncryptionPolicy     string           `json:"encryption_policy" gorm:"encryption_policy"`
+	Actors               []string         `json:"actors" gorm:"type:json;serializer:json"`
+	FederatedProviders   []string         `json:"federated_providers" gorm:"type:json;serializer:json"`
+	DefaultPhase         string           `json:"default_phase" gorm:"default_phase"`
+	DefaultVaultPath     string           `json:"default_vault_path" gorm:"default_vault_path"`
+	VaultSettings        VaultConfig      `json:"vault_settings" gorm:"embedded"`
+	Blockchain           BlockchainConfig `json:"blockchain" gorm:"embedded"`
+	UserID               string           `json:"user_id" gorm:"string"`
+	AutoLockTimeout      string           `json:"auto_lock_timeout" gorm:"auto_lock_timeout"`
+	AccessPolicyDuration int64            `json:"access_policy_duration" gorm:"access_policy_duration"`
+	RemaskDelay          string           `json:"remask_delay" gorm:"remask_delay"`
+	Theme                string           `json:"theme" gorm:"theme"`
+	AnimationsEnabled    bool             `json:"animations_enabled" gorm:"animations_enabled"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -50,21 +50,29 @@ func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
 
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type UserConfig struct {
-	ID             string               `json:"id" yaml:"id" gorm:"primaryKey"`
-	Role           string               `json:"role" yaml:"role" gorm:"column:role"`
-	Signature      string               `json:"signature" yaml:"signature" gorm:"column:signature"`
-	ConnectedOrgs  []string             `json:"connected_orgs" yaml:"connected_orgs" gorm:"type:json;serializer:json"`
-	StellarAccount StellarAccountConfig `json:"stellar_account" yaml:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
-	SharingRules   []SharingRule        `json:"sharing_rules" yaml:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
-	TwoFactorEnabled bool               `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
+	ID               string               `json:"id" gorm:"primaryKey"`
+	Role             string               `json:"role" gorm:"column:role"`
+	Signature        string               `json:"signature" gorm:"column:signature"`
+	ConnectedOrgs    []string             `json:"connected_orgs" gorm:"type:json;serializer:json"`
+	StellarAccount   StellarAccountConfig `json:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
+	SharingRules     []SharingRule        `json:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
+	TwoFactorEnabled bool                 `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
+}
+
+func (u *UserConfig) BeforeCreate(tx *gorm.DB) (err error) {
+	u.ID = uuid.New().String()
+	return
+}
+func (u *UserConfig) OnGenerateApiKey(stellarAccount *StellarAccountConfig) {
+	u.StellarAccount = *stellarAccount
 }
 
 type StellarAccountConfig struct {
-	PublicKey  string `json:"public_key" yaml:"public_key" gorm:"column:public_key"`
-	PrivateKey string `json:"private_key,omitempty" yaml:"private_key,omitempty" gorm:"column:private_key"` // should be encrypted
-    EncPassword []byte `gorm:"column:enc_password"` // ciphertext
-    EncNonce    []byte `gorm:"column:enc_nonce"`    // AES-GCM nonce
-    EncSalt     []byte `gorm:"column:enc_salt"`     // salt
+	PublicKey   string `json:"public_key" yaml:"public_key" gorm:"column:public_key"`
+	PrivateKey  string `json:"private_key,omitempty" yaml:"private_key,omitempty" gorm:"column:private_key"` // should be encrypted
+	EncPassword []byte `gorm:"column:enc_password"`                                                          // ciphertext
+	EncNonce    []byte `gorm:"column:enc_nonce"`                                                             // AES-GCM nonce
+	EncSalt     []byte `gorm:"column:enc_salt"`                                                              // salt
 }
 
 // internal/config/vault.go
@@ -81,10 +89,21 @@ type BlockchainConfig struct {
 }
 
 type StellarConfig struct {
-	Network    string `json:"network" yaml:"network" gorm:"column:network"`
-	HorizonURL string `json:"horizon_url" yaml:"horizon_url" gorm:"column:horizon_url"`
-	Fee        int64  `json:"fee" yaml:"fee" gorm:"column:fee"`
+	Network       string `json:"network" yaml:"network" gorm:"column:network"`
+	HorizonURL    string `json:"horizon_url" yaml:"horizon_url" gorm:"column:horizon_url"`
+	Fee           int64  `json:"fee" yaml:"fee" gorm:"column:fee"`
 	SyncFrequency string `json:"sync_frequency" yaml:"sync_frequency" gorm:"column:sync_frequency"`
+}
+
+func NewStellarAccountConfigOnGeneratedApiKey(account *blockchain.CreateAccountRes) *StellarAccountConfig {
+	return &StellarAccountConfig{
+		PublicKey:   account.PublicKey,
+		PrivateKey:  account.PrivateKey,
+		EncSalt:     account.Salt,
+		EncNonce:    account.EncNonce,
+		EncPassword: account.EncPassword,
+	}
+
 }
 
 type IPFSConfig struct {

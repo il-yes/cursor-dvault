@@ -48,3 +48,11 @@ func (r *SubscriptionRepository) Update(ctx context.Context, s *subscription_dom
 	}
 	return nil
 }	
+
+func (r *SubscriptionRepository) FindByEmail(ctx context.Context, email string) (*subscription_domain.Subscription, error) {
+	var sDB SubscriptionMapper
+	if err := r.DB.Where("email = ?", email).First(&sDB).Error; err != nil {
+		return nil, err
+	}
+	return sDB.ToDomain(), nil
+}	

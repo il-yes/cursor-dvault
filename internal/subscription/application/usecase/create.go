@@ -3,7 +3,7 @@ package subscription_usecase
 import (
 	"context"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 )

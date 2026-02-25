@@ -24,13 +24,13 @@
  */
 import { LoginRequest, User, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain, share_application_dto } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_application_dto, vault_application, tracecore } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
-import { CreateLinkShareEntryPayload, LinkShareEntry } from "@/types/sharing";
+import { AccessCryptoShareRequest, CreateLinkShareEntryPayload, LinkShareEntry } from "@/types/sharing";
 
 export interface CheckoutPayload {
   amount: number;
@@ -351,26 +351,47 @@ export async function setupStellarAccount(): Promise<{ publicKey: string; privat
     throw error;
   }
 }
+const filterFilledProps = (obj: Record<string, any>): Record<string, any> => {
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== null && value !== '' && value !== 0) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+};
 
 /**
  * Decrypt a sensitive field
  */
-export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string }): Promise<{ plaintext: string; expires_in: number }> {
+export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string; expires_in: number }> {
+  const user = useAuthStore.getState().user;
+  console.log({ user })
+
+  const input: AccessCryptoShareRequest = {
+    share_id: payload.entry_id,
+    recipient_email: user?.Email,
+    challenge: payload.challenge,
+    signature: payload.signature,
+  }
+  console.log("Decrypting vault entry:", input);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/entry/decrypt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const jwtToken = useAuthStore.getState().jwtToken;
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    const result = await AppAPI.DecryptVaultEntry(jwtToken, input);
+    console.log("Decrypted vault entry:", result);
+    console.log("Decrypted vault entry Data:", JSON.parse(result.data.payload));
 
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to decrypt field:', error);
-    throw error;
+    const filledOnly = filterFilledProps(JSON.parse(result.data.payload));
+
+    return {
+      plaintext: JSON.stringify(filledOnly),
+      expires_in: result.data.expires_in,
+    };
+  } catch (err) {
+    console.error("Failed to decrypt vault entry:", err);
+    throw err;
   }
 }
 
@@ -451,11 +472,11 @@ export async function getVaultContext(): Promise<any> {
  */
 export async function createSharedEntry(payload: {
   entry_id: string;
-  recipients: { name: string; email: string; role:'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
+  recipients: { name: string; email: string; role: 'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
   permission: 'read' | 'edit' | 'temporary';
   expires_at?: string;
   custom_message?: string;
-  download_allowed?: boolean; 
+  download_allowed?: boolean;
 }): Promise<any> {
   try {
     const jwtToken = useAuthStore.getState().jwtToken;
@@ -483,7 +504,7 @@ export async function createSharedEntry(payload: {
       status: "active",
       access_mode: payload.permission === 'edit' ? 'edit' : 'read',
       encryption: "AES-256-GCM",
-      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),  
+      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
       expires_at: payload.expires_at || "",
       recipients: payload.recipients.map(r => ({
         name: r.name,
@@ -666,9 +687,9 @@ export interface AuthResponse {
   percentage?: number;
 }
 
-export const login = async (payload: LoginRequest): Promise<handlers.LoginResponse> => {
+export const login = async (payload: LoginRequest): Promise<vault_application.LoginResponse> => {
   console.log("Password login payload:", payload);
-  const res: handlers.LoginResponse = await AppAPI.SignInWithIdentity(payload);
+  const res: vault_application.LoginResponse = await AppAPI.SignInWithIdentity(payload);
   console.log("LoginResponse:", res);
 
   return res;
@@ -991,3 +1012,29 @@ export const GenerateApiKey = async (payload: GenerateApiKeyInput): Promise<Gene
 
   return response;
 };
+
+type EditUserInfosInput = {
+  user_name: string;
+  first_name: string;
+  last_name: string;
+}
+type EditUserInfosResponse = {
+  user_name: string;
+  first_name: string;
+  last_name: string;
+}
+export const EditUserInfos = async (jwtToken: string, payload: EditUserInfosInput): Promise<EditUserInfosResponse> => {
+  const response = await AppAPI.EditUserInfos(jwtToken, payload);
+  console.log({ response })
+
+  // if (!response.ok) {
+  //   throw new Error(`Failed to edit user infos: ${response.statusText}`);
+  // }
+
+  const res: EditUserInfosResponse = {
+    user_name: "",
+    first_name: "",
+    last_name: "",
+  }
+  return res;
+};  

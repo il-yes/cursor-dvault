@@ -3,7 +3,7 @@ package subscription_infrastructure
 import (
 	"context"
 	"time"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	billing_domain "vault-app/internal/billing/domain"
 	subscription_domain "vault-app/internal/subscription/domain"
 	"vault-app/internal/tracecore"

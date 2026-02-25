@@ -2,7 +2,7 @@ package identity_usecase
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
 )

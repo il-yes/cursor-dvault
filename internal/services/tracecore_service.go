@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 	"vault-app/internal/models"
-	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
 )
 
 const (
@@ -33,8 +33,8 @@ func NewCommitPayloadFactory(action string, from string, entry models.VaultEntry
 	}
 }
 
-func (c *CommitPayloadFactory) BuildPostEntryPayload() tracecore.CommitMetadata {
-	var cp tracecore.CommitMetadata
+func (c *CommitPayloadFactory) BuildPostEntryPayload() tracecore_models.CommitMetadata {
+	var cp tracecore_models.CommitMetadata
 
 	cp.Message = fmt.Sprintf("Create entry: %s", c.Entry.GetTypeName()) //"Create entry: car_unlock_token"
 	cp.Content = map[string]any{
@@ -46,15 +46,15 @@ func (c *CommitPayloadFactory) BuildPostEntryPayload() tracecore.CommitMetadata 
 		"phase": "vault_entry",
 		"stage": "creation",
 	}
-	cp.StatusChange = tracecore.StatusChange{
+	cp.StatusChange = tracecore_models.StatusChange{
 		Old: "none",
 		New: "created",
 	}
 
 	return cp
 }
-func (c *CommitPayloadFactory) BuildShareEntryPayload() tracecore.CommitMetadata {
-	var cp tracecore.CommitMetadata
+func (c *CommitPayloadFactory) BuildShareEntryPayload() tracecore_models.CommitMetadata {
+	var cp tracecore_models.CommitMetadata
 
 	cp.Message = fmt.Sprintf("Share entry: %s  with %s", c.Entry.GetTypeName(), c.TargetUser) //"Share entry: car_unlock_token with john_pub"
 	cp.Content = map[string]any{
@@ -67,15 +67,15 @@ func (c *CommitPayloadFactory) BuildShareEntryPayload() tracecore.CommitMetadata
 		"phase": "vault_entry",
 		"stage": "creation",
 	}
-	cp.StatusChange = tracecore.StatusChange{
+	cp.StatusChange = tracecore_models.StatusChange{
 		Old: "none",
 		New: "created",
 	}
 
 	return cp
 }
-func (c *CommitPayloadFactory) BuildAccessEntryPayload() tracecore.CommitMetadata {
-	var cp tracecore.CommitMetadata
+func (c *CommitPayloadFactory) BuildAccessEntryPayload() tracecore_models.CommitMetadata {
+	var cp tracecore_models.CommitMetadata
 
 	cp.Message = fmt.Sprintf("Access entry: %s by %s", c.Entry.GetTypeName(), c.TargetUser) //  "Access entry: car_unlock_token by john_pub"
 	cp.Content = map[string]any{
@@ -88,14 +88,14 @@ func (c *CommitPayloadFactory) BuildAccessEntryPayload() tracecore.CommitMetadat
 		"stage":    "access",
 		"substage": "owner_offline",
 	}
-	cp.StatusChange = tracecore.StatusChange{
+	cp.StatusChange = tracecore_models.StatusChange{
 		Old: "idle",
 		New: "accessed",
 	}
 
 	return cp
 }
-func  (c *CommitPayloadFactory) Build() (*tracecore.CommitMetadata, error) {
+func  (c *CommitPayloadFactory) Build() (*tracecore_models.CommitMetadata, error) {
 	switch c.Action {
 	case CREATE_ENTRY:
 		fmt.Println("%s action", CREATE_ENTRY)

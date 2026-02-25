@@ -2,7 +2,7 @@ package identity_queries
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	identity_domain "vault-app/internal/identity/domain"
 )
 

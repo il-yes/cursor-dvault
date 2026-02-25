@@ -11,7 +11,6 @@ import (
 	"runtime/debug"
 	"sync"
 	"time"
-	utils "vault-app/internal"
 	share_application_dto "vault-app/internal/application"
 	share_application_events "vault-app/internal/application/events/share"
 	share_application_use_cases "vault-app/internal/application/use_cases"
@@ -24,6 +23,8 @@ import (
 	"vault-app/internal/registry"
 	"vault-app/internal/services"
 	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
+	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
 
 	"github.com/google/uuid"
@@ -43,7 +44,7 @@ type VaultHandler struct {
 
 	pendingMu sync.Mutex
 	// optionally keep in-memory pending commits per user
-	pendingCommits map[string][]tracecore.CommitEnvelope
+	pendingCommits map[string][]tracecore_models.CommitEnvelope
 	SessionsMu     sync.Mutex
 
 	EventDispatcher share_application_events.EventDispatcher
@@ -72,7 +73,7 @@ func NewVaultHandler(
 		EntryRegistry:       registry,
 		TracecoreClient:     tc,
 		VaultRuntimeContext: runtimeCtx,
-		pendingCommits:      make(map[string][]tracecore.CommitEnvelope),
+		pendingCommits:      make(map[string][]tracecore_models.CommitEnvelope),
 		EventDispatcher:     share_infrastructure.InitializeEventDispatcher(),
 	}
 }
@@ -782,7 +783,6 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 	if err := json.Unmarshal([]byte(payload.EntrySnapshot), &snapshot); err != nil {
 		return nil, fmt.Errorf("invalid entry_snapshot: %w", err)
 	}
-	utils.LogPretty("payload", payload)
 
 	// map payload -> domain.ShareEntry
 	var s share_domain.ShareEntry
@@ -854,7 +854,7 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, email string) ([
 
 // Link share
 func (vh *VaultHandler) CreateLinkShare(email string, payload share_application_dto.LinkShareCreateRequest) (*share_domain.LinkShare, error) {
-
+	payload.CreatorEmail = email
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	tcClient := vh.TracecoreClient   
 	dispatcher := vh.EventDispatcher 
@@ -893,7 +893,7 @@ func (vh *VaultHandler) ListLinkSharesWithMe(email string) (*[]tracecore.WailsLi
 // Tracecore - connexion
 // -----------------------------
 // PrepareTracecoreEnvelope builds and signs envelope; returns nil,nil if not enabled/needed
-func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.VaultEntry, options map[string]interface{}) (*tracecore.CommitEnvelope, error) {
+func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.VaultEntry, options map[string]interface{}) (*tracecore_models.CommitEnvelope, error) {
 	// load session
 	session, err := vh.GetSession(userID)
 	if err != nil {
@@ -954,7 +954,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.Vau
 		vh.logger.Error("❌ Failed to create commit tracecore payload: %v", err)
 		return nil, fmt.Errorf("❌ failed to create commit tracecore payload - %s: %w", services.CREATE_ENTRY, err)
 	}
-	payloadMetadata.Actor = tracecore.Actor{
+	payloadMetadata.Actor = tracecore_models.Actor{
 		ID:        userCfg.ID,
 		Role:      "end_user",
 		Signature: actorSig,
@@ -963,7 +963,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.Vau
 	// ✅ Removed noisy fmt.Printf - use logger instead if needed
 
 	// Build payload
-	tracePayload := tracecore.CommitPayload{
+	tracePayload := tracecore_models.CommitPayload{
 		RepoID:          appCfg.RepoID,
 		Branch:          session.VaultRuntimeContext.AppSettings.Branch,
 		Metadata:        *payloadMetadata,
@@ -976,7 +976,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.Vau
 		return nil, fmt.Errorf("❌ signing commit as dvault failed: %w", err)
 	}
 
-	envelope := tracecore.CommitEnvelope{Commit: tracePayload, Signature: signature}
+	envelope := tracecore_models.CommitEnvelope{Commit: tracePayload, Signature: signature}
 	return &envelope, nil
 }
 
@@ -984,7 +984,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.Vau
 // Tracecore - Pending Commits
 // -----------------------------
 // Add a commit to the user's pending list and persist session
-func (vh *VaultHandler) QueuePendingCommits(userID string, commit tracecore.CommitEnvelope) error {
+func (vh *VaultHandler) QueuePendingCommits(userID string, commit tracecore_models.CommitEnvelope) error {
 	vh.SessionsMu.Lock()
 	defer vh.SessionsMu.Unlock()
 
@@ -1002,7 +1002,7 @@ func (vh *VaultHandler) QueuePendingCommits(userID string, commit tracecore.Comm
 
 	return nil
 }
-func (vh *VaultHandler) EnqueuePendingCommit(userID string, env tracecore.CommitEnvelope) {
+func (vh *VaultHandler) EnqueuePendingCommit(userID string, env tracecore_models.CommitEnvelope) {
 	vh.pendingMu.Lock()
 	defer vh.pendingMu.Unlock()
 	vh.pendingCommits[userID] = append(vh.pendingCommits[userID], env)
@@ -1022,7 +1022,7 @@ func (vh *VaultHandler) RetryPendingCommits(userID string) {
 	}
 
 	// ✅ Removed duplicate log - already logged in StartPendingCommitWorker
-	remaining := make([]tracecore.CommitEnvelope, 0, len(pending))
+	remaining := make([]tracecore_models.CommitEnvelope, 0, len(pending))
 
 	for _, env := range pending {
 		resp, err := vh.TracecoreClient.Commit(env)

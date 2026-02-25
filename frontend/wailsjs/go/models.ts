@@ -676,6 +676,27 @@ export namespace identity_domain {
 
 }
 
+export namespace identity_dtos {
+	
+	export class EditUserInfosRequest {
+	    user_name: string;
+	    first_name: string;
+	    last_name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditUserInfosRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_name = source["user_name"];
+	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class CheckKeyResponse {
@@ -2288,6 +2309,75 @@ export namespace subscription_domain {
 
 export namespace tracecore {
 	
+	export class AccessCryptoShareRequest {
+	    share_id: string;
+	    recipient_email: string;
+	    challenge: string;
+	    signature: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccessCryptoShareRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.share_id = source["share_id"];
+	        this.recipient_email = source["recipient_email"];
+	        this.challenge = source["challenge"];
+	        this.signature = source["signature"];
+	    }
+	}
+	export class DecryptCryptoShareResponse {
+	    payload: string;
+	    expires_in?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DecryptCryptoShareResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.payload = source["payload"];
+	        this.expires_in = source["expires_in"];
+	    }
+	}
+	export class CloudResponse_vault_app_internal_tracecore_DecryptCryptoShareResponse_ {
+	    status: number;
+	    data: DecryptCryptoShareResponse;
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse_vault_app_internal_tracecore_DecryptCryptoShareResponse_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], DecryptCryptoShareResponse);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class WailsLinkShare {
 	    id: string;
 	    entry_name: string;
@@ -2321,7 +2411,7 @@ export namespace tracecore {
 
 }
 
-export namespace vault_application {
+export namespace vault_dto {
 	
 	export class LoginResponse {
 	    User: identity_domain.User;

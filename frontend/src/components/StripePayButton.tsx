@@ -61,18 +61,50 @@ export default function StripePayButton({
   }, []);
 
   return (
-    <>
-      {!showConfirmation && <button onClick={pay} disabled={loading}>
-        Stripe $5
-      </button>}
+  <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-white/80 p-5">
+    {!showConfirmation && (
+      <div className="space-y-3 text-center">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Complete your payment
+        </h2>
+        <p className="text-xs text-slate-500">
+          You’ll be redirected to a secure Stripe page to finalize your payment.
+        </p>
 
-      {showConfirmation && (
-        <div>
-          <h1>Payment Confirmed</h1>
-          <p>Thank you for your payment</p>
-        </div>
-      )}
-    </>
-  );
+        <button
+          onClick={pay}
+          disabled={loading}
+          className="
+            mt-2 inline-flex items-center justify-center w-full h-11
+            rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500
+            text-sm font-semibold text-white
+            shadow-md hover:shadow-lg
+            hover:from-indigo-400 hover:to-blue-400
+            disabled:opacity-60 disabled:cursor-not-allowed
+            transition-all
+          "
+        >
+          {loading ? "Opening Stripe…" : "Continue with Stripe"}
+        </button>
+
+        <p className="mt-1 text-[11px] text-slate-400">
+          Powered by Stripe. You’ll return here automatically once it’s done.
+        </p>
+      </div>
+    )}
+
+    {showConfirmation && (
+      <div className="space-y-2 text-center">
+        <h1 className="text-lg font-semibold text-emerald-600">
+          Payment confirmed
+        </h1>
+        <p className="text-xs text-slate-500">
+          Thank you for your payment. Your subscription is now active.
+        </p>
+      </div>
+    )}
+  </div>
+);
+
 }
 

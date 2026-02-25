@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	app_config "vault-app/internal/config"
 	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_domain "vault-app/internal/config/domain"
@@ -87,9 +87,9 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 1. REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)
 	// ------------------------------------------------------------
 	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
-		// utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
+		utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
 		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
-		// utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
+		utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
 
 		evt := vault_events.VaultOpened{
 			UserID:       cmd.UserID,
@@ -116,15 +116,23 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 2. LOAD OR CREATE VAULT METADATA
 	// ------------------------------------------------------------
-	// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
+	utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
-			vault = vault_domain.NewVault(cmd.UserID, "New Vault")
+			utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", cmd.UserID)
+			vault = vault_domain.NewVault(cmd.UserID, "")
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
+				utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", err)
+				return nil, err
+			}
+			vault = vault_domain.NewVault(cmd.UserID, "")
+			if err := h.vaultRepo.SaveVault(vault); err != nil {
+				utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - NEW VAULT NOT FOUND", err)
 				return nil, err
 			}
 		} else {
+			utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", err)
 			return nil, err
 		}
 	}
@@ -136,6 +144,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("OpenVaultCommandHandler - Handle - encrypted", encrypted)
 
 	// ------------------------------------------------------------
 	// 4. DECRYPT VAULT
@@ -144,8 +153,8 @@ func (h *OpenVaultCommandHandler) Handle(
 	if err != nil {
 		return nil, err
 	}
-	// utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
-
+	utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
+	// TODO: failed to retrieve stored data from ipfs returning an empty payload
 	// ------------------------------------------------------------
 	// 5. PARSE VAULT PAYLOAD
 	// ------------------------------------------------------------
@@ -222,7 +231,7 @@ func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Contex
 		appInput := &app_config_commands.CreateAppConfigCommandInput{
 			AppConfig: &app_config_domain.AppConfig{
 				UserID: userID,
-				Branch:           "main",
+			 	Branch:           "main",
 				TracecoreEnabled: false,
 				EncryptionPolicy: "AES-256-GCM",
 				VaultSettings: app_config_domain.VaultConfig{

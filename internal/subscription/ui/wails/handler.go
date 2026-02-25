@@ -126,8 +126,6 @@ func (h *SubscriptionHandler) CreateSubscription(ctx context.Context, id string,
 	}, nil
 }
 
-
-
 func (h *SubscriptionHandler) GetSubscription(ctx context.Context, id string) (*subscription_usecase.TraditionalSubscriptionResponse, error) {
 	// get subscription
 	response, err := h.SubscriptionRepository.GetByID(ctx, id)
@@ -144,4 +142,9 @@ func (h *SubscriptionHandler) GetSubscription(ctx context.Context, id string) (*
 func (h *SubscriptionHandler) SaveSubscription(ctx context.Context, s *subscription_domain.Subscription) error {
 	// save subscription
 	return h.SubscriptionRepository.Save(ctx, s)
+}
+
+func (h *SubscriptionHandler) GetUserSubscriptionByEmail(ctx context.Context, email string) (*subscription_domain.Subscription, error) {
+	// get subscription
+	return h.SubscriptionRepository.FindByEmail(ctx, email)
 }

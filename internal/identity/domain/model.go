@@ -17,7 +17,7 @@ const (
     IdentityCompliance  IdentityChoice = "compliance"
 )
 
-
+// ------------------- Standard -------------------------
 // User aggregate
 type User struct {
 	ID               string    `gorm:"primaryKey"`
@@ -28,12 +28,9 @@ type User struct {
 	CreatedAt        time.Time
 	LastConnectedAt  time.Time
 }
-
 func (User) TableName() string {
 	return "identity_users"
 }
-
-
 func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
 	u.ID = uuid.New().String()
 	return
@@ -57,7 +54,12 @@ func (u *User) ToFormerUser() *models.User {
 		CreatedAt: u.CreatedAt,
 	}
 }
+func (u *User) OnGenerateApiKey(pk string) *User {
+	u.StellarPublicKey = pk
+	return u
+}
 
+// ------------------- Anonymous -------------------------
 func NewAnonymousUser(id, stellarPublicKey string) *User {
 	return &User{ID: id, IsAnonymous: true, StellarPublicKey: stellarPublicKey, CreatedAt: time.Now()}
 }

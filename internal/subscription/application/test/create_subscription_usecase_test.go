@@ -50,6 +50,13 @@ func (r *fakeRepo) GetByID(ctx context.Context, id string) (*sub_domain.Subscrip
 	return r.saved, nil
 }
 
+func (r *fakeRepo) FindByEmail(ctx context.Context, email string) (*sub_domain.Subscription, error) {
+	if r.returnErr != nil {
+		return nil, r.returnErr
+	}
+	return r.saved, nil
+}
+
 /* ---------------------------------------------------
    FAKE EVENT BUS
 ---------------------------------------------------*/

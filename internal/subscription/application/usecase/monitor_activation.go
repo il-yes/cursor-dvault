@@ -3,7 +3,7 @@ package subscription_usecase
 
 import (
 	"context"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
@@ -89,19 +89,19 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			return
 		}
 		utils.LogPretty("Monitor - User subscription created:", userSubscription)
-		// 2. ------------ update subscription ------------
+		// // 2. ------------ update subscription ------------
 		subscription, err := m.SubscriptionRepository.GetByID(ctx, event.SubscriptionID)
 		if err != nil {
 			m.Logger.Error("Monitor - Failed to retrieve subscription: %v", err)
 			return
 		}
-		subscription.UserID = userSubscription.ID
-		if err := m.SubscriptionRepository.Update(ctx, subscription); err != nil {
-			m.Logger.Error("Monitor - Failed to update subscription: %v", err)
-			return
-		}
-		utils.LogPretty("Monitor - Subscription updated:", subscription)
-		m.Logger.Info("Monitor - User subscription retrieved and updated with user ID %s: %v", userSubscription.ID, subscription)
+		// subscription.UserID = userSubscription.ID
+		// if err := m.SubscriptionRepository.Update(ctx, subscription); err != nil {
+		// 	m.Logger.Error("Monitor - Failed to update subscription: %v", err)
+		// 	return
+		// }
+		// utils.LogPretty("Monitor - Subscription updated:", subscription)
+		// m.Logger.Info("Monitor - User subscription retrieved and updated with user ID %s: %v", userSubscription.ID, subscription)
 
 		// 3. ------------ II. Close Onboarding ------------
 		onboardingUC := onboarding_usecase.NewOnboardUseCase(
@@ -122,6 +122,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			PaymentMethod:        "",
 			EncryptedPaymentData: "",
 			SubscriptionID:       event.SubscriptionID,
+			UserSubscriptionID:   subscription.UserID,
 		}); err != nil {
 			m.Logger.Error("Onboarding failed for user=%s: %v", event.UserID, err)
 		}

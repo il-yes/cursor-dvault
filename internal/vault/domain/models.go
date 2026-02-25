@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"time"
 	"vault-app/internal/models"
+	"vault-app/internal/utils"
 
 	"github.com/google/uuid"
 )
 
+const DefaultVaultName = "Default Vault"
 // former VaultCID
 type Vault struct {
 	ID        string `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"column:name"`
 	Type      string `json:"type" gorm:"column:type"`
 	UserID    string `json:"user_id" gorm:"column:user_id"`
+	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
 	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
 	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
@@ -24,7 +27,7 @@ type Vault struct {
 
 func NewVault(userID string, name string) *Vault {
 	if name == "" {
-		name = "New Vault"
+		name = DefaultVaultName
 	}
 
 	return &Vault{
@@ -44,6 +47,10 @@ func (v *Vault) AttachTxHash(txHash string) {
     v.TxHash = txHash
     v.UpdatedAt = time.Now().Format(time.RFC3339)
 }	
+func (v *Vault) AttachUserSubscriptionID(userSubscriptionID string) {
+    v.UserSubscriptionID = userSubscriptionID
+    v.UpdatedAt = time.Now().Format(time.RFC3339)
+}
 func (v *Vault) BuildInitialPayload(version string) *VaultPayload {
 	return InitEmptyVaultPayload(v.Name, version)
 }
@@ -327,16 +334,19 @@ type VaultEntry struct {
 	Type      string    `json:"type"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
 // Utilities
 func ParseVaultPayload(decrypted []byte) VaultPayload {
 	var vault VaultPayload
+	utils.LogPretty("vault_domain - ParseVaultPayload - decrypted", decrypted)
 
 	err := json.Unmarshal(decrypted, &vault)
 	if err != nil {
-		fmt.Println("❌ Failed to parse vault JSON:", err)
+		utils.LogPretty("vault_domain - ParseVaultPayload - Failed to parse vault JSON:", err)
 		// Fallback: return empty vault
 		vault = VaultPayload{}
 	}
+	utils.LogPretty("vault_domain - ParseVaultPayload - Vault Payload", vault)
 	return vault
 }
 

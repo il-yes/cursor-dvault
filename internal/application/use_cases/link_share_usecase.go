@@ -3,7 +3,7 @@ package share_application_use_cases
 import (
 	"context"
 	"fmt"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	share_application_dto "vault-app/internal/application"
 	share_application_events "vault-app/internal/application/events/share"
 	share_domain "vault-app/internal/domain/shared"

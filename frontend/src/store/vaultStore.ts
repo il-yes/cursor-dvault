@@ -26,11 +26,11 @@ interface VaultStoreState {
     status: 'idle' | 'loading' | 'loaded';
     items: LinkShareEntry[];
   };
-  shared: { // cryptographic share
+  shared: { // cryptographic share by me
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };
-  sharedWithMe: { // cryptographic share
+  sharedWithMe: { // cryptographic share with me
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };

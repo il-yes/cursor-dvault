@@ -1,16 +1,18 @@
 package blockchain
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
+	utils "vault-app/internal/utils"
 
 	// "time"
 
@@ -26,22 +28,35 @@ type StellarBlockchainService interface {
 	CreateKeypair() (string, string, string, error)
 	VerifyStellarSignature(message, pubKey, signatureBase64 string) bool
 	SignActorWithStellarPrivateKey(privateKey string, message string) (string, error)
-	SignWithDvaultPrivateKey(cp tracecore.CommitPayload) (string, error)
+	SignWithDvaultPrivateKey(cp tracecore_models.CommitPayload) (string, error)
 	CreateAccount(plainPassword string) (*CreateAccountRes, error)
 	CreateAccountWithFriendbotFunding(plainPassword string) (*CreateAccountRes, error)
 }
 
+// --------------------- Stellar Service ---------------------
 type StellarService struct {
 	Logger *logger.Logger
+	HTTPClient *http.Client
+}
+
+func NewStellarService(logger *logger.Logger) *StellarService {
+	return &StellarService{
+		Logger: logger,
+		HTTPClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
 }
 
 type CreateAccountRes struct {
 	PublicKey   string `json:"public_key"`
 	PrivateKey  string `json:"private_key"`
+	Salt        []byte `json:"salt"`
 	EncNonce    []byte `json:"enc_nonce"`
 	EncPassword []byte `json:"enc_password"`
 	TxID        string `json:"tx_id"`
 }
+
 func (s *StellarService) CreateKeypair() (publicKey string, secretKey string, transactionID string, err error) {
 	kp, err := keypair.Random()
 	if err != nil {
@@ -50,20 +65,54 @@ func (s *StellarService) CreateKeypair() (publicKey string, secretKey string, tr
 	return kp.Address(), kp.Seed(), "", nil
 }
 
-// CreateAccount creates a new Stellar account with funding from friendbot	
-func (s *StellarService) CreatAccountWithFriendbotFunding(plainPassword string) (*CreateAccountRes, error) {
+// CreateAccount creates a new Stellar account with funding from friendbot
+func (s *StellarService) CreatAccountWithFriendbotFunding(plainPassword string, ANCHORA_SECRET string) (*CreateAccountRes, error) {
+	if os.Getenv("ANCHORA_SECRET") == "" {
+		s.Logger.Error("❌ StellarService: CreatAccountWithFriendbotFunding - Anchora secret not found")
+		return nil, errors.New("anchora secret not found")
+	}
+
 	pub, secret, txID, err := s.CreateKeypair()
 	if err != nil {
 		s.Logger.Warn("⚠️ Stellar account creation failed: %v", err)
 		return nil, err
 	}
-	
-	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
+	s.Logger.Info("✅ CreatAccountWithFriendbotFunding: Stellar account created: %s -  tx:", pub, txID)
+
+	// Fund the account with 10 000 XLM from friendbot: 
+	// tls: failed to verify certificate: x509: certificate signed by unknown authority
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://friendbot.stellar.org/?addr="+pub, nil)
+	if err != nil {
+		s.Logger.Error("❌ StellarService: CreatAccountWithFriendbotFunding - Failed to create request: %v", err)
+		return nil, err
+	}
+
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		s.Logger.Error("❌ StellarService: CreatAccountWithFriendbotFunding - Failed to send request: %v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Cryptography - Encrypt the user password with Stellar secret
+	salt, nonce, encPassword, err := EncryptPasswordWithStellarSecure(plainPassword, secret)
+	if err != nil {
+		s.Logger.Error("❌ StellarService: CreatAccountWithFriendbotFunding - Failed to encrypt password with Stellar secret: %v", err)
+		return nil, err
+	}
 	s.Logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+
+	// Cryptography - encrypt the Stellar private key before storing (server-side master key or KMS)
+	encryptedPrivateKey, err := Encrypt([]byte(secret), ANCHORA_SECRET)
+	if err != nil {
+		s.Logger.Error("❌ StellarService: CreatAccountWithFriendbotFunding - Failed to encrypt Stellar private key: %v", err)
+		return nil, err
+	}
 
 	return &CreateAccountRes{
 		PublicKey:   pub,
-		PrivateKey:  secret,
+		PrivateKey:  base64.StdEncoding.EncodeToString(encryptedPrivateKey),
+		Salt:        salt,
 		EncNonce:    nonce,
 		EncPassword: encPassword,
 		TxID:        txID,
@@ -78,19 +127,37 @@ func (s *StellarService) CreateAccount(plainPassword string) (*CreateAccountRes,
 		return nil, err
 	}
 
-	nonce, encPassword, _ := EncryptPasswordWithStellar(plainPassword, secret)
+	salt, nonce, encPassword, err := EncryptPasswordWithStellarSecure(plainPassword, secret)
+	if err != nil {
+		s.Logger.Error("❌ StellarService: CreateAccount - Failed to encrypt password with Stellar secret: %v", err)
+		return nil, err
+	}
 	s.Logger.Info("✅ Stellar account created: %s -  tx:", pub, txID)
+
+	encrypted, err := Encrypt([]byte(secret), plainPassword)
+	if err != nil {
+		return nil, fmt.Errorf("encryption failed: %w", err)
+	}
+	s.Logger.Info("✅ Stellar account created: %s -  tx:", pub, txID, encrypted)
 
 	return &CreateAccountRes{
 		PublicKey:   pub,
-		PrivateKey:  secret,
+		PrivateKey:  secret, // base64.StdEncoding.EncodeToString(encryptedPrivateKey),
+		Salt:        salt,
 		EncNonce:    nonce,
 		EncPassword: encPassword,
 	}, nil
 }
+func (s *StellarService) OnGenerateApiKey(password string) (*CreateAccountRes, error) {
+	res, err := s.CreateAccount(password)
+	if err != nil {
+		s.Logger.Error("❌ GenerateApiKey: OnGenerateApiKey -Stellar account creation failed: %v", err)
+		return nil, err
+	}
+	return res, nil
+}
 
-
-
+// --------------------- Challenge Service ---------------------
 // In-memory map for demo (you'd want a DB or Redis in production)
 var ChallengeStore = map[string]string{}
 
@@ -116,12 +183,13 @@ func GenerateChallenge(publicKey string) string {
 }
 
 func VerifySignature(publicKey, challenge, signatureB64 string) bool {
+	utils.LogPretty("VerifySignature - publicKey", publicKey)
 	kp, err := keypair.Parse(publicKey)
 	if err != nil {
 		fmt.Println("Invalid public key:", err)
 		return false
 	}
-
+	utils.LogPretty("VerifySignature - kp", kp)
 	fullKP, ok := kp.(*keypair.FromAddress)
 	if !ok {
 		fmt.Println("Invalid keypair type")
@@ -133,7 +201,7 @@ func VerifySignature(publicKey, challenge, signatureB64 string) bool {
 		fmt.Println("Invalid signature encoding:", err)
 		return false
 	}
-
+	utils.LogPretty("VerifySignature - sig", sig)
 	return fullKP.Verify([]byte(challenge), sig) == nil
 }
 
@@ -277,7 +345,7 @@ func SignActorWithStellarPrivateKey(privateKey string, message string) (string, 
 	return base64.StdEncoding.EncodeToString(sig), nil
 }
 
-func SignWithDvaultPrivateKey(cp tracecore.CommitPayload) (string, error) {
+func SignWithDvaultPrivateKey(cp tracecore_models.CommitPayload) (string, error) {
 	data, err := json.Marshal(cp)
 	if err != nil {
 		return "", fmt.Errorf("marshal commit payload failed: %w", err)

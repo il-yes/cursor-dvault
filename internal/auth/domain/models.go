@@ -10,6 +10,9 @@ import (
 type Credentials struct {
     Email    string
     Password string
+    PublicKey string
+    SignedMessage string
+    Signature string
 }	
 
 type Principal struct {

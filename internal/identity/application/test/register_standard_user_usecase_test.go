@@ -43,6 +43,10 @@ func (r *fakeRepo) FindByEmail(ctx context.Context, email string) (*identity_dom
 	return r.usersByEmail[email], nil
 }
 
+func (r *fakeRepo) FindByPublicKey(ctx context.Context, publicKey string) (*identity_domain.User, error) {
+	return r.usersByEmail[publicKey], nil
+}
+
 /* ------------------------------
    Fake Event Bus
 --------------------------------*/

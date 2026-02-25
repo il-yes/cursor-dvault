@@ -8,8 +8,19 @@ import AccessSecurityView from "@/components/AccessSecurity/AccessSecurityView";
 
 const Index = () => {
   const { vault, lastSyncTime, loadVault } = useVaultStore();
-  const sharedEntries = useVaultStore((state) => state.shared.items);
+  const linkShareEntries = useVaultStore((state) => state.linkSharedByMe.items);
+  const cryptographicSharedEntries = useVaultStore((state) => state.shared.items);
+  const totalCryptographicSharedEntries = cryptographicSharedEntries.length;
+  const totalLinkSharedEntries = linkShareEntries.length;
+  const totalSharedEntries = totalCryptographicSharedEntries + totalLinkSharedEntries;
+
   const totalEntries = Object.values(vault?.Vault?.entries || {}).flat().length;
+  console.log("linkShareEntries", linkShareEntries);
+  console.log("cryptographicSharedEntries", cryptographicSharedEntries);
+  console.log("totalCryptographicSharedEntries", totalCryptographicSharedEntries);
+  console.log("totalLinkSharedEntries", totalLinkSharedEntries);
+  console.log("totalSharedEntries", totalSharedEntries);
+  console.log("totalEntries", totalEntries);
 
   const sampleData = {
     "2025-01-01": 2,
@@ -69,7 +80,7 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-semibold bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">
-                {sharedEntries.length}
+                {totalSharedEntries}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Active shares</p>
             </CardContent>

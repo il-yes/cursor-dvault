@@ -11,13 +11,15 @@ import {onboarding_ui_wails} from '../models';
 import {vaults_domain} from '../models';
 import {share_application_dto} from '../models';
 import {share_domain} from '../models';
+import {tracecore} from '../models';
 import {models} from '../models';
+import {identity_dtos} from '../models';
 import {identity_domain} from '../models';
 import {billing_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {subscription_domain} from '../models';
-import {vault_application} from '../models';
+import {vault_dto} from '../models';
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -47,7 +49,7 @@ export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.Sha
 
 export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
 
-export function DecryptVaultEntry(arg1:string,arg2:models.VaultEntry):Promise<models.VaultEntry>;
+export function DecryptVaultEntry(arg1:string,arg2:tracecore.AccessCryptoShareRequest):Promise<tracecore.CloudResponse_vault_app_internal_tracecore_DecryptCryptoShareResponse_>;
 
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -58,6 +60,8 @@ export function DownloadReceipt(arg1:string,arg2:string):Promise<main.Receipt>;
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
 export function EditEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function EditUserInfos(arg1:string,arg2:identity_dtos.EditUserInfosRequest):Promise<void>;
 
 export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -94,8 +98,6 @@ export function GetUserVaultKey(arg1:string):Promise<string>;
 export function GetVault(arg1:string):Promise<Record<string, any>>;
 
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
-
-export function InitStripe():Promise<void>;
 
 export function IsVaultDirty(arg1:string):Promise<boolean>;
 
@@ -139,9 +141,9 @@ export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequ
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
-export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_application.LoginResponse>;
+export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
 
-export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
+export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
 
 export function SignOut(arg1:string):Promise<void>;
 

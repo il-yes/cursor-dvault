@@ -147,3 +147,28 @@ export interface CreateLinkShareEntryPayload {
   download_allowed?: boolean;
   password?: string;
 } 
+export interface AccessCryptoShareRequest {
+	share_id: string;
+	recipient_email: string;
+	challenge: string;
+	signature: string;
+}
+export interface AddRecipientRequest {
+	share_id: string;
+	email: string;
+	role: "viewer" | "read" | "editor" | "owner";
+	encrypted_key: string;
+	revoked_at: string | null;
+}
+export interface UpdateRecipientRequest {
+	share_id: string;
+	email: string;
+	role: "viewer" | "read" | "editor" | "owner";
+	revoked_at: string | null;
+}
+export interface RevokeShareRequest {
+	share_id: string;
+	challenge: string;
+	email: string;
+	signature: string;
+}	

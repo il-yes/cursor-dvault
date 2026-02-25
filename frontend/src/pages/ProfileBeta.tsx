@@ -21,7 +21,7 @@ import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
-import { GenerateApiKey } from "@/services/api";
+import { EditUserInfos, GenerateApiKey } from "@/services/api";
 
 
 const mockFile = {
@@ -42,6 +42,9 @@ const Profile = () => {
 	const maxEntries = vault?.vault_runtime_context?.AppSettings?.vault_settings?.max_entries || 1000;
 	const usagePercent = Math.ceil((totalEntries / maxEntries) * 100);
 	const lastSync = vault?.LastSynced ? formatDistanceToNow(new Date(vault.LastSynced), { addSuffix: true }) : 'Never';
+	const [userName, setUserName] = useState();
+	const [firstName, setFirstName] = useState();
+	const [lastName, setLastName] = useState();
 	
 	const [progressVisible, setProgressVisible] = useState(false);
 	const [showModal, setShowModal] = useState(false);
@@ -68,6 +71,12 @@ const Profile = () => {
 		window.runtime?.EventsOn('progress-update', callback);
 		return () => window.runtime?.EventsOff('progress-update');
 	}, []);
+
+	useEffect(() => {
+		setUserName(user?.user_name);
+		setFirstName(user?.first_name);
+		setLastName(user?.last_name);
+	}, [user]);
 
 
 	// Updated handleAvatarUpload
@@ -228,6 +237,18 @@ const Profile = () => {
 		}
 	};
 
+	const handleEditUserInfos = async () => {
+		const { jwtToken } = useAuthStore.getState();
+		const payload = {
+			user_name: "",
+			last_name: "",
+			first_name: "",
+		}
+		const response = await EditUserInfos(jwtToken, payload);
+		console.log(response);
+		toast({ title: "Success", description: "User info updated successfully!" });
+	}
+
 
 	return (
 		<DashboardLayout>
@@ -305,7 +326,7 @@ const Profile = () => {
 									<Label className="text-lg font-semibold text-muted-foreground/90">Name</Label>
 									<Input
 										id="name"
-										defaultValue={session?.user?.username}
+										defaultValue={userName}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>
@@ -313,7 +334,7 @@ const Profile = () => {
 									<Label className="text-lg font-semibold text-muted-foreground/90">Last Name</Label>
 									<Input
 										id="last_name"
-										defaultValue={session?.user?.last_name}
+										defaultValue={lastName}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>

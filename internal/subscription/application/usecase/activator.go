@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	subscription_application_eventbus "vault-app/internal/subscription/application"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
@@ -59,7 +59,6 @@ func (s *SubscriptionActivator) Listen(ctx context.Context) error {
 // ------------------------------------------------------
 // Main activation logic
 // ------------------------------------------------------
-
 func (s *SubscriptionActivator) Activate(ctx context.Context, evt subscription_eventbus.SubscriptionCreated) error {
 
     // 1. Load subscription

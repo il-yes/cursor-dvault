@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	utils "vault-app/internal"
 	share_application_events "vault-app/internal/application/events/share"
 	"vault-app/internal/blockchain"
 	share_infrastructure "vault-app/internal/infrastructure/share"
-	"vault-app/internal/tracecore"
+	tracecore_models "vault-app/internal/tracecore/models"
+	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
@@ -27,7 +27,7 @@ type ManagerV0 struct {
 	VaultRepository   vaults_domain.VaultRepository
 
 	pendingMu      sync.Mutex
-	pendingCommits map[string][]tracecore.CommitEnvelope // optionally keep in-memory pending commits per user
+	pendingCommits map[string][]tracecore_models.CommitEnvelope // optionally keep in-memory pending commits per user
 	SessionsMu     sync.Mutex
 	logger         Logger
 	NowUTC         func() string
@@ -54,7 +54,7 @@ type Manager struct {
 	IsDirty         bool
 
 	pendingMu      sync.Mutex
-	pendingCommits map[string][]tracecore.CommitEnvelope // optionally keep in-memory pending commits per user	
+	pendingCommits map[string][]tracecore_models.CommitEnvelope // optionally keep in-memory pending commits per user	
 }
 
 
@@ -94,6 +94,11 @@ func (m *Manager) Prepare(userID string) (*Session, error) {
 	// TODO Initialize vault if nil
 	// s.Normalize()
 	m.sessions[userID] = s
+	err := m.SessionRepository.SaveSession(userID, s)
+	if err != nil {
+		m.logger.Error("❌ Failed to save session for user %s: %v", userID, err)
+		return nil, err
+	}
 
 	m.logger.Info("✅ Session prepared for user %s", userID)
 	return s, nil
@@ -287,7 +292,8 @@ func (m *Manager) Sync(userID string, newCID string) {
 		s.LastUpdated = m.NowUTC()	
 		s.LastSynced = time.Now().Format(time.RFC3339)
 		s.Dirty = false
+		utils.LogPretty("Manager - Sync - vault synced", s)
 	}
-	m.logger.Info("✅ Vault synced for user %s", userID)
+	m.logger.Info("✅ Vault synced for user %s:", userID)
 }
 

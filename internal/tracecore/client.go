@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	tracecore_models "vault-app/internal/tracecore/models"
 )
 
 // Error definitions
@@ -24,10 +25,12 @@ type TracecoreClient struct {
 	BaseURL    string
 	Token      string
 	HTTPClient *http.Client
+	AnkhoraFrontUrl string
+	AnkhoraCloudUrl string
 }
 
 // NewTracecoreClient creates a new Tracecore client with default timeout.
-func NewTracecoreClient(baseURL, token string) *TracecoreClient {
+func NewTracecoreClient(baseURL, token, ankhoraFrontUrl, ankhoraCloudUrl string) *TracecoreClient {
 	// ⚠️ Don't use log.Fatal during startup - it kills the app!
 	// Just log warnings and allow the app to start
 	if baseURL == "" {
@@ -44,6 +47,8 @@ func NewTracecoreClient(baseURL, token string) *TracecoreClient {
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		AnkhoraFrontUrl: ankhoraFrontUrl,
+		AnkhoraCloudUrl: ankhoraCloudUrl,
 	}
 }
 func (c *TracecoreClient) SetToken(token string) {
@@ -93,7 +98,7 @@ func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, bo
 	return nil
 }
 
-func (tc *TracecoreClient) Commit(payload CommitEnvelope) (*CommitResponse, error) {
+func (tc *TracecoreClient) Commit(payload tracecore_models.CommitEnvelope) (*tracecore_models.CommitResponse, error) {
 	if tc == nil {
 		return nil, fmt.Errorf("TracecoreClient is nil")
 	}
@@ -140,7 +145,7 @@ func (tc *TracecoreClient) Commit(payload CommitEnvelope) (*CommitResponse, erro
 		return nil, fmt.Errorf("❌ Tracecore returned status %d: %s", resp.StatusCode, body)
 	}
 	// utils.LogPretty("tracecore response", resp.Body)
-	var commitResp CommitResponse
+	var commitResp tracecore_models.CommitResponse
 	if err := json.NewDecoder(resp.Body).Decode(&commitResp); err != nil {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("❌ failed to decode Tracecore response: %w\nRaw body: %s", err, body)

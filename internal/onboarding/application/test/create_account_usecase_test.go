@@ -13,7 +13,7 @@ import (
 
 // ---------- MOCKS ----------
 type MockUserService struct {
-	CreateFunc func(u *onboarding_domain.User) (*onboarding_domain.User, error)	
+	CreateFunc      func(u *onboarding_domain.User) (*onboarding_domain.User, error)
 	FindByEmailFunc func(email string) (*onboarding_domain.User, error)
 }
 
@@ -22,7 +22,7 @@ func (m *MockUserService) Create(u *onboarding_domain.User) (*onboarding_domain.
 }
 func (m *MockUserService) FindByEmail(email string) (*onboarding_domain.User, error) {
 	return m.FindByEmailFunc(email)
-}	
+}
 
 type MockStellarService struct {
 	CreateKeypairFunc func() (string, string, string, error)
@@ -36,9 +36,8 @@ func (m *MockStellarService) CreateKeypair() (string, string, string, error) {
 }
 
 func (m *MockStellarService) CreateAccount(pw string) (*blockchain.CreateAccountRes, error) {
-	return &blockchain.CreateAccountRes{}, nil
+	return m.CreateAccountFunc(pw)
 }
-
 
 type MockBus struct {
 	PublishFunc func(ctx context.Context, evt onboarding_application_events.AccountCreatedEvent) error
@@ -73,7 +72,9 @@ func TestCreateAccount_Anonymous_Success(t *testing.T) {
 		CreateKeypairFunc: func() (string, string, string, error) {
 			return "GTESTPUB", "STELLARSECRETX", "TX999", nil
 		},
-		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) { return &blockchain.CreateAccountRes{}, nil },
+		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) {
+			return &blockchain.CreateAccountRes{}, nil
+		},
 	}
 
 	mockBus := &MockBus{
@@ -83,7 +84,7 @@ func TestCreateAccount_Anonymous_Success(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:    mockUser,
+		UserRepo:       mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -122,7 +123,9 @@ func TestCreateAccount_Regular_Success(t *testing.T) {
 			t.Fatalf("stellar should NOT be called for regular accounts")
 			return "", "", "", nil
 		},
-		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) { return &blockchain.CreateAccountRes{}, nil },	
+		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) {
+			return &blockchain.CreateAccountRes{}, nil
+		},
 	}
 
 	mockBus := &MockBus{
@@ -132,7 +135,7 @@ func TestCreateAccount_Regular_Success(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:    mockUser,
+		UserRepo:       mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -182,7 +185,7 @@ func TestCreateAccount_StellarFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:    mockUser,
+		UserRepo:       mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -220,7 +223,7 @@ func TestCreateAccount_UserServiceFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:    mockUser,
+		UserRepo:       mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}
@@ -246,7 +249,7 @@ func TestCreateAccount_EventBusFailure(t *testing.T) {
 		CreateKeypairFunc: func() (string, string, string, error) {
 			return "PUB", "SECRET", "TX", nil
 		},
-		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) { return &blockchain.CreateAccountRes{}, nil }	,
+		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) { return &blockchain.CreateAccountRes{}, nil },
 	}
 
 	mockBus := &MockBus{
@@ -256,7 +259,7 @@ func TestCreateAccount_EventBusFailure(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:    mockUser,
+		UserRepo:       mockUser,
 		StellarService: mockStellar,
 		Bus:            mockBus,
 	}

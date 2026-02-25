@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// cloud "vault-app/internal/cloud"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	subscription_domain "vault-app/internal/subscription/domain"

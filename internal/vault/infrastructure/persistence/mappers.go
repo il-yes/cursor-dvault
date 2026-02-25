@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	utils "vault-app/internal"
+	utils "vault-app/internal/utils"
 	"vault-app/internal/blockchain"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -16,6 +16,7 @@ type VaultMapper struct {
 	Name      string `json:"name" gorm:"column:name"`
 	Type      string `json:"type" gorm:"column:type"`
 	UserID    string    `json:"user_id" gorm:"column:user_id"`
+	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
 	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
 	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"`
@@ -31,6 +32,7 @@ func (vm *VaultMapper) ToDomain() *vaults_domain.Vault {
 		Name:      vm.Name,
 		Type:      vm.Type,
 		UserID:    vm.UserID,
+		UserSubscriptionID: vm.UserSubscriptionID,
 		CID:       vm.CID,
 		TxHash:    vm.TxHash,
 		CreatedAt: vm.CreatedAt,
@@ -45,6 +47,7 @@ func VaultDomainToMapper(vault *vaults_domain.Vault) *VaultMapper {
 		Name:      vault.Name,
 		Type:      vault.Type,
 		UserID:    vault.UserID,
+		UserSubscriptionID: vault.UserSubscriptionID,
 		CID:       vault.CID,
 		TxHash:    vault.TxHash,
 		CreatedAt: vault.CreatedAt,

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/auth"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
@@ -15,6 +14,8 @@ import (
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
+	utils "vault-app/internal/utils"
 
 	// "os"
 	"golang.org/x/crypto/bcrypt"
@@ -74,7 +75,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	var user *models.User
 	var userOnboarding *onboarding_domain.User
 	var err error
-	var cloudLoginResponse *tracecore.LoginResponse
+	var cloudLoginResponse *tracecore_types.LoginResponse
 	fmt.Println("🔥 SIGNIN ROUTE HIT AT:", time.Now())
 
 	// -----------------------------

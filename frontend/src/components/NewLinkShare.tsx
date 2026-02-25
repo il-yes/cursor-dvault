@@ -44,7 +44,6 @@ export function NewLinkShareModal({ open, onOpenChange, onShareSuccess }: NewSha
   const [showPassword, setShowPassword] = useState(false);
     const jwtToken = useAuthStore.getState().jwtToken;
     const user = useAuthStore.getState().user
-    console.log("user", user);
 
     const handleShare = async () => {
         if (!selectedEntry) {

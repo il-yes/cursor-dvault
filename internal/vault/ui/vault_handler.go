@@ -2,6 +2,7 @@ package vault_ui
 
 import (
 	"context"
+
 	// "encoding/base64"
 	"encoding/json"
 	"errors"
@@ -9,14 +10,17 @@ import (
 	"runtime/debug"
 	"sync"
 	"time"
-	utils "vault-app/internal"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	app_config_domain "vault-app/internal/config/domain"
 	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
+	"vault-app/internal/tracecore"
+	utils "vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
+	vault_dto "vault-app/internal/vault/application/dto"
 	vault_events "vault-app/internal/vault/application/events"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -76,7 +80,6 @@ func NewVaultHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
 	)
 
-
 	return &VaultHandler{
 		DB:                              db,
 		IPFS:                            ipfs,
@@ -111,6 +114,7 @@ func (vh *VaultHandler) PrepareSession(userID string) (*vault_session.Session, e
 		)
 		return nil, err
 	}
+
 
 	vh.logger.Info("✅ Session prepared for user %s", userID)
 	return session, nil
@@ -180,7 +184,18 @@ func (vh *VaultHandler) SessionAttachRuntime(ctx context.Context, req vault_comm
 func (vh *VaultHandler) LogoutUser(userID string) error {
 	return vh.SessionManager.LogoutUser(userID)
 }
+func (vh *VaultHandler) GetVaultSession(userID string) (*vaults_domain.VaultPayload, error) {
+	session, err := vh.SessionManager.GetSession(userID)
+	if err != nil {
+		return nil, err
+	}
+	vaultBytes := session.Vault
+	utils.LogPretty("GetVaultSession - vaultPayload", vaultBytes)
+	var vaultPayload vaults_domain.VaultPayload
+	json.Unmarshal(vaultBytes, &vaultPayload)
 
+	return &vaultPayload, nil
+}
 // -----------------------------
 // Vault - Crud
 // -----------------------------
@@ -525,14 +540,15 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 	return nil
 }
 
-func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password string) (string, error) {
-	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
+func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.SynchronizeVaultRequest, tc tracecore.TracecoreClient) (string, error) {
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", input.UserID)
 	if ctx == nil {
 		vh.logger.Error("❌ SyncVault aborted: ctx is nil")
 		return "", errors.New("runtime context is nil")
 	}
 	vh.logger.Info("CTX = %#v", ctx)
-
+	userID := input.UserID
+	password := input.Password
 
 	// 1. ---------- Get session ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
@@ -541,7 +557,8 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password s
 	if err != nil {
 		return "", fmt.Errorf("no active session: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)
+	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)	
+	vh.logger.LogPretty("SyncVault - session", session)
 
 	// 2. ---------- Marshal vault ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
@@ -549,6 +566,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password s
 	if err != nil {
 		return "", fmt.Errorf("marshal failed: %w", err)
 	}
+	vh.logger.LogPretty("SyncVault - vaultBytes", vaultBytes)
 
 	// 3. ---------- Encrypt vault ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
@@ -556,24 +574,37 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password s
 	if err != nil {
 		return "", fmt.Errorf("encryption failed: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Vault encrypted for UserID: %s", userID)
-	utils.LogPretty("SyncVault - session", session)
+	vh.logger.LogPretty("SyncVault - encrypted", encrypted)
 
 	// 4. ---------- Upload to IPFS ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
-	newCID, err := vh.IPFS.AddData(encrypted)
+	// newCID, err := vh.IPFS.AddData(encrypted)
+	req := tracecore.SyncVaultStreamRequest{
+		UserID:  input.Vault.UserSubscriptionID,
+		VaultName: input.Vault.Name,
+		Stream:  encrypted,
+	}
+	vh.logger.LogPretty("SyncVault - req ipfs", req)
+	res, err := tc.UploadToIPFS(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("IPFS upload failed: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Vault uploaded to IPFS - cid: %s", newCID)
+	vh.logger.Info("🔄 SyncVault - Vault uploaded to IPFS - cid: %s", res.Data.CID)
+	newCID := res.Data.CID
 
 	// 5. ---------- Submit to Stellar ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
 	userCfg := session.Runtime.UserConfig
 	utils.LogPretty("SyncVault - userCfg", userCfg)
 
+	// passwordCipherBytes, _ := base64.StdEncoding.DecodeString(string(userCfg.StellarAccount.EncPassword))
+	// decryptedPassword, err := blockchain.Decrypt(passwordCipherBytes, ANKHORA_SECRET)
+	// if err != nil {
+	// 	return "", fmt.Errorf("stellar submission failed: %w", err)
+	// }
+
 	// cipherBytes, _ := base64.StdEncoding.DecodeString(userCfg.StellarAccount.PrivateKey)
-	// decryptedPrivateKey, err := blockchain.Decrypt(cipherBytes, "password")
+	// decryptedPrivateKey, err := blockchain.Decrypt(cipherBytes, decryptedPassword)
 	// if err != nil {
 	// 	return "", fmt.Errorf("stellar submission failed: %w", err)
 	// }
@@ -586,6 +617,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password s
 
 	fmt.Println("SyncVault - CTX", ctx)
 	utils.LogPretty("SyncVault - Vault repository", vh.VaultRepository)
+
 	// 6. ---------- Create new vault ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
 	currentMeta, err := vh.VaultRepository.GetLatestByUserID(userID)
@@ -609,12 +641,37 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, userID string, password s
 
 	// 7. ---------- Update session ----------
 	vh.SessionManager.Sync(userID, newCID)
+	vaultPayload, err := vault_session.DecodeSessionVault(vaultBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode session vault: %w", err)
+	}
+	vh.logger.LogPretty("SyncVault - vaultPayload", vaultPayload)
+	vh.SessionManager.SetVault(userID, vaultPayload)
 	vh.logger.Info("✅ Vault sync complete for user %s", userID)
+
 	// 8. ---------- Emit event ----------
 	runtime.EventsEmit(ctx, "vault-synced", map[string]interface{}{"userID": userID, "newCID": newCID})
+
 	// 9. ---------- Fires vault stores Sync event ----------
 
 	return newCID, nil
+}
+
+func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req tracecore.AccessCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore.CloudResponse[tracecore.AccessCryptoShareResponse], error) {
+	response, err := tc.AccessEncryptedEntry(ctx, id, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to access encrypted entry: %w", err)
+	}
+
+	return response, nil
+}
+func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore.DecryptCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore.CloudResponse[tracecore.DecryptCryptoShareResponse], error) {
+	response, err := tc.DecryptVaultEntry(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt vault entry: %w", err)
+	}
+
+	return response, nil
 }
 
 func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, error) {
@@ -652,4 +709,36 @@ func (vh *VaultHandler) EncryptVault(userID string, password string) (string, er
 	// 4. ----------------- Fires vault stores Encrypt event -----------------
 
 	return string(encrypted), nil
+}
+
+type OnGenerateApiKeyParams struct {
+	UserID     string
+	UserConfig app_config_domain.UserConfig
+}
+
+func (vh *VaultHandler) OnGenerateApiKey(ctx context.Context, params OnGenerateApiKeyParams) error {
+	vh.logger.Info("🔄 VaultHandler - OnGenerateApiKey: Starting vault encryption for UserID: %s", params.UserID)
+
+	// 3. ----------------- Update UserConfig -----------------
+	session, err := vh.GetSession(params.UserID)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - OnGenerateApiKey: no active session for user %s: %v", params.UserID, err)
+		return err
+	}
+
+	userCfg := app_config.UserConfig{
+		ID:            params.UserConfig.ID,
+		Role:          params.UserConfig.Role,
+		Signature:     params.UserConfig.Signature,
+		ConnectedOrgs: params.UserConfig.ConnectedOrgs,
+		StellarAccount: app_config.StellarAccountConfig{
+			PublicKey:  params.UserConfig.StellarAccount.PublicKey,
+			PrivateKey: params.UserConfig.StellarAccount.PrivateKey,
+		},
+		TwoFactorEnabled: params.UserConfig.TwoFactorEnabled,
+	}
+	session.Runtime.UserConfig = userCfg
+	vh.SessionManager.AttachRuntime(params.UserID, session.Runtime)
+
+	return nil
 }

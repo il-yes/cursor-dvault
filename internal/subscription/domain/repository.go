@@ -7,6 +7,7 @@ type SubscriptionRepository interface {
 	FindByUserID(ctx context.Context, userID string) (*Subscription, error)
 	GetByID(ctx context.Context, id string) (*Subscription, error)
 	Update(ctx context.Context, s *Subscription) error
+	FindByEmail(ctx context.Context, email string) (*Subscription, error)
 	
 }
 

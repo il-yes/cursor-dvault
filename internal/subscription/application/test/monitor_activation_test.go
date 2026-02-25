@@ -227,6 +227,17 @@ func (f *fakeSubRepo) Update(
 ) error {
 	return nil
 }
+
+func (f *fakeSubRepo) FindByEmail(ctx context.Context, email string) (*subscription_domain.Subscription, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &subscription_domain.Subscription{
+		ID:    "user-123",
+		Email: "user@example.com",
+	}, nil
+}
+	
 type fakeUserSubRepo struct {
 	err error
 }

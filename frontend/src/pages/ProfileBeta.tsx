@@ -45,6 +45,8 @@ const Profile = () => {
 	const [userName, setUserName] = useState();
 	const [firstName, setFirstName] = useState();
 	const [lastName, setLastName] = useState();
+	const [publicKey, setPublicKey] = useState("");
+	const [privateKey, setPrivateKey] = useState("");
 	
 	const [progressVisible, setProgressVisible] = useState(false);
 	const [showModal, setShowModal] = useState(false);
@@ -55,8 +57,8 @@ const Profile = () => {
 	const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
 
 	const session = useAppStore.getState().session;
-	const user = session?.user
-	const stellar = vault?.vault_runtime_context?.UserConfig?.stellar_account	
+	const user = session?.user	
+	user && console.log(user)
 
 	useEffect(() => {
 		const callback = (payload: { percent: number, stage: string } | number) => {
@@ -77,6 +79,12 @@ const Profile = () => {
 		setFirstName(user?.first_name);
 		setLastName(user?.last_name);
 	}, [user]);
+
+	useEffect(() => {
+		const stellar = vault?.vault_runtime_context?.UserConfig?.stellar_account
+		setPublicKey(stellar?.public_key);
+		setPrivateKey(stellar?.private_key);
+	}, [vault]);
 
 
 	// Updated handleAvatarUpload
@@ -164,13 +172,20 @@ const Profile = () => {
 			password: "password",
 			jwtToken
 		}
-		const apiKey = await GenerateApiKey(payload);
-		console.log(apiKey);
+		const keypair = await GenerateApiKey(payload);
+		console.log(keypair);
+		setPublicKey(keypair.public_key);
+		setPrivateKey(keypair.private_key);
+
+		refreshVault();
+		const vault = useVaultStore.getState().vault;
+		console.log('========= Post response api generated ==============')
+		console.log(vault.vault_runtime_context)
+		console.log('=========. ==============')
 		toast({
 			title: "API Key Generated",
 			description: "Your new API key has been created.",
 		});
-		// TODO: Update API key in session
 	};
 
 	const handleLogout = () => {
@@ -207,8 +222,8 @@ const Profile = () => {
 			setStage("syncing vault...");
 
 			// Call new sync method that internally runs all steps with progress emits
-			const cid = await syncVault(jwtToken, vaultPassword);
-			console.log("Vault sync success:", cid);
+			const response = await syncVault(jwtToken, vaultPassword);
+			console.log("Vault sync success:", response);
 			setProgress(100);
 			setStage("complete");
 
@@ -248,7 +263,6 @@ const Profile = () => {
 		console.log(response);
 		toast({ title: "Success", description: "User info updated successfully!" });
 	}
-
 
 	return (
 		<DashboardLayout>
@@ -378,7 +392,7 @@ const Profile = () => {
 										</Label>
 										<div className="flex gap-3">
 											<Input
-												value={stellar && stellar?.public_key}
+												value={publicKey}
 												readOnly
 												className="flex-1 h-14 font-mono text-lg bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm rounded-2xl border-primary/30 shadow-inner font-semibold"
 											/>
@@ -386,7 +400,7 @@ const Profile = () => {
 												variant="outline"
 												size="icon"
 												className="h-14 w-14 rounded-2xl backdrop-blur-sm border-primary/40 hover:bg-primary/10 shadow-md hover:shadow-lg"
-												onClick={() => handleCopyStellarAddress(user?.stellar_account?.public_key || "")}
+												onClick={() => handleCopyStellarAddress(publicKey)}
 											>
 												<Copy className="h-5 w-5" />
 											</Button>
@@ -399,7 +413,7 @@ const Profile = () => {
 										</Label>
 										<div className="flex gap-3">
 											<Input
-												value={stellar && stellar?.private_key}
+												value={privateKey}
 												readOnly
 												type="password"
 												className="flex-1 h-14 font-mono text-lg bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm rounded-2xl border-destructive/30 shadow-inner font-semibold text-destructive/80"
@@ -408,7 +422,7 @@ const Profile = () => {
 												variant="outline"
 												size="icon"
 												className="h-14 w-14 rounded-2xl backdrop-blur-sm border-destructive/40 hover:bg-destructive/10 shadow-md hover:shadow-lg"
-												onClick={() => handleCopyStellarAddress(user?.stellar_account?.private_key || "")}
+												onClick={() => handleCopyStellarAddress(privateKey)}
 											>
 												<Copy className="h-5 w-5" />
 											</Button>
@@ -487,6 +501,10 @@ const Profile = () => {
 
 						<div className="grid md:grid-cols-4 gap-8 text-center">
 							<div className="space-y-3">
+								<div className="text-lg font-black text-muted-foreground mb-6">{vault?.Vault?.name}</div>
+								<div className="text-sm text-muted-foreground/70 uppercase tracking-wider">Name</div>
+							</div>
+							<div className="space-y-3">
 								<div className="text-3xl font-black text-muted-foreground">{totalEntries}</div>
 								<div className="text-sm text-muted-foreground/70 uppercase tracking-wider">Entries</div>
 							</div>
@@ -517,7 +535,7 @@ const Profile = () => {
 					<div className="backdrop-blur-xl bg-gradient-to-r from-white/70 to-zinc-100/50 dark:from-zinc-900/70 dark:to-zinc-800/50 rounded-3xl p-8 border border-white/40 shadow-2xl">
 						<div className="flex flex-col sm:flex-row items-center justify-between gap-6">
 							<div className="text-center sm:text-left">
-								<p className="text-xl font-bold text-muted-foreground">Ankhora v1.2.0</p>
+								<p className="text-xl font-bold text-muted-foreground">Ankhora v{vault?.Vault?.version || "1.2.0"}</p>
 								<p className="text-lg text-muted-foreground/70">
 									Last updated: {formatMonthYear(vault?.LastUpdated)}
 								</p>

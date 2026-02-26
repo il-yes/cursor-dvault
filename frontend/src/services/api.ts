@@ -1002,7 +1002,6 @@ type GenerateApiKeyResponse = {
   private_key: string;
 }
 export const GenerateApiKey = async (payload: GenerateApiKeyInput): Promise<GenerateApiKeyResponse> => {
-  alert('ok')
   const response = await AppAPI.GenerateApiKey(payload);
   console.log({ response })
 

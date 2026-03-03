@@ -1680,6 +1680,6 @@ func (a *App) OpenGoogle() {
 	}
 
 	// Opens default browser to Google
-	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
+	runtime.BrowserOpenURL(a.ctx, "http://164.90.213.173:4002/checkout")
 }
 

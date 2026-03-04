@@ -9,4 +9,5 @@ frontend/dist/index.html
 frontend/node_modules/%
 build
 .env
+.env*
 frontend/.env

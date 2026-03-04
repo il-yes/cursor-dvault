@@ -12,6 +12,7 @@ import (
 	app_config_ui "vault-app/internal/config/ui"
 	utils "vault-app/internal/utils"
 	vault_events "vault-app/internal/vault/application/events"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vault_domain "vault-app/internal/vault/domain"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -44,18 +45,21 @@ type OpenVaultResult struct {
 type OpenVaultCommandHandler struct {
 	vaultRepo vault_domain.VaultRepository
 	now       func() string
+	QueryHandler vault_queries.GetIPFSDataQuerryHandler
 }
 
 // -------- CONSTRUCTOR --------
 
 func NewOpenVaultCommandHandler(
 	db *gorm.DB,
+	queryHandler vault_queries.GetIPFSDataQuerryHandler,
 ) *OpenVaultCommandHandler {
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
 
 	return &OpenVaultCommandHandler{
 		vaultRepo: vaultRepo,
 		now:       func() string { return time.Now().UTC().Format(time.RFC3339) },
+		QueryHandler: queryHandler,
 	}
 }
 
@@ -63,8 +67,6 @@ func NewOpenVaultCommandHandler(
 func (h *OpenVaultCommandHandler) Handle(
 	ctx context.Context,
 	cmd OpenVaultCommand,
-	ipfs vault_domain.VaultStorage,
-	crypto vault_domain.CryptoService,
 	eventBus vault_events.VaultEventBus,
 	configFacade app_config_ui.AppConfigHandler,
 ) (*OpenVaultResult, error) {
@@ -139,25 +141,36 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 3. LOAD ENCRYPTED VAULT CONTENT FROM IPFS
 	// ------------------------------------------------------------
-	encrypted, err := ipfs.GetData(vault.CID)
-	if err != nil {
-		return nil, err
-	}
-	utils.LogPretty("OpenVaultCommandHandler - Handle - encrypted", encrypted)
+	// encrypted, err := ipfs.GetData(vault.CID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// utils.LogPretty("OpenVaultCommandHandler - Handle - encrypted", encrypted)
 
 	// ------------------------------------------------------------
 	// 4. DECRYPT VAULT
 	// ------------------------------------------------------------
-	decrypted, err := crypto.Decrypt(encrypted, cmd.Password)
-	if err != nil {
-		return nil, err
-	}
-	utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
+	// decrypted, err := crypto.Decrypt(encrypted, cmd.Password)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// utils.LogPretty("Vault New blob JSON: %s\n", string(decrypted))
 	// TODO: failed to retrieve stored data from ipfs returning an empty payload
 	// ------------------------------------------------------------
 	// 5. PARSE VAULT PAYLOAD
 	// ------------------------------------------------------------
-	payload := vaults_domain.ParseVaultPayload(decrypted)
+	// payload := vaults_domain.ParseVaultPayload(decrypted)
+	ipfsDataQuery, err := h.QueryHandler.Execute(vault_queries.GetIPFSDataQuerry{
+		UserID: cmd.UserID,
+		CID:    vault.CID,
+		Password: cmd.Password,
+		AppCfg: runtimeCtx.AppConfig,
+		VaultName: vault.Name,
+	})
+	if err != nil {
+		return nil, err
+	}
+	payload := ipfsDataQuery.Data
 	payload.Normalize()
 
 	// ------------------------------------------------------------

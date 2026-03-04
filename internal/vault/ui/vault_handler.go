@@ -23,6 +23,7 @@ import (
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vault_events "vault-app/internal/vault/application/events"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_eventbus "vault-app/internal/vault/infrastructure/eventbus"
@@ -40,6 +41,7 @@ type VaultHandler struct {
 	CreateIPFSPayloadCommandHandler *vault_commands.CreateIPFSPayloadCommandHandler
 	CreateVaultCommandHandler       *vault_commands.CreateVaultCommandHandler
 	VaultOpenedListener             *vault_commands.VaultOpenedListener
+	GetIPFSDataQuerryHandler        *vault_queries.GetIPFSDataQuerryHandler
 
 	FolderRepository    vaults_domain.FolderRepository
 	VaultRepository     vaults_domain.VaultRepository
@@ -82,6 +84,7 @@ func NewVaultHandler(
 	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
 	)
+	ipfsDataQueryHandler := vault_queries.NewGetIPFSDataQuerryHandler(crypto)
 
 	return &VaultHandler{
 		DB:                              db,
@@ -98,6 +101,7 @@ func NewVaultHandler(
 		CreateVaultCommandHandler:       createVaultCommand,
 		VaultRepository:                 vaultRepo,
 		TracecoreClient:                 tracecoreClient,
+		GetIPFSDataQuerryHandler:        ipfsDataQueryHandler,
 	}
 }
 
@@ -214,9 +218,7 @@ func (vh *VaultHandler) GetUserConfig(userID string) (app_config_domain.UserConf
 // -----------------------------
 func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*vault_commands.OpenVaultResult, error) {
 	openHandler := NewOpenVaultHandler(
-		vault_commands.NewOpenVaultCommandHandler(vh.DB),
-		vh.IPFS,
-		vh.CryptoService,
+		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler),
 		vh.EventBus,
 	)
 	res, err := openHandler.OpenVault(ctx, req, appConfigHandler)

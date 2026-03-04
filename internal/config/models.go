@@ -141,20 +141,20 @@ type StorageProvider interface {
 	Get(ctx context.Context, cid string) ([]byte, error)
 }
 type StorageConfig struct {
-    Mode StorageMode
+    Mode StorageMode `json:"mode" yaml:"mode" gorm:"column:mode"`
 
-    LocalIPFS   IPFSConfig
-    PrivateIPFS IPFSConfig
-    Cloud       CloudConfig
-    EnterpriseS3 S3Config
+    LocalIPFS   IPFSConfig `json:"local_ipfs" yaml:"local_ipfs" gorm:"embedded;embeddedPrefix:local_ipfs_"`
+    PrivateIPFS IPFSConfig `json:"private_ipfs" yaml:"private_ipfs" gorm:"embedded;embeddedPrefix:private_ipfs_"`
+    Cloud       CloudConfig `json:"cloud" yaml:"cloud" gorm:"embedded;embeddedPrefix:cloud_"`
+    EnterpriseS3 S3Config `json:"enterprise_s3" yaml:"enterprise_s3" gorm:"embedded;embeddedPrefix:enterprise_s3_"`
 }
 
 type CloudConfig struct {
-    BaseURL string
+    BaseURL string `json:"base_url" yaml:"base_url" gorm:"column:base_url"`
 }
 
 type S3Config struct {
-    Region   string
-    Bucket   string
-    Endpoint string
+    Region   string `json:"region" yaml:"region" gorm:"column:region"`
+    Bucket   string `json:"bucket" yaml:"bucket" gorm:"column:bucket"`
+    Endpoint string `json:"endpoint" yaml:"endpoint" gorm:"column:endpoint"`
 }

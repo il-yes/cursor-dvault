@@ -23,27 +23,19 @@ type GetIPFSDataQuerry struct {
 type GetIPFSDataResponse struct {
 	Data vault_domain.VaultPayload
 }
-// -------- HANDLER --------
-type GetIPFSDataQuerryHandler struct {
-	ipfsService IpfsServiceInterface
-	cryptoService CryptoServiceInterface
-	tracecoreClient tracecore.TracecoreClient
-}
-
-type IpfsServiceInterface interface {
-	GetFile(cid string) ([]byte, error)
-}
-
+// -------- INTERFACES --------
 type CryptoServiceInterface interface {
 	Decrypt(data []byte, password string) ([]byte, error)
 }
 
+// -------- HANDLER --------
+type GetIPFSDataQuerryHandler struct {
+	cryptoService CryptoServiceInterface
+}
 // -------- CONSTRUCTOR --------
-func NewGetIPFSDataQuerryHandler(ipfsService IpfsServiceInterface, cryptoService CryptoServiceInterface, tracecoreClient tracecore.TracecoreClient) *GetIPFSDataQuerryHandler {
+func NewGetIPFSDataQuerryHandler(cryptoService CryptoServiceInterface) *GetIPFSDataQuerryHandler {
 	return &GetIPFSDataQuerryHandler{
-		ipfsService: ipfsService,
 		cryptoService: cryptoService,
-		tracecoreClient: tracecoreClient,
 	}
 }
 
@@ -52,7 +44,6 @@ func (h *GetIPFSDataQuerryHandler) Execute(cmd GetIPFSDataQuerry) (*GetIPFSDataR
 	// ------------------------------------------------------------
 	// 1. LOAD ENCRYPTED VAULT CONTENT FROM IPFS
 	// ------------------------------------------------------------
-	// vaultData, err := h.ipfsService.GetFile(cmd.CID)
 	encryptedData, err := h.GetFromIpfs(context.Background(), cmd)
 	if err != nil {
 		return nil, fmt.Errorf("❌ GetIPFSDataQuerryHandler - failed to fetch vault from IPFS: %w", err)

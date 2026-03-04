@@ -47,6 +47,7 @@ import (
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
@@ -235,17 +236,17 @@ func NewApp() *App {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runtimeCtxLegacy := &vault_session.RuntimeContext{
-		AppConfig: app_config.AppConfig{
+		AppConfig: app_config_domain.AppConfig{
 			// Load from file/env or defaults
 			Branch:           cfg.Branch,
 			EncryptionPolicy: cfg.EncryptionPolicy,
-			Blockchain: app_config.BlockchainConfig{
-				Stellar: app_config.StellarConfig{
+			Blockchain: app_config_domain.BlockchainConfig{
+				Stellar: app_config_domain.StellarConfig{
 					Network:    cfg.StellarNetwork,
 					HorizonURL: cfg.StellarHorizonURL,
 					Fee:        100,
 				},
-				IPFS: app_config.IPFSConfig{
+				IPFS: app_config_domain.IPFSConfig{
 					APIEndpoint: cfg.IPFSClient,
 					GatewayURL:  cfg.IPFSGateway,
 				},
@@ -330,7 +331,7 @@ func NewApp() *App {
 	// Vault
 	// -------------------------------------------------------------------------------------------------
 	cryptoService := blockchain.CryptoService{}
-	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB, appConfig)
+	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB, appConfig, *tracecoreClient)
 	
 	userSubscriptionRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
 	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)	
@@ -852,7 +853,7 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
 
-func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoShareRequest) (*tracecore.CloudResponse[tracecore.DecryptCryptoShareResponse], error) {
+func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
@@ -872,7 +873,7 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoSha
 	}
 	// 2. Decrypt ==============================
 	stellarAccount := userConfig.StellarAccount
-	req := tracecore.DecryptCryptoShareRequest{
+	req := tracecore_types.DecryptCryptoShareRequest{
 		EncryptedKey:        res.Data.EncryptedKey,
 		EncryptedPayload:    res.Data.EncryptedPayload,
 		RecipientPrivateKey: stellarAccount.PrivateKey,

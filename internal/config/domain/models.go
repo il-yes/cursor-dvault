@@ -2,6 +2,7 @@ package app_config_domain
 
 import (
 	"vault-app/internal/blockchain"
+	app_config "vault-app/internal/config"
 	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
@@ -41,6 +42,7 @@ type AppConfig struct {
 	RemaskDelay          string           `json:"remask_delay" gorm:"remask_delay"`
 	Theme                string           `json:"theme" gorm:"theme"`
 	AnimationsEnabled    bool             `json:"animations_enabled" gorm:"animations_enabled"`
+	Storage            app_config.StorageConfig    `json:"storage" yaml:"storage" gorm:"embedded"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -110,6 +112,8 @@ type IPFSConfig struct {
 	APIEndpoint string `json:"api_endpoint" yaml:"api_endpoint" gorm:"column:api_endpoint"`
 	GatewayURL  string `json:"gateway_url" yaml:"gateway_url" gorm:"column:gateway_url"`
 }
+
+
 
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type SharingRule struct {

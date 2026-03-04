@@ -1,6 +1,7 @@
 package app_config
 
 import (
+	"context"
 	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ type AppConfig struct {
 	RemaskDelay        string           `json:"remask_delay" yaml:"remask_delay"`
 	Theme              string           `json:"theme" yaml:"theme"`
 	AnimationsEnabled  bool             `json:"animations_enabled" yaml:"animations_enabled"`
+	Storage            StorageConfig    `json:"storage" yaml:"storage" gorm:"embedded"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -119,4 +121,40 @@ type SharingConfig struct {
 func (s *SharingConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	s.ID = uint(utils.Uint64())
 	return
+}
+
+
+
+
+type StorageMode string
+
+const (
+	StorageCloud  StorageMode = "cloud"
+	StorageLocal  StorageMode = "local"
+	StorageEnterpriseS3 StorageMode = "enterprise_s3"
+	StoragePrivateIPFS StorageMode = "private_ipfs"
+	StorageHybrid StorageMode = "hybrid"
+)
+
+type StorageProvider interface {
+	Add(ctx context.Context, data []byte) (string, error)
+	Get(ctx context.Context, cid string) ([]byte, error)
+}
+type StorageConfig struct {
+    Mode StorageMode
+
+    LocalIPFS   IPFSConfig
+    PrivateIPFS IPFSConfig
+    Cloud       CloudConfig
+    EnterpriseS3 S3Config
+}
+
+type CloudConfig struct {
+    BaseURL string
+}
+
+type S3Config struct {
+    Region   string
+    Bucket   string
+    Endpoint string
 }

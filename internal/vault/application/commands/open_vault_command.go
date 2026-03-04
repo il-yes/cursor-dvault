@@ -2,16 +2,15 @@ package vault_commands
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
+	"os"
 	"time"
 
-	utils "vault-app/internal/utils"
 	app_config "vault-app/internal/config"
 	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_ui "vault-app/internal/config/ui"
+	utils "vault-app/internal/utils"
 	vault_events "vault-app/internal/vault/application/events"
 	vault_session "vault-app/internal/vault/application/session"
 	vault_domain "vault-app/internal/vault/domain"
@@ -87,9 +86,9 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 1. REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)
 	// ------------------------------------------------------------
 	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
-		utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
+		// utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
 		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
-		utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
+		// utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
 
 		evt := vault_events.VaultOpened{
 			UserID:       cmd.UserID,
@@ -116,11 +115,11 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 2. LOAD OR CREATE VAULT METADATA
 	// ------------------------------------------------------------
-	utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
+	// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
 	if err != nil {
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
-			utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", cmd.UserID)
+			// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", cmd.UserID)
 			vault = vault_domain.NewVault(cmd.UserID, "")
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
 				utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", err)
@@ -128,11 +127,11 @@ func (h *OpenVaultCommandHandler) Handle(
 			}
 			vault = vault_domain.NewVault(cmd.UserID, "")
 			if err := h.vaultRepo.SaveVault(vault); err != nil {
-				utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - NEW VAULT NOT FOUND", err)
+				// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - NEW VAULT NOT FOUND", err)
 				return nil, err
 			}
 		} else {
-			utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", err)
+			// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", err)
 			return nil, err
 		}
 	}
@@ -213,11 +212,11 @@ func (h *OpenVaultCommandHandler) GetRuntimeContext(ctx context.Context, userID 
 
 	return runtimeCtx, nil
 }
-func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Context, userID string, configFacade app_config_ui.AppConfigHandler) (*app_config.AppConfig, *app_config.UserConfig, error) {
+func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Context, userID string, configFacade app_config_ui.AppConfigHandler) (*app_config_domain.AppConfig, *app_config_domain.UserConfig, error) {
 	// -----------------------------
 	// 1. Load App & User Config
 	// -----------------------------
-	// We use domain objects here because configFacade returns them
+	// We use domain objects here because configFacade returns them	
 	domainAppCfg, _ := configFacade.GetAppConfigByUserID(userID)
 	domainUserCfg, _ := configFacade.GetUserConfigByUserID(userID)
 	utils.LogPretty("OpenVaultCommandHandler - Handle - domainAppCfg", domainAppCfg)
@@ -246,6 +245,12 @@ func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Contex
 						Fee:        100,
 					},
 				},
+				Storage: app_config.StorageConfig{
+					Mode: app_config.StorageCloud,
+					Cloud: app_config.CloudConfig{
+						BaseURL: os.Getenv("CLOUD_BACKEND_URL"),
+					},
+				},
 			},
 		}
 		if err := configFacade.UpdateAppConfig(appInput.AppConfig); err != nil {
@@ -269,19 +274,19 @@ func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Contex
 	}
 
 	// Convert domain objects to local app_config objects (package mismatch workaround)
-	appCfg := &app_config.AppConfig{}
-	appBytes, _ := json.Marshal(domainAppCfg)
-	if err := json.Unmarshal(appBytes, appCfg); err != nil {
-		return nil, nil, fmt.Errorf("failed to convert app config: %w", err)
-	}
+	// appCfg := &app_config.AppConfig{}
+	// appBytes, _ := json.Marshal(domainAppCfg)
+	// if err := json.Unmarshal(appBytes, appCfg); err != nil {
+	// 	return nil, nil, fmt.Errorf("failed to convert app config: %w", err)
+	// }
 
-	userCfg := &app_config.UserConfig{}
-	userBytes, _ := json.Marshal(domainUserCfg)
-	if err := json.Unmarshal(userBytes, userCfg); err != nil {
-		return nil, nil, fmt.Errorf("failed to convert user config: %w", err)
-	}
+	// userCfg := &app_config.UserConfig{}
+	// userBytes, _ := json.Marshal(domainUserCfg)
+	// if err := json.Unmarshal(userBytes, userCfg); err != nil {
+	// 	return nil, nil, fmt.Errorf("failed to convert user config: %w", err)
+	// }
 
-	return appCfg, userCfg, nil
+	return domainAppCfg, domainUserCfg, nil
 }
 
 type AttachRuntimeRequest struct {

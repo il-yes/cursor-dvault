@@ -102,3 +102,5 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		ReusedExisting: false,
 	}, nil
 }
+
+

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"vault-app/internal/tracecore"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_domain "vault-app/internal/vault/domain"
 )
@@ -47,6 +48,16 @@ func (f *fakeCryptoService) Encrypt(data []byte, password string) ([]byte, error
 	return nil, nil
 }
 
+type fakeTracecoreClient struct{}
+
+func (f *fakeTracecoreClient) AddDataToIPFS(data []byte) (string, error) {
+	return "cid-123", nil
+}
+
+func (f *fakeTracecoreClient) SyncVaultToIPFS(vaultName string) (string, error) {
+	return "cid-123", nil
+}
+
 type fakeIPFSService struct{}
 
 func (f *fakeIPFSService) AddData(data []byte) (string, error) {
@@ -83,9 +94,10 @@ func TestCreateVault_Success(t *testing.T) {
 	repo := &fakeVaultRepo{}
 	cryptoService := &fakeCryptoService{}
 	ipfsService := &fakeIPFSService{}
+	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
 	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
-	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, cryptoService, ipfsService)
+	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, cryptoService, ipfsService, *tracecoreClient)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
 		initHandler,
@@ -171,8 +183,9 @@ func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
 func TestCreateVault_AttachesCIDToVault(t *testing.T) {
 	repo := &fakeVaultRepo{}
 	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
+	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
-	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, &fakeCryptoService{}, &fakeIPFSService{})
+	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, &fakeCryptoService{}, &fakeIPFSService{}, *tracecoreClient)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
 		initHandler,

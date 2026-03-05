@@ -6,33 +6,22 @@ import (
 	billing_usecase "vault-app/internal/billing/application/usecase"
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
+	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_domain "vault-app/internal/config/domain"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
+	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
-type IdentityHandlerInterface interface {
-	Registers(req identity_ui.OnboardRequest) (*identity_domain.User, error)
-}
-
-type BillingHandlerInterface interface {
-	Onboard(ctx context.Context, req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error)
-}
-
 // This use case orchestrates creating the user profiles, adding payment method, (creating subscription), and creating vault.
 // It uses application ports (interfaces) to interact with other bounded contexts.
 
-// ----------- Request -----------
-type RegisterRequest struct {
-	Email            string
-	Password         string
-	IsAnonymous      bool
-	StellarPublicKey string
-}
+
 
 // ----------- Interfaces -----------
 type IdentityRegisterPort interface {
@@ -51,6 +40,27 @@ type VaultPort interface {
 	CreateVault(v vault_commands.CreateVaultCommand) (*vault_commands.CreateVaultResult, error)
 }
 
+type IdentityHandlerInterface interface {
+	Registers(req identity_ui.OnboardRequest) (*identity_domain.User, error)
+}
+
+type BillingHandlerInterface interface {
+	Onboard(ctx context.Context, req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error)
+}
+
+type AppConfigHandlerInterface interface {
+	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
+	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) 
+	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
+	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
+}
+// ----------- Request -----------
+type RegisterRequest struct {
+	Email            string
+	Password         string
+	IsAnonymous      bool
+	StellarPublicKey string
+}
 // ----------- UseCase Request -----------
 type OnboardRequest struct {
 	Identity             string
@@ -72,13 +82,14 @@ type OnboardResult struct {
 }
 
 type OnboardUseCase struct {
-	StellarService  StellarServiceInterface
-	OnBoardingUserRepository     UserServiceInterface
-	Bus             onboarding_application_events.OnboardingEventBus
-	Logger          *logger.Logger
-	IdentityHandler IdentityHandlerInterface
-	BillingHandler  BillingHandlerInterface
-	Vault           VaultPort
+	StellarService           StellarServiceInterface
+	OnBoardingUserRepository UserServiceInterface
+	Bus                      onboarding_application_events.OnboardingEventBus
+	Logger                   *logger.Logger
+	IdentityHandler          IdentityHandlerInterface
+	BillingHandler           BillingHandlerInterface
+	Vault                    VaultPort
+	AppConfigHandler         AppConfigHandlerInterface
 }
 
 // ----------- UseCase Constructor -----------
@@ -89,20 +100,22 @@ func NewOnboardUseCase(
 	eventBus onboarding_application_events.OnboardingEventBus,
 	logger *logger.Logger,
 	identityHandler IdentityHandlerInterface,
-	billingHandler BillingHandlerInterface) *OnboardUseCase {
+	billingHandler BillingHandlerInterface,
+	appConfigHandler AppConfigHandlerInterface) *OnboardUseCase {
 	return &OnboardUseCase{
-		Vault:           v,
-		StellarService:  stellarService,
-		OnBoardingUserRepository:     userService,
-		Bus:             eventBus,
-		Logger:          logger,
-		IdentityHandler: identityHandler,
-		BillingHandler:  billingHandler,
+		Vault:                    v,
+		StellarService:           stellarService,
+		OnBoardingUserRepository: userService,
+		Bus:                      eventBus,
+		Logger:                   logger,
+		IdentityHandler:          identityHandler,
+		BillingHandler:           billingHandler,
+		AppConfigHandler:         appConfigHandler,
 	}
 }
 
 func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*OnboardResult, error) {
-	if(req.SubscriptionID == "") {
+	if req.SubscriptionID == "" {
 		return nil, errors.New("subscription ID is required")
 	}
 	if req.IsAnonymous {
@@ -115,7 +128,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	onboardUser, err := uc.OnBoardingUserRepository.FindByEmail(req.Email)
 	if err != nil {
 		return nil, err
-	}		
+	}
 	uc.Logger.Info("onboardUser", onboardUser)
 
 	// 2. ------------- Identity registration ------------------
@@ -128,13 +141,56 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("OnboardUseCase - Execute - userIdentity", userIdentity)
 
+	// 3. ------------- App Config creation ------------------
+	configs, err := app_config_domain.InitConfig(userIdentity.ID)
+	if err != nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
+		return nil, err
+	}
+	appConfig, err := uc.AppConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
+		AppConfig: &configs.App,
+	})
+	if err != nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
+		return nil, err
+	}
+	userConfig, err := uc.AppConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
+		UserConfig: &configs.User,
+	})
+	if err != nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to create user config: %v", err)
+		return nil, err
+	}
+	appConfigSaved, err := uc.AppConfigHandler.GetAppConfigByUserID(ctx, userIdentity.ID)
+	if err != nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to get app config: %v", err)
+		return nil, err
+	}
+	if appConfigSaved == nil {
+		uc.Logger.Error("OnboardUseCase - Execute - App config not found")
+		return nil, errors.New("app config not found")
+	}
+	utils.LogPretty("OnboardUseCase - Execute - appConfig", appConfigSaved)
+	userConfigSaved, err := uc.AppConfigHandler.GetUserConfigByUserID(userIdentity.ID)
+	if err != nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to get user config: %v", err)
+		return nil, err
+	}
+	if userConfigSaved == nil {
+		uc.Logger.Error("OnboardUseCase - Execute - User config not found")
+		return nil, errors.New("user config not found")
+	}
+	utils.LogPretty("OnboardUseCase - Execute - userConfig", userConfig)
+	
 	// 3. ------------- Vault creation ------------------
 	result, err := uc.Vault.CreateVault(vault_commands.CreateVaultCommand{
-		UserID:    userIdentity.ID,
-		VaultName: vaults_domain.DefaultVaultName,
-		Password:  req.Password,
+		UserID:             userIdentity.ID,
+		VaultName:          vaults_domain.DefaultVaultName,
+		Password:           req.Password,
 		UserSubscriptionID: req.UserSubscriptionID,
+		AppConfig:          *appConfig.AppConfig,
 	})
 	if err != nil {
 		return nil, err
@@ -156,5 +212,3 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil
 }
-
-

@@ -11,7 +11,7 @@ import {onboarding_ui_wails} from '../models';
 import {vaults_domain} from '../models';
 import {share_application_dto} from '../models';
 import {share_domain} from '../models';
-import {tracecore} from '../models';
+import {tracecore_types} from '../models';
 import {models} from '../models';
 import {identity_dtos} from '../models';
 import {identity_domain} from '../models';
@@ -49,7 +49,7 @@ export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.Sha
 
 export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
 
-export function DecryptVaultEntry(arg1:string,arg2:tracecore.AccessCryptoShareRequest):Promise<tracecore.CloudResponse_vault_app_internal_tracecore_DecryptCryptoShareResponse_>;
+export function DecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
 
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 

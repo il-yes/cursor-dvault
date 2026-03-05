@@ -8,6 +8,7 @@ import (
 	"time"
 	share_application_events "vault-app/internal/application/events/share"
 	"vault-app/internal/blockchain"
+	app_config_domain "vault-app/internal/config/domain"
 	share_infrastructure "vault-app/internal/infrastructure/share"
 	tracecore_models "vault-app/internal/tracecore/models"
 	utils "vault-app/internal/utils"
@@ -296,4 +297,34 @@ func (m *Manager) Sync(userID string, newCID string) {
 	}
 	m.logger.Info("✅ Vault synced for user %s:", userID)
 }
+func (m *Manager) GetSessionSecrets(userID string) (map[string]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
+	s, ok := m.sessions[userID]
+	if !ok {
+		return nil, errors.New("no active session")
+	}
+	return s.Runtime.GetSessionSecrets(), nil
+}
+func (m *Manager) GetAppConfig(userID string) (app_config_domain.AppConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	s, ok := m.sessions[userID]
+	if !ok {
+		return app_config_domain.AppConfig{}, errors.New("no active session")
+	}
+	return s.Runtime.GetAppConfig(), nil
+}
+func (m *Manager) GetUserConfig(userID string) (app_config_domain.UserConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	s, ok := m.sessions[userID]
+	if !ok {
+		return app_config_domain.UserConfig{}, errors.New("no active session")
+	}
+	return s.Runtime.GetUserConfig(), nil
+}
+	

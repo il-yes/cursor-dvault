@@ -13,15 +13,16 @@ import (
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
-	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vault_events "vault-app/internal/vault/application/events"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_eventbus "vault-app/internal/vault/infrastructure/eventbus"
@@ -39,16 +40,18 @@ type VaultHandler struct {
 	CreateIPFSPayloadCommandHandler *vault_commands.CreateIPFSPayloadCommandHandler
 	CreateVaultCommandHandler       *vault_commands.CreateVaultCommandHandler
 	VaultOpenedListener             *vault_commands.VaultOpenedListener
+	GetIPFSDataQuerryHandler        *vault_queries.GetIPFSDataQuerryHandler
 
 	FolderRepository    vaults_domain.FolderRepository
 	VaultRepository     vaults_domain.VaultRepository
 	EntryRegistry       *registry.EntryRegistry
 	VaultRuntimeContext vault_session.RuntimeContext
 
-	IPFS          *blockchain.IPFSClient
-	CryptoService *blockchain.CryptoService
-	logger        logger.Logger
-	NowUTC        func() string
+	TracecoreClient tracecore.TracecoreClient
+	IPFS            *blockchain.IPFSClient
+	CryptoService   *blockchain.CryptoService
+	logger          logger.Logger
+	NowUTC          func() string
 
 	SessionManager *vault_session.Manager
 	SessionsMu     sync.Mutex
@@ -65,6 +68,7 @@ func NewVaultHandler(
 	crypto *blockchain.CryptoService,
 	db *gorm.DB,
 	appConfig app_config.AppConfig,
+	tracecoreClient tracecore.TracecoreClient,
 ) *VaultHandler {
 	folderRepo := vaults_persistence.NewGormFolderRepository(db)
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
@@ -74,11 +78,12 @@ func NewVaultHandler(
 
 	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db)
 	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
-		vaultRepo, crypto, ipfs,
+		vaultRepo, crypto, ipfs, tracecoreClient,
 	)
 	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
 	)
+	ipfsDataQueryHandler := vault_queries.NewGetIPFSDataQuerryHandler(crypto)
 
 	return &VaultHandler{
 		DB:                              db,
@@ -94,6 +99,8 @@ func NewVaultHandler(
 		CreateIPFSPayloadCommandHandler: createIpfsCommandHandler,
 		CreateVaultCommandHandler:       createVaultCommand,
 		VaultRepository:                 vaultRepo,
+		TracecoreClient:                 tracecoreClient,
+		GetIPFSDataQuerryHandler:        ipfsDataQueryHandler,
 	}
 }
 
@@ -114,7 +121,6 @@ func (vh *VaultHandler) PrepareSession(userID string) (*vault_session.Session, e
 		)
 		return nil, err
 	}
-
 
 	vh.logger.Info("✅ Session prepared for user %s", userID)
 	return session, nil
@@ -196,14 +202,35 @@ func (vh *VaultHandler) GetVaultSession(userID string) (*vaults_domain.VaultPayl
 
 	return &vaultPayload, nil
 }
+func (vh *VaultHandler) GetSessionSecrets(userID string) (map[string]string, error) {
+	return vh.SessionManager.GetSessionSecrets(userID)
+}
+func (vh *VaultHandler) GetAppConfig(userID string) (app_config_domain.AppConfig, error) {
+	return vh.SessionManager.GetAppConfig(userID)
+}
+func (vh *VaultHandler) GetUserConfig(userID string) (app_config_domain.UserConfig, error) {
+	return vh.SessionManager.GetUserConfig(userID)
+}
+
 // -----------------------------
 // Vault - Crud
 // -----------------------------
-func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*vault_commands.OpenVaultResult, error) {
+func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler vault_commands.AppConfigFacade) (*vault_commands.OpenVaultResult, error) {
+	if req.Session == nil {
+		return nil, errors.New("session is required")
+	}
+	if req.Password == "" {
+		return nil, errors.New("password is required")
+	}
+	if req.UserID == "" {
+		return nil, errors.New("user id is required")
+	}
+	if appConfigHandler == nil {
+		return nil, errors.New("app config handler is required")
+	}
+	
 	openHandler := NewOpenVaultHandler(
-		vault_commands.NewOpenVaultCommandHandler(vh.DB),
-		vh.IPFS,
-		vh.CryptoService,
+		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler),
 		vh.EventBus,
 	)
 	res, err := openHandler.OpenVault(ctx, req, appConfigHandler)
@@ -557,7 +584,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	if err != nil {
 		return "", fmt.Errorf("no active session: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)	
+	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)
 	vh.logger.LogPretty("SyncVault - session", session)
 
 	// 2. ---------- Marshal vault ----------
@@ -578,19 +605,33 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 
 	// 4. ---------- Upload to IPFS ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
-	// newCID, err := vh.IPFS.AddData(encrypted)
-	req := tracecore.SyncVaultStreamRequest{
-		UserID:  input.Vault.UserSubscriptionID,
-		VaultName: input.Vault.Name,
-		Stream:  encrypted,
+	appCfg, err := vh.GetAppConfig(input.UserID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get app config: %w", err)
 	}
-	vh.logger.LogPretty("SyncVault - req ipfs", req)
-	res, err := tc.UploadToIPFS(ctx, req)
+	newCID, err := vh.CreateIPFSPayloadCommandHandler.StoreOnIpfs(
+		ctx,
+		vault_commands.StoreIpfsParams{
+			AppCfg:    appCfg,
+			Data:      encrypted,
+			UserID:    input.Vault.UserSubscriptionID,
+			VaultName: input.Vault.Name,
+		})
 	if err != nil {
 		return "", fmt.Errorf("IPFS upload failed: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Vault uploaded to IPFS - cid: %s", res.Data.CID)
-	newCID := res.Data.CID
+	// req := tracecore.SyncVaultStreamRequest{
+	// 	UserID:  input.Vault.UserSubscriptionID,
+	// 	VaultName: input.Vault.Name,
+	// 	Stream:  encrypted,
+	// }
+	// vh.logger.LogPretty("SyncVault - req ipfs", req)
+	// res, err := tc.SyncVaultToIPFS(ctx, req)
+	// if err != nil {
+	// 	return "", fmt.Errorf("SyncVaultToIPFS failed: %w", err)
+	// }
+	// vh.logger.Info("🔄 SyncVault - Vault uploaded to IPFS - cid: %s", res.Data.CID)
+	// newCID := res.Data.CID
 
 	// 5. ---------- Submit to Stellar ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
@@ -657,7 +698,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	return newCID, nil
 }
 
-func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req tracecore.AccessCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore.CloudResponse[tracecore.AccessCryptoShareResponse], error) {
+func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req tracecore_types.AccessCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
 	response, err := tc.AccessEncryptedEntry(ctx, id, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to access encrypted entry: %w", err)
@@ -665,7 +706,7 @@ func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req
 
 	return response, nil
 }
-func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore.DecryptCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore.CloudResponse[tracecore.DecryptCryptoShareResponse], error) {
+func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore_types.DecryptCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	response, err := tc.DecryptVaultEntry(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt vault entry: %w", err)
@@ -684,7 +725,6 @@ func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, e
 
 	return newCID, nil
 }
-
 func (vh *VaultHandler) EncryptVault(userID string, password string) (string, error) {
 	vh.logger.Info("🔄 VaultHandler - EncryptVault: Starting vault encryption for UserID: %s", userID)
 
@@ -726,12 +766,12 @@ func (vh *VaultHandler) OnGenerateApiKey(ctx context.Context, params OnGenerateA
 		return err
 	}
 
-	userCfg := app_config.UserConfig{
+	userCfg := app_config_domain.UserConfig{
 		ID:            params.UserConfig.ID,
 		Role:          params.UserConfig.Role,
 		Signature:     params.UserConfig.Signature,
 		ConnectedOrgs: params.UserConfig.ConnectedOrgs,
-		StellarAccount: app_config.StellarAccountConfig{
+		StellarAccount: app_config_domain.StellarAccountConfig{
 			PublicKey:  params.UserConfig.StellarAccount.PublicKey,
 			PrivateKey: params.UserConfig.StellarAccount.PrivateKey,
 		},

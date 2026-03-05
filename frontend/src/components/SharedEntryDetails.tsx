@@ -58,7 +58,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	}, [entry?.id]);
 
 	const getPublicKey = async (email: string) => {
-		const response = await fetch(`http://localhost:4001/api/check-email?email=${email}`, {
+		const response = await fetch(`http://164.90.213.173:4001/api/check-email?email=${email}`, {
 			method: "GET",
 			headers: {
 				"Content-Type": "application/json",

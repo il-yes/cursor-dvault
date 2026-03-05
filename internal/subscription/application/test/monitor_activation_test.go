@@ -10,6 +10,8 @@ import (
 
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	"vault-app/internal/blockchain"
+	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_domain "vault-app/internal/config/domain"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
@@ -146,6 +148,32 @@ func (f *fakeBillingHandler) Onboard(
 ) (*billing_ui_handlers.AddPaymentMethodResponse, error) {
 	f.called = true
 	return &billing_ui_handlers.AddPaymentMethodResponse{}, nil
+}
+
+type fakeAppConfigHandler struct {
+	called bool
+}
+
+func (f *fakeAppConfigHandler) GetAppConfigByUserID(
+	ctx context.Context,
+	userID string,
+) (*app_config_domain.AppConfig, error) {
+	f.called = true
+	return &app_config_domain.AppConfig{}, nil
+}
+func (f *fakeAppConfigHandler) GetUserConfigByUserID(
+	userID string,
+) (*app_config_domain.UserConfig, error) {
+	f.called = true
+	return &app_config_domain.UserConfig{}, nil
+}
+func (f *fakeAppConfigHandler) InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) {
+	f.called = true
+	return &app_config_commands.CreateAppConfigCommandOutput{}, nil
+}
+func (f *fakeAppConfigHandler) InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error) {
+	f.called = true
+	return &app_config_commands.CreateUserConfigCommandOutput{}, nil
 }
 
 type fakeStellarService struct{}
@@ -302,6 +330,7 @@ func TestSubscriptionActivationMonitor_Success(t *testing.T) {
 	vault := &fakeVault{}
 	identityHandler := &fakeIdentityHandler{}
 	billingHandler := &fakeBillingHandler{}
+	appConfigHandler := &fakeAppConfigHandler{}
 
 	monitor := subscription_usecase.NewSubscriptionActivationMonitor(
 		&logger.Logger{},
@@ -314,6 +343,7 @@ func TestSubscriptionActivationMonitor_Success(t *testing.T) {
 		&fakeOnboardingBus{},
 		identityHandler,
 		billingHandler,
+		appConfigHandler,
 	)
 
 	go monitor.Listen(ctx)
@@ -356,6 +386,7 @@ func TestSubscriptionActivationMonitor_SubscriptionLookupFails(t *testing.T) {
 		&fakeOnboardingBus{},
 		&fakeIdentityHandler{},
 		&fakeBillingHandler{},
+		&fakeAppConfigHandler{},
 	)
 
 	go monitor.Listen(ctx)
@@ -401,6 +432,7 @@ func TestSubscriptionActivationMonitor_UnknownTierDoesNotFail(t *testing.T) {
 		&fakeOnboardingBus{},
 		identityHandler,
 		billingHandler,
+		&fakeAppConfigHandler{},
 	)
 
 	go monitor.Listen(ctx)

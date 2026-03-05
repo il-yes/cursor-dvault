@@ -2,11 +2,62 @@ package blockchain
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/ipfs/go-ipfs-api"
 	"io"
+	app_config "vault-app/internal/config"
+	"vault-app/internal/tracecore/types"
+	utils "vault-app/internal/utils"
+
+	"github.com/ipfs/go-ipfs-api"
 )
 
+type TracecoreClt interface {
+	AddToIPFS(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error)
+	GetDataFromCloudStorage(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.IpfsCidResponse, error)
+	AddToS3(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error)
+	GetDataFromS3(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.CloudResponse[tracecore_types.IpfsCidResponse], error)
+}
+
+// ---------------------------------------------------------
+// Vault Storage Factory
+// ---------------------------------------------------------
+
+type Config struct {
+	StorageConfig      app_config.StorageConfig
+	UserID             string
+	VaultName          string
+}
+
+func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvider {
+	switch cfg.StorageConfig.Mode {
+
+	case app_config.StorageCloud:
+		return NewCloudIPFSStorage(client, cfg.UserID, cfg.VaultName)
+
+	case app_config.StorageLocal:
+		return NewDirectIPFSStorage(cfg.StorageConfig.LocalIPFS.APIEndpoint)
+
+	case app_config.StoragePrivateIPFS:
+		return NewDirectIPFSStorage(cfg.StorageConfig.PrivateIPFS.APIEndpoint)
+
+	case app_config.StorageEnterpriseS3:
+		return NewEnterpriseS3Storage(client, cfg.UserID, cfg.VaultName)
+
+	case app_config.StorageHybrid:
+		return NewHybridStorage(
+			NewDirectIPFSStorage(cfg.StorageConfig.LocalIPFS.APIEndpoint),
+			NewCloudIPFSStorage(client, cfg.UserID, cfg.VaultName),
+		)
+
+	default:
+		return NewCloudIPFSStorage(client, cfg.UserID, cfg.VaultName) // ← cloud as default (production mindset)
+	}
+}
+
+// ---------------------------------------------------------
+// IPFS Client
+// ---------------------------------------------------------
 type IPFSClient struct {
 	shell *shell.Shell
 }
@@ -48,3 +99,168 @@ func (client *IPFSClient) GetData(cid string) ([]byte, error) {
 	return data, nil
 }
 
+
+// ---------------------------------------------------------
+// Local IPFS Storage
+// ---------------------------------------------------------
+type DirectIPFSStorage struct {
+	shell *shell.Shell
+}
+
+func NewDirectIPFSStorage(endpoint string) *DirectIPFSStorage {
+	if endpoint == "" {
+		endpoint = "localhost:5001"
+	}
+	return &DirectIPFSStorage{
+		shell: shell.NewShell(endpoint),
+	}
+}
+
+func (d *DirectIPFSStorage) Add(ctx context.Context, data []byte) (string, error) {
+	reader := bytes.NewReader(data)
+	return d.shell.Add(reader)
+}
+
+func (d *DirectIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) {
+	rc, err := d.shell.Cat(cid)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
+}
+
+// ---------------------------------------------------------
+// Cloud IPFS Storage
+// ---------------------------------------------------------
+type CloudIPFSStorage struct {
+	client TracecoreClt
+	userID string
+	vault  string
+}
+
+func NewCloudIPFSStorage(client TracecoreClt, userID, vault string) *CloudIPFSStorage {
+	return &CloudIPFSStorage{
+		client: client,
+		userID: userID,
+		vault:  vault,
+	}
+}
+
+func (c *CloudIPFSStorage) Add(ctx context.Context, data []byte) (string, error) {
+	req := tracecore_types.SyncVaultStreamRequest{
+		UserID:    c.userID,
+		VaultName: c.vault,
+		Stream:      data,
+	}
+
+	resp, err := c.client.AddToIPFS(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Data.CID, nil
+}
+
+func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) {
+	utils.LogPretty("CloudIPFSStorage - Get - userID", c.userID)
+	utils.LogPretty("CloudIPFSStorage - Get - vault", c.vault)
+	utils.LogPretty("CloudIPFSStorage - Get - cid", cid)
+	req := tracecore_types.IpfsCidRequest{
+		UserID:    c.userID,
+		VaultName: c.vault,
+		CID:       cid,
+	}
+	resp, err := c.client.GetDataFromCloudStorage(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(resp.Data), nil
+}
+
+
+// ---------------------------------------------------------
+// Enterprise S3 Storage
+// ---------------------------------------------------------
+type EnterpriseS3Storage struct {
+	client TracecoreClt
+	userID string
+	vault  string
+}
+
+func NewEnterpriseS3Storage(client TracecoreClt, userID, vault string) *EnterpriseS3Storage {
+	return &EnterpriseS3Storage{
+		client: client,
+		userID: userID,
+		vault:  vault,
+	}
+}
+
+func (e *EnterpriseS3Storage) Add(ctx context.Context, data []byte) (string, error) {
+	response, err := e.client.AddToS3(ctx, tracecore_types.SyncVaultStreamRequest{
+		UserID:    e.userID,
+		VaultName: e.vault,
+		Stream:      data,
+	})
+	if err != nil {
+		return "", err
+	}
+	return response.Data.CID, nil
+}
+
+func (e *EnterpriseS3Storage) Get(ctx context.Context, cid string) ([]byte, error) {
+	response, err := e.client.GetDataFromS3(ctx, tracecore_types.IpfsCidRequest{
+		UserID:    e.userID,
+		VaultName: e.vault,
+		CID:       cid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []byte(response.Data.Data), nil
+}
+
+
+// ---------------------------------------------------------
+// Hybrid Storage
+// ---------------------------------------------------------
+type HybridStorage struct {
+	local *DirectIPFSStorage
+	cloud *CloudIPFSStorage
+}
+
+func NewHybridStorage(local *DirectIPFSStorage, cloud *CloudIPFSStorage) *HybridStorage {
+	return &HybridStorage{
+		local: local,
+		cloud: cloud,
+	}
+}
+
+func (h *HybridStorage) Add(ctx context.Context, data []byte) (string, error) {
+	res1, err1 := h.local.Add(ctx, data)
+	if err1 != nil {
+		return "", err1
+	}
+	res2, err2 := h.cloud.Add(ctx, data)
+	if err2 != nil {
+		return "", err2
+	}
+	utils.LogPretty("HybridStorage - Add - res1", res1)
+	utils.LogPretty("HybridStorage - Add - res2", res2)
+	return res1, nil
+}
+
+func (h *HybridStorage) Get(ctx context.Context, cid string) ([]byte, error) {
+	res1, err1 := h.local.Get(ctx, cid)
+	if err1 != nil {
+		return nil, err1
+	}
+	res2, err2 := h.cloud.Get(ctx, cid)
+	if err2 != nil {
+		return nil, err2
+	}
+	utils.LogPretty("HybridStorage - Get - res1", res1)
+	utils.LogPretty("HybridStorage - Get - res2", res2)
+	return res1, nil
+}

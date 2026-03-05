@@ -72,8 +72,8 @@ export interface ShareEntryResponse {
 }
 
 // Backend API base URL (configure based on environment)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4001/api';
-const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://localhost:4001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://164.90.213.173:4001/api';
+const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://164.90.213.173:4001/api';
 
 /**
  * Mock data for preview/development mode

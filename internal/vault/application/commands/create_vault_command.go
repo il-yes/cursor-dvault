@@ -2,6 +2,7 @@ package vault_commands
 
 import (
 	"errors"
+	app_config_domain "vault-app/internal/config/domain"
 	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
 )
@@ -12,6 +13,7 @@ type CreateVaultCommand struct {
 	VaultName          string
 	Password           string
 	UserSubscriptionID string
+	AppConfig          app_config_domain.AppConfig
 }
 
 // -------- COMMAND result --------
@@ -20,13 +22,6 @@ type CreateVaultResult struct {
 	ReusedExisting bool
 }
 
-// -------- COMMAND handler --------
-// -------- COMMAND handler --------
-type CreateVaultCommandHandler struct {
-	initializeVaultHandler   InitializeVaultHandler
-	createIPFSPayloadHandler CreateIPFSPayloadHandler
-	vaultRepo                vault_domain.VaultRepository
-}
 
 // -------- COMMAND handler interfaces --------
 type CryptoServiceInterface interface {
@@ -45,6 +40,12 @@ type CreateIPFSPayloadHandler interface {
 	Execute(cmd CreateIPFSPayloadCommand) (*CreateIPFSPayloadCommandResult, error)
 }
 
+// -------- COMMAND handler --------
+type CreateVaultCommandHandler struct {
+	initializeVaultHandler   InitializeVaultHandler
+	createIPFSPayloadHandler CreateIPFSPayloadHandler
+	vaultRepo                vault_domain.VaultRepository
+}
 // -------- COMMAND handler constructor --------
 func NewCreateVaultCommandHandler(
 	initializator InitializeVaultHandler,
@@ -71,7 +72,13 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 	// 2. Create IPFS payload	
 	// -----------------------------
-	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(CreateIPFSPayloadCommand{Vault: vault.Vault, Password: cmd.Password})
+	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(CreateIPFSPayloadCommand{
+		Vault:     vault.Vault, 
+		Password:  cmd.Password,
+		AppCfg:    cmd.AppConfig,
+		UserID:    cmd.UserID,
+		VaultName: cmd.VaultName,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -102,3 +109,5 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		ReusedExisting: false,
 	}, nil
 }
+
+

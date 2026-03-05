@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 	billing_ui "vault-app/internal/billing/ui"
+	app_config_ui "vault-app/internal/config/ui"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
@@ -41,6 +42,7 @@ type SubscriptionHandler struct {
 	UserSubscriptionRepository subscription_domain.UserRepository
 	IdentityHandler *identity_ui.IdentityHandler
 	BillingHandler *billing_ui.BillingHandler
+	AppConfigHandler app_config_ui.AppConfigHandler
 
 	CreateVaultCommand *vault_commands.CreateVaultCommandHandler
 	OnboardingUserRepo onboarding_domain.UserRepository
@@ -55,6 +57,7 @@ func NewSubscriptionHandler(
 	onboardingUserRepo onboarding_domain.UserRepository,
 	onboardingBus onboarding_application_events.OnboardingEventBus,
 	identityHandler *identity_ui.IdentityHandler,
+	appConfigHandler app_config_ui.AppConfigHandler,
 	logger logger.Logger,
 ) *SubscriptionHandler {
 	subscriptionBus := subscription_infrastructure_eventbus.NewMemoryBus()
@@ -92,6 +95,7 @@ func NewSubscriptionHandler(
 		IdentityHandler: identityHandler,
 		OnboardingUserRepo: onboardingUserRepo,
 		OnboardingBus: onboardingBus,
+		AppConfigHandler: appConfigHandler,
 	}
 }
 
@@ -108,6 +112,7 @@ func (h *SubscriptionHandler) SetBillingHandler(billingHandler billing_ui.Billin
 		h.OnboardingBus,
 		h.IdentityHandler,
 		&billingHandler,
+		&h.AppConfigHandler,
 	)
 	h.BillingHandler = &billingHandler
 	h.MonitorActivationService = *activationMonitor

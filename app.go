@@ -22,7 +22,9 @@ import (
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_domain "vault-app/internal/config/domain"
+	"vault-app/internal/config/infrastructure/persistence"
 	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
@@ -47,6 +49,7 @@ import (
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
@@ -63,6 +66,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/mapstructure"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gorm.io/gorm"
 )
 
 type CoreApp interface {
@@ -79,9 +83,9 @@ type config struct {
 	db   struct {
 		dsn string
 	}
-	IsOnborded bool
-	Domain string
-	Branch string
+	IsOnborded       bool
+	Domain           string
+	Branch           string
 	EncryptionPolicy string
 
 	// Jwt auth
@@ -99,23 +103,23 @@ type config struct {
 	}
 
 	// Stellar
-	StellarNetwork    string
-	StellarHorizonURL string
-	StellarAssetCode  string
+	StellarNetwork     string
+	StellarHorizonURL  string
+	StellarAssetCode   string
 	StellarAssetIssuer string
 
 	// IPFS
-	IPFSClient string
+	IPFSClient  string
 	IPFSGateway string
 	IPFSNetwork string
 
 	// Tracecore
-	TracecoreURL string
+	TracecoreURL   string
 	TracecoreToken string
 
 	// Cloud
-	CloudURL string
-	CloudBackURL string
+	CloudURL      string
+	CloudBackURL  string
 	CloudFrontURL string
 }
 
@@ -199,8 +203,8 @@ func NewApp() *App {
 		Secret:        cfg.JWTSecret,
 		TokenExpiry:   time.Minute * 15,
 		RefreshExpiry: time.Hour * 24,
-	} 
-	
+	}
+
 	authV2 := auth_domain.Auth{
 		Issuer:        cfg.JWTIssuer,
 		Audience:      cfg.JWTAudience,
@@ -235,17 +239,17 @@ func NewApp() *App {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runtimeCtxLegacy := &vault_session.RuntimeContext{
-		AppConfig: app_config.AppConfig{
+		AppConfig: app_config_domain.AppConfig{
 			// Load from file/env or defaults
 			Branch:           cfg.Branch,
 			EncryptionPolicy: cfg.EncryptionPolicy,
-			Blockchain: app_config.BlockchainConfig{
-				Stellar: app_config.StellarConfig{
+			Blockchain: app_config_domain.BlockchainConfig{
+				Stellar: app_config_domain.StellarConfig{
 					Network:    cfg.StellarNetwork,
 					HorizonURL: cfg.StellarHorizonURL,
 					Fee:        100,
 				},
-				IPFS: app_config.IPFSConfig{
+				IPFS: app_config_domain.IPFSConfig{
 					APIEndpoint: cfg.IPFSClient,
 					GatewayURL:  cfg.IPFSGateway,
 				},
@@ -291,8 +295,8 @@ func NewApp() *App {
 			Handler: vault_ui.NewSSHKeyHandler(*db, appLogger),
 		},
 	})
-	appLogger.Info("✅ Registry initialized")	
-	
+	appLogger.Info("✅ Registry initialized")
+
 	// -------------------------------------------------------------------------------------------------
 	// Legacy vault handler
 	// -------------------------------------------------------------------------------------------------
@@ -325,25 +329,26 @@ func NewApp() *App {
 	// AppConfig
 	// -------------------------------------------------------------------------------------------------
 	appConfigHandler := app_config_ui.NewAppConfigHandler(db.DB, *appLogger)
+	appLogger.Info("AppConfigHandler - NewAppConfigHandler - appConfigHandler", appConfigHandler)
 
 	// -------------------------------------------------------------------------------------------------
 	// Vault
 	// -------------------------------------------------------------------------------------------------
 	cryptoService := blockchain.CryptoService{}
-	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB, appConfig)
-	
+	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB, appConfig, *tracecoreClient)
+
 	userSubscriptionRepo := subscription_persistence.NewUserSubscriptionRepository(db.DB, appLogger)
-	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)	
-	
+	subscriptionSubRepo := subscription_persistence.NewSubscriptionRepository(db.DB, appLogger)
+
 	// -------------------------------------------------------------------------------------------------
 	// Onboarding
 	// -------------------------------------------------------------------------------------------------
 	onBoardingHandler := onboarding_ui_wails.NewOnBoardingHandler(
-		stellarService, 
-		userSubscriptionRepo, 
-		subscriptionSubRepo, 
-		tracecoreClient, 
-		db.DB, 
+		stellarService,
+		userSubscriptionRepo,
+		subscriptionSubRepo,
+		tracecoreClient,
+		db.DB,
 		appLogger,
 	)
 
@@ -365,18 +370,18 @@ func NewApp() *App {
 	// Subscription
 	// -------------------------------------------------------------------------------------------------
 	subscriptionHandler := subscription_ui_wails.NewSubscriptionHandler(
-		db.DB, 
-		tracecoreClient, 
-		vaultHandler.CreateVaultCommandHandler, 
+		db.DB,
+		tracecoreClient,
+		vaultHandler.CreateVaultCommandHandler,
 		stellarService,
 		onBoardingHandler.UserRepo,
 		onBoardingHandler.Bus,
 		identityHandler,
+		*appConfigHandler,
 		*appLogger,
-		
 	)
 	// app.SubscriptionHandler = subscriptionHandler
-	
+
 	// -------------------------------------------------------------------------------------------------
 	// Billing
 	// -------------------------------------------------------------------------------------------------
@@ -476,6 +481,31 @@ func NewApp() *App {
 	elapsed := time.Since(startTime)
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
 
+	// Initialize app config
+	configTest, err := app_config_domain.InitConfig("test")
+	if err != nil {
+		appLogger.Error("❌ Failed to initialize config: %v", err)
+	}
+	appConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
+		AppConfig: &configTest.App,
+	})
+	appConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
+		UserConfig: &configTest.User,
+	})
+	retrieveAppCfg, err := appConfigHandler.GetAppConfigByUserID(context.Background(), "test")
+	if err != nil {
+		appLogger.Error("❌ Failed to retrieve app config: %v", err)
+	}
+	retrieveUserCfg, err := appConfigHandler.GetUserConfigByUserID("test")
+	if err != nil {
+		appLogger.Error("❌ Failed to retrieve user config: %v", err)
+	}
+	utils.LogPretty("retrieveAppCfg", retrieveAppCfg)
+	utils.LogPretty("retrieveUserCfg", retrieveUserCfg)
+
+	// Startup:
+	// ResetAndMigrate(db.DB) // Run ONCE on prod startup
+
 	return &App{
 		AppConfigHandler:          appConfigHandler,
 		Auth:                      auth,
@@ -485,12 +515,12 @@ func NewApp() *App {
 		ConnectWithStellarHandler: stellarRecoveryHandler,
 		config:                    cfg,
 		DB:                        *db,
-		EntryRegistry:             reg,	
+		EntryRegistry:             reg,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
 		Identity:                  identityHandler,
 		Logger:                    *appLogger,
 		OnBoardingHandler:         onBoardingHandler,
-		sessions:                  sessions,	// TODO: remove legacy sessions
+		sessions:                  sessions, // TODO: remove legacy sessions
 		StellarService:            stellarService,
 		StellarRecoveryHandler:    stellarRecoveryHandler,
 		SubscriptionHandler:       subscriptionHandler,
@@ -500,6 +530,20 @@ func NewApp() *App {
 		Vaults:  vaults,       // internal/handlers/vault_handler.go legacy
 		version: version,
 	}
+}
+
+// main.go - FORCE clean schema
+func ResetAndMigrate(db *gorm.DB) error {
+	// Drop problematic tables
+	db.Migrator().DropTable(&persistence.UserConfigMapper{})
+	db.Migrator().DropTable(&app_config_domain.SharingRule{})
+
+	// Recreate with correct types
+	return db.AutoMigrate(
+		&persistence.UserConfigMapper{},
+		&app_config_domain.SharingRule{},
+		&app_config_domain.StellarAccountConfig{},
+	)
 }
 
 // -----------------------------
@@ -765,7 +809,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*vault_dto.LoginRes
 			Password: req.Password,
 			Session:  session,
 		},
-		*a.AppConfigHandler,
+		a.AppConfigHandler,
 	)
 	if err != nil {
 		return nil, err
@@ -776,7 +820,7 @@ func (a *App) SignInWithIdentity(req handlers.LoginRequest) (*vault_dto.LoginRes
 		vaultRes.ReusedExisting,
 	)
 
-	loginRes := &vault_dto.LoginResponse{	
+	loginRes := &vault_dto.LoginResponse{
 		User:                *result.User,
 		Tokens:              result.Tokens,
 		SessionID:           session.UserID,
@@ -852,7 +896,7 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
 
-func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoShareRequest) (*tracecore.CloudResponse[tracecore.DecryptCryptoShareResponse], error) {
+func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
@@ -863,7 +907,7 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoSha
 	if err != nil {
 		return nil, err
 	}
-	a.Logger.LogPretty("App - AccessEncryptedEntry - res", res)	
+	a.Logger.LogPretty("App - AccessEncryptedEntry - res", res)
 
 	// UserConfig - Get stellar private key from user config
 	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
@@ -872,7 +916,7 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoSha
 	}
 	// 2. Decrypt ==============================
 	stellarAccount := userConfig.StellarAccount
-	req := tracecore.DecryptCryptoShareRequest{
+	req := tracecore_types.DecryptCryptoShareRequest{
 		EncryptedKey:        res.Data.EncryptedKey,
 		EncryptedPayload:    res.Data.EncryptedPayload,
 		RecipientPrivateKey: stellarAccount.PrivateKey,
@@ -883,7 +927,7 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoSha
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - response", response)
 	// 3. Apply access policy from AppConfig ==============================
-	appConfig, err := a.AppConfigHandler.GetAppConfigByUserID(claims.UserID)
+	appConfig, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -892,6 +936,7 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore.AccessCryptoSha
 
 	return response, nil
 }
+
 // -----------------------------
 // Vault Crud
 // -----------------------------
@@ -965,13 +1010,13 @@ func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string)
 	return res, nil
 }
 
-func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {	
+func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - RestoreEntry - error: %v", err)
 		return nil, err
 	}
-	
+
 	res, err := a.Vault.RestoreEntry(claims.UserID, entryType, raw)
 	if err != nil {
 		a.Logger.Error("App - RestoreEntry - error: %v", err)
@@ -1004,7 +1049,7 @@ func (a *App) CreateFolder(name string, jwtToken string) (*vaults_domain.VaultPa
 	}
 	return a.Vault.CreateFolder(claims.UserID, name)
 }
-func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]vaults_domain.Folder, error) {	
+func (a *App) GetFoldersByVault(vaultCID string, jwtToken string) ([]vaults_domain.Folder, error) {
 	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - GetFoldersByVault - error: %v", err)
@@ -1044,12 +1089,12 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 		return "", err
 	}
 	a.Logger.LogPretty("App - SynchronizeVault - vault", vault)
-		
+
 	// Sync Vault ==============================
-	input := vault_dto.SynchronizeVaultRequest{	
-		UserID: claims.UserID,
+	input := vault_dto.SynchronizeVaultRequest{
+		UserID:   claims.UserID,
 		Password: password,
-		Vault: *vault,
+		Vault:    *vault,
 	}
 	a.Vaults.Ctx = a.ctx
 
@@ -1349,7 +1394,7 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 
 	// Vault - save UserConfig to user vault
 	if err := a.Vault.OnGenerateApiKey(context.Background(), vault_ui.OnGenerateApiKeyParams{
-		UserID: userID,
+		UserID:     userID,
 		UserConfig: *updatedUserCfg,
 	}); err != nil {
 		a.Logger.Error("❌ App - GenerateApiKey - failed to find user %s: %v", userID, err)
@@ -1592,7 +1637,6 @@ func (a *App) GetUserVaultKey(jwtToken string) (string, error) {
 	return "", nil
 }
 
-
 // -----------------------------
 // User
 // -----------------------------
@@ -1604,8 +1648,7 @@ func (a *App) EditUserInfos(jwtToken string, req *identity_dtos.EditUserInfosReq
 	fmt.Println("userID", claims.UserID)
 	// return a.Identity.EditUserInfos(a.ctx, claims.UserID, req)
 	return nil
-}	
-
+}
 
 // -----------------------------
 // Helpers
@@ -1629,20 +1672,20 @@ func loadConfig() config {
 			secret: os.Getenv("STRIPE_SECRET"),
 			key:    os.Getenv("STRIPE_SECRET"),
 		},
-		StellarNetwork: os.Getenv("STELLAR_NETWORK"),
-		StellarHorizonURL: os.Getenv("STELLAR_HORIZON_URL"),
-		StellarAssetCode: os.Getenv("STELLAR_ASSET_CODE"),
+		StellarNetwork:     os.Getenv("STELLAR_NETWORK"),
+		StellarHorizonURL:  os.Getenv("STELLAR_HORIZON_URL"),
+		StellarAssetCode:   os.Getenv("STELLAR_ASSET_CODE"),
 		StellarAssetIssuer: os.Getenv("STELLAR_ASSET_ISSUER"),
-		IPFSClient: os.Getenv("IPFS_CLIENT"),
-		IPFSGateway: os.Getenv("IPFS_GATEWAY"),
-		IPFSNetwork: os.Getenv("IPFS_NETWORK"),
-		Branch: os.Getenv("BRANCH"),
-		EncryptionPolicy: os.Getenv("ENCRYPTION_POLICY"),
-		TracecoreURL: os.Getenv("TRACECORE_URL"),
-		TracecoreToken: os.Getenv("TRACECORE_TOKEN"),
-		CloudBackURL: os.Getenv("CLOUD_BACK_URL"),
-		CloudFrontURL: os.Getenv("CLOUD_FRONT_URL"),
-		ANCHORA_SECRET: os.Getenv("ANCHORA_SECRET"),
+		IPFSClient:         os.Getenv("IPFS_CLIENT"),
+		IPFSGateway:        os.Getenv("IPFS_GATEWAY"),
+		IPFSNetwork:        os.Getenv("IPFS_NETWORK"),
+		Branch:             os.Getenv("BRANCH"),
+		EncryptionPolicy:   os.Getenv("ENCRYPTION_POLICY"),
+		TracecoreURL:       os.Getenv("TRACECORE_URL"),
+		TracecoreToken:     os.Getenv("TRACECORE_TOKEN"),
+		CloudBackURL:       os.Getenv("CLOUD_BACK_URL"),
+		CloudFrontURL:      os.Getenv("CLOUD_FRONT_URL"),
+		ANCHORA_SECRET:     os.Getenv("ANCHORA_SECRET"),
 	}
 }
 
@@ -1671,7 +1714,6 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
-
 // Simple method to open a URL in the system browser
 func (a *App) OpenGoogle() {
 	if a.ctx == nil {
@@ -1680,6 +1722,5 @@ func (a *App) OpenGoogle() {
 	}
 
 	// Opens default browser to Google
-	runtime.BrowserOpenURL(a.ctx, "http://localhost:4002/checkout")
+	runtime.BrowserOpenURL(a.ctx, "http://164.90.213.173:4002/checkout")
 }
-

@@ -92,6 +92,7 @@ const LoginStep2 = () => {
 
       const response = await loginWithPassword(payload);
       // if (!response) throw new Error("SignIn failed: empty result");
+      console.log({response})
 
       toast({
         title: "Welcome back!",

@@ -3,13 +3,12 @@ package vault_session
 
 import (
 	"time"
-	app_config "vault-app/internal/config"
-	"vault-app/internal/models"
+	app_config_domain "vault-app/internal/config/domain"
 )
 
 type RuntimeContext struct {
-    AppConfig      app_config.AppConfig
-    UserConfig     app_config.UserConfig
+    AppConfig      app_config_domain.AppConfig
+    UserConfig     app_config_domain.UserConfig
     SessionSecrets map[string]string
     WorkingBranch  string
 }
@@ -17,14 +16,14 @@ type RuntimeContext struct {
 
 func NewRuntimeContext() *RuntimeContext {
     return &RuntimeContext{
-        AppConfig:      app_config.AppConfig{},
-        UserConfig:     app_config.UserConfig{},
+        AppConfig:      app_config_domain.AppConfig{},
+        UserConfig:     app_config_domain.UserConfig{},
         SessionSecrets: map[string]string{},
         WorkingBranch:  "main",
     }
 }
 
-func NewRuntimeContextFrom(appConfig app_config.AppConfig, userConfig app_config.UserConfig, sessionSecrets map[string]string, workingBranch string) *RuntimeContext {
+func NewRuntimeContextFrom(appConfig app_config_domain.AppConfig, userConfig app_config_domain.UserConfig, sessionSecrets map[string]string, workingBranch string) *RuntimeContext {
     return &RuntimeContext{
         AppConfig:      appConfig,
         UserConfig:     userConfig,
@@ -32,12 +31,23 @@ func NewRuntimeContextFrom(appConfig app_config.AppConfig, userConfig app_config
         WorkingBranch:  workingBranch,
     }
 }
-
-func (rc *RuntimeContext) SetAppConfig(appConfig app_config.AppConfig) {
+func (rc *RuntimeContext) GetAppConfig() app_config_domain.AppConfig {
+	return rc.AppConfig
+}
+func (rc *RuntimeContext) GetUserConfig() app_config_domain.UserConfig {
+	return rc.UserConfig
+}
+func (rc *RuntimeContext) GetSessionSecrets() map[string]string {
+	return rc.SessionSecrets
+}
+func (rc *RuntimeContext) GetWorkingBranch() string {
+	return rc.WorkingBranch
+}
+func (rc *RuntimeContext) SetAppConfig(appConfig app_config_domain.AppConfig) {
     rc.AppConfig = appConfig
 }
 
-func (rc *RuntimeContext) SetUserConfig(userConfig app_config.UserConfig) {
+func (rc *RuntimeContext) SetUserConfig(userConfig app_config_domain.UserConfig) {
     rc.UserConfig = userConfig
 }
 
@@ -57,14 +67,14 @@ func (rc *RuntimeContext) CurrentUserID() string {
 	return rc.UserConfig.ID
 }
 
-func (rc *RuntimeContext) ToFormerRuntimeContext() *models.VaultRuntimeContext {
-	return &models.VaultRuntimeContext{
-		CurrentUser:    rc.UserConfig,
-		AppSettings:    rc.AppConfig,
-		SessionSecrets: rc.SessionSecrets,
-		WorkingBranch:  rc.WorkingBranch,
-	}
-}
+// func (rc *RuntimeContext) ToFormerRuntimeContext() *models.VaultRuntimeContext {
+// 	return &models.VaultRuntimeContext{
+// 		CurrentUser:    rc.UserConfig,
+// 		AppSettings:    rc.AppConfig,
+// 		SessionSecrets: rc.SessionSecrets,
+// 		WorkingBranch:  rc.WorkingBranch,
+// 	}
+// }
 func (rc *RuntimeContext) Deadline() (deadline time.Time, ok bool) {
 	return time.Time{}, false
 }

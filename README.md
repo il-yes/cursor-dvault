@@ -552,3 +552,11 @@ We're actively seeking:
 
 ---
 
+
+
+curl -X POST https://ankhora.io/back/vaults/839471c9-a394-40e5-b5a5-aa5e4ca02288/storage/Default%20Vault \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_AUTH_TOKEN" \
+  -d '{
+    "stream": "Default Vault",
+  }'

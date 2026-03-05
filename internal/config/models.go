@@ -1,6 +1,7 @@
 package app_config
 
 import (
+	"context"
 	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ type AppConfig struct {
 	RemaskDelay        string           `json:"remask_delay" yaml:"remask_delay"`
 	Theme              string           `json:"theme" yaml:"theme"`
 	AnimationsEnabled  bool             `json:"animations_enabled" yaml:"animations_enabled"`
+	Storage            StorageConfig    `json:"storage" yaml:"storage" gorm:"embedded"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -119,4 +121,40 @@ type SharingConfig struct {
 func (s *SharingConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	s.ID = uint(utils.Uint64())
 	return
+}
+
+
+
+
+type StorageMode string
+
+const (
+	StorageCloud  StorageMode = "cloud"
+	StorageLocal  StorageMode = "local"
+	StorageEnterpriseS3 StorageMode = "enterprise_s3"
+	StoragePrivateIPFS StorageMode = "private_ipfs"
+	StorageHybrid StorageMode = "hybrid"
+)
+
+type StorageProvider interface {
+	Add(ctx context.Context, data []byte) (string, error)
+	Get(ctx context.Context, cid string) ([]byte, error)
+}
+type StorageConfig struct {
+    Mode StorageMode `json:"mode" yaml:"mode" gorm:"column:mode"`
+
+    LocalIPFS   IPFSConfig `json:"local_ipfs" yaml:"local_ipfs" gorm:"embedded;embeddedPrefix:local_ipfs_"`
+    PrivateIPFS IPFSConfig `json:"private_ipfs" yaml:"private_ipfs" gorm:"embedded;embeddedPrefix:private_ipfs_"`
+    Cloud       CloudConfig `json:"cloud" yaml:"cloud" gorm:"embedded;embeddedPrefix:cloud_"`
+    EnterpriseS3 S3Config `json:"enterprise_s3" yaml:"enterprise_s3" gorm:"embedded;embeddedPrefix:enterprise_s3_"`
+}
+
+type CloudConfig struct {
+    BaseURL string `json:"base_url" yaml:"base_url" gorm:"column:base_url"`
+}
+
+type S3Config struct {
+    Region   string `json:"region" yaml:"region" gorm:"column:region"`
+    Bucket   string `json:"bucket" yaml:"bucket" gorm:"column:bucket"`
+    Endpoint string `json:"endpoint" yaml:"endpoint" gorm:"column:endpoint"`
 }

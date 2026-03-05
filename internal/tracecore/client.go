@@ -10,6 +10,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+	app_config "vault-app/internal/config"
+	app_config_domain "vault-app/internal/config/domain"
 	tracecore_models "vault-app/internal/tracecore/models"
 )
 
@@ -22,9 +24,9 @@ var (
 )
 
 type TracecoreClient struct {
-	BaseURL    string
-	Token      string
-	HTTPClient *http.Client
+	BaseURL         string
+	Token           string
+	HTTPClient      *http.Client
 	AnkhoraFrontUrl string
 	AnkhoraCloudUrl string
 }
@@ -51,8 +53,52 @@ func NewTracecoreClient(baseURL, token, ankhoraFrontUrl, ankhoraCloudUrl string)
 		AnkhoraCloudUrl: ankhoraCloudUrl,
 	}
 }
+
+// NewTracecoreClient creates a new Tracecore client with default timeout.
+func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *TracecoreClient {
+	// ⚠️ Don't use log.Fatal during startup - it kills the app!
+	if token == "" {
+		log.Println("⚠️ TRACECORE_TOKEN is empty — Tracecore features will be disabled")
+	}
+
+	switch appCfg.Storage.Mode {
+	case app_config.StorageCloud:
+		return &TracecoreClient{
+			BaseURL: appCfg.Storage.Cloud.BaseURL,
+			Token:   token,
+			HTTPClient: &http.Client{
+				Timeout: 30 * time.Second,
+			},
+		}
+	case app_config.StorageLocal:
+		return &TracecoreClient{
+			BaseURL: appCfg.Storage.LocalIPFS.APIEndpoint,
+			Token:   token,
+			HTTPClient: &http.Client{
+				Timeout: 30 * time.Second,
+			},
+		}
+	case app_config.StoragePrivateIPFS:
+		return &TracecoreClient{
+			BaseURL: appCfg.Storage.PrivateIPFS.APIEndpoint,
+			Token:   token,
+			HTTPClient: &http.Client{
+				Timeout: 30 * time.Second,
+			},
+		}
+	default:
+		log.Println("⚠️ TRACECORE_STORAGE_MODE is unknown — Tracecore features will be disabled")
+		return &TracecoreClient{
+			BaseURL: "https://ankhora.io/back", // appCfg.Storage.Cloud.BaseURL,
+			Token:   token,
+			HTTPClient: &http.Client{
+				Timeout: 30 * time.Second,
+			},
+		}
+	}
+}
 func (c *TracecoreClient) SetToken(token string) {
-    c.Token = token
+	c.Token = token
 }
 
 func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, body any, out any) error {

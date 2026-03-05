@@ -3,8 +3,9 @@ package subscription_usecase
 
 import (
 	"context"
-	utils "vault-app/internal/utils"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
+	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_domain "vault-app/internal/config/domain"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
@@ -13,6 +14,7 @@ import (
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
+	utils "vault-app/internal/utils"
 )
 
 // ----------- Interface -----------
@@ -28,6 +30,12 @@ type IdentityHandlerInterface interface {
 type BillingHandlerInterface interface {
 	Onboard(ctx context.Context, req billing_ui_handlers.AddPaymentMethodRequest) (*billing_ui_handlers.AddPaymentMethodResponse, error)
 }
+type AppConfigHandlerInterface interface {
+	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
+	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) 
+	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
+	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
+}
 
 // ----------- Struct -----------
 type SubscriptionActivationMonitor struct {
@@ -41,6 +49,7 @@ type SubscriptionActivationMonitor struct {
 	BusOnboarding              onboarding_application_events.OnboardingEventBus
 	IdentityHandler            IdentityHandlerInterface
 	BillingHandler             BillingHandlerInterface
+	AppConfigHandler           AppConfigHandlerInterface
 }
 
 // ----------- Constructor -----------
@@ -55,6 +64,7 @@ func NewSubscriptionActivationMonitor(
 	busOnboarding onboarding_application_events.OnboardingEventBus,
 	identityHandler IdentityHandlerInterface,
 	billingHandler BillingHandlerInterface,
+	AppConfigHandler AppConfigHandlerInterface,
 ) *SubscriptionActivationMonitor {
 	return &SubscriptionActivationMonitor{
 		Logger:                     log,
@@ -67,9 +77,9 @@ func NewSubscriptionActivationMonitor(
 		BusOnboarding:              busOnboarding,
 		IdentityHandler:            identityHandler,
 		BillingHandler:             billingHandler,
+		AppConfigHandler:           AppConfigHandler,
 	}
 }
-
 
 func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 	m.Logger.Info("🛰️ Listening for subscription activations")
@@ -112,6 +122,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			m.Logger,
 			m.IdentityHandler,
 			m.BillingHandler,
+			m.AppConfigHandler,
 		)
 		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
 			Identity:             event.UserID,
@@ -127,7 +138,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			m.Logger.Error("Onboarding failed for user=%s: %v", event.UserID, err)
 		}
 
-		// 4. ------------ III. Tier side effects (emails, notifications) ------------		
+		// 4. ------------ III. Tier side effects (emails, notifications) ------------
 		switch event.Tier {
 		case "free":
 			m.Logger.Info("🧊 Free tier enabled")

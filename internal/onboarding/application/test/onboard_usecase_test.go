@@ -7,6 +7,8 @@ import (
 
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	"vault-app/internal/blockchain"
+	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_domain "vault-app/internal/config/domain"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
@@ -160,7 +162,31 @@ func (f *fakeBus) SubscribeToSubscriptionActivation(func(onboarding_application_
 	f.called = true
 	return nil
 }	
+type fakeAppConfigHandler struct {
+	called bool
+}
 
+func (f *fakeAppConfigHandler) GetAppConfigByUserID(
+	ctx context.Context,
+	userID string,
+) (*app_config_domain.AppConfig, error) {
+	f.called = true
+	return &app_config_domain.AppConfig{}, nil
+}	
+func (f *fakeAppConfigHandler) InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) {
+	f.called = true
+	return &app_config_commands.CreateAppConfigCommandOutput{}, nil
+}
+func (f *fakeAppConfigHandler) InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error) {
+	f.called = true
+	return &app_config_commands.CreateUserConfigCommandOutput{}, nil
+}
+func (f *fakeAppConfigHandler) GetUserConfigByUserID(
+	userID string,
+) (*app_config_domain.UserConfig, error) {
+	f.called = true
+	return &app_config_domain.UserConfig{}, nil
+}
 func TestOnboardUseCase_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -172,6 +198,7 @@ func TestOnboardUseCase_Success(t *testing.T) {
 		&logger.Logger{},
 		&fakeIdentity{},
 		&fakeBilling{},
+		&fakeAppConfigHandler{},
 	)
 
 	res, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -199,6 +226,7 @@ func TestOnboardUseCase_AnonymousMissingKey(t *testing.T) {
 		&logger.Logger{},
 		&fakeIdentity{},
 		&fakeBilling{},
+		&fakeAppConfigHandler{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -221,6 +249,7 @@ func TestOnboardUseCase_IdentityFails(t *testing.T) {
 		&logger.Logger{},
 		&fakeIdentity{err: errors.New("identity-fail")},
 		&fakeBilling{},
+		&fakeAppConfigHandler{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -243,6 +272,7 @@ func TestOnboardUseCase_VaultFails(t *testing.T) {
 		&logger.Logger{},
 		&fakeIdentity{},
 		&fakeBilling{},
+		&fakeAppConfigHandler{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -264,6 +294,7 @@ func TestOnboardUseCase_BillingFails(t *testing.T) {
 		&logger.Logger{},
 		&fakeIdentity{},
 		&fakeBilling{err: errors.New("billing-fail")},
+		&fakeAppConfigHandler{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{

@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	utils "vault-app/internal/utils"
 
 	"filippo.io/edwards25519"
 	"github.com/stellar/go/strkey"
@@ -16,33 +18,32 @@ import (
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/scrypt"
 )
+
 const (
 	EncryptionPolicyAES256GCM = "AES-256-GCM"
 	EncryptionPolicyNone      = "PLAINTEXT"
 )
 
 const (
-	saltSize  = 16
-	keySize   = 32 // AES-256
-	nonceSize = 12 // GCM standard nonce size
-	scryptN   = 32768	// Consider increasing to 65536 later if UX allows
+	saltSize  = 32
+	keySize   = 32    // AES-256
+	nonceSize = 12    // GCM standard nonce size
+	scryptN   = 32768 // Consider increasing to 65536 later if UX allows
 	scryptR   = 8
 	scryptP   = 1
 )
-
-
 
 // type CryptoService interface {
 // 	EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error)
 // 	EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error)
 // 	DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error)
 // 	DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error)
-// }	
+// }
 
 // -----------------------------
 // V2 Crypto
-// -----------------------------   
-type CryptoService struct {}
+// -----------------------------
+type CryptoService struct{}
 
 // EncryptPasswordWithStellar encrypts the password using the Stellar private key
 func (c *CryptoService) EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error) {
@@ -147,6 +148,9 @@ func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, erro
 	if len(encrypted) < saltSize+nonceSize {
 		return nil, fmt.Errorf("❌ invalid data length")
 	}
+	if password == "" {
+		return nil, fmt.Errorf("❌ password is empty")
+	}
 
 	salt := encrypted[:saltSize]
 	nonce := encrypted[saltSize : saltSize+nonceSize]
@@ -166,18 +170,41 @@ func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
 	}
+
+	// 🧪 KEEP THESE LOGS (no recursion)
 	log.Printf("🧂 Salt: %x", salt)
 	log.Printf("🔑 Key: %x", key)
 	log.Printf("🔁 Nonce: %x", nonce)
 	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
 
+
+	// Test determinism
+	key1, _ := DeriveKey("testpass", salt)
+	key2, _ := DeriveKey("testpass", salt)
+	log.Printf("Key deterministic: %v", bytes.Equal(key1, key2))  // MUST be true
+
+	// 1. Verify GCM roundtrip works
+	testPlain := []byte("hello")
+	testCipher := gcm.Seal(nil, nonce, testPlain, nil)
+	testDecrypt, testErr := gcm.Open(nil, nonce, testCipher, nil)
+	if testErr != nil {
+		log.Fatalf("GCM roundtrip failed: %v", testErr)
+	}
+	log.Printf("✅ GCM roundtrip OK", testDecrypt)
+
+	// 2. Show first bytes of real ciphertext
+	log.Printf("Ciphertext first 16: %x", ciphertext[:16])
+
+	// 3. Your real decrypt
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		utils.LogPretty("CryptoService - Decrypt - Decryption failed", err)
 		return nil, fmt.Errorf("❌ decryption failed: %w", err)
 	}
 
 	return plain, nil
 }
+
 // Encrypt encrypts plain data using a password.
 func (c *CryptoService) Encrypt(data []byte, password string) ([]byte, error) {
 	// Generate random salt
@@ -213,7 +240,6 @@ func (c *CryptoService) Encrypt(data []byte, password string) ([]byte, error) {
 	return final, nil
 }
 
-
 type CryptoPayload struct {
 	Encrypted []byte
 	Decrypted string
@@ -225,6 +251,7 @@ func (e *CryptoPayload) ToString() string {
 	}
 	return base64.StdEncoding.EncodeToString(e.Encrypted)
 }
+
 // GenerateSymmetricKey returns a 32‑byte AES key encoded as base64 string.
 func (c *CryptoService) GenerateSymmetricKey() []byte {
 	symKey := make([]byte, 32)
@@ -233,6 +260,7 @@ func (c *CryptoService) GenerateSymmetricKey() []byte {
 
 	return symKey
 }
+
 // -------------------------------------
 // Helper functions
 // -------------------------------------
@@ -241,6 +269,7 @@ func Must(err error) {
 		panic(err)
 	}
 }
+
 // -------------------------------------
 // AES
 // -------------------------------------
@@ -280,7 +309,7 @@ func (c *CryptoService) AESDecrypt(enc []byte, key []byte) CryptoPayload {
 
 // -------------------------------------
 // Box
-// -------------------------------------	
+// -------------------------------------
 func (c *CryptoService) EncryptPayload(pub string, symKey []byte) CryptoPayload {
 	edPub, err := strkey.Decode(strkey.VersionByteAccountID, pub)
 	Must(err)
@@ -307,17 +336,15 @@ func Ed25519PubToCurve(pub []byte) *[32]byte {
 	return &out
 }
 
-
-
-
 // -----------------------------
 // V1 Crypto
-// -----------------------------   
+// -----------------------------
 // Vault root Encryption
 // DeriveKey derives a key from password using scrypt.
 func DeriveKey(password string, salt []byte) ([]byte, error) {
 	return scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keySize)
 }
+
 // Encrypt encrypts plain data using a password.
 func Encrypt(data []byte, password string) ([]byte, error) {
 	// Generate random salt
@@ -509,4 +536,3 @@ func DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSec
 
 	return string(plaintext), nil
 }
-

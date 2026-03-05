@@ -2,9 +2,11 @@ package driver
 
 import (
 	"vault-app/internal/auth"
+	app_config_domain "vault-app/internal/config/domain"
 	// auth_domain "vault-app/internal/auth/domain"
 	// auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	app_config "vault-app/internal/config"
+	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
 	share_domain "vault-app/internal/domain/shared"
 	identity_domain "vault-app/internal/identity/domain"
 	share_infrastructure "vault-app/internal/infrastructure/share"
@@ -29,11 +31,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.SSHKeyEntry{},
 
 		// App & User Configs
-		&app_config.AppConfig{},
+		&app_config_domain.AppConfig{},
 		&app_config.CommitRule{},
-		&app_config.UserConfig{},
-		&app_config.SharingRule{},
-		&app_config.SharingConfig{}, // if used for advanced sharing
+		&app_config_persistence.UserConfigMapper{},
+		&app_config_domain.SharingRule{},
+		&app_config_domain.SharingConfig{}, // if used for advanced sharing
 		// &model.UserSession{},
 
 		// Auth

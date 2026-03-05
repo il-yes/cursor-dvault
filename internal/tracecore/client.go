@@ -67,7 +67,7 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 			BaseURL: appCfg.Storage.Cloud.BaseURL,
 			Token:   token,
 			HTTPClient: &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout: 30 * time.Second,
 			},
 		}
 	case app_config.StorageLocal:
@@ -75,7 +75,7 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 			BaseURL: appCfg.Storage.LocalIPFS.APIEndpoint,
 			Token:   token,
 			HTTPClient: &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout: 30 * time.Second,
 			},
 		}
 	case app_config.StoragePrivateIPFS:
@@ -83,7 +83,7 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 			BaseURL: appCfg.Storage.PrivateIPFS.APIEndpoint,
 			Token:   token,
 			HTTPClient: &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout: 30 * time.Second,
 			},
 		}
 	default:
@@ -92,7 +92,7 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 			BaseURL: "https://ankhora.io/back", // appCfg.Storage.Cloud.BaseURL,
 			Token:   token,
 			HTTPClient: &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout: 30 * time.Second,
 			},
 		}
 	}

@@ -114,9 +114,10 @@ type IpfsCidRequest struct {
 	CID       string
 }
 type IpfsCidResponse struct {
-	UserID    string
-	VaultName string
-	Data       []byte
+    Status  int    `json:"status"`
+    Data    string `json:"data"`      // Direct base64 string
+    Message string `json:"message"`
+    Success bool   `json:"success"`
 }
 type CloudResponse[T any] struct {
     Status  int    `json:"status"`

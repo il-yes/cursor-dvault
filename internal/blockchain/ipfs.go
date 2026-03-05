@@ -14,7 +14,7 @@ import (
 
 type TracecoreClt interface {
 	AddToIPFS(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error)
-	GetDataFromCloudStorage(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.CloudResponse[tracecore_types.IpfsCidResponse], error)
+	GetDataFromCloudStorage(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.IpfsCidResponse, error)
 	AddToS3(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error)
 	GetDataFromS3(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.CloudResponse[tracecore_types.IpfsCidResponse], error)
 }
@@ -163,6 +163,9 @@ func (c *CloudIPFSStorage) Add(ctx context.Context, data []byte) (string, error)
 }
 
 func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) {
+	utils.LogPretty("CloudIPFSStorage - Get - userID", c.userID)
+	utils.LogPretty("CloudIPFSStorage - Get - vault", c.vault)
+	utils.LogPretty("CloudIPFSStorage - Get - cid", cid)
 	req := tracecore_types.IpfsCidRequest{
 		UserID:    c.userID,
 		VaultName: c.vault,
@@ -172,7 +175,8 @@ func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	return resp.Data.Data, nil
+
+	return []byte(resp.Data), nil
 }
 
 
@@ -214,7 +218,7 @@ func (e *EnterpriseS3Storage) Get(ctx context.Context, cid string) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	return response.Data.Data, nil
+	return []byte(response.Data.Data), nil
 }
 
 

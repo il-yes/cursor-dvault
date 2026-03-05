@@ -2,16 +2,15 @@ package vault_ui
 
 import (
 	"context"
-	app_config_ui "vault-app/internal/config/ui"
+	"errors"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_events "vault-app/internal/vault/application/events"
 )
 
-
 type OpenVaultHandler struct {
-	openVaultCommandHandler *vault_commands.OpenVaultCommandHandler		
+	openVaultCommandHandler *vault_commands.OpenVaultCommandHandler
 	EventBus                vault_events.VaultEventBus
-}	
+}
 
 func NewOpenVaultHandler(openVaultCommandHandler *vault_commands.OpenVaultCommandHandler, eventBus vault_events.VaultEventBus) *OpenVaultHandler {
 	return &OpenVaultHandler{
@@ -21,18 +20,26 @@ func NewOpenVaultHandler(openVaultCommandHandler *vault_commands.OpenVaultComman
 }
 
 func (h *OpenVaultHandler) OpenVault(
-	ctx context.Context, 
-	req vault_commands.OpenVaultCommand, 
-	appConfigHandler app_config_ui.AppConfigHandler,
+	ctx context.Context,
+	req vault_commands.OpenVaultCommand,
+	appConfigHandler vault_commands.AppConfigFacade,
 ) (*vault_commands.OpenVaultResult, error) {
-	
+	if req.Session == nil {
+		return nil, errors.New("session is required")
+	}
+	if req.Password == "" {
+		return nil, errors.New("password is required")
+	}
+	if req.UserID == "" {
+		return nil, errors.New("user id is required")
+	}
+	if appConfigHandler == nil {
+		return nil, errors.New("app config handler is required")
+	}
 	return h.openVaultCommandHandler.Handle(
-		ctx, 
-		req, 
-		h.EventBus, 
+		ctx,
+		req,
+		h.EventBus,
 		appConfigHandler,
 	)
 }
-
-
-	

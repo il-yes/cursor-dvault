@@ -6,6 +6,7 @@ import (
 	"vault-app/internal/blockchain"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
+	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
@@ -13,6 +14,9 @@ import (
 type CreateIPFSPayloadCommand struct {
 	Vault *vaults_domain.Vault	
 	Password string
+	AppCfg app_config_domain.AppConfig
+	UserID string
+	VaultName string
 }	
 
 // -------- COMMAND response --------
@@ -59,14 +63,21 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(cmd CreateIPFSPayloadCommand) 
 	if err != nil {
 		return nil, fmt.Errorf("❌ vault encryption failed: %w", err)
 	}
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - encrypted", encrypted)
 	
 	// -----------------------------
 	// 3. IPFS - Add vault content to IPFS
 	// -----------------------------
-	cidFromIpfs, err := h.IpfsService.AddData(encrypted)
+	cidFromIpfs, err := h.StoreOnIpfs(context.Background(), StoreIpfsParams{
+		AppCfg: cmd.AppCfg,
+		UserID: cmd.UserID,
+		VaultName: cmd.VaultName,
+		Data: encrypted,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to add vault to IPFS: %w", err)
 	}
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - cidFromIpfs", cidFromIpfs)
 	
 	// -----------------------------
 	// 4. Return result
@@ -80,11 +91,12 @@ type StoreIpfsParams struct {
 	VaultName string
 	Data      []byte
 }
-func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(ctx context.Context, req StoreIpfsParams, tc tracecore.TracecoreClient) (string, error) {
+func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(ctx context.Context, req StoreIpfsParams) (string, error) {
 	// ------------------------------------------------------------
 	// 1. LOAD TRACECORE CLIENT
 	// ------------------------------------------------------------
 	tracecoreClient := tracecore.NewTracecoreFromConfig(&req.AppCfg, "token")	
+	utils.LogPretty("StoreOnIpfs - tracecoreClient", tracecoreClient.BaseURL)
 	// ------------------------------------------------------------
 	// 2. LOAD STORAGE PROVIDER
 	// ------------------------------------------------------------
@@ -100,6 +112,7 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(ctx context.Context, req S
 	if err != nil {
 		return "", fmt.Errorf("failed to store ipfs: %w", err)
 	}
+	utils.LogPretty("StoreOnIpfs - response", response)
 
 	return response, nil
 }

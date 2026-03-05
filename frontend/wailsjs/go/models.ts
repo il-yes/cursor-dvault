@@ -488,7 +488,7 @@ export namespace app_config_domain {
 	
 	
 	export class SharingRule {
-	    id: number;
+	    id: string;
 	    entry_type: string;
 	    targets: string[];
 	    encrypted: boolean;

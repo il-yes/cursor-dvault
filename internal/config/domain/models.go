@@ -23,26 +23,26 @@ func (c *CommitRule) BeforeCreate(tx *gorm.DB) (err error) {
 
 // 🔧 Load this on boot from embedded JSON/YAML or system file (e.g., $HOME/.dvault/config.json)
 type AppConfig struct {
-	ID                   string           `json:"id" gorm:"primaryKey"`
-	RepoID               string           `json:"repo_id" gorm:"repo_id"`
-	Branch               string           `json:"branch" gorm:"branch"`
-	TracecoreEnabled     bool             `json:"tracecore_enabled" gorm:"tracecore_enabled"`
-	CommitRules          []CommitRule     `json:"commit_rules" gorm:"serializer:json"`
-	BranchingModel       string           `json:"branching_model" gorm:"branching_model"`
-	EncryptionPolicy     string           `json:"encryption_policy" gorm:"encryption_policy"`
-	Actors               []string         `json:"actors" gorm:"type:json;serializer:json"`
-	FederatedProviders   []string         `json:"federated_providers" gorm:"type:json;serializer:json"`
-	DefaultPhase         string           `json:"default_phase" gorm:"default_phase"`
-	DefaultVaultPath     string           `json:"default_vault_path" gorm:"default_vault_path"`
-	VaultSettings        VaultConfig      `json:"vault_settings" gorm:"embedded"`
-	Blockchain           BlockchainConfig `json:"blockchain" gorm:"embedded"`
-	UserID               string           `json:"user_id" gorm:"string"`
-	AutoLockTimeout      string           `json:"auto_lock_timeout" gorm:"auto_lock_timeout"`
-	AccessPolicyDuration int64            `json:"access_policy_duration" gorm:"access_policy_duration"`
-	RemaskDelay          string           `json:"remask_delay" gorm:"remask_delay"`
-	Theme                string           `json:"theme" gorm:"theme"`
-	AnimationsEnabled    bool             `json:"animations_enabled" gorm:"animations_enabled"`
-	Storage            app_config.StorageConfig    `json:"storage" yaml:"storage" gorm:"embedded"`
+	ID                   string                   `json:"id" gorm:"primaryKey"`
+	RepoID               string                   `json:"repo_id" gorm:"repo_id"`
+	Branch               string                   `json:"branch" gorm:"branch"`
+	TracecoreEnabled     bool                     `json:"tracecore_enabled" gorm:"tracecore_enabled"`
+	CommitRules          []CommitRule             `json:"commit_rules" gorm:"serializer:json"`
+	BranchingModel       string                   `json:"branching_model" gorm:"branching_model"`
+	EncryptionPolicy     string                   `json:"encryption_policy" gorm:"encryption_policy"`
+	Actors               []string                 `json:"actors" gorm:"type:json;serializer:json"`
+	FederatedProviders   []string                 `json:"federated_providers" gorm:"type:json;serializer:json"`
+	DefaultPhase         string                   `json:"default_phase" gorm:"default_phase"`
+	DefaultVaultPath     string                   `json:"default_vault_path" gorm:"default_vault_path"`
+	VaultSettings        VaultConfig              `json:"vault_settings" gorm:"embedded"`
+	Blockchain           BlockchainConfig         `json:"blockchain" gorm:"embedded"`
+	UserID               string                   `json:"user_id" gorm:"string"`
+	AutoLockTimeout      string                   `json:"auto_lock_timeout" gorm:"auto_lock_timeout"`
+	AccessPolicyDuration int64                    `json:"access_policy_duration" gorm:"access_policy_duration"`
+	RemaskDelay          string                   `json:"remask_delay" gorm:"remask_delay"`
+	Theme                string                   `json:"theme" gorm:"theme"`
+	AnimationsEnabled    bool                     `json:"animations_enabled" gorm:"animations_enabled"`
+	Storage              app_config.StorageConfig `json:"storage" yaml:"storage" gorm:"embedded"`
 }
 
 func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
@@ -61,10 +61,6 @@ type UserConfig struct {
 	TwoFactorEnabled bool                 `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
 }
 
-func (u *UserConfig) BeforeCreate(tx *gorm.DB) (err error) {
-	u.ID = uuid.New().String()
-	return
-}
 func (u *UserConfig) OnGenerateApiKey(stellarAccount *StellarAccountConfig) {
 	u.StellarAccount = *stellarAccount
 }
@@ -113,11 +109,9 @@ type IPFSConfig struct {
 	GatewayURL  string `json:"gateway_url" yaml:"gateway_url" gorm:"column:gateway_url"`
 }
 
-
-
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type SharingRule struct {
-	ID           uint     `json:"id" gorm:"primaryKey"`
+	ID           string   `json:"id" gorm:"primaryKey;autoIncrement:false;size:36"`
 	UserConfigID string   `json:"-" gorm:"index"` // foreign key
 	EntryType    string   `json:"entry_type" yaml:"entry_type" gorm:"column:entry_type"`
 	Targets      []string `json:"targets" yaml:"targets" gorm:"type:json;serializer:json"`
@@ -125,12 +119,14 @@ type SharingRule struct {
 }
 
 func (s *SharingRule) BeforeCreate(tx *gorm.DB) (err error) {
-	s.ID = uint(utils.Uint64())
-	return
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return nil
 }
 
 type SharingConfig struct {
-	ID              uint     `json:"id" gorm:"primaryKey"`
+	ID              string   `json:"id" gorm:"primaryKey"`
 	RecipientID     string   `json:"recipient_id" yaml:"recipient_id"`
 	Permissions     []string `json:"permissions" yaml:"permissions" gorm:"type:json;serializer:json"`
 	Expiration      string   `json:"expiration" yaml:"expiration"`
@@ -142,6 +138,8 @@ type SharingConfig struct {
 }
 
 func (s *SharingConfig) BeforeCreate(tx *gorm.DB) (err error) {
-	s.ID = uint(utils.Uint64())
-	return
+	if s.ID == "" {
+		s.ID = uuid.New().String()
+	}
+	return nil
 }

@@ -1,8 +1,9 @@
 package persistence
 
 import (
-	"gorm.io/gorm"
 	app_config_domain "vault-app/internal/config/domain"
+
+	"gorm.io/gorm"
 )
 
 type GormAppConfigRepository struct {

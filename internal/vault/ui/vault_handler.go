@@ -13,7 +13,6 @@ import (
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
-	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
 	"vault-app/internal/registry"
@@ -49,10 +48,10 @@ type VaultHandler struct {
 	VaultRuntimeContext vault_session.RuntimeContext
 
 	TracecoreClient tracecore.TracecoreClient
-	IPFS          *blockchain.IPFSClient
-	CryptoService *blockchain.CryptoService
-	logger        logger.Logger
-	NowUTC        func() string
+	IPFS            *blockchain.IPFSClient
+	CryptoService   *blockchain.CryptoService
+	logger          logger.Logger
+	NowUTC          func() string
 
 	SessionManager *vault_session.Manager
 	SessionsMu     sync.Mutex
@@ -122,7 +121,6 @@ func (vh *VaultHandler) PrepareSession(userID string) (*vault_session.Session, e
 		)
 		return nil, err
 	}
-
 
 	vh.logger.Info("✅ Session prepared for user %s", userID)
 	return session, nil
@@ -213,10 +211,24 @@ func (vh *VaultHandler) GetAppConfig(userID string) (app_config_domain.AppConfig
 func (vh *VaultHandler) GetUserConfig(userID string) (app_config_domain.UserConfig, error) {
 	return vh.SessionManager.GetUserConfig(userID)
 }
+
 // -----------------------------
 // Vault - Crud
 // -----------------------------
-func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler app_config_ui.AppConfigHandler) (*vault_commands.OpenVaultResult, error) {
+func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler vault_commands.AppConfigFacade) (*vault_commands.OpenVaultResult, error) {
+	if req.Session == nil {
+		return nil, errors.New("session is required")
+	}
+	if req.Password == "" {
+		return nil, errors.New("password is required")
+	}
+	if req.UserID == "" {
+		return nil, errors.New("user id is required")
+	}
+	if appConfigHandler == nil {
+		return nil, errors.New("app config handler is required")
+	}
+	
 	openHandler := NewOpenVaultHandler(
 		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler),
 		vh.EventBus,
@@ -572,7 +584,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	if err != nil {
 		return "", fmt.Errorf("no active session: %w", err)
 	}
-	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)	
+	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)
 	vh.logger.LogPretty("SyncVault - session", session)
 
 	// 2. ---------- Marshal vault ----------
@@ -600,11 +612,11 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	newCID, err := vh.CreateIPFSPayloadCommandHandler.StoreOnIpfs(
 		ctx,
 		vault_commands.StoreIpfsParams{
-			AppCfg: appCfg,
-			Data: encrypted,
-			UserID: input.Vault.UserSubscriptionID,
+			AppCfg:    appCfg,
+			Data:      encrypted,
+			UserID:    input.Vault.UserSubscriptionID,
 			VaultName: input.Vault.Name,
-		}, tc)
+		})
 	if err != nil {
 		return "", fmt.Errorf("IPFS upload failed: %w", err)
 	}

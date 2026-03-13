@@ -150,14 +150,14 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		return nil, err
 	}
 	appConfig, err := uc.AppConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
-		AppConfig: &configs.App,
+		AppConfig: configs.App,
 	})
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
 		return nil, err
 	}
 	userConfig, err := uc.AppConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
-		UserConfig: &configs.User,
+		UserConfig: configs.User,
 	})
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to create user config: %v", err)

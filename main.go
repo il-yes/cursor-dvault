@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	vaults_storage "vault-app/internal/vault/infrastructure/storage"
 
 	"github.com/joho/godotenv"
 	"github.com/wailsapp/wails/v2"
@@ -15,7 +16,8 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
-
+var avatarStore *vaults_storage.AvatarStore
+ 
 func main() {
 	errEnv := godotenv.Load(".env")
 	if errEnv != nil {
@@ -25,6 +27,8 @@ func main() {
 	if privateKey == "" {
 		fmt.Println("❌ STELLAR_PRIVATE_KEY is empty")
 	}
+    rootPath := "./vault" // your vault root
+    avatarStore = vaults_storage.NewAvatarStore(rootPath)
 
 	app := NewApp()
 	err := wails.Run(&options.App{
@@ -60,6 +64,7 @@ func main() {
 		},
 		Bind: []interface{}{
 			app,
+			avatarStore,
 		},
 	})
 

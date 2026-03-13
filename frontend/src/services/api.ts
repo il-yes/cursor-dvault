@@ -22,21 +22,24 @@
  * POST   /api/tracecore/commit       - Create Tracecore commit
  * GET    /api/tracecore/verify/:id   - Verify commit integrity
  */
-import { LoginRequest, User, VaultPayload } from "@/types/vault";
+import { LoginRequest, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain, share_application_dto, vault_application, tracecore } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
 import { AccessCryptoShareRequest, CreateLinkShareEntryPayload, LinkShareEntry } from "@/types/sharing";
+import { useAppStore } from "@/store/appStore";
+
+
 
 export interface CheckoutPayload {
-  amount: number;
-  currency: string;
-  successRedirect: string;
-  cancelRedirect: string;
+	amount: number;
+	currency: string;
+	successRedirect: string;
+	cancelRedirect: string;
 }
 
 // export const createCheckout = async (payload: CheckoutPayload) => {
@@ -48,27 +51,27 @@ export interface CheckoutPayload {
 // };
 
 export interface VaultEntry {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  ipfsHash: string;
-  stellarTxHash: string;
-  tracecoreCommitId: string;
-  createdAt: string;
-  updatedAt: string;
-  encrypted: boolean;
+	id: string;
+	title: string;
+	content: string;
+	category: string;
+	ipfsHash: string;
+	stellarTxHash: string;
+	tracecoreCommitId: string;
+	createdAt: string;
+	updatedAt: string;
+	encrypted: boolean;
 }
 
 export interface CreateEntryPayload {
-  title: string;
-  content: string;
-  category: string;
+	title: string;
+	content: string;
+	category: string;
 }
 
 export interface ShareEntryResponse {
-  shareUrl: string;
-  expiresAt: string;
+	shareUrl: string;
+	expiresAt: string;
 }
 
 // Backend API base URL (configure based on environment)
@@ -80,77 +83,76 @@ const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://164.90.213.173:
  * Replace with actual API calls when backend is connected
  */
 const MOCK_ENTRIES: VaultEntry[] = [
-  {
-    id: "1",
-    title: "Personal Identity Documents",
-    content: "Passport, Driver's License, Birth Certificate",
-    category: "Identity",
-    ipfsHash: "QmX7fKRxC3wvJ8PyF4bEqLHxQzPnZ9KuLpYvWmCdRqX1aZ",
-    stellarTxHash: "0xstellar123...abc",
-    tracecoreCommitId: "tc_commit_001",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    encrypted: true,
-  },
-  {
-    id: "2",
-    title: "Financial Records Q1 2025",
-    content: "Tax documents, bank statements, investment records",
-    category: "Finance",
-    ipfsHash: "QmY8gLRyD4xwK9QzG5cFsMJyRqYwXnDpSqY2bVnEsY2bC",
-    stellarTxHash: "0xstellar456...def",
-    tracecoreCommitId: "tc_commit_002",
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-    encrypted: true,
-  },
+	{
+		id: "1",
+		title: "Personal Identity Documents",
+		content: "Passport, Driver's License, Birth Certificate",
+		category: "Identity",
+		ipfsHash: "QmX7fKRxC3wvJ8PyF4bEqLHxQzPnZ9KuLpYvWmCdRqX1aZ",
+		stellarTxHash: "0xstellar123...abc",
+		tracecoreCommitId: "tc_commit_001",
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+		encrypted: true,
+	},
+	{
+		id: "2",
+		title: "Financial Records Q1 2025",
+		content: "Tax documents, bank statements, investment records",
+		category: "Finance",
+		ipfsHash: "QmY8gLRyD4xwK9QzG5cFsMJyRqYwXnDpSqY2bVnEsY2bC",
+		stellarTxHash: "0xstellar456...def",
+		tracecoreCommitId: "tc_commit_002",
+		createdAt: new Date(Date.now() - 86400000).toISOString(),
+		updatedAt: new Date(Date.now() - 86400000).toISOString(),
+		encrypted: true,
+	},
 ];
-
 /**
  * List all vault entries
  */
 export async function listEntries(): Promise<VaultEntry[]> {
-  try {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/api/vault/entries`);
-    // const data = await response.json();
-    // return data.entries;
+	try {
+		// TODO: Replace with actual API call
+		// const response = await fetch(`${API_BASE_URL}/api/vault/entries`);
+		// const data = await response.json();
+		// return data.entries;
 
-    // Mock implementation for preview
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(MOCK_ENTRIES), 500);
-    });
-  } catch (error) {
-    console.error('Failed to list entries:', error);
-    throw error;
-  }
+		// Mock implementation for preview
+		return new Promise((resolve) => {
+			setTimeout(() => resolve(MOCK_ENTRIES), 500);
+		});
+	} catch (error) {
+		console.error('Failed to list entries:', error);
+		throw error;
+	}
 }
 
 /**
  * Get a specific vault entry by ID
  */
 export async function getEntry(id: string): Promise<VaultEntry> {
-  try {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}`);
-    // const data = await response.json();
-    // return data.entry;
+	try {
+		// TODO: Replace with actual API call
+		// const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}`);
+		// const data = await response.json();
+		// return data.entry;
 
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const entry = MOCK_ENTRIES.find(e => e.id === id);
-        if (entry) {
-          resolve(entry);
-        } else {
-          reject(new Error('Entry not found'));
-        }
-      }, 300);
-    });
-  } catch (error) {
-    console.error('Failed to get entry:', error);
-    throw error;
-  }
+		// Mock implementation
+		return new Promise((resolve, reject) => {
+			setTimeout(() => {
+				const entry = MOCK_ENTRIES.find(e => e.id === id);
+				if (entry) {
+					resolve(entry);
+				} else {
+					reject(new Error('Entry not found'));
+				}
+			}, 300);
+		});
+	} catch (error) {
+		console.error('Failed to get entry:', error);
+		throw error;
+	}
 }
 
 /**
@@ -158,623 +160,623 @@ export async function getEntry(id: string): Promise<VaultEntry> {
  * Backend handles encryption, IPFS upload, Stellar anchoring, and Tracecore commit
  */
 export async function createEntry(payload: CreateEntryPayload): Promise<VaultEntry> {
-  try {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/api/vault/entries`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload),
-    // });
-    // const data = await response.json();
-    // return data.entry;
+	try {
+		// TODO: Replace with actual API call
+		// const response = await fetch(`${API_BASE_URL}/api/vault/entries`, {
+		//   method: 'POST',
+		//   headers: { 'Content-Type': 'application/json' },
+		//   body: JSON.stringify(payload),
+		// });
+		// const data = await response.json();
+		// return data.entry;
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newEntry: VaultEntry = {
-          id: Math.random().toString(36).substr(2, 9),
-          ...payload,
-          ipfsHash: `Qm${Math.random().toString(36).substr(2, 44)}`,
-          stellarTxHash: `0xstellar${Math.random().toString(36).substr(2, 10)}`,
-          tracecoreCommitId: `tc_commit_${Math.random().toString(36).substr(2, 8)}`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          encrypted: true,
-        };
-        MOCK_ENTRIES.push(newEntry);
-        resolve(newEntry);
-      }, 800);
-    });
-  } catch (error) {
-    console.error('Failed to create entry:', error);
-    throw error;
-  }
+		// Mock implementation
+		return new Promise((resolve) => {
+			setTimeout(() => {
+				const newEntry: VaultEntry = {
+					id: Math.random().toString(36).substr(2, 9),
+					...payload,
+					ipfsHash: `Qm${Math.random().toString(36).substr(2, 44)}`,
+					stellarTxHash: `0xstellar${Math.random().toString(36).substr(2, 10)}`,
+					tracecoreCommitId: `tc_commit_${Math.random().toString(36).substr(2, 8)}`,
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					encrypted: true,
+				};
+				MOCK_ENTRIES.push(newEntry);
+				resolve(newEntry);
+			}, 800);
+		});
+	} catch (error) {
+		console.error('Failed to create entry:', error);
+		throw error;
+	}
 }
 
 /**
  * Update an existing vault entry
  */
 export async function updateEntry(id: string, payload: Partial<CreateEntryPayload>): Promise<VaultEntry> {
-  try {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}`, {
-    //   method: 'PUT',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(payload),
-    // });
-    // const data = await response.json();
-    // return data.entry;
+	try {
+		// TODO: Replace with actual API call
+		// const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}`, {
+		//   method: 'PUT',
+		//   headers: { 'Content-Type': 'application/json' },
+		//   body: JSON.stringify(payload),
+		// });
+		// const data = await response.json();
+		// return data.entry;
 
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const index = MOCK_ENTRIES.findIndex(e => e.id === id);
-        if (index !== -1) {
-          MOCK_ENTRIES[index] = {
-            ...MOCK_ENTRIES[index],
-            ...payload,
-            updatedAt: new Date().toISOString(),
-          };
-          resolve(MOCK_ENTRIES[index]);
-        } else {
-          reject(new Error('Entry not found'));
-        }
-      }, 600);
-    });
-  } catch (error) {
-    console.error('Failed to update entry:', error);
-    throw error;
-  }
+		// Mock implementation
+		return new Promise((resolve, reject) => {
+			setTimeout(() => {
+				const index = MOCK_ENTRIES.findIndex(e => e.id === id);
+				if (index !== -1) {
+					MOCK_ENTRIES[index] = {
+						...MOCK_ENTRIES[index],
+						...payload,
+						updatedAt: new Date().toISOString(),
+					};
+					resolve(MOCK_ENTRIES[index]);
+				} else {
+					reject(new Error('Entry not found'));
+				}
+			}, 600);
+		});
+	} catch (error) {
+		console.error('Failed to update entry:', error);
+		throw error;
+	}
 }
 
 /**
  * Delete a vault entry
  */
 export async function deleteEntry(id: string): Promise<void> {
-  try {
-    // TODO: Replace with actual API call
-    // await fetch(`${API_BASE_URL}/api/vault/entries/${id}`, {
-    //   method: 'DELETE',
-    // });
+	try {
+		// TODO: Replace with actual API call
+		// await fetch(`${API_BASE_URL}/api/vault/entries/${id}`, {
+		//   method: 'DELETE',
+		// });
 
-    // Mock implementation
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const index = MOCK_ENTRIES.findIndex(e => e.id === id);
-        if (index !== -1) {
-          MOCK_ENTRIES.splice(index, 1);
-          resolve();
-        } else {
-          reject(new Error('Entry not found'));
-        }
-      }, 400);
-    });
-  } catch (error) {
-    console.error('Failed to delete entry:', error);
-    throw error;
-  }
+		// Mock implementation
+		return new Promise((resolve, reject) => {
+			setTimeout(() => {
+				const index = MOCK_ENTRIES.findIndex(e => e.id === id);
+				if (index !== -1) {
+					MOCK_ENTRIES.splice(index, 1);
+					resolve();
+				} else {
+					reject(new Error('Entry not found'));
+				}
+			}, 400);
+		});
+	} catch (error) {
+		console.error('Failed to delete entry:', error);
+		throw error;
+	}
 }
 
 /**
  * Share a vault entry (generate temporary access token)
  */
 export async function shareEntry(id: string, expirationHours: number = 24): Promise<ShareEntryResponse> {
-  try {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}/share`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ expirationHours }),
-    // });
-    // const data = await response.json();
-    // return data;
+	try {
+		// TODO: Replace with actual API call
+		// const response = await fetch(`${API_BASE_URL}/api/vault/entries/${id}/share`, {
+		//   method: 'POST',
+		//   headers: { 'Content-Type': 'application/json' },
+		//   body: JSON.stringify({ expirationHours }),
+		// });
+		// const data = await response.json();
+		// return data;
 
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          shareUrl: `https://dvault.app/shared/${id}?token=${Math.random().toString(36).substr(2)}`,
-          expiresAt: new Date(Date.now() + expirationHours * 3600000).toISOString(),
-        });
-      }, 500);
-    });
-  } catch (error) {
-    console.error('Failed to share entry:', error);
-    throw error;
-  }
+		// Mock implementation
+		return new Promise((resolve) => {
+			setTimeout(() => {
+				resolve({
+					shareUrl: `https://dvault.app/shared/${id}?token=${Math.random().toString(36).substr(2)}`,
+					expiresAt: new Date(Date.now() + expirationHours * 3600000).toISOString(),
+				});
+			}, 500);
+		});
+	} catch (error) {
+		console.error('Failed to share entry:', error);
+		throw error;
+	}
 }
 
 /**
  * Vault creation types and functions
  */
 export interface CreateVaultPayload {
-  name: string;
-  plan: "freemium" | "pro" | "organization";
-  stellarPublicKey?: string;
-  stellarPrivateKey?: string;
-  payment?: {
-    name: string;
-    email: string;
-    cardNumber: string;
-  };
+	name: string;
+	plan: "freemium" | "pro" | "organization";
+	stellarPublicKey?: string;
+	stellarPrivateKey?: string;
+	payment?: {
+		name: string;
+		email: string;
+		cardNumber: string;
+	};
 }
 
 /**
  * Create a new vault with selected plan
  */
 export async function createVault(payload: CreateVaultPayload): Promise<{ success: boolean; vaultContext?: any }> {
-  try {
-    // TODO: Replace with actual API call
-    const response = await fetch(`${CLOUD_BASE_URL}/api/vault/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+	try {
+		// TODO: Replace with actual API call
+		const response = await fetch(`${CLOUD_BASE_URL}/api/vault/create`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		});
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
 
-    const data = await response.json();
-    return { success: true, vaultContext: data.vault_context };
+		const data = await response.json();
+		return { success: true, vaultContext: data.vault_context };
 
-    // Mock implementation - simulate API call
-    // return new Promise((resolve) => {
-    //   setTimeout(() => {
-    //     console.log('Creating vault:', payload.name, 'with plan:', payload.plan);
-    //     resolve({ success: true });
-    //   }, 1500);
-    // });
-  } catch (error) {
-    console.error('Failed to create vault:', error);
-    throw error;
-  }
+		// Mock implementation - simulate API call
+		// return new Promise((resolve) => {
+		//   setTimeout(() => {
+		//     console.log('Creating vault:', payload.name, 'with plan:', payload.plan);
+		//     resolve({ success: true });
+		//   }, 1500);
+		// });
+	} catch (error) {
+		console.error('Failed to create vault:', error);
+		throw error;
+	}
 }
 
 /**
  * Stellar account setup
  */
 export async function setupStellarAccount(): Promise<{ publicKey: string; privateKey: string }> {
-  try {
-    const response = await fetch(`${CLOUD_BASE_URL}/stellar/setup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
+	try {
+		const response = await fetch(`${CLOUD_BASE_URL}/stellar/setup`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+		});
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
 
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to setup Stellar account:', error);
-    throw error;
-  }
+		return await response.json();
+	} catch (error) {
+		console.error('Failed to setup Stellar account:', error);
+		throw error;
+	}
 }
 const filterFilledProps = (obj: Record<string, any>): Record<string, any> => {
-  const filtered: Record<string, any> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== null && value !== '' && value !== 0) {
-      filtered[key] = value;
-    }
-  }
-  return filtered;
+	const filtered: Record<string, any> = {};
+	for (const [key, value] of Object.entries(obj)) {
+		if (value !== null && value !== '' && value !== 0) {
+			filtered[key] = value;
+		}
+	}
+	return filtered;
 };
 
 /**
  * Decrypt a sensitive field
  */
 export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string; expires_in: number }> {
-  const user = useAuthStore.getState().user;
-  console.log({ user })
+	const user = useAuthStore.getState().user;
+	console.log({ user })
 
-  const input: AccessCryptoShareRequest = {
-    share_id: payload.entry_id,
-    recipient_email: user?.Email,
-    challenge: payload.challenge,
-    signature: payload.signature,
-  }
-  console.log("Decrypting vault entry:", input);
+	const input: AccessCryptoShareRequest = {
+		share_id: payload.entry_id,
+		recipient_email: user?.email,
+		challenge: payload.challenge,
+		signature: payload.signature,
+	}
+	console.log("Decrypting vault entry:", input);
 
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
 
-    const result = await AppAPI.DecryptVaultEntry(jwtToken, input);
-    console.log("Decrypted vault entry:", result);
-    console.log("Decrypted vault entry Data:", JSON.parse(result.data.payload));
+		const result = await AppAPI.DecryptVaultEntry(jwtToken, input);
+		console.log("Decrypted vault entry:", result);
+		console.log("Decrypted vault entry Data:", JSON.parse(result.data.payload));
 
-    const filledOnly = filterFilledProps(JSON.parse(result.data.payload));
+		const filledOnly = filterFilledProps(JSON.parse(result.data.payload));
 
-    return {
-      plaintext: JSON.stringify(filledOnly),
-      expires_in: result.data.expires_in,
-    };
-  } catch (err) {
-    console.error("Failed to decrypt vault entry:", err);
-    throw err;
-  }
+		return {
+			plaintext: JSON.stringify(filledOnly),
+			expires_in: result.data.expires_in,
+		};
+	} catch (err) {
+		console.error("Failed to decrypt vault entry:", err);
+		throw err;
+	}
 }
 
 /**
  * Log audit event
  */
 export async function logAuditEvent(event: {
-  event_type: 'view' | 'decrypt' | 'create' | 'update' | 'delete';
-  entry_id: string;
-  field_name?: string;
-  timestamp: string;
-  user_id: string;
+	event_type: 'view' | 'decrypt' | 'create' | 'update' | 'delete';
+	entry_id: string;
+	field_name?: string;
+	timestamp: string;
+	user_id: string;
 }): Promise<void> {
-  try {
-    await fetch(`${API_BASE_URL}/audit/log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(event),
-    });
-  } catch (error) {
-    console.error('Failed to log audit event:', error);
-  }
+	try {
+		await fetch(`${API_BASE_URL}/audit/log`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(event),
+		});
+	} catch (error) {
+		console.error('Failed to log audit event:', error);
+	}
 }
 
 /**
  * Upgrade vault plan
  */
 export async function upgradeVaultPlan(payload: {
-  plan: "pro" | "organization";
-  payment: {
-    name: string;
-    email: string;
-    cardNumber: string;
-  };
+	plan: "pro" | "organization";
+	payment: {
+		name: string;
+		email: string;
+		cardNumber: string;
+	};
 }): Promise<{ success: boolean }> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/payment/upgrade`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+	try {
+		const response = await fetch(`${API_BASE_URL}/payment/upgrade`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		});
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
 
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to upgrade plan:', error);
-    throw error;
-  }
+		return await response.json();
+	} catch (error) {
+		console.error('Failed to upgrade plan:', error);
+		throw error;
+	}
 }
 
 /**
  * todo: Get full vault context (entries + shared entries + runtime context)
  */
 export async function getVaultContext(): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/vault`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    });
+	try {
+		const response = await fetch(`${API_BASE_URL}/vault`, {
+			method: 'GET',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+		});
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}`);
+		}
 
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to get vault context:', error);
-    throw error;
-  }
+		return await response.json();
+	} catch (error) {
+		console.error('Failed to get vault context:', error);
+		throw error;
+	}
 }
 
 /**
  * Create a new shared entry (through Wails backend)
  */
 export async function createSharedEntry(payload: {
-  entry_id: string;
-  recipients: { name: string; email: string; role: 'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
-  permission: 'read' | 'edit' | 'temporary';
-  expires_at?: string;
-  custom_message?: string;
-  download_allowed?: boolean;
+	entry_id: string;
+	recipients: { name: string; email: string; role: 'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
+	permission: 'read' | 'edit' | 'temporary';
+	expires_at?: string;
+	custom_message?: string;
+	download_allowed?: boolean;
 }): Promise<any> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const vaultStore = useVaultStore.getState();
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const vaultStore = useVaultStore.getState();
 
-    // Find the entry in the vault
-    const vaultEntries = vaultStore.vault?.Vault ? [
-      ...(vaultStore.vault.Vault.entries?.login || []),
-      ...(vaultStore.vault.Vault.entries?.card || []),
-      ...(vaultStore.vault.Vault.entries?.note || []),
-      ...(vaultStore.vault.Vault.entries?.sshkey || []),
-      ...(vaultStore.vault.Vault.entries?.identity || []),
-    ] : [];
+		// Find the entry in the vault
+		const vaultEntries = vaultStore.vault?.Vault ? [
+			...(vaultStore.vault.Vault.entries?.login || []),
+			...(vaultStore.vault.Vault.entries?.card || []),
+			...(vaultStore.vault.Vault.entries?.note || []),
+			...(vaultStore.vault.Vault.entries?.sshkey || []),
+			...(vaultStore.vault.Vault.entries?.identity || []),
+		] : [];
 
-    const selectedEntry = vaultEntries.find(e => e.id === payload.entry_id);
+		const selectedEntry = vaultEntries.find(e => e.id === payload.entry_id);
 
-    if (!selectedEntry) {
-      throw new Error(`Entry with id ${payload.entry_id} not found in vault`);
-    }
+		if (!selectedEntry) {
+			throw new Error(`Entry with id ${payload.entry_id} not found in vault`);
+		}
 
-    // Build the proper CreateShareEntryPayload
-    const createSharePayload = new handlers.CreateShareEntryPayload({
-      entry_name: selectedEntry.entry_name,
-      entry_type: selectedEntry.type,
-      status: "active",
-      access_mode: payload.permission === 'edit' ? 'edit' : 'read',
-      encryption: "AES-256-GCM",
-      entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
-      expires_at: payload.expires_at || "",
-      recipients: payload.recipients.map(r => ({
-        name: r.name,
-        email: r.email,
-        role: r.role,
-        public_key: r.publicKey,
-      })),
-      download_allowed: payload.download_allowed || false,
-    });
+		// Build the proper CreateShareEntryPayload
+		const createSharePayload = new handlers.CreateShareEntryPayload({
+			entry_name: selectedEntry.entry_name,
+			entry_type: selectedEntry.type,
+			status: "active",
+			access_mode: payload.permission === 'edit' ? 'edit' : 'read',
+			encryption: "AES-256-GCM",
+			entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
+			expires_at: payload.expires_at || "",
+			recipients: payload.recipients.map(r => ({
+				name: r.name,
+				email: r.email,
+				role: r.role,
+				public_key: r.publicKey,
+			})),
+			download_allowed: payload.download_allowed || false,
+		});
 
-    // Wails backend is exposed via the global App object
-    // This calls your Go handler CreateShare
-    const input = new main.CreateShareInput({
-      payload: createSharePayload,
-      jwtToken: jwtToken,
-    });
+		// Wails backend is exposed via the global App object
+		// This calls your Go handler CreateShare
+		const input = new main.CreateShareInput({
+			payload: createSharePayload,
+			jwtToken: jwtToken,
+		});
 
-    console.log("CreateShareInput:", input);
-    const result = await AppAPI.CreateShare(input);
+		console.log("CreateShareInput:", input);
+		const result = await AppAPI.CreateShare(input);
 
-    console.log("CreateShareInput result:", result);
-    return result;
-  } catch (err) {
-    console.error("Failed to create shared entry:", err);
-    throw err;
-  }
+		console.log("CreateShareInput result:", result);
+		return result;
+	} catch (err) {
+		console.error("Failed to create shared entry:", err);
+		throw err;
+	}
 }
 type CreateLinkShareEntryResponse = {
-  data: LinkShareEntry;
-  status: string;
-  error: string;
-  code: string;
+	data: LinkShareEntry;
+	status: string;
+	error: string;
+	code: string;
 }
 export async function createLinkShareEntry(payload: CreateLinkShareEntryPayload): Promise<CreateLinkShareEntryResponse> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const request = new share_application_dto.LinkShareCreateRequest({
-      payload: JSON.stringify(payload.payload),
-      expires_at: payload.expires_at,
-      max_views: payload.max_views,
-      download_allowed: payload.download_allowed || false,
-      creator_email: payload.creator_email,
-      entry_type: payload.entry_type,
-      title: payload.title,
-      password: payload.password,
-    });
-    const result: main.CreateLinkShareOutput = await AppAPI.CreateLinkShare(request, jwtToken);
-    console.log("CreateLinkShareEntry result:", result);
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const request = new share_application_dto.LinkShareCreateRequest({
+			payload: JSON.stringify(payload.payload),
+			expires_at: payload.expires_at,
+			max_views: payload.max_views,
+			download_allowed: payload.download_allowed || false,
+			creator_email: payload.creator_email,
+			entry_type: payload.entry_type,
+			title: payload.title,
+			password: payload.password,
+		});
+		const result: main.CreateLinkShareOutput = await AppAPI.CreateLinkShare(request, jwtToken);
+		console.log("CreateLinkShareEntry result:", result);
 
-    // convert mainn.LinkShare to wails.LinkShare
-    const backendLinkShare = result.data;
-    const linkShare: LinkShareEntry = {
-      id: backendLinkShare.ID,
-      entry_name: backendLinkShare.Metadata.Title,
-      status: "active",
-      expiry: backendLinkShare.ExpiresAt,
-      uses_left: backendLinkShare.MaxViews - backendLinkShare.ViewCount,
-      link: `https://ankhora.app/share/${backendLinkShare.ID}`,
-      audit_log: [],
-      payload: backendLinkShare.Payload,
-      allow_download: backendLinkShare.DownloadAllowed,
-    };
+		// convert mainn.LinkShare to wails.LinkShare
+		const backendLinkShare = result.data;
+		const linkShare: LinkShareEntry = {
+			id: backendLinkShare.ID,
+			entry_name: backendLinkShare.Metadata.Title,
+			status: "active",
+			expiry: backendLinkShare.ExpiresAt,
+			uses_left: backendLinkShare.MaxViews - backendLinkShare.ViewCount,
+			link: `https://ankhora.app/share/${backendLinkShare.ID}`,
+			audit_log: [],
+			payload: backendLinkShare.Payload,
+			allow_download: backendLinkShare.DownloadAllowed,
+		};
 
-    return {
-      data: linkShare,
-      status: result.status,
-      error: result.error,
-      code: result.code,
-    };
-  } catch (err) {
-    console.error("Failed to create link share entry:", err);
-    throw err;
-  }
+		return {
+			data: linkShare,
+			status: result.status,
+			error: result.error,
+			code: result.code,
+		};
+	} catch (err) {
+		console.error("Failed to create link share entry:", err);
+		throw err;
+	}
 }
 
 // Cryptographic share by me
 export async function listSharedEntries(): Promise<any> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const result = await AppAPI.ListSharedEntries(jwtToken);
-    console.log("Listed shared by me:", result);
-    return result;
-  } catch (err) {
-    console.error("Failed to list shared entries:", err);
-    // throw err;
-  }
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result = await AppAPI.ListSharedEntries(jwtToken);
+		console.log("Listed shared by me:", result);
+		return result;
+	} catch (err) {
+		console.error("Failed to list shared entries:", err);
+		// throw err;
+	}
 }
 // Cryptographic share with me
 export async function listSharedWithMe(): Promise<any> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const result = await AppAPI.ListReceivedShares(jwtToken);
-    console.log("Listed shared with me:", result);
-    return result;
-  } catch (err) {
-    console.error("Failed to list shared entries:", err);
-    // throw err;
-  }
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result = await AppAPI.ListReceivedShares(jwtToken);
+		console.log("Listed shared with me:", result);
+		return result;
+	} catch (err) {
+		console.error("Failed to list shared entries:", err);
+		// throw err;
+	}
 }
 
 
 // Link share by me
 export async function listLinkSharesByMe(): Promise<LinkShareEntry[]> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const result: any = await AppAPI.ListLinkSharesByMe(jwtToken);
-    console.log("Listed link shares by me:", result);
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result: any = await AppAPI.ListLinkSharesByMe(jwtToken);
+		console.log("Listed link shares by me:", result);
 
-    if (result && result.data) {
-      return result.data.map((item: any) => ({
-        id: item.id,
-        entry_name: item.entry_name,
-        status: item.status as LinkShareEntry['status'],
-        expiry: item.expiry,
-        uses_left: item.uses_left,
-        link: item.link,
-        audit_log: item.audit_log || [],
-        payload: item.payload,
-        allow_download: item.allow_download,
-        password: item.password,
-      }));
-    }
-    return [];
-  } catch (err) {
-    console.error("Failed to list link shares by me:", err);
-    // throw err;
-  }
+		if (result && result.data) {
+			return result.data.map((item: any) => ({
+				id: item.id,
+				entry_name: item.entry_name,
+				status: item.status as LinkShareEntry['status'],
+				expiry: item.expiry,
+				uses_left: item.uses_left,
+				link: item.link,
+				audit_log: item.audit_log || [],
+				payload: item.payload,
+				allow_download: item.allow_download,
+				password: item.password,
+			}));
+		}
+		return [];
+	} catch (err) {
+		console.error("Failed to list link shares by me:", err);
+		// throw err;
+	}
 }
 // Link share with me
 export async function listLinkSharesWithMe(): Promise<any> {
-  try {
-    const jwtToken = useAuthStore.getState().jwtToken;
-    const result = await AppAPI.ListLinkSharesWithMe(jwtToken);
-    console.log("Listed link shares with me:", result);
-    return result;
-  } catch (err) {
-    console.error("Failed to list link shares with me:", err);
-  }
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result = await AppAPI.ListLinkSharesWithMe(jwtToken);
+		console.log("Listed link shares with me:", result);
+		return result;
+	} catch (err) {
+		console.error("Failed to list link shares with me:", err);
+	}
 }
 
 // Auth APIs
 export interface CheckEmailResponse {
-  status: 'NEW_USER' | 'EXISTS';
-  auth_methods?: ('password' | 'stellar')[];
+	status: 'NEW_USER' | 'EXISTS';
+	auth_methods?: ('password' | 'stellar')[];
 }
 
 export const checkEmail = async (email: string): Promise<CheckEmailResponse> => {
-  const res: handlers.CheckEmailResponse = await AppAPI.CheckEmail(email);
-  // Check if we got a valid response
-  if (!res) throw new Error("CheckEmail failed: empty result");
-  console.log("CheckEmailResponse:", res);
-  return {
-    status: res.status as 'NEW_USER' | 'EXISTS',
-    auth_methods: res.auth_methods as ('password' | 'stellar')[] | undefined,
-  };
+	const res: handlers.CheckEmailResponse = await AppAPI.CheckEmail(email);
+	// Check if we got a valid response
+	if (!res) throw new Error("CheckEmail failed: empty result");
+	console.log("CheckEmailResponse:", res);
+	return {
+		status: res.status as 'NEW_USER' | 'EXISTS',
+		auth_methods: res.auth_methods as ('password' | 'stellar')[] | undefined,
+	};
 };
 
 
 export interface AuthResponse {
-  User: User;
-  Vault: VaultPayload;
-  Tokens: {
-    access_token: string;
-    refresh_token: string;
-  };
-  vault_runtime_context: any;
-  last_cid: string;
-  dirty: boolean;
-  tier?: string;
-  price?: any;
-  method_billing?: string;
-  payment_method?: string;
-  next_billing_date?: string;
-  next_payment_date?: string;
-  subscription?: any;
-  status?: string;
-  features?: any;
-  used_gb?: number;
-  quota_gb?: number;
-  percentage?: number;
+	User: User;
+	Vault: VaultPayload;
+	Tokens: {
+		access_token: string;
+		refresh_token: string;
+	};
+	vault_runtime_context: any;
+	last_cid: string;
+	dirty: boolean;
+	tier?: string;
+	price?: any;
+	method_billing?: string;
+	payment_method?: string;
+	next_billing_date?: string;
+	next_payment_date?: string;
+	subscription?: any;
+	status?: string;
+	features?: any;
+	used_gb?: number;
+	quota_gb?: number;
+	percentage?: number;
 }
 
-export const login = async (payload: LoginRequest): Promise<vault_application.LoginResponse> => {
-  console.log("Password login payload:", payload);
-  const res: vault_application.LoginResponse = await AppAPI.SignInWithIdentity(payload);
-  console.log("LoginResponse:", res);
+export const login = async (payload: LoginRequest): Promise<vault_dto.LoginResponse> => {
+	console.log("Password login payload:", payload);
+	const res: vault_dto.LoginResponse = await AppAPI.SignInWithIdentity(payload);
+	console.log("LoginResponse:", res);
 
-  return res;
+	return res;
 };
 
 export interface SignupPayload {
-  email: string;
-  name: string;
-  password: string;
-  org?: string;
-  country?: string;
+	email: string;
+	name: string;
+	password: string;
+	org?: string;
+	country?: string;
 }
 
 export const signup = async (payload: SignupPayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+	const response = await fetch(`${API_BASE_URL}/signup`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to signup: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to signup: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 export async function getSharedEntry(id: string) {
-  const res = await fetch(`${CLOUD_BASE_URL}/shares/${id}`, {
-    method: "GET",
-    credentials: "include",
-  });
+	const res = await fetch(`${CLOUD_BASE_URL}/shares/${id}`, {
+		method: "GET",
+		credentials: "include",
+	});
 
-  if (!res.ok) throw new Error("Failed to fetch shared entry");
+	if (!res.ok) throw new Error("Failed to fetch shared entry");
 
-  return await res.json();
+	return await res.json();
 }
 type GetRecommendedTierPayload = string;
 
 export const GetRecommendedTier = async (payload: GetRecommendedTierPayload) => {
-  try {
-    const { identity } = await AppAPI.GetRecommendedTier(payload);
-    console.log("Recommended tier:", { identity });
-    return identity;
-  } catch (error) {
-    console.error("Failed to fetch recommended tier", error);
-    return null;
-  }
+	try {
+		const { identity } = await AppAPI.GetRecommendedTier(payload);
+		console.log("Recommended tier:", { identity });
+		return identity;
+	} catch (error) {
+		console.error("Failed to fetch recommended tier", error);
+		return null;
+	}
 }
 type SetupPaymentAndActivatePayload = {
-  user_id: string;
-  tier: string;
-  payment_method: string;
+	user_id: string;
+	tier: string;
+	payment_method: string;
 }
 type TierFeaturesResponse = {
-  [tier: string]: {
-    name?: string;
-    description?: string;
-    features?: string[];
-  };
+	[tier: string]: {
+		name?: string;
+		description?: string;
+		features?: string[];
+	};
 }
 type CreateAccountPayload = {
-  email: string;
-  name: string;
-  password: string;
-  org?: string;
-  country?: string;
-  tier: string;
-  is_anonymous: boolean;
+	email: string;
+	name: string;
+	password: string;
+	org?: string;
+	country?: string;
+	tier: string;
+	is_anonymous: boolean;
 }
 type AccountCreationResponse = {
-  user_id: string;
-  stellar_key?: string;
-  secret_key?: string;
+	user_id: string;
+	stellar_key?: string;
+	secret_key?: string;
 }
 
 export const CreateAccount = async (payload: CreateAccountPayload): Promise<AccountCreationResponse> => {
-  try {
+	try {
 
-    const response = await AppAPI.CreateAccount(payload);
-    console.log("CreateAccountResponse:", response);
-    return response as AccountCreationResponse;
-  } catch (error) {
-    console.error("Failed to create account", error);
-    throw error;
-  }
+		const response = await AppAPI.CreateAccount(payload);
+		console.log("CreateAccountResponse:", response);
+		return response as AccountCreationResponse;
+	} catch (error) {
+		console.error("Failed to create account", error);
+		throw error;
+	}
 
 
 
@@ -782,258 +784,438 @@ export const CreateAccount = async (payload: CreateAccountPayload): Promise<Acco
 };
 
 type PaymentSetupRequest = {
-  user_id: string;
-  tier: string;
-  payment_method: string;
-  stripe_payment_method_id?: string;
-  encrypted_payment_data?: string;
-  stellar_public_key?: string;
-  card_number: string;
-  card_brand: string;
-  payment_method_id: string;
-  exp: string;
-  cvc: string;
-  exp_month: string;
-  exp_year: string;
-  last_four: string;
-  currency: string;
-  amount: string;
-  plan: string;
-  product_id: string;
+	user_id: string;
+	tier: string;
+	payment_method: string;
+	stripe_payment_method_id?: string;
+	encrypted_payment_data?: string;
+	stellar_public_key?: string;
+	card_number: string;
+	card_brand: string;
+	payment_method_id: string;
+	exp: string;
+	cvc: string;
+	exp_month: string;
+	exp_year: string;
+	last_four: string;
+	currency: string;
+	amount: string;
+	plan: string;
+	product_id: string;
 }
 type PaymentSetupResponse = {
-  user_id: string;
-  stellar_key?: string;
-  secret_key?: string;
+	user_id: string;
+	stellar_key?: string;
+	secret_key?: string;
 }
 
 export const SetupPaymentAndActivate = async (payload: PaymentSetupRequest): Promise<subscription_domain.Subscription> => {
-  console.log("SetupPaymentAndActivate payload:", { payload });
+	console.log("SetupPaymentAndActivate payload:", { payload });
 
-  try {
-    const response = await AppAPI.SetupPaymentAndActivate(payload);
-    console.log("SetupPaymentAndActivateResponse:", response);
-    return response;
-  } catch (error) {
-    console.error("Failed to setup payment and activate", error);
-    throw error;
-  }
+	try {
+		const response = await AppAPI.SetupPaymentAndActivate(payload);
+		console.log("SetupPaymentAndActivateResponse:", response);
+		return response;
+	} catch (error) {
+		console.error("Failed to setup payment and activate", error);
+		throw error;
+	}
 
 };
 
 export const GetTierFeatures = async (tier: string): Promise<TierFeaturesResponse> => {
-  // const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
-  //   method: 'GET',
-  //   headers: { 'Content-Type': 'application/json' },
-  // });
-  try {
-    const response = await AppAPI.GetTierFeatures();
-    console.log("Tier features:", { response });
-    return response;
-  } catch (error) {
-    console.error("Failed to fetch tier features", error);
-    return {};
-  }
+	// const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
+	//   method: 'GET',
+	//   headers: { 'Content-Type': 'application/json' },
+	// });
+	try {
+		const response = await AppAPI.GetTierFeatures();
+		console.log("Tier features:", { response });
+		return response;
+	} catch (error) {
+		console.error("Failed to fetch tier features", error);
+		return {};
+	}
 }
 
 type UpgradeSubscriptionPayload = {
-  user_id: string;
-  tier: string;
-  payment_method: string;
+	user_id: string;
+	tier: string;
+	payment_method: string;
 }
 type CancelSubscriptionPayload = {
-  user_id: string;
-  reason: string;
+	user_id: string;
+	reason: string;
 }
 type BillingHistoryResponse = {
-  history: {
-    id: string;
-    created_at: string;
-    description: string;
-    amount: number;
-    status: string;
-    stellar_tx_hash?: string;
-    stripe_intent_id?: string;
-  }[];
+	history: {
+		id: string;
+		created_at: string;
+		description: string;
+		amount: number;
+		status: string;
+		stellar_tx_hash?: string;
+		stripe_intent_id?: string;
+	}[];
 }
 export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/upgrade-subscription`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+	const response = await fetch(`${API_BASE_URL}/upgrade-subscription`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 export const CancelSubscription = async (payload: CancelSubscriptionPayload): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/cancel-subscription`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+	const response = await fetch(`${API_BASE_URL}/cancel-subscription`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to cancel subscription: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to cancel subscription: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 export const GetBillingHistory = async (): Promise<BillingHistoryResponse> => {
-  const response = await fetch(`${API_BASE_URL}/get-billing-history`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+	const response = await fetch(`${API_BASE_URL}/get-billing-history`, {
+		method: 'GET',
+		headers: { 'Content-Type': 'application/json' },
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to get billing history: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to get billing history: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 export const GetSubscriptionDetails = async (): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/get-subscription-details`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+	const response = await fetch(`${API_BASE_URL}/get-subscription-details`, {
+		method: 'GET',
+		headers: { 'Content-Type': 'application/json' },
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to get subscription details: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to get subscription details: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 export const GetStorageUsage = async (): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/get-storage-usage`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+	const response = await fetch(`${API_BASE_URL}/get-storage-usage`, {
+		method: 'GET',
+		headers: { 'Content-Type': 'application/json' },
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to get storage usage: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to get storage usage: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 type RecoverVaultResponse = {
-  vault_id: string;
+	vault_id: string;
 }
 type ImportStellarKeyResponse = {
-  vault_id: string;
+	vault_id: string;
 }
 
 export const CheckStellarKeyForVault = async (payload: string): Promise<main.CheckKeyResponse> => {
-  const response = await AppAPI.CheckStellarKeyForVault(payload);
+	const response = await AppAPI.CheckStellarKeyForVault(payload);
 
-  if (!response.ok) { // note capital Ok
-    throw new Error(`Failed to check stellar key for vault`);
-  }
-  console.log(response)
-  return response;
+	if (!response.ok) { // note capital Ok
+		throw new Error(`Failed to check stellar key for vault`);
+	}
+	console.log(response)
+	return response;
 };
 
 export const ConnectWithStellar = async (payload: LoginRequest): Promise<main.CheckKeyResponse> => {
-  try {
-    const response = await AppAPI.ConnectWithStellar(payload);
-    console.log(response)
+	try {
+		const response = await AppAPI.ConnectWithStellar(payload);
+		console.log(response)
 
-    return response;
-  } catch (error) {
-    console.log(error)
-    throw new Error(`Failed to connect with stellar: ${error.message}`);
-  }
+		return response;
+	} catch (error) {
+		console.log(error)
+		throw new Error(`Failed to connect with stellar: ${error.message}`);
+	}
 };
 
 export const RecoverVault = async (stellar_key: string): Promise<RecoverVaultResponse> => {
-  const response = await fetch(`${API_BASE_URL}/recover-vault`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stellar_key }),
-  });
+	const response = await fetch(`${API_BASE_URL}/recover-vault`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ stellar_key }),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to recover vault: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to recover vault: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 export const ImportStellarKey = async (stellar_key: string): Promise<ImportStellarKeyResponse> => {
-  const response = await fetch(`${API_BASE_URL}/import-stellar-key`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stellar_key }),
-  });
+	const response = await fetch(`${API_BASE_URL}/import-stellar-key`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ stellar_key }),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to import stellar key: ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to import stellar key: ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 };
 
 export const StellarAsksForChallenge = async (stellarKey: string) => {
-  // 1. Generate keypair
-  const keypair = Keypair.fromSecret(stellarKey);
-  const publicKey = keypair.publicKey();
+	// 1. Generate keypair
+	const keypair = Keypair.fromSecret(stellarKey);
+	const publicKey = keypair.publicKey();
 
-  // 2. Request challenge from backend
-  const { challenge } = await AppAPI.RequestChallenge({ public_key: publicKey });
+	// 2. Request challenge from backend
+	const { challenge } = await AppAPI.RequestChallenge({ public_key: publicKey });
 
-  // 3. Sign challenge
-  const signature = Buffer.from(
-    keypair.sign(Buffer.from(challenge))
-  ).toString("base64");
+	// 3. Sign challenge
+	const signature = Buffer.from(
+		keypair.sign(Buffer.from(challenge))
+	).toString("base64");
 
-  return { publicKey, signature, challenge };
+	return { publicKey, signature, challenge };
 }
 type GenerateApiKeyInput = {
-  password: string;
-  jwtToken: string;
+	password: string;
+	jwtToken: string;
 }
 type GenerateApiKeyResponse = {
-  public_key: string;
-  private_key: string;
+	public_key: string;
+	private_key: string;
 }
 export const GenerateApiKey = async (payload: GenerateApiKeyInput): Promise<GenerateApiKeyResponse> => {
-  const response = await AppAPI.GenerateApiKey(payload);
-  console.log({ response })
+	const response = await AppAPI.GenerateApiKey(payload);
+	console.log({ response })
 
-  // if (!response.ok) {
-  //   throw new Error(`Failed to generate API key: ${response.statusText}`);
-  // }
+	// if (!response.ok) {
+	//   throw new Error(`Failed to generate API key: ${response.statusText}`);
+	// }
 
-  return response;
+	return response;
 };
 
 type EditUserInfosInput = {
-  user_name: string;
-  first_name: string;
-  last_name: string;
+	user_name: string;
+	first_name: string;
+	last_name: string;
 }
 type EditUserInfosResponse = {
-  user_name: string;
-  first_name: string;
-  last_name: string;
+	user_name: string;
+	first_name: string;
+	last_name: string;
 }
 export const EditUserInfos = async (jwtToken: string, payload: EditUserInfosInput): Promise<EditUserInfosResponse> => {
-  const response = await AppAPI.EditUserInfos(jwtToken, payload);
-  console.log({ response })
+	const response = await AppAPI.EditUserInfos(jwtToken, payload);
+	console.log({ response })
 
-  // if (!response.ok) {
-  //   throw new Error(`Failed to edit user infos: ${response.statusText}`);
-  // }
+	// if (!response.ok) {
+	//   throw new Error(`Failed to edit user infos: ${response.statusText}`);
+	// }
 
-  const res: EditUserInfosResponse = {
-    user_name: "",
-    first_name: "",
-    last_name: "",
-  }
-  return res;
-};  
+	const res: EditUserInfosResponse = {
+		user_name: "",
+		first_name: "",
+		last_name: "",
+	}
+	return res;
+};
+
+export const GetConfig = async (vaultName: string, jwtToken: string): Promise<SettingsState> => {
+	const getConfigRes = await AppAPI.GetConfig(vaultName, jwtToken);
+	const settings: SettingsState = {
+		security: {
+			autoLockSeconds: getConfigRes.Vaults.security.AutoLockSeconds || 300,
+			clearClipboardAfter: getConfigRes.Vaults.security.ClearClipboardAfter,
+			twoFactorEnabled: getConfigRes.User.two_factor_enabled || false
+		},
+		sync: {
+			stellarFrequency: getConfigRes.Vaults.sync.stellar_frequency || "manual",
+			ipfsPinning: false,
+			syncIntervalSeconds: getConfigRes.Vaults.sync.sync_interval_seconds || 60,
+			maxRetries: getConfigRes.Vaults.sync.max_retries || 3
+		},
+		ui: {
+			theme: getConfigRes.User.ui.theme || "system",
+			animationsEnabled: getConfigRes.User.ui.animations_enabled
+		},
+		features: {
+			tracecoreEnabled: getConfigRes.Vaults.features.tracecore_enabled,
+			cloudBackupEnabled: getConfigRes.Vaults.features.cloud_backup_enabled,
+			threatDetectionEnabled: getConfigRes.Vaults.features.threat_detection_enabled,
+			browserExtensionEnabled: getConfigRes.Vaults.features.browser_extension_enabled,
+			gitCLIEnabled: getConfigRes.Vaults.features.git_cli_enabled
+		},
+		backup: {
+			enabled: getConfigRes.Vaults.backup.enabled,
+			schedule: getConfigRes.Vaults.backup.schedule,
+			retentionDays: getConfigRes.Vaults.backup.retention_days,
+			encryption: getConfigRes.Vaults.backup.encryption
+		},
+		device: {
+			user_id:getConfigRes?.User?.id,
+			vault_name: vaultName,
+			device_id: "6544568-665445",
+			device_name: getConfigRes.Devices.length > 0 && getConfigRes.Devices[0].device_name || "mac_os-62654",
+			last_synced: getConfigRes.Devices.length > 0 && getConfigRes.Devices[0].last_sync || 2,
+		},
+		subscription: {
+			user_id:getConfigRes?.User?.id,
+			vault_name: vaultName,
+			plan: getConfigRes.Subscription.plan || "free",
+			features: {
+				tracecoreEnabled: getConfigRes.Vaults.features.tracecore_enabled,
+				cloudBackupEnabled: getConfigRes.Vaults.features.cloud_backup_enabled,
+				threatDetectionEnabled: getConfigRes.Vaults.features.threat_detection_enabled,
+				browserExtensionEnabled: getConfigRes.Vaults.features.browser_extension_enabled,
+				gitCLIEnabled: getConfigRes.Vaults.features.git_cli_enabled
+
+			},
+			limits: {
+				maxVaults: getConfigRes.Subscription.limits.max_vaults || 1,
+				maxUsers: getConfigRes.Subscription.limits.max_users  || 1,
+				maxDevices: getConfigRes.Subscription.limits.max_devices  || 1,
+				maxShares: getConfigRes.Subscription.limits.max_shares  || 1
+			}
+		},
+		sharing: {
+			allowExternalSharing: getConfigRes.Vaults.sharing.AllowExternalSharing,
+			defaultExpiryHours: getConfigRes.Vaults.sharing.DefaultExpiryHours || 60,
+			requirePassword: getConfigRes.Vaults.sharing.RequirePassword,
+			maxSharesPerEntry: getConfigRes.Vaults.sharing.MaxSharesPerEntry || 300,
+		},
+
+		privacy: {
+			telemetryEnabled: getConfigRes.Vaults.privacy.telemetry_enabled,
+			anonymousMode: getConfigRes.Vaults.privacy.anonymous_mode,
+		},
+	}
+	console.log({ getConfigRes, settings })
+
+	// if (!response.ok) {
+	//   throw new Error(`Failed to get config: ${response.statusText}`);
+	// }
+
+	return settings;
+};
+const syncMap = {
+		auto: 60,
+		hourly: 3600,
+		daily: 86400,
+		manual: 0,
+	};
+
+export const EditConfig = async (user: User, vault: Vault, settings: SettingsState, jwtToken: string) => {
+	console.log({vault})
+
+	const payload = {
+		ui: {
+			theme: settings.ui.theme,
+			animations_enabled: settings.ui.animationsEnabled
+		},
+		vaults: {
+			id: "",
+			user_id: user.ID,
+			vault_name: vault.name,
+			features: {
+				tracecore_enabled: settings.features.tracecoreEnabled,
+				cloud_backup_enabled: settings.features.cloudBackupEnabled,
+				threat_detection_enabled: settings.features.threatDetectionEnabled,
+				browser_extension_enabled: settings.features.browserExtensionEnabled,
+				git_cli_enabled: settings.features.gitCLIEnabled
+			},
+			sync: {
+				stellar_frequency: settings.sync.stellarFrequency,
+				auto_sync: settings.sync.ipfsPinning,
+				sync_interval_seconds: settings.sync.syncIntervalSeconds,
+				max_retries: settings.sync.maxRetries
+			},
+			backup: {
+				enabled: settings.backup.enabled,
+				schedule: settings.backup.schedule,
+				retention_days: settings.backup.retentionDays,
+				encryption: settings.backup.encryption
+			},
+			privacy: {
+				telemetry_enabled: settings.privacy.telemetryEnabled,
+				anonymous_mode: settings.privacy.anonymousMode
+			},
+			sharing: {
+				AllowExternalSharing: settings.sharing.allowExternalSharing,
+				DefaultExpiryHours: settings.sharing.defaultExpiryHours,
+				RequirePassword: settings.sharing.requirePassword,
+				MaxSharesPerEntry: settings.sharing.maxSharesPerEntry
+			},
+			security: {
+				AutoLockSeconds: settings.security.autoLockSeconds,
+				ClearClipboardAfter: settings.security.clearClipboardAfter
+			}
+		},
+		devices: {
+			user_id: settings.device.user_id,
+			vault_name: vault.name,
+			device_id: settings.device.device_id,
+			device_name: settings.device.device_name,
+			last_sync: settings.device.last_synced,
+		},
+		subscription: {
+			user_id: settings.device.user_id,
+			vault_name: vault.name,
+			plan: settings.subscription.plan,
+			features: {
+				tracecore_enabled: settings.subscription.features.tracecoreEnabled,
+				cloud_backup_enabled: settings.subscription.features.cloudBackupEnabled,
+				threat_detection_enabled: settings.subscription.features.threatDetectionEnabled,
+				browser_extension_enabled: settings.subscription.features.browserExtensionEnabled,
+				git_cli_enabled: settings.subscription.features.gitCLIEnabled
+			},
+			limits: {
+				max_vaults: settings.subscription.limits.maxVaults,
+				max_users: settings.subscription.limits.maxUsers,
+				max_devices: settings.subscription.limits.maxDevices,
+				max_shares: settings.subscription.limits.maxShares
+			}
+		}
+	}
+	console.log({payload})
+
+	const settingsInstance = new app_config_dto.Settings(payload);
+	const editedSettings = await AppAPI.EditConfig(vault.name, settingsInstance, jwtToken)
+	console.log({ editedSettings })
+}
+
+export const uploadAvatar = async (jwtToken: string, vaultName: string, buffer: Uint8Array): Promise<string> => {
+	const response = await AppAPI.UploadAvatar(jwtToken, vaultName, Array.from(buffer));
+	console.log({ response })
+	return response;
+};
+export const getVaultAvatar = async (jwtToken: string, vaultName: string): Promise<string> => {
+	const response = await AppAPI.GetVaultAvatar(jwtToken, vaultName);
+	console.log({ response })
+	return response;
+};
+
+export const loadAvatar = async (jwtToken: string, vaultName: string): Promise<string> => {
+	const response = await AppAPI.LoadAvatar(jwtToken, vaultName);
+	console.log({ response })
+	return response;
+};

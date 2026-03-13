@@ -1,11 +1,11 @@
 import { ReactNode, useState, useMemo, useEffect, forwardRef } from "react";
 import { NavLink, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
-  Shield, Settings, LogOut, Menu, Search, User,
-  Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
-  LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
-  Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share,
-  Trash
+	Shield, Settings, LogOut, Menu, Search, User,
+	Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
+	LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
+	Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share,
+	Trash
 } from "lucide-react";
 import { NewShareModal } from "@/components/NewCryptoShareModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,22 +13,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
+	Sidebar,
+	SidebarContent,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarProvider,
+	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CreateEntryDialog } from "@/components/CreateEntryDialog"
@@ -47,311 +47,312 @@ import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
 import PaymentRequestModal from "./Payments/PaymentRequestModal";
 import { useVault } from "@/hooks/useVault";
+import { getVaultAvatar, loadAvatar } from "@/services/api";
 
 
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
-  children: React.ReactNode;
-  className?: string;
-  activeClassName?: string;
+	children: React.ReactNode;
+	className?: string;
+	activeClassName?: string;
 }
 
 const CustomNavLink = forwardRef<HTMLAnchorElement, CustomNavLinkProps>(
-  ({ children, className = "", activeClassName = "", ...props }, ref) => {
-    return (
-      <ReactRouterNavLink
-        ref={ref}
-        className={({ isActive }) =>
-          `${className} ${isActive ? activeClassName : ""}`
-        }
-        {...props}
-      >
-        {children}
-      </ReactRouterNavLink>
-    );
-  }
+	({ children, className = "", activeClassName = "", ...props }, ref) => {
+		return (
+			<ReactRouterNavLink
+				ref={ref}
+				className={({ isActive }) =>
+					`${className} ${isActive ? activeClassName : ""}`
+				}
+				{...props}
+			>
+				{children}
+			</ReactRouterNavLink>
+		);
+	}
 );
 CustomNavLink.displayName = "CustomNavLink";
 
 const dashboardNavItems = [
-  { title: "Dashboard", url: "/dashboard", icon: Home },
-  { title: "Vault", url: "/dashboard/vault", icon: Shield },
-  { title: "Shares", url: "/dashboard/shared", icon: Share },
+	{ title: "Dashboard", url: "/dashboard", icon: Home },
+	{ title: "Vault", url: "/dashboard/vault", icon: Shield },
+	{ title: "Shares", url: "/dashboard/shared", icon: Share },
 ];
 
 const dashboardSecondaryItems = [
-  { title: "Chat", url: "/dashboard/chat", icon: MessageSquare },
-  { title: "About", url: "/dashboard/about", icon: Info },
-  { title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
+	{ title: "Chat", url: "/dashboard/chat", icon: MessageSquare },
+	{ title: "About", url: "/dashboard/about", icon: Info },
+	{ title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
 ];
 
 const sharedEntriesItems = [
-  { title: "All", filter: "all", url: "/dashboard/shared", icon: Folder },
-  { title: "Sent", filter: "sent", url: "/dashboard/shared?filter=sent", icon: LogOut },
-  { title: "Received", filter: "received", url: "/dashboard/shared?filter=received", icon: LogIn },
-  { title: "Pending", filter: "pending", url: "/dashboard/shared?filter=pending", icon: Clock },
-  { title: "Revoked", filter: "revoked", url: "/dashboard/shared?filter=revoked", icon: X },
-  { title: "With me", filter: "withme", url: "/dashboard/shared?filter=withme", icon: Users },
+	{ title: "All", filter: "all", url: "/dashboard/shared", icon: Folder },
+	{ title: "Sent", filter: "sent", url: "/dashboard/shared?filter=sent", icon: LogOut },
+	{ title: "Received", filter: "received", url: "/dashboard/shared?filter=received", icon: LogIn },
+	{ title: "Pending", filter: "pending", url: "/dashboard/shared?filter=pending", icon: Clock },
+	{ title: "Revoked", filter: "revoked", url: "/dashboard/shared?filter=revoked", icon: X },
+	{ title: "With me", filter: "withme", url: "/dashboard/shared?filter=withme", icon: Users },
 ];
 // Main categories for Shares
 const sharesSidebarItems = [
-  {
-    category: "Link Share",
-    filters: [
-      {
-        label: "By me",
-        value: "byme",
-        subFilters: [
-          { label: "All", value: "all" },
-          { label: "Sent", value: "sent" },
-          { label: "Pending", value: "pending" },
-          { label: "Revoked", value: "revoked" },
-        ]
-      },
-      {
-        label: "With me",
-        value: "withme",
-        subFilters: [
-          { label: "All", value: "all" },
-          { label: "Sent", value: "sent" },
-          { label: "Pending", value: "pending" },
-          { label: "Revoked", value: "revoked" },
-        ]
-      }
-    ]
-  },
-  {
-    category: "Cryptographic Share",
-    filters: [
-      {
-        label: "By me",
-        value: "byme",
-        subFilters: [
-          { label: "All", value: "all" },
-          { label: "Sent", value: "sent" },
-          { label: "Pending", value: "pending" },
-          { label: "Revoked", value: "revoked" },
-        ]
-      },
-      {
-        label: "With me",
-        value: "withme",
-        subFilters: [
-          { label: "All", value: "all" },
-          { label: "Sent", value: "sent" },
-          { label: "Pending", value: "pending" },
-          { label: "Revoked", value: "revoked" },
-        ]
-      }
-    ]
-  }
+	{
+		category: "Link Share",
+		filters: [
+			{
+				label: "By me",
+				value: "byme",
+				subFilters: [
+					{ label: "All", value: "all" },
+					{ label: "Sent", value: "sent" },
+					{ label: "Pending", value: "pending" },
+					{ label: "Revoked", value: "revoked" },
+				]
+			},
+			{
+				label: "With me",
+				value: "withme",
+				subFilters: [
+					{ label: "All", value: "all" },
+					{ label: "Sent", value: "sent" },
+					{ label: "Pending", value: "pending" },
+					{ label: "Revoked", value: "revoked" },
+				]
+			}
+		]
+	},
+	{
+		category: "Cryptographic Share",
+		filters: [
+			{
+				label: "By me",
+				value: "byme",
+				subFilters: [
+					{ label: "All", value: "all" },
+					{ label: "Sent", value: "sent" },
+					{ label: "Pending", value: "pending" },
+					{ label: "Revoked", value: "revoked" },
+				]
+			},
+			{
+				label: "With me",
+				value: "withme",
+				subFilters: [
+					{ label: "All", value: "all" },
+					{ label: "Sent", value: "sent" },
+					{ label: "Pending", value: "pending" },
+					{ label: "Revoked", value: "revoked" },
+				]
+			}
+		]
+	}
 ];
 
 const vaultMainItems = [
-  { title: "All", url: "/dashboard/vault", icon: Folder },
-  { title: "Favorites", url: "/dashboard/vault/favorites", icon: Star },
-  { title: "Trash", url: "/dashboard/vault/trash", icon: Trash2 },
+	{ title: "All", url: "/dashboard/vault", icon: Folder },
+	{ title: "Favorites", url: "/dashboard/vault/favorites", icon: Star },
+	{ title: "Trash", url: "/dashboard/vault/trash", icon: Trash2 },
 ];
 
 const vaultSecondaryItems = [
-  { title: "Identifiers", type: "login", url: "/dashboard/vault/login", icon: LogIn },
-  { title: "Payment card", type: "card", url: "/dashboard/vault/card", icon: CreditCard },
-  { title: "Identity", type: "identity", url: "/dashboard/vault/identity", icon: UserCircle },
-  { title: "Secure note", type: "note", url: "/dashboard/vault/note", icon: FileText },
-  { title: "SSH key", type: "sshkey", url: "/dashboard/vault/sshkey", icon: Key },
+	{ title: "Identifiers", type: "login", url: "/dashboard/vault/login", icon: LogIn },
+	{ title: "Payment card", type: "card", url: "/dashboard/vault/card", icon: CreditCard },
+	{ title: "Identity", type: "identity", url: "/dashboard/vault/identity", icon: UserCircle },
+	{ title: "Secure note", type: "note", url: "/dashboard/vault/note", icon: FileText },
+	{ title: "SSH key", type: "sshkey", url: "/dashboard/vault/sshkey", icon: Key },
 ];
 
 function DashboardNavbar() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+	const navigate = useNavigate();
+	const location = useLocation();
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [showSearchOverlay, setShowSearchOverlay] = useState(false);
 
-  const vaultContext = useVaultStore((state) => state.vault);
-  const addEntry = useVaultStore((state) => state.addEntry);
-  const clearVaultStore = useVaultStore((state) => state.clearVault);
+	const vaultContext = useVaultStore((state) => state.vault);
+	const addEntry = useVaultStore((state) => state.addEntry);
+	const clearVaultStore = useVaultStore((state) => state.clearVault);
 
-  const { updateOnboarding, onboarding, jwtToken } = useAuthStore();
-  const [encryptedVault, setEncryptedVault] = useState<string | null>(null);
-  const [vaultDecryptionPassword, setVaultDecryptionPassword] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [vault, setVault] = useState<VaultPayload | null>(null);
-  const [decryptionPassword, setDecryptionPassword] = useState<string | null>(null);
-  const auth = useAuthStore.getState();
+	const { updateOnboarding, onboarding, jwtToken } = useAuthStore();
+	const [encryptedVault, setEncryptedVault] = useState<string | null>(null);
+	const [vaultDecryptionPassword, setVaultDecryptionPassword] = useState<string | null>(null);
+	const [isLoggedIn, setIsLoggedIn] = useState(false);
+	const [vault, setVault] = useState<VaultPayload | null>(null);
+	const [decryptionPassword, setDecryptionPassword] = useState<string | null>(null);
+	const auth = useAuthStore.getState();
 
-  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
 
-  const allEntries = useMemo(() => {
-    if (!vaultContext?.Vault) return [];
-    return [
-      ...(vaultContext.Vault.entries?.login || []),
-      ...(vaultContext.Vault.entries?.card || []),
-      ...(vaultContext.Vault.entries?.note || []),
-      ...(vaultContext.Vault.entries?.sshkey || []),
-      ...(vaultContext.Vault.entries?.identity || []),
-    ];
-  }, [vaultContext]);
+	const allEntries = useMemo(() => {
+		if (!vaultContext?.Vault) return [];
+		return [
+			...(vaultContext.Vault.entries?.login || []),
+			...(vaultContext.Vault.entries?.card || []),
+			...(vaultContext.Vault.entries?.note || []),
+			...(vaultContext.Vault.entries?.sshkey || []),
+			...(vaultContext.Vault.entries?.identity || []),
+		];
+	}, [vaultContext]);
 
-  const handleLogout = () => {
-    // Clear all stores and state
-    clearVaultStore();                   // Clear vault store (entries, vault data)
-    useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-    useAppStore.getState().reset();      // Clear app store (session)
+	const handleLogout = () => {
+		// Clear all stores and state
+		clearVaultStore();                   // Clear vault store (entries, vault data)
+		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+		useAppStore.getState().reset();      // Clear app store (session)
 
-    // Clear specific localStorage items (not all, to preserve settings)
-    localStorage.removeItem('userId');
-    localStorage.removeItem('vault-storage');
+		// Clear specific localStorage items (not all, to preserve settings)
+		localStorage.removeItem('userId');
+		localStorage.removeItem('vault-storage');
 
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out.",
-    });
-    AppAPI.SignOut(auth.user.id);
-    navigate("/login/email");
-  };
-  const handleAddEntry = () => {
-    setIsCreateDialogOpen(true);
-  };
-  const handleCreateEntry = async (
-    entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">
-  ) => {
-    try {
-      // Debug: Check if jwtToken is available
-      console.log("🔑 JWT Token:", jwtToken);
+		toast({
+			title: "Logged out",
+			description: "You have been successfully logged out.",
+		});
+		AppAPI.SignOut(auth.user.id);
+		navigate("/login/email");
+	};
+	const handleAddEntry = () => {
+		setIsCreateDialogOpen(true);
+	};
+	const handleCreateEntry = async (
+		entry: Omit<VaultEntry, "id" | "created_at" | "updated_at">
+	) => {
+		try {
+			// Debug: Check if jwtToken is available
+			console.log("🔑 JWT Token:", jwtToken);
 
 
-      if (!jwtToken) {
-        toast({
-          title: "Authentication Error",
-          description: "You are not authenticated. Please log in again.",
-          variant: "destructive",
-        });
-        return;
-      }
+			if (!jwtToken) {
+				toast({
+					title: "Authentication Error",
+					description: "You are not authenticated. Please log in again.",
+					variant: "destructive",
+				});
+				return;
+			}
 
-      // 1️⃣ Prepare entry to send to backend
-      const entryPayload = {
-        ...entry,
-        // Backend will usually generate id / timestamps
-      };
+			// 1️⃣ Prepare entry to send to backend
+			const entryPayload = {
+				...entry,
+				// Backend will usually generate id / timestamps
+			};
 
-      // 2️⃣ Send to backend (v0 logic)
-      // const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
-      const rawEntry = await withAuth((token) => {
-        return AppAPI.AddEntry(entry.type, entryPayload, token)
-      });
-      console.log("🚀 ~ handleCreateEntry ~ backend response:", rawEntry)
+			// 2️⃣ Send to backend (v0 logic)
+			// const rawEntry = await AppAPI.AddEntry(entry.type, entryPayload, jwtToken);
+			const rawEntry = await withAuth((token) => {
+				return AppAPI.AddEntry(entry.type, entryPayload, token)
+			});
+			console.log("🚀 ~ handleCreateEntry ~ backend response:", rawEntry)
 
-      // 3️⃣ Convert backend response if needed
-      const newEntry: VaultEntry = {
-        ...rawEntry,
-        created_at: rawEntry.created_at || new Date().toISOString(),
-        updated_at: rawEntry.updated_at || new Date().toISOString(),
-      };
-      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
+			// 3️⃣ Convert backend response if needed
+			const newEntry: VaultEntry = {
+				...rawEntry,
+				created_at: rawEntry.created_at || new Date().toISOString(),
+				updated_at: rawEntry.updated_at || new Date().toISOString(),
+			};
+			console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
-      // 4️⃣ Update Zustand store
-      addEntry(newEntry);
-      console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
+			// 4️⃣ Update Zustand store
+			addEntry(newEntry);
+			console.log("🚀 ~ handleCreateEntry ~ Zustand newEntry:", newEntry)
 
-      // 5️⃣ Show feedback
-      toast({
-        title: "Entry created",
-        description: `${newEntry.entry_name} has been added to your vault.`,
-      });
-    } catch (err) {
-      console.error("Failed to create entry:", err);
-      toast({
-        title: "Error",
-        description: "Could not save entry. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-  const handleSelectEntry = (entry: VaultEntry) => {
-    navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
-    setSearchQuery("");
-    setShowSearchOverlay(false);
-  };
+			// 5️⃣ Show feedback
+			toast({
+				title: "Entry created",
+				description: `${newEntry.entry_name} has been added to your vault.`,
+			});
+		} catch (err) {
+			console.error("Failed to create entry:", err);
+			toast({
+				title: "Error",
+				description: "Could not save entry. Please try again.",
+				variant: "destructive",
+			});
+		}
+	};
+	const handleSelectEntry = (entry: VaultEntry) => {
+		navigate(`/dashboard/vault/${entry.type}?entry=${entry.id}`);
+		setSearchQuery("");
+		setShowSearchOverlay(false);
+	};
 
-  useEffect(() => {
-    setShowSearchOverlay(searchQuery.trim().length > 0);
-  }, [searchQuery]);
+	useEffect(() => {
+		setShowSearchOverlay(searchQuery.trim().length > 0);
+	}, [searchQuery]);
 
-  return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center px-4 md:px-6">
-        <div className="flex items-center gap-2 md:hidden">
-          <SidebarTrigger>
-            <Button variant="ghost" size="icon">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SidebarTrigger>
-        </div>
+	return (
+		<header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+			<div className="flex h-16 items-center px-4 md:px-6">
+				<div className="flex items-center gap-2 md:hidden">
+					<SidebarTrigger>
+						<Button variant="ghost" size="icon">
+							<Menu className="h-5 w-5" />
+						</Button>
+					</SidebarTrigger>
+				</div>
 
-        <div className="hidden md:flex items-center gap-3">
-          {/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
-          <span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
-        </div>
+				<div className="hidden md:flex items-center gap-3">
+					{/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
+					<span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+				</div>
 
-        <div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
-          <Plus
-            data-tooltip-target="tooltip-default"
-            onClick={handleAddEntry}
-            className="h-5 w-8"
-          />
-        </div>
+				<div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
+					<Plus
+						data-tooltip-target="tooltip-default"
+						onClick={handleAddEntry}
+						className="h-5 w-8"
+					/>
+				</div>
 
-        <div className="flex-1 flex justify-center px-4 md:px-8">
-          <div className="w-full max-w-md relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search entries, identities, or cards…"
-              className="pl-9 bg-secondary/50"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={!isVaultContext}
-            />
-            {isVaultContext && showSearchOverlay && (
-              <SearchOverlay
-                entries={allEntries}
-                searchQuery={searchQuery}
-                onSelectEntry={handleSelectEntry}
-                onClose={() => {
-                  setSearchQuery("");
-                  setShowSearchOverlay(false);
-                }}
-              />
-            )}
-          </div>
-        </div>
+				<div className="flex-1 flex justify-center px-4 md:px-8">
+					<div className="w-full max-w-md relative">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							placeholder="Search entries, identities, or cards…"
+							className="pl-9 bg-secondary/50"
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+							disabled={!isVaultContext}
+						/>
+						{isVaultContext && showSearchOverlay && (
+							<SearchOverlay
+								entries={allEntries}
+								searchQuery={searchQuery}
+								onSelectEntry={handleSelectEntry}
+								onClose={() => {
+									setSearchQuery("");
+									setShowSearchOverlay(false);
+								}}
+							/>
+						)}
+					</div>
+				</div>
 
-        <ThemeToggle />
+				<ThemeToggle />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell style={{ cursor: "pointer" }} className="h-4 w-4 text-destructive" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
-              <User className="mr-2 h-4 w-4 text-primary" />
-              Unread notifications
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
-              <MessageCircleWarning className="mr-2 h-4 w-4 text-destructive" />
-              Alerts system
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="rounded-full">
+							<Bell style={{ cursor: "pointer" }} className="h-4 w-4 text-destructive" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-48">
+						<DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
+							<User className="mr-2 h-4 w-4 text-primary" />
+							Unread notifications
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
+							<MessageCircleWarning className="mr-2 h-4 w-4 text-destructive" />
+							Alerts system
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+							<LogOut className="mr-2 h-4 w-4" />
+							Logout
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 
-        {/* <Settings style={{ cursor: "pointer" }} className="mr-4 ml-2 h-4 w-4  rounded-full" onClick={() => navigate("/dashboard/settings-beta")} />
+				{/* <Settings style={{ cursor: "pointer" }} className="mr-4 ml-2 h-4 w-4  rounded-full" onClick={() => navigate("/dashboard/settings-beta")} />
 
        {/* <Avatar style={{ cursor: "pointer" }} className="h-8 w-8" onClick={() => navigate("/dashboard/profile-beta")}>
           <AvatarFallback className="bg-primary/10">
@@ -359,330 +360,340 @@ function DashboardNavbar() {
           </AvatarFallback>
         </Avatar>*/}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <EllipsisVertical className=" h-4 w-4 text-primary" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/settings-beta")}>
-              <Settings className="mr-2 h-4 w-4  rounded-full" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/subscription")}>
-              <User className="mr-2 h-4 w-4 text-primary" />
-              Account
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout} style={{ cursor: "pointer" }} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="rounded-full">
+							<EllipsisVertical className=" h-4 w-4 text-primary" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-48">
+						<DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/settings-beta")}>
+							<Settings className="mr-2 h-4 w-4  rounded-full" />
+							Settings
+						</DropdownMenuItem>
+						<DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/subscription")}>
+							<User className="mr-2 h-4 w-4 text-primary" />
+							Account
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={handleLogout} style={{ cursor: "pointer" }} className="text-destructive focus:text-destructive">
+							<LogOut className="mr-2 h-4 w-4" />
+							Logout
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 
 
-      </div>
+			</div>
 
-      {/* Create Entry Dialog */}
-      <CreateEntryDialog
-        open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
-        onSubmit={handleCreateEntry}
-      />
-    </header>
-  );
+			{/* Create Entry Dialog */}
+			<CreateEntryDialog
+				open={isCreateDialogOpen}
+				onOpenChange={setIsCreateDialogOpen}
+				onSubmit={handleCreateEntry}
+			/>
+		</header>
+	);
 }
 
 
 const Avatars = [
-  { 'id': "38", src: AvatarImg },
-  { 'id': "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e5137", src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg" },
-  { 'id': "2fe989bf-2959-447f-a178-5481c67b887", src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg' },
-  { 'id': "39", src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg' }
+	{ 'id': "38", src: AvatarImg },
+	{ 'id': "9d9fae5d-c7d6-493a-bbf8-dd969b0a6e5137", src: "https://i.ebayimg.com/images/g/eEEAAOSweZVjNAXV/s-l1200.jpg" },
+	{ 'id': "2fe989bf-2959-447f-a178-5481c67b887", src: 'https://www.independent.com/wp-content/uploads/2017/08/01/raekwon.jpg' },
+	{ 'id': "39", src: 'https://upload.wikimedia.org/wikipedia/commons/1/1d/Teyana_Taylor_%28cropped%29.jpg' }
 ]
 const RenderAvatar = (id: string | number) => {
-  const img = Avatars.find((f) => String(f.id) === String(id));
-  return img ? img.src : ""
+	const img = Avatars.find((f) => String(f.id) === String(id));
+	return img ? img.src : ""
 }
 
 function AppSidebar() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isVaultContext = location.pathname.startsWith("/dashboard/vault");
-  const isSharedContext = location.pathname.startsWith("/dashboard/shared");
+	const location = useLocation();
+	const navigate = useNavigate();
+	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+	const isSharedContext = location.pathname.startsWith("/dashboard/shared");
 
-  const vaultContext = useVaultStore((state) => state.vault);
-    const { clearVault: clearVaultContext } = useVault();
-  const addFolder = useVaultStore((state) => state.addFolder);
-  const removeFolder = useVaultStore((state) => state.removeFolder);
-  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
-  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
-  const [isNewShareOpen, setIsNewShareOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
-  const { user } = useAuthStore();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const shareType = searchParams.get("type") || "linkshare"; // "linkshare" or "cryptographicshare"
-  const scope = searchParams.get("scope") || "byme"; // "byme" or "withme"
-  const filter = searchParams.get("filter") || "all"; // "all", "sent", etc.
+	const vaultContext = useVaultStore((state) => state.vault);
+	const { clearVault: clearVaultContext } = useVault();
+	const addFolder = useVaultStore((state) => state.addFolder);
+	const removeFolder = useVaultStore((state) => state.removeFolder);
+	const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+	const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+	const [isNewShareOpen, setIsNewShareOpen] = useState(false);
+	const [newFolderName, setNewFolderName] = useState("");
+	const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
+	const { user } = useAuthStore();
+	const { jwtToken } = useAuthStore.getState();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const shareType = searchParams.get("type") || "linkshare"; // "linkshare" or "cryptographicshare"
+	const scope = searchParams.get("scope") || "byme"; // "byme" or "withme"
+	const filter = searchParams.get("filter") || "all"; // "all", "sent", etc.
 	const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
+	const [avatar, setAvatar] = useState<string | null>(null);
 
-  const handleTabChange = (type) => {
-    setSearchParams({ ...Object.fromEntries(searchParams), type });
-  };
+	const handleTabChange = (type) => {
+		setSearchParams({ ...Object.fromEntries(searchParams), type });
+	};
 
-  const handleScopeChange = (scope) => {
-    setSearchParams({ ...Object.fromEntries(searchParams), scope });
-  };
+	const handleScopeChange = (scope) => {
+		setSearchParams({ ...Object.fromEntries(searchParams), scope });
+	};
 
-  const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
-  const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
+	const mainItems = isVaultContext ? vaultMainItems : isSharedContext ? sharedEntriesItems : dashboardNavItems;
+	const secondaryItems = isVaultContext ? vaultSecondaryItems : isSharedContext ? [] : dashboardSecondaryItems;
 
-  const handleCreateFolder = async () => {
-    if (newFolderName.trim()) {
-      // TODO: centralize in api.ts & add loading state
-      await withAuth((token) => {
-        return AppAPI.CreateFolder(newFolderName, token)
-      });
-      // Update folder in zustand (session) 
-      addFolder(newFolderName);
-      // Empty folder form
-      setNewFolderName("");
-      // Close folder form
-      setIsNewFolderOpen(false);
-    }
-  };
+	const handleCreateFolder = async () => {
+		if (newFolderName.trim()) {
+			// TODO: centralize in api.ts & add loading state
+			await withAuth((token) => {
+				return AppAPI.CreateFolder(newFolderName, token)
+			});
+			// Update folder in zustand (session) 
+			addFolder(newFolderName);
+			// Empty folder form
+			setNewFolderName("");
+			// Close folder form
+			setIsNewFolderOpen(false);
+		}
+	};
 
-  const handleDeleteFolder = async (folder: FolderVault) => {
-    console.log("🚀 ~ handleDeleteFolder ~ folder button clicked !!!")
-    if (!folder.id || folder.id === "") {
-      return;
-    }
-    // TODO: centralize in api.ts & add loading state
-    await withAuth((token) => {
-      console.log("🚀 ~ handleDeleteFolder ~ folder for delete:", folder)
-      return AppAPI.DeleteFolder(folder.id, token)
-    });
-    // Update folder in zustand (session) 
-    removeFolder(folder.id);
-  };
+	const handleDeleteFolder = async (folder: FolderVault) => {
+		console.log("🚀 ~ handleDeleteFolder ~ folder button clicked !!!")
+		if (!folder.id || folder.id === "") {
+			return;
+		}
+		// TODO: centralize in api.ts & add loading state
+		await withAuth((token) => {
+			console.log("🚀 ~ handleDeleteFolder ~ folder for delete:", folder)
+			return AppAPI.DeleteFolder(folder.id, token)
+		});
+		// Update folder in zustand (session) 
+		removeFolder(folder.id);
+	};
 
-    const handleLogout = () => {
-      // Clear all stores and state
-      clearVaultStore();                   // Clear vault store (entries, vault data)
-      clearVaultContext();                 // Clear vault context provider
-      useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-      useAppStore.getState().reset();      // Clear app store (session)
-  
-      // Clear specific localStorage items (not all, to preserve settings)
-      localStorage.removeItem('userId');
-      localStorage.removeItem('vault-storage');
-  
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
-      AppAPI.SignOut(useAuthStore.getState().user?.id);
-      navigate("/login/email");
-    };
+	const handleLogout = () => {
+		// Clear all stores and state
+		clearVaultStore();                   // Clear vault store (entries, vault data)
+		clearVaultContext();                 // Clear vault context provider
+		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
+		useAppStore.getState().reset();      // Clear app store (session)
 
-  const avatar = user && RenderAvatar(user.id)
+		// Clear specific localStorage items (not all, to preserve settings)
+		localStorage.removeItem('userId');
+		localStorage.removeItem('vault-storage');
 
-  return (
-    <Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
-      <SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30 scrollbar-glassmorphism thin-scrollbar">
-        {(isVaultContext || isSharedContext) && (
-          <div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20 ">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="w-full justify-start h-11 rounded-xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 hover:bg-white/70 dark:hover:bg-zinc-800/70 border border-zinc-200/50 dark:border-zinc-700/50 transition-all group"
-            >
-              <ArrowLeft className="mr-3 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              <span className="text-sm font-medium">Back to Dashboard</span>
-            </Button>
-          </div>
-        )}
+		toast({
+			title: "Logged out",
+			description: "You have been successfully logged out.",
+		});
+		AppAPI.SignOut(useAuthStore.getState().user?.id);
+		navigate("/login/email");
+	};
 
-        <SidebarGroup >
-          <SidebarGroupLabel style={{ marginTop: "30px" }} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
-            {isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {!isSharedContext && mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end
-                      className={({ isActive }) =>
-                        `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
-                          ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                          : "text-muted-foreground hover:text-foreground"
-                        }`
-                      }
-                    >
-                      <item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-medium">{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
-        {secondaryItems.length > 0 && (
-          <SidebarGroup style={{ marginTop: "30px" }} >
-            <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
-              {isVaultContext ? "Entry Types" : "More"}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {secondaryItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={({ isActive }) =>
-                          `group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
-                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                            : "text-muted-foreground hover:text-foreground"
-                          }`
-                        }
-                      >
-                        <item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-medium">{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+	useEffect(() => {
+		const fetchAvatar = async () => {
+			const b64 = await loadAvatar(jwtToken, vaultContext.Vault.name);
+			setAvatar(b64);
+		};
 
-        {/* Folders Section (Vault only) */}
-        {isVaultContext && (
-          <SidebarGroup style={{ marginTop: "30px" }} >
-            <SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 flex justify-between items-center bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
-              <span>Folders</span>
-              <SidebarMenuButton asChild>
-                <button
-                  onClick={() => setIsNewFolderOpen(true)}
-                  className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all hover:scale-105 group"
-                >
-                  <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </button>
-              </SidebarMenuButton>
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && vaultContext.Vault.folders.map((folder) => (
-                  <SidebarMenuItem key={folder.id}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={`/dashboard/vault/folder/${folder.id}`}
-                        className={({ isActive }) =>
-                          `relative group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
-                            ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
-                            : "text-muted-foreground hover:text-foreground"
-                          }`
-                        }
-                      >
-                        <Folder className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-medium">{folder.name}</span>
-                        <Trash2 onClick={() => handleDeleteFolder(folder)} className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform " style={{ position: "absolute", right: "15px" }} />
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+		fetchAvatar();
+	}, [jwtToken, vaultContext.Vault]);
 
-        {/* New Share Menu (Shared Entries only) */}
-        {isSharedContext && (
-          <SidebarGroup>
-            <SidebarGroupContent>
-              {/* Top-level tabs */}
-              <div className="mb-4 px-2 gap-2">
-                <button
-                  className={`w-[100%] mb-5 px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "linkshare"
-                    ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
-                    : "text-muted-foreground hover:text-foreground bg-transparent"
-                    }`}
-                  onClick={() => handleTabChange("linkshare")}
-                >
-                  Link Share
-                </button>
-                <button
-                  className={`w-[100%] px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "cryptographicshare"
-                    ? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
-                    : "text-muted-foreground hover:text-foreground bg-transparent"
-                    }`}
-                  onClick={() => handleTabChange("cryptographicshare")}
-                >
-                  Cryptographic Share
-                </button>
-              </div>
-              {/* Scope buttons */}
-              {shareType === "cryptographicshare" &&
-                <>
-                  <div className="flex mb-2 px-4 gap-2">
-                    <button
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground bg-transparent"
-                        }`}
-                      onClick={() => handleScopeChange("byme")}
-                    >
-                      By me
-                    </button>
-                    <button
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground bg-transparent"
-                        }`}
-                      onClick={() => handleScopeChange("withme")}
-                    >
-                      With me
-                    </button>
-                  </div>
-                  {/* Sub-filters */}
-                  <SidebarMenu>
-                    {["all", "sent", "pending", "revoked"].map((sub) => (
-                      <SidebarMenuItem key={sub}>
-                        <SidebarMenuButton asChild>
-                          <NavLink
-                            to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub}`}
-                            className={({ isActive }) =>
-                              `group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
-                                ? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
-                                : "text-muted-foreground hover:text-foreground"
-                              }`
-                            }
-                          >
-                            <span className="text-xs capitalize">{sub}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </>
-              }
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-      </SidebarContent>
+	return (
+		<Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
+			<SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30 scrollbar-glassmorphism thin-scrollbar">
+				{(isVaultContext || isSharedContext) && (
+					<div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20 ">
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => navigate("/dashboard")}
+							className="w-full justify-start h-11 rounded-xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 hover:bg-white/70 dark:hover:bg-zinc-800/70 border border-zinc-200/50 dark:border-zinc-700/50 transition-all group"
+						>
+							<ArrowLeft className="mr-3 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+							<span className="text-sm font-medium">Back to Dashboard</span>
+						</Button>
+					</div>
+				)}
 
-      {/* Premium Footer */}
-      <div className="mt-auto p-6 border-t border-zinc-200/30 dark:border-zinc-700/30 bg-gradient-to-b from-white/50 to-white/30 dark:from-zinc-900/50 dark:to-zinc-900/30 backdrop-blur-sm space-y-4">
-        {/* <Button
+				<SidebarGroup >
+					<SidebarGroupLabel style={{ marginTop: "30px" }} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+						{isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
+					</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{!isSharedContext && mainItems.map((item) => (
+								<SidebarMenuItem key={item.title}>
+									<SidebarMenuButton asChild>
+										<NavLink
+											to={item.url}
+											end
+											className={({ isActive }) =>
+												`group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+													? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+													: "text-muted-foreground hover:text-foreground"
+												}`
+											}
+										>
+											<item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+											<span className="text-sm font-medium">{item.title}</span>
+										</NavLink>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+
+				{secondaryItems.length > 0 && (
+					<SidebarGroup style={{ marginTop: "30px" }} >
+						<SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+							{isVaultContext ? "Entry Types" : "More"}
+						</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{secondaryItems.map((item) => (
+									<SidebarMenuItem key={item.title}>
+										<SidebarMenuButton asChild>
+											<NavLink
+												to={item.url}
+												className={({ isActive }) =>
+													`group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+														? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+														: "text-muted-foreground hover:text-foreground"
+													}`
+												}
+											>
+												<item.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+												<span className="text-sm font-medium">{item.title}</span>
+											</NavLink>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
+
+				{/* Folders Section (Vault only) */}
+				{isVaultContext && (
+					<SidebarGroup style={{ marginTop: "30px" }} >
+						<SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 flex justify-between items-center bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
+							<span>Folders</span>
+							<SidebarMenuButton asChild>
+								<button
+									onClick={() => setIsNewFolderOpen(true)}
+									className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-all hover:scale-105 group"
+								>
+									<Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+								</button>
+							</SidebarMenuButton>
+						</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{isVaultContext && vaultContext?.Vault.folders && vaultContext.Vault.folders.length > 0 && vaultContext.Vault.folders.map((folder) => (
+									<SidebarMenuItem key={folder.id}>
+										<SidebarMenuButton asChild>
+											<NavLink
+												to={`/dashboard/vault/folder/${folder.id}`}
+												className={({ isActive }) =>
+													`relative group flex items-center gap-3 px-4 py-3 rounded-2xl mx-2 my-1 transition-all duration-200 backdrop-blur-sm border border-transparent hover:border-primary/30 hover:bg-white/50 dark:hover:bg-zinc-800/50 hover:shadow-md ${isActive
+														? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary font-semibold shadow-lg border-primary/40"
+														: "text-muted-foreground hover:text-foreground"
+													}`
+												}
+											>
+												<Folder className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+												<span className="text-sm font-medium">{folder.name}</span>
+												<Trash2 onClick={() => handleDeleteFolder(folder)} className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform " style={{ position: "absolute", right: "15px" }} />
+											</NavLink>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
+
+				{/* New Share Menu (Shared Entries only) */}
+				{isSharedContext && (
+					<SidebarGroup>
+						<SidebarGroupContent>
+							{/* Top-level tabs */}
+							<div className="mb-4 px-2 gap-2">
+								<button
+									className={`w-[100%] mb-5 px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "linkshare"
+										? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
+										: "text-muted-foreground hover:text-foreground bg-transparent"
+										}`}
+									onClick={() => handleTabChange("linkshare")}
+								>
+									Link Share
+								</button>
+								<button
+									className={`w-[100%] px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "cryptographicshare"
+										? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
+										: "text-muted-foreground hover:text-foreground bg-transparent"
+										}`}
+									onClick={() => handleTabChange("cryptographicshare")}
+								>
+									Cryptographic Share
+								</button>
+							</div>
+							{/* Scope buttons */}
+							{shareType === "cryptographicshare" &&
+								<>
+									<div className="flex mb-2 px-4 gap-2">
+										<button
+											className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
+												? "bg-primary/10 text-primary"
+												: "text-muted-foreground hover:text-foreground bg-transparent"
+												}`}
+											onClick={() => handleScopeChange("byme")}
+										>
+											By me
+										</button>
+										<button
+											className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
+												? "bg-primary/10 text-primary"
+												: "text-muted-foreground hover:text-foreground bg-transparent"
+												}`}
+											onClick={() => handleScopeChange("withme")}
+										>
+											With me
+										</button>
+									</div>
+									{/* Sub-filters */}
+									<SidebarMenu>
+										{["all", "sent", "pending", "revoked"].map((sub) => (
+											<SidebarMenuItem key={sub}>
+												<SidebarMenuButton asChild>
+													<NavLink
+														to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub}`}
+														className={({ isActive }) =>
+															`group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
+																? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
+																: "text-muted-foreground hover:text-foreground"
+															}`
+														}
+													>
+														<span className="text-xs capitalize">{sub}</span>
+													</NavLink>
+												</SidebarMenuButton>
+											</SidebarMenuItem>
+										))}
+									</SidebarMenu>
+								</>
+							}
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
+			</SidebarContent>
+
+			{/* Premium Footer */}
+			<div className="mt-auto p-6 border-t border-zinc-200/30 dark:border-zinc-700/30 bg-gradient-to-b from-white/50 to-white/30 dark:from-zinc-900/50 dark:to-zinc-900/30 backdrop-blur-sm space-y-4">
+				{/* <Button
           onClick={() => setIsUpgradeOpen(true)}
           className="w-full h-12 py-3 px-4 bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-2xl hover:shadow-[#C9A44A]/30 text-white font-semibold rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
@@ -690,88 +701,90 @@ function AppSidebar() {
           Upgrade to Premium
         </Button> */}
 
-        {/* User Info */}
-        <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
-          <Avatar className="h-10 w-10 flex-shrink-0" onClick={() => navigate("/dashboard/profile-beta")} style={{ cursor: "pointer" }}>
-            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
-              {avatar ? <img src={avatar} alt="User Avatar" className="h-5 w-5" /> : <User className="h-5 w-5 text-primary" />}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{user?.username}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-          </div>
+				{/* User Info */}
+				<div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
+					<Avatar className="h-10 w-10 flex-shrink-0" onClick={() => navigate("/dashboard/profile-beta")} style={{ cursor: "pointer" }}>
+						<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
+							{avatar ? <img src={avatar} alt="User Avatar" className="h-10 w-10" /> : <User className="h-5 w-5 text-primary" />}
+						</AvatarFallback>
+					</Avatar>
+					<div className="flex-1 min-w-0">
+						<p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{user?.username}</p>
+						<p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+					</div>
 
-          
-        </div>
-      </div>
 
-      {/* Modals unchanged */}
-      <OnboardingModalBeta open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
-      <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="folder-name">Folder Name</Label>
-              <Input
-                id="folder-name"
-                placeholder="e.g., Work Accounts"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder();
-                }}
-                className="rounded-xl h-11"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsNewFolderOpen(false)} className="rounded-xl h-10">
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-                className="bg-[#C9A44A] hover:bg-[#B8934A] rounded-xl h-10"
-              >
-                Create Folder
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <NewShareModal
-        open={isNewShareOpen}
-        onOpenChange={setIsNewShareOpen}
-        onShareSuccess={() => {
-          setSharedEntriesRefreshKey(prev => prev + 1);
-          window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
-        }}
-      />
-    </Sidebar>
-  );
+				</div>
+			</div>
+
+			{/* Modals unchanged */}
+			<OnboardingModalBeta open={isUpgradeOpen} onOpenChange={setIsUpgradeOpen} />
+			<Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Create New Folder</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label htmlFor="folder-name">Folder Name</Label>
+							<Input
+								id="folder-name"
+								placeholder="e.g., Work Accounts"
+								value={newFolderName}
+								onChange={(e) => setNewFolderName(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter') handleCreateFolder();
+								}}
+								className="rounded-xl h-11"
+							/>
+						</div>
+						<div className="flex justify-end gap-3">
+							<Button variant="outline" onClick={() => setIsNewFolderOpen(false)} className="rounded-xl h-10">
+								Cancel
+							</Button>
+							<Button
+								onClick={handleCreateFolder}
+								disabled={!newFolderName.trim()}
+								className="bg-[#C9A44A] hover:bg-[#B8934A] rounded-xl h-10"
+							>
+								Create Folder
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+			<NewShareModal
+				open={isNewShareOpen}
+				onOpenChange={setIsNewShareOpen}
+				onShareSuccess={() => {
+					setSharedEntriesRefreshKey(prev => prev + 1);
+					window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
+				}}
+			/>
+		</Sidebar>
+	);
 }
 
+
+
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const { user } = useAuthStore();
+	const { user } = useAuthStore();
 
-  if (!user) {
-    return <div>Loading session...</div>;
-  }
+	if (!user) {
+		return <div>Loading session...</div>;
+	}
 
-  return (
-    <SidebarProvider>
-      <div className="flex h-screen w-full bg-background overflow-hidden">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <DashboardNavbar />
-          <main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{ paddingRight: "25px" }}>
-            {children}
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
-  );
+	return (
+		<SidebarProvider>
+			<div className="flex h-screen w-full bg-background overflow-hidden">
+				<AppSidebar />
+				<div className="flex-1 flex flex-col overflow-hidden">
+					<DashboardNavbar />
+					<main className="flex-1 overflow-auto scrollbar-glassmorphism thin-scrollbar" style={{ paddingRight: "25px" }}>
+						{children}
+					</main>
+				</div>
+			</div>
+		</SidebarProvider>
+	);
 }

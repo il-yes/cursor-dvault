@@ -280,3 +280,78 @@ export interface PreloadedVaultResponse {
   LastCID?: string;
   Dirty?: boolean;
 }
+
+export type SettingsState = {
+    security: {
+      autoLockSeconds?: number
+      clearClipboardAfter?: number
+      twoFactorEnabled?: boolean
+    }
+
+    features: {
+      tracecoreEnabled?:        boolean,
+      cloudBackupEnabled?:      boolean,
+      threatDetectionEnabled?:  boolean,
+      browserExtensionEnabled?: boolean,
+      gitCLIEnabled?:           boolean,
+    }
+
+    sync: {
+      stellarFrequency?: string
+      ipfsPinning?: boolean
+      maxRetries?: number
+      syncIntervalSeconds?: number
+    }
+
+    backup: {
+      enabled?: boolean
+      schedule?: string
+      retentionDays?: number
+      encryption?: boolean
+    }
+
+    sharing: {
+      allowExternalSharing?: boolean,
+      defaultExpiryHours?:   number,
+      requirePassword?:      boolean,
+      maxSharesPerEntry?:    number,
+    },
+
+    privacy: {
+      telemetryEnabled?: boolean,
+      anonymousMode?:    boolean,
+    },
+
+    device: {
+      user_id?: string
+      vault_name?: string
+      device_id?: string
+      device_name?: string
+      last_synced?: number
+    }
+
+    subscription: {
+      user_id?: string
+      vault_name?: string
+      plan?: string
+      features?: {
+        tracecoreEnabled:        boolean,
+        cloudBackupEnabled:      boolean,
+        threatDetectionEnabled:  boolean,
+        browserExtensionEnabled: boolean,
+        gitCLIEnabled:           boolean,
+      }
+      limits?: {
+        maxVaults: number
+        maxUsers: number
+        maxDevices: number
+        maxShares: number
+      }  
+    }
+    ui: {
+      theme?: string
+      animationsEnabled?: boolean
+    }
+  }
+
+

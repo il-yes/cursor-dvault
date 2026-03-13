@@ -407,6 +407,8 @@ func (vh *VaultHandler) EncryptVault(userID string, password string) (string, er
 	return string(encrypted), nil
 }
 
+
+
 // -----------------------------
 // Vault - Crud
 // -----------------------------

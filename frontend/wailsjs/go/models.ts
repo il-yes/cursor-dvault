@@ -484,9 +484,278 @@ export namespace app_config_domain {
 		    return a;
 		}
 	}
+	export class BackupConfig {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    enabled: boolean;
+	    schedule: string;
+	    retention_days: number;
+	    encryption: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.enabled = source["enabled"];
+	        this.schedule = source["schedule"];
+	        this.retention_days = source["retention_days"];
+	        this.encryption = source["encryption"];
+	    }
+	}
 	
 	
+	export class DeviceConfig {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    device_id: string;
+	    device_name: string;
+	    trusted: boolean;
+	    last_sync: number;
 	
+	    static createFrom(source: any = {}) {
+	        return new DeviceConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.device_id = source["device_id"];
+	        this.device_name = source["device_name"];
+	        this.trusted = source["trusted"];
+	        this.last_sync = source["last_sync"];
+	    }
+	}
+	export class SharingPolicy {
+	    AllowExternalSharing: boolean;
+	    DefaultExpiryHours: number;
+	    RequirePassword: boolean;
+	    MaxSharesPerEntry: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SharingPolicy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.AllowExternalSharing = source["AllowExternalSharing"];
+	        this.DefaultExpiryHours = source["DefaultExpiryHours"];
+	        this.RequirePassword = source["RequirePassword"];
+	        this.MaxSharesPerEntry = source["MaxSharesPerEntry"];
+	    }
+	}
+	export class SecurityConfig {
+	    AutoLockSeconds: number;
+	    SessionTimeout: number;
+	    RequireBiometric: boolean;
+	    ClearClipboardAfter: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SecurityConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.AutoLockSeconds = source["AutoLockSeconds"];
+	        this.SessionTimeout = source["SessionTimeout"];
+	        this.RequireBiometric = source["RequireBiometric"];
+	        this.ClearClipboardAfter = source["ClearClipboardAfter"];
+	    }
+	}
+	export class PrivacyConfig {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    telemetry_enabled: boolean;
+	    anonymous_mode: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrivacyConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.telemetry_enabled = source["telemetry_enabled"];
+	        this.anonymous_mode = source["anonymous_mode"];
+	    }
+	}
+	export class SyncConfig {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    auto_sync: boolean;
+	    sync_interval_seconds: number;
+	    conflict_strategy: string;
+	    max_retries: number;
+	    stellar_frequency: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.auto_sync = source["auto_sync"];
+	        this.sync_interval_seconds = source["sync_interval_seconds"];
+	        this.conflict_strategy = source["conflict_strategy"];
+	        this.max_retries = source["max_retries"];
+	        this.stellar_frequency = source["stellar_frequency"];
+	    }
+	}
+	export class VaultConfigBeta {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    features: FeatureFlags;
+	    sync: SyncConfig;
+	    backup: BackupConfig;
+	    privacy: PrivacyConfig;
+	    security: SecurityConfig;
+	    sharing: SharingPolicy;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultConfigBeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.features = this.convertValues(source["features"], FeatureFlags);
+	        this.sync = this.convertValues(source["sync"], SyncConfig);
+	        this.backup = this.convertValues(source["backup"], BackupConfig);
+	        this.privacy = this.convertValues(source["privacy"], PrivacyConfig);
+	        this.security = this.convertValues(source["security"], SecurityConfig);
+	        this.sharing = this.convertValues(source["sharing"], SharingPolicy);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SubscriptionLimits {
+	    max_vaults: number;
+	    max_users: number;
+	    max_devices: number;
+	    max_shares: number;
+	    maxstorage: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionLimits(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.max_vaults = source["max_vaults"];
+	        this.max_users = source["max_users"];
+	        this.max_devices = source["max_devices"];
+	        this.max_shares = source["max_shares"];
+	        this.maxstorage = source["maxstorage"];
+	    }
+	}
+	export class FeatureFlags {
+	    tracecore_enabled: boolean;
+	    cloud_backup_enabled: boolean;
+	    threat_detection_enabled: boolean;
+	    browser_extension_enabled: boolean;
+	    git_cli_enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FeatureFlags(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tracecore_enabled = source["tracecore_enabled"];
+	        this.cloud_backup_enabled = source["cloud_backup_enabled"];
+	        this.threat_detection_enabled = source["threat_detection_enabled"];
+	        this.browser_extension_enabled = source["browser_extension_enabled"];
+	        this.git_cli_enabled = source["git_cli_enabled"];
+	    }
+	}
+	export class SubscriptionConfig {
+	    id: string;
+	    user_id: string;
+	    vault_name: string;
+	    plan: string;
+	    features: FeatureFlags;
+	    limits: SubscriptionLimits;
+	
+	    static createFrom(source: any = {}) {
+	        return new SubscriptionConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.vault_name = source["vault_name"];
+	        this.plan = source["plan"];
+	        this.features = this.convertValues(source["features"], FeatureFlags);
+	        this.limits = this.convertValues(source["limits"], SubscriptionLimits);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UIConfig {
+	    theme: string;
+	    animations_enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UIConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.theme = source["theme"];
+	        this.animations_enabled = source["animations_enabled"];
+	    }
+	}
 	export class SharingRule {
 	    id: string;
 	    entry_type: string;
@@ -525,7 +794,6 @@ export namespace app_config_domain {
 	        this.EncSalt = source["EncSalt"];
 	    }
 	}
-	
 	export class UserConfig {
 	    id: string;
 	    role: string;
@@ -534,6 +802,7 @@ export namespace app_config_domain {
 	    stellar_account: StellarAccountConfig;
 	    sharing_rules: SharingRule[];
 	    two_factor_enabled: boolean;
+	    ui: UIConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new UserConfig(source);
@@ -548,6 +817,101 @@ export namespace app_config_domain {
 	        this.stellar_account = this.convertValues(source["stellar_account"], StellarAccountConfig);
 	        this.sharing_rules = this.convertValues(source["sharing_rules"], SharingRule);
 	        this.two_factor_enabled = source["two_factor_enabled"];
+	        this.ui = this.convertValues(source["ui"], UIConfig);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Config {
+	    App?: AppConfig;
+	    User?: UserConfig;
+	    Subscription?: SubscriptionConfig;
+	    Vaults: VaultConfigBeta;
+	    Devices: DeviceConfig[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.App = this.convertValues(source["App"], AppConfig);
+	        this.User = this.convertValues(source["User"], UserConfig);
+	        this.Subscription = this.convertValues(source["Subscription"], SubscriptionConfig);
+	        this.Vaults = this.convertValues(source["Vaults"], VaultConfigBeta);
+	        this.Devices = this.convertValues(source["Devices"], DeviceConfig);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
+}
+
+export namespace app_config_dto {
+	
+	export class Settings {
+	    ui?: app_config_domain.UIConfig;
+	    subscription?: app_config_domain.SubscriptionConfig;
+	    vaults: app_config_domain.VaultConfigBeta;
+	    devices?: app_config_domain.DeviceConfig;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ui = this.convertValues(source["ui"], app_config_domain.UIConfig);
+	        this.subscription = this.convertValues(source["subscription"], app_config_domain.SubscriptionConfig);
+	        this.vaults = this.convertValues(source["vaults"], app_config_domain.VaultConfigBeta);
+	        this.devices = this.convertValues(source["devices"], app_config_domain.DeviceConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

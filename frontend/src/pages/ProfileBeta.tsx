@@ -21,7 +21,7 @@ import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
-import { EditUserInfos, GenerateApiKey } from "@/services/api";
+import { EditUserInfos, GenerateApiKey, uploadAvatar } from "@/services/api";
 
 
 const mockFile = {
@@ -88,7 +88,7 @@ const Profile = () => {
 
 
 	// Updated handleAvatarUpload
-	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleAvatarUploadOnIpfs = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		setProgressVisible(true);
 		const file = e.target.files?.[0];
 		if (file) {
@@ -140,6 +140,49 @@ const Profile = () => {
 			}
 		}
 	};
+
+	const { jwtToken } = useAuthStore.getState();
+	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+	const file = e.target.files?.[0];
+	if (!file) return;
+
+	if (file.size > 2 * 1024 * 1024) {
+		toast({
+			title: "File too large",
+			description: "Please select an image smaller than 2MB.",
+			variant: "destructive",
+		});
+		return;
+	}
+
+	try {
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			setAvatarUrl(e.target?.result as string);
+		};
+		reader.readAsDataURL(file);
+
+		const buffer = await readFileAsBuffer(file);
+
+		const avatarPath = await uploadAvatar(jwtToken, vaultContext.Vault.name, buffer);
+		console.log({ avatarPath });
+
+		// reload vaultContext
+		refreshVault();
+
+		toast({
+			title: "Avatar updated",
+			description: "Your profile picture has been changed.",
+		});
+	} catch (err) {
+		toast({
+			title: "Upload failed",
+			description: "Please try again.",
+			variant: "destructive",
+		});
+		console.log("UploadAvatar error", err);
+	}
+};
 
 	// Helper to read file as buffer for Go
 	const readFileAsBuffer = (file: File): Promise<Uint8Array> => {
@@ -263,6 +306,7 @@ const Profile = () => {
 		console.log(response);
 		toast({ title: "Success", description: "User info updated successfully!" });
 	}
+
 
 	return (
 		<DashboardLayout>

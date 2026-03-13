@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 	"vault-app/internal/models"
 	"vault-app/internal/utils"
@@ -12,7 +13,10 @@ import (
 )
 
 const DefaultVaultName = "Default Vault"
-// former VaultCID
+
+// ==============================================================================
+// Vault
+// ==============================================================================
 type Vault struct {
 	ID        string `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"column:name"`
@@ -23,6 +27,8 @@ type Vault struct {
 	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
 	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
+
+	Avatar string `json:"avatar" gorm:"column:avatar,omitempty"`
 }
 
 func NewVault(userID string, name string) *Vault {
@@ -54,6 +60,13 @@ func (v *Vault) AttachUserSubscriptionID(userSubscriptionID string) {
 func (v *Vault) BuildInitialPayload(version string) *VaultPayload {
 	return InitEmptyVaultPayload(v.Name, version)
 }
+func (v *Vault) GetVaultPath() string {
+	return filepath.Join("vault", v.UserID, v.Name)
+}
+func (v *Vault) AttachAvatar(avatar string) {
+    v.Avatar = avatar
+    v.UpdatedAt = time.Now().Format(time.RFC3339)
+}
 
 
 type VaultContentInterface interface {
@@ -62,7 +75,9 @@ type VaultContentInterface interface {
 	MoveEntriesToUnsorted(folderID string) Entries
 }
 
-
+// ==============================================================================
+// Folder
+// ==============================================================================	
 type Folder struct {
 	ID        string `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"varchar(100)"`
@@ -71,6 +86,10 @@ type Folder struct {
 	IsDraft   bool   `json:"is_draft"`
 	// VaultCID  string `json:"vault_cid"`
 }
+
+// ==============================================================================
+// BaseVaultContent
+// ==============================================================================
 type BaseVaultContent struct {
 	Folders   []Folder `json:"folders"`
 	Entries   Entries  `json:"entries"`
@@ -78,7 +97,9 @@ type BaseVaultContent struct {
 	UpdatedAt string   `json:"updated_at" gorm:"-"`
 }
 
-// For vault content
+// ==============================================================================
+// VaultPayload
+// ==============================================================================
 type VaultPayload struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
@@ -241,6 +262,9 @@ const (
 	EntrySSHKey   EntryType = "SSHKey"
 )
 
+// ==============================================================================
+// BaseEntry
+// ==============================================================================
 type BaseEntry struct {
 	ID              string    `json:"id"`
 	EntryName       string    `json:"entry_name"`
@@ -328,6 +352,9 @@ type Entries struct {
 	SSHKey   []SSHKeyEntry   `json:"sshkey"`
 }
 
+// ==============================================================================
+// VaultEntry
+// ==============================================================================	
 type VaultEntry struct {
 	ID        string    `json:"id"`
 	EntryName string    `json:"entry_name"`
@@ -335,7 +362,9 @@ type VaultEntry struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// ==============================================================================
 // Utilities
+// ==============================================================================
 func ParseVaultPayload(decrypted []byte) VaultPayload {
 	var vault VaultPayload
 	utils.LogPretty("vault_domain - ParseVaultPayload - decrypted", decrypted)
@@ -533,3 +562,13 @@ func (j JSONMap) Value() (driver.Value, error) {
 	return json.Marshal(j)
 }
 
+// ==============================================================================
+// Attachments
+// ==============================================================================
+type Attachment struct {
+	Hash string
+	Name string
+	Size int64
+}
+
+// ==============================================================================

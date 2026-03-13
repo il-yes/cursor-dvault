@@ -36,6 +36,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&app_config_persistence.UserConfigMapper{},
 		&app_config_domain.SharingRule{},
 		&app_config_domain.SharingConfig{}, // if used for advanced sharing
+		&app_config_domain.DeviceConfig{},
+		&app_config_domain.VaultConfigBeta{},
+		&app_config_domain.SubscriptionConfig{},
 		// &model.UserSession{},
 
 		// Auth

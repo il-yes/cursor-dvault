@@ -13,8 +13,10 @@ import {share_application_dto} from '../models';
 import {share_domain} from '../models';
 import {tracecore_types} from '../models';
 import {models} from '../models';
+import {app_config_dto} from '../models';
 import {identity_dtos} from '../models';
 import {identity_domain} from '../models';
+import {app_config_domain} from '../models';
 import {billing_domain} from '../models';
 import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
@@ -59,6 +61,8 @@ export function DownloadReceipt(arg1:string,arg2:string):Promise<main.Receipt>;
 
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
+export function EditConfig(arg1:string,arg2:app_config_dto.Settings,arg3:string):Promise<void>;
+
 export function EditEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function EditUserInfos(arg1:string,arg2:identity_dtos.EditUserInfosRequest):Promise<void>;
@@ -76,6 +80,8 @@ export function GenerateApiKey(arg1:main.GenerateApiKeyInput):Promise<main.Gener
 export function GetBillingHistory(arg1:string,arg2:number):Promise<Array<main.PaymentHistory>>;
 
 export function GetCheckoutURL(arg1:identity_domain.IdentityChoice,arg2:boolean,arg3:string,arg4:string,arg5:string,arg6:string):Promise<main.CreateCheckoutResponse>;
+
+export function GetConfig(arg1:string,arg2:string):Promise<app_config_domain.Config>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
 
@@ -97,6 +103,8 @@ export function GetUserVaultKey(arg1:string):Promise<string>;
 
 export function GetVault(arg1:string):Promise<Record<string, any>>;
 
+export function GetVaultAvatar(arg1:string,arg2:string):Promise<string>;
+
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
 export function IsVaultDirty(arg1:string):Promise<boolean>;
@@ -108,6 +116,10 @@ export function ListLinkSharesWithMe(arg1:string):Promise<any>;
 export function ListReceivedShares(arg1:string):Promise<any>;
 
 export function ListSharedEntries(arg1:string):Promise<any>;
+
+export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function LoadAvatar(arg1:string,arg2:string):Promise<string>;
 
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
 
@@ -141,6 +153,8 @@ export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequ
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
 
+export function SignIn(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
+
 export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
 
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
@@ -158,5 +172,9 @@ export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):P
 export function UpdatePaymentMethod(arg1:string,arg2:main.UpdatePaymentMethodRequest):Promise<void>;
 
 export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
+
+export function UploadAttachments(arg1:string,arg2:string,arg3:string,arg4:json.RawMessage,arg5:vault_dto.SelectedAttachments):Promise<vaults_domain.VaultEntry>;
+
+export function UploadAvatar(arg1:string,arg2:string,arg3:Array<number>):Promise<string>;
 
 export function UploadToIPFS(arg1:string,arg2:string):Promise<string>;

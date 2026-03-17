@@ -43,6 +43,20 @@ export interface AppSettings {
   user_id?: number;
   auto_sync_enabled: boolean;
 }
+export interface UserConfig {
+    id:               string;
+    role:             string;
+    signature:        string;
+    connected_orgs:    any[];
+    stellar_account:   StellarAccountConfig;
+    two_factor_enabled: boolean;
+    ui:               UIConfig;
+}
+
+export interface UIConfig {
+	theme: string;
+	animations_enabled: boolean;
+}
 
 export interface CommitRule {
   id: number;
@@ -59,7 +73,13 @@ export interface BlockchainConfig2 {
   stellar: StellarConfig;
   ipfs: IPFSConfig;
 }
-
+export interface StellarAccountConfig {
+	public_key:   string;
+	private_key:  string;
+	enc_password: number[];
+	enc_nonce:    number[];
+	enc_salt:     number[];
+}
 export interface StellarConfig {
   network: string;
   horizon_url: string;
@@ -92,6 +112,7 @@ export interface BaseEntry {
   created_at: string;
   updated_at: string;
   is_favorite?: boolean;
+  attachments?: Attachment[];
 }
 
 // Login Entry
@@ -173,8 +194,16 @@ export interface Vault {
 
 }
 
+export interface Attachment {
+  id: string;
+  entry_id: string;
+  hash: string;
+  name: string;
+  size: number;
+}
+
 export interface VaultRuntimeContext {
-  CurrentUser: CurrentUser;
+  UserConfig: CurrentUser;
   AppSettings: AppSettings;
   WorkingBranch: string;
   LoadedEntries: string[];
@@ -280,3 +309,83 @@ export interface PreloadedVaultResponse {
   LastCID?: string;
   Dirty?: boolean;
 }
+
+export type SettingsState = {
+  security: {
+    autoLockSeconds?: number
+    clearClipboardAfter?: number
+    twoFactorEnabled?: boolean
+  }
+
+  features: {
+    tracecoreEnabled?: boolean,
+    cloudBackupEnabled?: boolean,
+    threatDetectionEnabled?: boolean,
+    browserExtensionEnabled?: boolean,
+    gitCLIEnabled?: boolean,
+  }
+
+  sync: {
+    stellarFrequency?: string
+    ipfsPinning?: boolean
+    maxRetries?: number
+    syncIntervalSeconds?: number
+  }
+
+  backup: {
+    enabled?: boolean
+    schedule?: string
+    retentionDays?: number
+    encryption?: boolean
+  }
+
+  sharing: {
+    allowExternalSharing?: boolean,
+    defaultExpiryHours?: number,
+    requirePassword?: boolean,
+    maxSharesPerEntry?: number,
+  },
+
+  privacy: {
+    telemetryEnabled?: boolean,
+    anonymousMode?: boolean,
+  },
+
+  device: {
+    user_id?: string
+    vault_name?: string
+    device_id?: string
+    device_name?: string
+    last_synced?: number
+  }
+
+  subscription: {
+    user_id?: string
+    vault_name?: string
+    plan?: string
+    features?: {
+      tracecoreEnabled: boolean,
+      cloudBackupEnabled: boolean,
+      threatDetectionEnabled: boolean,
+      browserExtensionEnabled: boolean,
+      gitCLIEnabled: boolean,
+    }
+    limits?: {
+      maxVaults: number
+      maxUsers: number
+      maxDevices: number
+      maxShares: number
+    }
+  }
+  ui: {
+    theme?: string
+    animationsEnabled?: boolean
+  }
+}
+
+export type SelectedAttachment = {
+  name: string
+  size: number
+  data: number[]
+}
+

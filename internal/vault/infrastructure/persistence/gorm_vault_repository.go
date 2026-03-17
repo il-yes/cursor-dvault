@@ -43,4 +43,13 @@ func (r *GormVaultRepository) GetLatestByUserID(id string) (*vaults_domain.Vault
 	}
 	return record.ToDomain(), nil
 }
+
+func (r *GormVaultRepository) GetByUserIDAndName(userID string, name string) (*vaults_domain.Vault, error) {
+	var record VaultMapper
+	if err := r.db.Where("user_id = ? AND name = ?", userID, name).First(&record).Error; err != nil {
+		return nil, err
+	}
+	return record.ToDomain(), nil
+}
+
 	

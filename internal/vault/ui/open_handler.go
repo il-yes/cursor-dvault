@@ -27,9 +27,6 @@ func (h *OpenVaultHandler) OpenVault(
 	if req.Session == nil {
 		return nil, errors.New("session is required")
 	}
-	if req.Password == "" {
-		return nil, errors.New("password is required")
-	}
 	if req.UserID == "" {
 		return nil, errors.New("user id is required")
 	}

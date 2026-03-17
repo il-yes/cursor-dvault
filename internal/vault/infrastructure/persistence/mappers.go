@@ -21,6 +21,7 @@ type VaultMapper struct {
 	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 	CreatedAt string `json:"created_at" gorm:"column:created_at"`
 	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"`
+	Avatar string `json:"avatar" gorm:"column:avatar,omitempty"`
 }
 
 func (vm *VaultMapper) TableName() string {
@@ -37,6 +38,7 @@ func (vm *VaultMapper) ToDomain() *vaults_domain.Vault {
 		TxHash:    vm.TxHash,
 		CreatedAt: vm.CreatedAt,
 		UpdatedAt: vm.UpdatedAt,
+		Avatar: vm.Avatar,
 	}
 }
 func VaultDomainToMapper(vault *vaults_domain.Vault) *VaultMapper {
@@ -52,6 +54,7 @@ func VaultDomainToMapper(vault *vaults_domain.Vault) *VaultMapper {
 		TxHash:    vault.TxHash,
 		CreatedAt: vault.CreatedAt,
 		UpdatedAt: vault.UpdatedAt,
+		Avatar: vault.Avatar,
 	}
 }
 

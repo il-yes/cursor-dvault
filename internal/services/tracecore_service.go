@@ -2,8 +2,8 @@ package services
 
 import (
 	"fmt"
-	"vault-app/internal/models"
 	tracecore_models "vault-app/internal/tracecore/models"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 const (
@@ -15,13 +15,13 @@ const (
 type CommitPayloadFactory struct {
 	Action string
 	From string						 		// public key of owner
-	Entry     models.VaultEntry   // unique entry reference
+	Entry     vaults_domain.VaultEntry   // unique entry reference
 	TargetUser  string   // optional: public key user receiving share/revoke
 	Permissions []string // optional: for read/share/revoke
 	Expiry      string
 }
 
-func NewCommitPayloadFactory(action string, from string, entry models.VaultEntry, targetUser string, perm []string, expiry string) *CommitPayloadFactory {
+func NewCommitPayloadFactory(action string, from string, entry vaults_domain.VaultEntry, targetUser string, perm []string, expiry string) *CommitPayloadFactory {
 
 	return &CommitPayloadFactory{
 		Action: action,

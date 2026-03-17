@@ -63,6 +63,7 @@ type UserConfigMapper struct {
 	StellarAccount   app_config_domain.StellarAccountConfig `json:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
 	SharingRules     []app_config_domain.SharingRule        `json:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
 	TwoFactorEnabled bool                 `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
+	UI               app_config_domain.UIConfig             `json:"ui" gorm:"embedded;embeddedPrefix:ui_"`
 }
 func (r *GormUserConfigRepository) toUserConfigMapper(userConfig *app_config_domain.UserConfig) *UserConfigMapper {
 	return &UserConfigMapper{
@@ -73,6 +74,7 @@ func (r *GormUserConfigRepository) toUserConfigMapper(userConfig *app_config_dom
 		StellarAccount: userConfig.StellarAccount,
 		SharingRules:   userConfig.SharingRules,
 		TwoFactorEnabled: userConfig.TwoFactorEnabled,
+		UI:             userConfig.UI,
 	}
 }
 
@@ -85,5 +87,6 @@ func (r *GormUserConfigRepository) toUserConfigModel(userConfig *UserConfigMappe
 		StellarAccount: userConfig.StellarAccount,
 		SharingRules:   userConfig.SharingRules,
 		TwoFactorEnabled: userConfig.TwoFactorEnabled,
+		UI:             userConfig.UI,
 	}
 }

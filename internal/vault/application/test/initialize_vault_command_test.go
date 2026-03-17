@@ -20,6 +20,10 @@ type fakeVaultRepo struct {
 	saveCalled    bool
 	saveError     error
 	savedVault *vault_domain.Vault
+	updateCalled bool
+	updateError error
+	deleteCalled bool
+	deleteError error
 }
 
 

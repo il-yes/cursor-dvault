@@ -21,7 +21,7 @@ import { GlassProgressBar } from "@/components/GlassProgressBar";
 import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
-import { EditUserInfos, GenerateApiKey } from "@/services/api";
+import { EditUserInfos, GenerateApiKey, getVaultAvatar, uploadAvatar, loadAvatar } from "@/services/api";
 
 
 const mockFile = {
@@ -35,6 +35,7 @@ const Profile = () => {
 	const navigate = useNavigate();
 	const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
 	const { clearVault: clearVaultContext, vaultContext } = useVault();
+	const { jwtToken } = useAuthStore.getState();
 	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const vaultPassword = "vaultPassword";
@@ -47,7 +48,7 @@ const Profile = () => {
 	const [lastName, setLastName] = useState();
 	const [publicKey, setPublicKey] = useState("");
 	const [privateKey, setPrivateKey] = useState("");
-	
+
 	const [progressVisible, setProgressVisible] = useState(false);
 	const [showModal, setShowModal] = useState(false);
 
@@ -57,7 +58,7 @@ const Profile = () => {
 	const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
 
 	const session = useAppStore.getState().session;
-	const user = session?.user	
+	const user = session?.user
 	user && console.log(user)
 
 	useEffect(() => {
@@ -86,9 +87,18 @@ const Profile = () => {
 		setPrivateKey(stellar?.private_key);
 	}, [vault]);
 
+	useEffect(() => {
+		const fetchAvatar = async () => {
+			const b64 = await loadAvatar(jwtToken, vaultContext.Vault.name);
+			setAvatarUrl(b64);
+		};
 
-	// Updated handleAvatarUpload
-	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		fetchAvatar();
+	}, [jwtToken, vaultContext]);
+
+
+	// Updated handleAttachmentUploadOnIpfs
+	const handleAttachmentUploadOnIpfs = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		setProgressVisible(true);
 		const file = e.target.files?.[0];
 		if (file) {
@@ -138,6 +148,48 @@ const Profile = () => {
 				});
 				setProgress(0);
 			}
+		}
+	};
+
+	const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		if (file.size > 2 * 1024 * 1024) {
+			toast({
+				title: "File too large",
+				description: "Please select an image smaller than 2MB.",
+				variant: "destructive",
+			});
+			return;
+		}
+
+		try {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				setAvatarUrl(e.target?.result as string);
+			};
+			reader.readAsDataURL(file);
+
+			const buffer = await readFileAsBuffer(file);
+
+			const avatarPath = await uploadAvatar(jwtToken, vaultContext.Vault.name, buffer);
+			console.log({ avatarPath });
+
+			// reload vaultContext
+			refreshVault();
+
+			toast({
+				title: "Avatar updated",
+				description: "Your profile picture has been changed.",
+			});
+		} catch (err) {
+			toast({
+				title: "Upload failed",
+				description: "Please try again.",
+				variant: "destructive",
+			});
+			console.log("UploadAvatar error", err);
 		}
 	};
 
@@ -241,7 +293,7 @@ const Profile = () => {
 			// After some delay, hide the progress bar like a toast
 			setTimeout(() => setProgressVisible(false), 2000);
 
-			
+
 
 		} catch (error) {
 			setProgressVisible(false);
@@ -263,6 +315,7 @@ const Profile = () => {
 		console.log(response);
 		toast({ title: "Success", description: "User info updated successfully!" });
 	}
+
 
 	return (
 		<DashboardLayout>
@@ -290,9 +343,12 @@ const Profile = () => {
 									</h2>
 									<p className="text-xl text-muted-foreground/80">Your personal details</p>
 								</div>
-								<div className="w-16 h-16 bg-gradient-to-r from-primary/20 to-amber-500/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-primary/30">
-									<User className="h-8 w-8 text-primary" />
-								</div>
+								{/* <User  className="h-8 w-8 text-primary" /> */}
+								{avatarUrl && <Avatar className="h-20 w-35 flex-shrink-0" style={{ cursor: "pointer" }}>
+									<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
+										<img src={avatarUrl} alt="User Avatar" className="h-20 w-20" />
+									</AvatarFallback>
+								</Avatar>}
 							</div>
 
 							{/* Avatar Upload */}
@@ -300,13 +356,9 @@ const Profile = () => {
 								<div className="relative group/avatar">
 									<div className="absolute inset-0 bg-gradient-to-r from-primary via-amber-500/30 to-primary rounded-3xl blur-xl opacity-0 group-hover/avatar:opacity-50 transition-all" />
 									<Avatar className="h-28 w-28 border-4 border-white/50 shadow-2xl group-hover/avatar:shadow-primary/30 transition-all">
-										{avatarUrl ? (
-											<AvatarImage src={avatarUrl} />
-										) : (
-											<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-3xl font-bold border-4 border-white/60 backdrop-blur-sm">
-												{user?.username?.charAt(0).toUpperCase()}
-											</AvatarFallback>
-										)}
+										<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-3xl font-bold border-4 border-white/60 backdrop-blur-sm">
+											{user?.username?.charAt(0).toUpperCase()}
+										</AvatarFallback>
 									</Avatar>
 								</div>
 								<div className="flex-1 text-center md:text-left">

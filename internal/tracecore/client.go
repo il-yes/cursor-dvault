@@ -18,9 +18,7 @@ import (
 // Error definitions
 var (
 	ErrUserNotFound = errors.New("user not found")
-)
-var (
-	ErrNotFound = errors.New("endpoint not found")
+	ErrNotFound     = errors.New("endpoint not found")
 )
 
 type TracecoreClient struct {

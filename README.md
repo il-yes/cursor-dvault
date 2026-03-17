@@ -560,3 +560,179 @@ curl -X POST https://ankhora.io/back/vaults/839471c9-a394-40e5-b5a5-aa5e4ca02288
   -d '{
     "stream": "Default Vault",
   }'
+
+
+- extend config 
+- settings, profile and subscription management
+- shares: improve ux
+- document manager
+- tracecore compliance
+- browser extension
+- cli-enterprise tool
+- partenariat framework (for establishing the templates)
+- metrics dashboard
+- marketing use cases scenarios illustrations
+- stellar payment integration
+
+
+type BoundaryContext interface {
+	BuildInfra() string
+  InjectDependency(dependency BoundaryContext) 
+  InjectDependencies(app application.Application) 
+}
+
+type VaultBC struct {
+  db *gorm.DB
+  logger logger.Logger
+
+	name string
+	version string
+  isBuilt bool
+  isDependenciesInjected bool
+  dependencyList map[string]bool
+
+	userRepo user_repo.UserRepository
+  useCase UseCase
+  monitor Monitor
+
+  SubscriptionBC *SubscriptionBC
+  IdentityBC *IdentityBC
+}
+
+func (bc *VaultBC) New(db *gorm.DB, logger logger.Logger) *VaultBC {
+  bc.BuildInfra(db, logger)
+
+	return &VaultBC{
+    db: db,
+    logger: logger,
+		name: "VaultBC",
+		version: "1.0.0",
+		isDependenciesInjected: false,
+		dependencyList: map[string]bool{
+			"SubscriptionBC": false,
+			"IdentityBC": false,
+		},
+	}
+}
+
+func (bc *VaultBC) BuildInfra(db *gorm.DB, logger logger.Logger) error {
+	bc.userRepo = user_repo.NewUserRepository(db, logger)
+	bc.useCase = usecase.NewUseCase(db, logger)
+	bc.monitor = monitor.NewMonitor(db, logger)
+  bc.isBuilt = true
+	return nil  
+}
+
+func (bc *VaultBC) InjectDependency(dependency BoundaryContext) {
+  if dependency.isBuilt {
+    bc.dependencyList[dependency.name] = true
+	  bc[dependency.name] = dependency
+  }
+}
+
+func (bc *VaultBC) InjectDependencies(app application.Application) {
+  for _, dependency := range bc.dependencyList {
+    if app[dependency] != nil {
+      bc.InjectDependency(app[dependency])
+    }
+  }
+}
+
+func (bc *VaultBC) GetDependency(name string) *BoundaryContext {
+	return bc[name]
+}
+
+type SubscriptionBC struct {
+	name string
+	version string
+	userRepo user_repo.UserRepository
+  useCase UseCase
+  monitor Monitor
+}
+func (bc *SubscriptionBC) BuildInfra() string {
+	bc.userRepo = user_repo.NewUserRepository()
+	bc.useCase = usecase.NewUseCase()
+	bc.monitor = monitor.NewMonitor()
+	return "infra built"
+}
+
+
+
+
+app := NewApplication()
+app.AddBoundaryContext(NewVaultBC(db, logger))
+app.AddBoundaryContext(NewSubscriptionBC(db, logger))
+app.AddBoundaryContext(NewIdentityBC(db, logger))
+
+for _, bc := range app.boundaryContexts {
+  bc.InjectDependencies(app)
+}
+
+app.Run() 
+
+
+vault.json - Vault metadata:
+{
+  "vault_id": "main",
+  "owner": "userID",
+  "created_at": "2026-03-12",
+  "version": 1
+}
+
+entries: no need as there are stored in my sqlite db
+so devices and metadata are generated on the fly for export, Snapshot backups and device sync ?
+the logs folder, usefull for debugging and audit trail, failed decrypt attempts or sync events...
+
+Still if i understood, my vault boundary context will become:
+ vault git:(main) ✗ tree -L2
+.
+├── application
+│   ├── commands
+│   ├── dto
+│   ├── events
+│   ├── queries
+│   ├── session
+│   └── test
+├── domain
+│   ├── errors.go
+│   ├── events.go
+│   ├── factories.go
+│   ├── models.go
+│   ├── repositories.go
+│   ├── services.go
+│   └── value_objects.go
+├── infrastructure
+│   ├── eventbus
+│   ├── ipfs
+│   ├── persistence
+│   ├── storage           // <--- New folders *******************
+│         ├── avatar_store.go
+│         └── attachment_store.go
+└── ui
+    ├── card_handler.go
+    ├── identity_handler.go
+    ├── login_handler.go
+    ├── login_handler_test.go
+    ├── note_handler.go
+    ├── open_handler.go
+    ├── sshkey_handler.go
+    └── vault_handler.go
+
+vault/
+  └── user_id/ 
+        └── vault_name/ 
+              ├── avatars/                  # User avatars (encrypted)
+              │   └── user123.enc
+              ├── attachments/              # Attachments (encrypted)
+              │   └── file1.enc
+              │   └── file2.enc
+              ├── metadata/
+              │   ├── vault.json            # Vault metadata (id, owner, version, created_at)
+              │   ├── vaultKey.enc          # VaultKey encrypted with MasterKey
+              │   └── vaultIndex.enc        # Encrypted index: entries, folders, attachment pointers
+              ├── devices/                  # Devices synced metadata
+              │   └── device1.json
+              │   └── device2.json
+              ├── logs/                     # Logs and audit trail
+              │   └── vault.log
+              └── entries.db                # SQLite DB for entries storage (encrypted blobs)  

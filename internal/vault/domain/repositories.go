@@ -7,6 +7,7 @@ type VaultRepository interface {
 	DeleteVault(vaultID string) error
 
 	GetLatestByUserID(userID string) (*Vault, error)
+	GetByUserIDAndName(userID string, name string) (*Vault, error)
 }
 
 type FolderRepository interface {

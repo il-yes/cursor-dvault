@@ -12,6 +12,7 @@ type UserDB struct {
 	IsAnonymous bool `json:"is_anonymous"`
 	StellarPublicKey string `json:"stellar_public_key"`
 	CreatedAt time.Time `json:"created_at"`
+	LastConnectedAt time.Time `json:"last_connected_at"`
 	Email string `json:"email"`
 	Password string `json:"password"`	
 }
@@ -32,6 +33,7 @@ func (u *UserDB) ToUser() *onboarding_domain.User {
 		CreatedAt: u.CreatedAt,
 		Email: u.Email,
 		Password: u.Password,
+		LastConnectedAt: u.LastConnectedAt,
 	}
 }
 func ToUserDB(user *onboarding_domain.User) *UserDB {
@@ -42,6 +44,7 @@ func ToUserDB(user *onboarding_domain.User) *UserDB {
 		CreatedAt: user.CreatedAt,
 		Email: user.Email,
 		Password: user.Password,	
+		LastConnectedAt: user.LastConnectedAt,
 	}
 }
 

@@ -78,6 +78,10 @@ export function DummyExposeEntries(arg1) {
   return window['go']['main']['App']['DummyExposeEntries'](arg1);
 }
 
+export function EditConfig(arg1, arg2, arg3) {
+  return window['go']['main']['App']['EditConfig'](arg1, arg2, arg3);
+}
+
 export function EditEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['EditEntry'](arg1, arg2, arg3);
 }
@@ -112,6 +116,10 @@ export function GetBillingHistory(arg1, arg2) {
 
 export function GetCheckoutURL(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['GetCheckoutURL'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function GetConfig(arg1, arg2) {
+  return window['go']['main']['App']['GetConfig'](arg1, arg2);
 }
 
 export function GetFoldersByVault(arg1, arg2) {
@@ -154,6 +162,10 @@ export function GetVault(arg1) {
   return window['go']['main']['App']['GetVault'](arg1);
 }
 
+export function GetVaultAvatar(arg1, arg2) {
+  return window['go']['main']['App']['GetVaultAvatar'](arg1, arg2);
+}
+
 export function ImportVaultWithKey(arg1) {
   return window['go']['main']['App']['ImportVaultWithKey'](arg1);
 }
@@ -176,6 +188,14 @@ export function ListReceivedShares(arg1) {
 
 export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
+}
+
+export function LoadAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LoadAttachment'](arg1, arg2, arg3);
+}
+
+export function LoadAvatar(arg1, arg2) {
+  return window['go']['main']['App']['LoadAvatar'](arg1, arg2);
 }
 
 export function NotifyPaymentSuccess(arg1) {
@@ -242,6 +262,10 @@ export function Sign(arg1) {
   return window['go']['main']['App']['Sign'](arg1);
 }
 
+export function SignIn(arg1) {
+  return window['go']['main']['App']['SignIn'](arg1);
+}
+
 export function SignInWithIdentity(arg1) {
   return window['go']['main']['App']['SignInWithIdentity'](arg1);
 }
@@ -276,6 +300,14 @@ export function UpdatePaymentMethod(arg1, arg2) {
 
 export function UpgradeSubscription(arg1, arg2) {
   return window['go']['main']['App']['UpgradeSubscription'](arg1, arg2);
+}
+
+export function UploadAttachments(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['UploadAttachments'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function UploadAvatar(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadAvatar'](arg1, arg2, arg3);
 }
 
 export function UploadToIPFS(arg1, arg2) {

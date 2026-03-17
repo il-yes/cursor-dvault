@@ -15,6 +15,7 @@ type User struct {
 	IsAnonymous bool `json:"is_anonymous"`
 	StellarPublicKey string `json:"stellar_public_key"`
 	CreatedAt time.Time `json:"created_at"`
+	LastConnectedAt  time.Time
 
 	Email string `json:"email"`
 	Password string `json:"password"`	
@@ -26,6 +27,7 @@ func NewUser(isAnonymous bool, email string, password string) User {
 		CreatedAt: time.Now(),
 		Email: email,
 		Password: password,
+		LastConnectedAt: time.Now(),
 	}
 }
 func (u *User) AttachStellarPublicKey(publicKey string) {

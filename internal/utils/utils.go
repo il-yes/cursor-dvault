@@ -1,11 +1,12 @@
 package utils
 
-
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 	"math/rand/v2"
+	"time"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 
@@ -39,4 +40,8 @@ func RandRange(min, max int) int {
 }
 func Uint64() uint64 {
     return uint64(rand.Uint32())<<32 + uint64(rand.Uint32())
+}
+
+func mapToStruct(input map[string]interface{}, out any) error {
+	return mapstructure.Decode(input, out)
 }

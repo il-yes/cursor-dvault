@@ -98,7 +98,6 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	if err := h.vaultRepo.UpdateVault(vault.Vault); err != nil {
 		return nil, err
 	}
-	// utils.LogPretty("CreateVaultCommandHandler - vault", vault.Vault)
 
 	// -----------------------------
 	// 4. (Optional) Return event "VaultCreated"

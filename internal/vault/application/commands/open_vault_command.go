@@ -120,7 +120,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	}
 
 	// ------------------------------------------------------------
-	// 2. LOAD OR CREATE VAULT METADATA
+	// 2. CREATE VAULT METADATA IF NOT EXISTS
 	// ------------------------------------------------------------
 	// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
 	vault, err := h.vaultRepo.GetLatestByUserID(cmd.UserID)
@@ -148,7 +148,6 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 3. PARSE VAULT PAYLOAD
 	// ------------------------------------------------------------
-	// payload := vaults_domain.ParseVaultPayload(decrypted)
 	ipfsDataQuery, err := h.QueryHandler.Execute(vault_queries.GetIPFSDataQuerry{
 		UserID:    vault.UserSubscriptionID,
 		CID:       vault.CID,
@@ -217,91 +216,26 @@ func (h *OpenVaultCommandHandler) GetRuntimeContext(ctx context.Context, userID 
 }
 func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Context, userID string, configFacade AppConfigFacade) (*app_config_domain.AppConfig, *app_config_domain.UserConfig, error) {
 	if userID == "" {
-		return nil, nil, errors.New("user id is required")
+		return nil, nil, errors.New("LoadConfigurationsForUserID - user id is required")
 	}
 	if configFacade == nil {
-		return nil, nil, errors.New("config facade is required")
+		return nil, nil, errors.New("LoadConfigurationsForUserID - config facade is required")
 	}
 	// -----------------------------
 	// 1. Load App & User Config
 	// -----------------------------
-	// We use domain objects here because configFacade returns them
 	domainAppCfg, _ := configFacade.GetAppConfigByUserID(ctx, userID)
-
 	domainUserCfg, _ := configFacade.GetUserConfigByUserID(userID)
-	// utils.LogPretty("OpenVaultCommandHandler - Handle - domainAppCfg", domainAppCfg)
-	// utils.LogPretty("OpenVaultCommandHandler - Handle - domainUserCfg", domainUserCfg)
 
 	// If either config missing → minimal config onboarding
 	if domainAppCfg == nil || domainUserCfg == nil {
-		// h.logger.Warn("⚠️ Missing configs for user %s — creating minimal config...", userID)
-
-		// // Fix: Use properly constructed input and extract AppConfig from output
-		// appInput := &app_config_commands.CreateAppConfigCommandInput{
-		// 	AppConfig: &app_config_domain.AppConfig{
-		// 		UserID:           userID,
-		// 		Branch:           "main",
-		// 		TracecoreEnabled: false,
-		// 		EncryptionPolicy: "AES-256-GCM",
-		// 		VaultSettings: app_config_domain.VaultConfig{
-		// 			MaxEntries:       1000,
-		// 			AutoSyncEnabled:  false,
-		// 			EncryptionScheme: "AES-256-GCM",
-		// 		},
-		// 		Blockchain: app_config_domain.BlockchainConfig{
-		// 			Stellar: app_config_domain.StellarConfig{
-		// 				Network:    "testnet",
-		// 				HorizonURL: "https://horizon-testnet.stellar.org",
-		// 				Fee:        100,
-		// 			},
-		// 		},
-		// 		Storage: app_config.StorageConfig{
-		// 			Mode: app_config.StorageCloud,
-		// 			Cloud: app_config.CloudConfig{
-		// 				BaseURL: os.Getenv("CLOUD_BACKEND_URL"),
-		// 			},
-		// 		},
-		// 	},
-		// }
-		// if err := configFacade.UpdateAppConfig(appInput.AppConfig); err != nil {
-		// 	return nil, nil, err
-		// }
-		// domainAppCfg = appInput.AppConfig
-
-		// // Fix: Use properly constructed input and extract UserConfig from output
-		// userConfig := &app_config_domain.UserConfig{
-		// 	ID:             userID,
-		// 	Role:           "user",
-		// 	Signature:      "",
-		// 	SharingRules:   []app_config_domain.SharingRule{},
-		// 	StellarAccount: app_config_domain.StellarAccountConfig{},
-		// }
-		// if err := configFacade.UpdateUserConfig(userConfig); err != nil {
-		// 	return nil, nil, err
-		// }
-		// domainUserCfg = userConfig
-		// utils.LogPretty("OpenVaultCommandHandler - Handle - domainUserCfg", domainUserCfg)
-
 		configs, err := app_config_domain.InitConfig(userID)
 		if err != nil {
+			utils.LogPretty("OpenVaultCommandHandler - LoadConfigurationsForUserID - internal error", err)
 			return nil, nil, err
 		}
-		utils.LogPretty("OpenVaultCommandHandler - Handle - configs", configs)
-		return &configs.App, &configs.User, nil
+		return configs.App, configs.User, nil
 	}
-
-	// Convert domain objects to local app_config objects (package mismatch workaround)
-	// appCfg := &app_config.AppConfig{}
-	// appBytes, _ := json.Marshal(domainAppCfg)
-	// if err := json.Unmarshal(appBytes, appCfg); err != nil {
-	// 	return nil, nil, fmt.Errorf("failed to convert app config: %w", err)
-	// }
-
-	// userCfg := &app_config.UserConfig{}
-	// userBytes, _ := json.Marshal(domainUserCfg)
-	// if err := json.Unmarshal(userBytes, userCfg); err != nil {
-	// 	return nil, nil, fmt.Errorf("failed to convert user config: %w", err)
-	// }
 
 	return domainAppCfg, domainUserCfg, nil
 }

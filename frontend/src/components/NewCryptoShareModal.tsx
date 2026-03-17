@@ -100,7 +100,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			const tempId = addSharedEntry(optimisticPayload);
 
 			const getPublicKey = async (email: string) => {
-				const response = await fetch(`http://164.90.213.173:4001/api/check-email?email=${email}`, {
+				const response = await fetch(`http://localhost:4001/api/customers/email/${email}`, {
 					method: "GET",
 					headers: {
 						"Content-Type": "application/json",
@@ -108,7 +108,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 				});
 				const data = await response.json();
 				console.log({ data });
-				return data.public_key;
+				return data.data.public_key;
 			};
 			// Get public key for recipients
 			const publicKeys = await Promise.all(recipients.map(email => getPublicKey(email)));

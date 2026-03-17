@@ -80,10 +80,18 @@ func (f *fakeVaultRepo) GetVault(string) (*vault_domain.Vault, error) {
 	panic("not used")
 }
 func (f *fakeVaultRepo) UpdateVault(*vault_domain.Vault) error {
-	panic("not used")
+	f.updateCalled = true
+	return f.updateError
 }
 func (f *fakeVaultRepo) DeleteVault(string) error {
-	panic("not used")
+	f.deleteCalled = true
+	return f.deleteError
+}
+func (f *fakeVaultRepo) GetByUserIDAndName(string, string) (*vault_domain.Vault, error) {
+	if f.existingVault != nil {
+		return f.existingVault, nil
+	}
+	return nil, vault_domain.ErrVaultNotFound
 }
 
 //

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // AvatarStore manages user avatars in the vault.
@@ -97,13 +98,43 @@ func (s *AvatarStore) Cleanup() error {
 }
 
 
-func (s *AvatarStore) LoadBase64(userID, ext string) (string, error) {
-    path := filepath.Join(s.Root, "avatars", userID+ext)
-    data, err := os.ReadFile(path)
-    if err != nil {
-        return "", err
-    }
-    contentType := http.DetectContentType(data)
-    b64 := base64.StdEncoding.EncodeToString(data)
-    return fmt.Sprintf("data:%s;base64,%s", contentType, b64), nil
+// func (s *AvatarStore) LoadBase64(userID, ext string) (string, error) {
+//     path := filepath.Join(s.Root, "avatars", userID+ext)
+//     data, err := os.ReadFile(path)
+//     if err != nil {
+//         return "", err
+//     }
+//     contentType := http.DetectContentType(data)
+//     b64 := base64.StdEncoding.EncodeToString(data)
+//     return fmt.Sprintf("data:%s;base64,%s", contentType, b64), nil
+// }
+
+func (s *AvatarStore) LoadBase64(userID string) (string, error) {
+	dir := filepath.Join(s.Root, "avatars")
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	for _, f := range files {
+		if strings.HasPrefix(f.Name(), userID+".") {
+			path := filepath.Join(dir, f.Name())
+
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return "", err
+			}
+
+			contentType := http.DetectContentType(data)
+			b64 := base64.StdEncoding.EncodeToString(data)
+
+			return fmt.Sprintf("data:%s;base64,%s", contentType, b64), nil
+		}
+	}
+
+	return "", fmt.Errorf("avatar not found for user %s", userID)
 }
+
+
+

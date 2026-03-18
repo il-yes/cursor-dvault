@@ -107,6 +107,7 @@ function AppContent() {
 			<Route path="/dashboard/about" element={<About />} />
 			<Route path="/payment/success" element={<PaymentSuccess />} />
 			<Route path="/dashboard/subscription" element={<SubscriptionManager />} />
+			<Route path="/on-boarding" element={<OnboardingWizardBeta />} />
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 			<Route path="*" element={<NotFound />} />
 		</Routes>

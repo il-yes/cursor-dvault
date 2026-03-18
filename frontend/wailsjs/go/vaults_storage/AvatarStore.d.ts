@@ -9,6 +9,6 @@ export function Exists(arg1:string,arg2:string):Promise<boolean>;
 
 export function Load(arg1:string,arg2:string):Promise<Array<number>>;
 
-export function LoadBase64(arg1:string,arg2:string):Promise<string>;
+export function LoadBase64(arg1:string):Promise<string>;
 
 export function Save(arg1:string,arg2:Array<number>):Promise<string>;

@@ -163,5 +163,17 @@ type DecryptCryptoShareResponse struct {
 	Payload string `json:"payload"` // decrypted vault payload
 	ExpiresIn int64 `json:"expires_in,omitempty"`
 }
-
-
+type AddPublicKeyToCustomerRequest struct {
+	PublicKey string `json:"public_key"`
+	Email string `json:"email"`
+}
+type AddPublicKeyToCustomerResponse struct {
+	ID        int       `json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	PublicKey *string    `json:"public_key,omitempty"`
+	CreatedAt time.Time `json:"-"`
+	UpdatedAt time.Time `json:"-"`
+}
+	

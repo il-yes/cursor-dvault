@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
-	"vault-app/internal/models"
+	// "vault-app/internal/models"
 	"vault-app/internal/utils"
 
 	"github.com/google/uuid"
@@ -63,11 +63,13 @@ func (v *Vault) BuildInitialPayload(version string) *VaultPayload {
 func (v *Vault) GetVaultPath() string {
 	return filepath.Join("vault", v.UserID, v.Name)
 }
+func (v *Vault) GetVaultAttachmentPath() string {
+	return filepath.Join("vault", v.UserID, v.Name, "attachments")
+}
 func (v *Vault) AttachAvatar(avatar string) {
     v.Avatar = avatar
     v.UpdatedAt = time.Now().Format(time.RFC3339)
 }
-
 
 type VaultContentInterface interface {
 	GetFolder(folderID string) (Folder, Entries)
@@ -248,9 +250,17 @@ func (s *VaultPayload) ToBytes() []byte {
 	return raw
 }
 
-
-
-
+// ==============================================================================
+// VaultEntry Interface
+// ==============================================================================
+type VaultEntry interface {
+	GetId() string
+	GetTypeName() string
+	GetName() string
+}
+// ==============================================================================
+// EntryType
+// ==============================================================================
 
 type EntryType string
 
@@ -278,21 +288,37 @@ type BaseEntry struct {
 	// or type:text if jsonb unsupported
 	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
+	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
 }
 
+
+// func (e *BaseEntry) AddAttachment(attachment Attachment) {
+//     e.Attachments = append(e.Attachments, attachment)
+//     e.UpdatedAt = time.Now().Format(time.RFC3339)
+// }
 type LoginEntry struct {
 	BaseEntry
 	UserName string `json:"user_name"`
 	Password string `json:"password"`
 	Website  string `json:"web_site,omitempty"`
 }
-
+func (e *LoginEntry) AddAttachments(attachments []Attachment) *LoginEntry {
+    e.Attachments = append(e.Attachments, attachments...)
+    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	return e
+}
 type CardEntry struct {
 	BaseEntry
 	Owner      string `json:"owner"`
 	Number     string `json:"number"`
 	Expiration string `json:"expiration"`
 	CVC        string `json:"cvc"`
+}
+
+func (e *CardEntry) AddAttachments(attachments []Attachment) *CardEntry {
+    e.Attachments = append(e.Attachments, attachments...)
+    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	return e
 }
 
 type IdentityEntry struct {
@@ -317,8 +343,20 @@ type IdentityEntry struct {
 	Country              string `json:"country,omitempty"`
 }
 
+func (e *IdentityEntry) AddAttachments(attachments []Attachment) *IdentityEntry {
+    e.Attachments = append(e.Attachments, attachments...)
+    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	return e
+}
+
 type NoteEntry struct {
 	BaseEntry
+}
+
+func (e *NoteEntry) AddAttachments(attachments []Attachment) *NoteEntry {
+    e.Attachments = append(e.Attachments, attachments...)
+    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	return e
 }
 
 type SSHKeyEntry struct {
@@ -327,6 +365,13 @@ type SSHKeyEntry struct {
 	PublicKey    string `json:"public_key"`
 	EFingerprint string `json:"e_fingerprint"`
 }
+
+func (e *SSHKeyEntry) AddAttachments(attachments []Attachment) *SSHKeyEntry {
+    e.Attachments = append(e.Attachments, attachments...)
+    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	return e
+}
+
 
 func (e LoginEntry) GetId() string          { return e.ID }
 func (e LoginEntry) GetTypeName() string    { return "login" }
@@ -355,12 +400,12 @@ type Entries struct {
 // ==============================================================================
 // VaultEntry
 // ==============================================================================	
-type VaultEntry struct {
-	ID        string    `json:"id"`
-	EntryName string    `json:"entry_name"`
-	Type      string    `json:"type"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
+// type VaultEntry struct {
+// 	ID        string    `json:"id"`
+// 	EntryName string    `json:"entry_name"`
+// 	Type      string    `json:"type"`
+// 	UpdatedAt time.Time `json:"updated_at"`
+// }
 
 // ==============================================================================
 // Utilities
@@ -379,174 +424,174 @@ func ParseVaultPayload(decrypted []byte) VaultPayload {
 	return vault
 }
 
-func (f *Folder) ToFormerFolder() models.Folder {
-	return models.Folder{
-		ID:        f.ID,
-		Name:      f.Name,
-		CreatedAt: f.CreatedAt,
-		UpdatedAt: f.UpdatedAt,
-		IsDraft:   f.IsDraft,
-	}
-}
-func (e *Entries) ToFormerEntries() models.Entries {
-	login := make([]models.LoginEntry, len(e.Login))
-	for i, v := range e.Login {
-		login[i] = v.ToFormerLoginEntry()
-	}
-	card := make([]models.CardEntry, len(e.Card))
-	for i, v := range e.Card {
-		card[i] = v.ToFormerCardEntry()
-	}
-	identity := make([]models.IdentityEntry, len(e.Identity))
-	for i, v := range e.Identity {
-		identity[i] = v.ToFormerIdentityEntry()
-	}
-	note := make([]models.NoteEntry, len(e.Note))
-	for i, v := range e.Note {
-		note[i] = v.ToFormerNoteEntry()
-	}
-	sshKey := make([]models.SSHKeyEntry, len(e.SSHKey))
-	for i, v := range e.SSHKey {
-		sshKey[i] = v.ToFormerSSHKeyEntry()
-	}
+// func (f *Folder) ToFormerFolder() models.Folder {
+// 	return models.Folder{
+// 		ID:        f.ID,
+// 		Name:      f.Name,
+// 		CreatedAt: f.CreatedAt,
+// 		UpdatedAt: f.UpdatedAt,
+// 		IsDraft:   f.IsDraft,
+// 	}
+// }
+// func (e *Entries) ToFormerEntries() models.Entries {
+// 	login := make([]models.LoginEntry, len(e.Login))
+// 	for i, v := range e.Login {
+// 		login[i] = v.ToFormerLoginEntry()
+// 	}
+// 	card := make([]models.CardEntry, len(e.Card))
+// 	for i, v := range e.Card {
+// 		card[i] = v.ToFormerCardEntry()
+// 	}
+// 	identity := make([]models.IdentityEntry, len(e.Identity))
+// 	for i, v := range e.Identity {
+// 		identity[i] = v.ToFormerIdentityEntry()
+// 	}
+// 	note := make([]models.NoteEntry, len(e.Note))
+// 	for i, v := range e.Note {
+// 		note[i] = v.ToFormerNoteEntry()
+// 	}
+// 	sshKey := make([]models.SSHKeyEntry, len(e.SSHKey))
+// 	for i, v := range e.SSHKey {
+// 		sshKey[i] = v.ToFormerSSHKeyEntry()
+// 	}
 
-	return models.Entries{
-		Login:    login,
-		Card:     card,
-		Identity: identity,
-		Note:     note,
-		SSHKey:   sshKey,
-	}
-}
-func (e *LoginEntry) ToFormerLoginEntry() models.LoginEntry {
+// 	return models.Entries{
+// 		Login:    login,
+// 		Card:     card,
+// 		Identity: identity,
+// 		Note:     note,
+// 		SSHKey:   sshKey,
+// 	}
+// }
+// func (e *LoginEntry) ToFormerLoginEntry() models.LoginEntry {
 
-	return models.LoginEntry{
-		BaseEntry: models.BaseEntry{
-			ID:              e.ID,
-			EntryName:       e.EntryName,
-			FolderID:        e.FolderID,
-			Type:            models.EntryType(e.Type),
-			AdditionnalNote: e.AdditionnalNote,
-			CustomFields:    models.JSONMap(e.CustomFields),
-			Trashed:         e.Trashed,
-			IsDraft:         e.IsDraft,
-			IsFavorite:      e.IsFavorite,
-			CreatedAt:       e.CreatedAt,
-			UpdatedAt:       e.UpdatedAt,
-		},
-		UserName: e.UserName,
-		Password: e.Password,
-		Website:  e.Website,
-	}
-}
-func (v *VaultPayload) ToFormerVaultPayload() *models.VaultPayload {
-	folders := make([]models.Folder, len(v.Folders))
-	for i, f := range v.Folders {
-		folders[i] = f.ToFormerFolder()
-	}
+// 	return models.LoginEntry{
+// 		BaseEntry: models.BaseEntry{
+// 			ID:              e.ID,
+// 			EntryName:       e.EntryName,
+// 			FolderID:        e.FolderID,
+// 			Type:            models.EntryType(e.Type),
+// 			AdditionnalNote: e.AdditionnalNote,
+// 			CustomFields:    models.JSONMap(e.CustomFields),
+// 			Trashed:         e.Trashed,
+// 			IsDraft:         e.IsDraft,
+// 			IsFavorite:      e.IsFavorite,
+// 			CreatedAt:       e.CreatedAt,
+// 			UpdatedAt:       e.UpdatedAt,
+// 		},
+// 		UserName: e.UserName,
+// 		Password: e.Password,
+// 		Website:  e.Website,
+// 	}
+// }
+// func (v *VaultPayload) ToFormerVaultPayload() *models.VaultPayload {
+// 	folders := make([]models.Folder, len(v.Folders))
+// 	for i, f := range v.Folders {
+// 		folders[i] = f.ToFormerFolder()
+// 	}
 
-	return &models.VaultPayload{
-		Version: v.Version,
-		Name:    v.Name,
-		BaseVaultContent: models.BaseVaultContent{
-			Folders: folders,
-			Entries: v.Entries.ToFormerEntries(),
-		},
-	}
-}
-func (e *CardEntry) ToFormerCardEntry() models.CardEntry {
-	return models.CardEntry{
-		BaseEntry: models.BaseEntry{
-			ID:              e.ID,
-			EntryName:       e.EntryName,
-			FolderID:        e.FolderID,
-			Type:            models.EntryType(e.Type),
-			AdditionnalNote: e.AdditionnalNote,
-			CustomFields:    models.JSONMap(e.CustomFields),
-			Trashed:         e.Trashed,
-			IsDraft:         e.IsDraft,
-			IsFavorite:      e.IsFavorite,
-			CreatedAt:       e.CreatedAt,
-			UpdatedAt:       e.UpdatedAt,
-		},
-		Owner:      e.Owner,
-		Number:     e.Number,
-		Expiration: e.Expiration,
-		CVC:        e.CVC,
-	}
-}
-func (e *IdentityEntry) ToFormerIdentityEntry() models.IdentityEntry {
-	return models.IdentityEntry{
-		BaseEntry: models.BaseEntry{
-			ID:              e.ID,
-			EntryName:       e.EntryName,
-			FolderID:        e.FolderID,
-			Type:            models.EntryType(e.Type),
-			AdditionnalNote: e.AdditionnalNote,
-			CustomFields:    models.JSONMap(e.CustomFields),
-			Trashed:         e.Trashed,
-			IsDraft:         e.IsDraft,
-			IsFavorite:      e.IsFavorite,
-			CreatedAt:       e.CreatedAt,
-			UpdatedAt:       e.UpdatedAt,
-		},
-		Genre:                e.Genre,
-		FirstName:            e.FirstName,
-		SecondFirstName:      e.SecondFirstName,
-		LastName:             e.LastName,
-		Username:             e.Username,
-		Company:              e.Company,
-		SocialSecurityNumber: e.SocialSecurityNumber,
-		IDNumber:             e.IDNumber,
-		DriverLicense:        e.DriverLicense,
-		Mail:                 e.Mail,
-		Telephone:            e.Telephone,
-		AddressOne:           e.AddressOne,
-		AddressTwo:           e.AddressTwo,
-		AddressThree:         e.AddressThree,
-		City:                 e.City,
-		State:                e.State,
-		PostalCode:           e.PostalCode,
-		Country:              e.Country,
-	}
-}
-func (e *NoteEntry) ToFormerNoteEntry() models.NoteEntry {
-	return models.NoteEntry{
-		BaseEntry: models.BaseEntry{
-			ID:              e.ID,
-			EntryName:       e.EntryName,
-			FolderID:        e.FolderID,
-			Type:            models.EntryType(e.Type),
-			AdditionnalNote: e.AdditionnalNote,
-			CustomFields:    models.JSONMap(e.CustomFields),
-			Trashed:         e.Trashed,
-			IsDraft:         e.IsDraft,
-			IsFavorite:      e.IsFavorite,
-			CreatedAt:       e.CreatedAt,
-			UpdatedAt:       e.UpdatedAt,
-		},
-	}
-}
-func (e *SSHKeyEntry) ToFormerSSHKeyEntry() models.SSHKeyEntry {
-	return models.SSHKeyEntry{
-		BaseEntry: models.BaseEntry{
-			ID:              e.ID,
-			EntryName:       e.EntryName,
-			FolderID:        e.FolderID,
-			Type:            models.EntryType(e.Type),
-			AdditionnalNote: e.AdditionnalNote,
-			CustomFields:    models.JSONMap(e.CustomFields),
-			Trashed:         e.Trashed,
-			IsDraft:         e.IsDraft,
-			IsFavorite:      e.IsFavorite,
-			CreatedAt:       e.CreatedAt,
-			UpdatedAt:       e.UpdatedAt,
-		},
-		PrivateKey:   e.PrivateKey,
-		PublicKey:    e.PublicKey,
-		EFingerprint: e.EFingerprint,
-	}
-}
+// 	return &models.VaultPayload{
+// 		Version: v.Version,
+// 		Name:    v.Name,
+// 		BaseVaultContent: models.BaseVaultContent{
+// 			Folders: folders,
+// 			Entries: v.Entries.ToFormerEntries(),
+// 		},
+// 	}
+// }
+// func (e *CardEntry) ToFormerCardEntry() models.CardEntry {
+// 	return models.CardEntry{
+// 		BaseEntry: models.BaseEntry{
+// 			ID:              e.ID,
+// 			EntryName:       e.EntryName,
+// 			FolderID:        e.FolderID,
+// 			Type:            models.EntryType(e.Type),
+// 			AdditionnalNote: e.AdditionnalNote,
+// 			CustomFields:    models.JSONMap(e.CustomFields),
+// 			Trashed:         e.Trashed,
+// 			IsDraft:         e.IsDraft,
+// 			IsFavorite:      e.IsFavorite,
+// 			CreatedAt:       e.CreatedAt,
+// 			UpdatedAt:       e.UpdatedAt,
+// 		},
+// 		Owner:      e.Owner,
+// 		Number:     e.Number,
+// 		Expiration: e.Expiration,
+// 		CVC:        e.CVC,
+// 	}
+// }
+// func (e *IdentityEntry) ToFormerIdentityEntry() models.IdentityEntry {
+// 	return models.IdentityEntry{
+// 		BaseEntry: models.BaseEntry{
+// 			ID:              e.ID,
+// 			EntryName:       e.EntryName,
+// 			FolderID:        e.FolderID,
+// 			Type:            models.EntryType(e.Type),
+// 			AdditionnalNote: e.AdditionnalNote,
+// 			CustomFields:    models.JSONMap(e.CustomFields),
+// 			Trashed:         e.Trashed,
+// 			IsDraft:         e.IsDraft,
+// 			IsFavorite:      e.IsFavorite,
+// 			CreatedAt:       e.CreatedAt,
+// 			UpdatedAt:       e.UpdatedAt,
+// 		},
+// 		Genre:                e.Genre,
+// 		FirstName:            e.FirstName,
+// 		SecondFirstName:      e.SecondFirstName,
+// 		LastName:             e.LastName,
+// 		Username:             e.Username,
+// 		Company:              e.Company,
+// 		SocialSecurityNumber: e.SocialSecurityNumber,
+// 		IDNumber:             e.IDNumber,
+// 		DriverLicense:        e.DriverLicense,
+// 		Mail:                 e.Mail,
+// 		Telephone:            e.Telephone,
+// 		AddressOne:           e.AddressOne,
+// 		AddressTwo:           e.AddressTwo,
+// 		AddressThree:         e.AddressThree,
+// 		City:                 e.City,
+// 		State:                e.State,
+// 		PostalCode:           e.PostalCode,
+// 		Country:              e.Country,
+// 	}
+// }
+// func (e *NoteEntry) ToFormerNoteEntry() models.NoteEntry {
+// 	return models.NoteEntry{
+// 		BaseEntry: models.BaseEntry{
+// 			ID:              e.ID,
+// 			EntryName:       e.EntryName,
+// 			FolderID:        e.FolderID,
+// 			Type:            models.EntryType(e.Type),
+// 			AdditionnalNote: e.AdditionnalNote,
+// 			CustomFields:    models.JSONMap(e.CustomFields),
+// 			Trashed:         e.Trashed,
+// 			IsDraft:         e.IsDraft,
+// 			IsFavorite:      e.IsFavorite,
+// 			CreatedAt:       e.CreatedAt,
+// 			UpdatedAt:       e.UpdatedAt,
+// 		},
+// 	}
+// }
+// func (e *SSHKeyEntry) ToFormerSSHKeyEntry() models.SSHKeyEntry {
+// 	return models.SSHKeyEntry{
+// 		BaseEntry: models.BaseEntry{
+// 			ID:              e.ID,
+// 			EntryName:       e.EntryName,
+// 			FolderID:        e.FolderID,
+// 			Type:            models.EntryType(e.Type),
+// 			AdditionnalNote: e.AdditionnalNote,
+// 			CustomFields:    models.JSONMap(e.CustomFields),
+// 			Trashed:         e.Trashed,
+// 			IsDraft:         e.IsDraft,
+// 			IsFavorite:      e.IsFavorite,
+// 			CreatedAt:       e.CreatedAt,
+// 			UpdatedAt:       e.UpdatedAt,
+// 		},
+// 		PrivateKey:   e.PrivateKey,
+// 		PublicKey:    e.PublicKey,
+// 		EFingerprint: e.EFingerprint,
+// 	}
+// }
 
 type JSONMap map[string]string
 
@@ -566,9 +611,11 @@ func (j JSONMap) Value() (driver.Value, error) {
 // Attachments
 // ==============================================================================
 type Attachment struct {
-	Hash string
-	Name string
-	Size int64
+	ID      string `json:"id" gorm:"primaryKey"`
+	EntryID string `json:"entry_id"`
+	Hash string `json:"hash"`
+	Name string `json:"name"`
+	Size int64 `json:"size"`
 }
 
 // ==============================================================================

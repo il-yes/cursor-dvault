@@ -22,7 +22,7 @@
  * POST   /api/tracecore/commit       - Create Tracecore commit
  * GET    /api/tracecore/verify/:id   - Verify commit integrity
  */
-import { LoginRequest, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
+import { LoginRequest, SelectedAttachment, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -61,12 +61,15 @@ export interface VaultEntry {
 	createdAt: string;
 	updatedAt: string;
 	encrypted: boolean;
+	attachments?: any[];
 }
 
 export interface CreateEntryPayload {
 	title: string;
 	content: string;
 	category: string;
+	attachments?: any[];
+	[key: string]: any;
 }
 
 export interface ShareEntryResponse {
@@ -372,7 +375,7 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 
 	const input: AccessCryptoShareRequest = {
 		share_id: payload.entry_id,
-		recipient_email: user?.email,
+		recipient_email: user?.email || user?.Email,
 		challenge: payload.challenge,
 		signature: payload.signature,
 	}
@@ -1134,7 +1137,7 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 		},
 		vaults: {
 			id: "",
-			user_id: user.ID,
+			user_id: user.id,
 			vault_name: vault.name,
 			features: {
 				tracecore_enabled: settings.features.tracecoreEnabled,
@@ -1205,17 +1208,24 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 
 export const uploadAvatar = async (jwtToken: string, vaultName: string, buffer: Uint8Array): Promise<string> => {
 	const response = await AppAPI.UploadAvatar(jwtToken, vaultName, Array.from(buffer));
-	console.log({ response })
 	return response;
 };
 export const getVaultAvatar = async (jwtToken: string, vaultName: string): Promise<string> => {
 	const response = await AppAPI.GetVaultAvatar(jwtToken, vaultName);
-	console.log({ response })
 	return response;
 };
 
 export const loadAvatar = async (jwtToken: string, vaultName: string): Promise<string> => {
 	const response = await AppAPI.LoadAvatar(jwtToken, vaultName);
+	return response;
+};
+
+export const uploadAttachments = async (jwtToken: string, vaultName: string, entryType: string, entry: any, attachments: SelectedAttachment[]): Promise<VaultEntry> => {
+	const response = await AppAPI.UploadAttachments(jwtToken, vaultName, entryType, entry, attachments);
 	console.log({ response })
+	return response;
+};
+export const loadAttachment = async (jwtToken: string, vaultName: string, entryID: string): Promise<string> => {
+	const response = await AppAPI.LoadAttachment(jwtToken, vaultName, entryID);
 	return response;
 };

@@ -10,6 +10,7 @@ import (
 	"vault-app/internal/auth"
 	app_config "vault-app/internal/config"
 	tracecore_models "vault-app/internal/tracecore/models"
+	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/gorm"
 )
@@ -38,11 +39,6 @@ const (
 )
 
 
-type VaultEntry interface {
-	GetId() string
-	GetTypeName() string
-	GetName() string
-}
 
 type User struct {
 	ID              string       `json:"id" gorm:"primaryKey"`
@@ -464,7 +460,7 @@ type VaultRuntimeContext struct {
 	AppSettings    app_config.AppConfig
 	SessionSecrets map[string]string
 	WorkingBranch  string
-	LoadedEntries  []VaultEntry
+	LoadedEntries  []vaults_domain.VaultEntry
 }
 
 func (ctx *VaultRuntimeContext) IsMultiActorMode() bool {

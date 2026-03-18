@@ -190,6 +190,10 @@ export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
 }
 
+export function LoadAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LoadAttachment'](arg1, arg2, arg3);
+}
+
 export function LoadAvatar(arg1, arg2) {
   return window['go']['main']['App']['LoadAvatar'](arg1, arg2);
 }
@@ -296,6 +300,10 @@ export function UpdatePaymentMethod(arg1, arg2) {
 
 export function UpgradeSubscription(arg1, arg2) {
   return window['go']['main']['App']['UpgradeSubscription'](arg1, arg2);
+}
+
+export function UploadAttachments(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['UploadAttachments'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function UploadAvatar(arg1, arg2, arg3) {

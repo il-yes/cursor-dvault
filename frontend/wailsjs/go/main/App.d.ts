@@ -117,6 +117,8 @@ export function ListReceivedShares(arg1:string):Promise<any>;
 
 export function ListSharedEntries(arg1:string):Promise<any>;
 
+export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
+
 export function LoadAvatar(arg1:string,arg2:string):Promise<string>;
 
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
@@ -170,6 +172,8 @@ export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):P
 export function UpdatePaymentMethod(arg1:string,arg2:main.UpdatePaymentMethodRequest):Promise<void>;
 
 export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
+
+export function UploadAttachments(arg1:string,arg2:string,arg3:string,arg4:json.RawMessage,arg5:vault_dto.SelectedAttachments):Promise<vaults_domain.VaultEntry>;
 
 export function UploadAvatar(arg1:string,arg2:string,arg3:Array<number>):Promise<string>;
 

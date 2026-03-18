@@ -26,6 +26,7 @@ import (
 	tracecore_models "vault-app/internal/tracecore/models"
 	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
+	vaults_domain "vault-app/internal/vault/domain"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -420,7 +421,7 @@ func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*any, error) {
 		}
 	}()
 
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("❌ entry does not implement VaultEntry interface")
 	}
@@ -485,7 +486,7 @@ func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMe
 	return vh.AddEntryFor(userID, parsed)
 }
 func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (any, error) {
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
@@ -515,7 +516,7 @@ func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.Ra
 	return vh.UpdateEntryFor(userID, parsed)
 }
 func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
 	}
@@ -533,7 +534,7 @@ func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	return err
 }
 func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) error {
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
 	}
@@ -895,7 +896,7 @@ func (vh *VaultHandler) ListLinkSharesWithMe(email string) (*[]tracecore.WailsLi
 // Tracecore - connexion
 // -----------------------------
 // PrepareTracecoreEnvelope builds and signs envelope; returns nil,nil if not enabled/needed
-func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry models.VaultEntry, options map[string]interface{}) (*tracecore_models.CommitEnvelope, error) {
+func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry vaults_domain.VaultEntry, options map[string]interface{}) (*tracecore_models.CommitEnvelope, error) {
 	// load session
 	session, err := vh.GetSession(userID)
 	if err != nil {

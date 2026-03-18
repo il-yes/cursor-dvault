@@ -256,27 +256,27 @@ func NewApp() *App {
 	reg.RegisterDefinitions([]registry.EntryDefinition{
 		{
 			Type:    "login",
-			Factory: func() models.VaultEntry { return &vaults_domain.LoginEntry{} },
+			Factory: func() vaults_domain.VaultEntry { return &vaults_domain.LoginEntry{} },
 			Handler: vault_ui.NewLoginHandler(*db, appLogger),
 		},
 		{
 			Type:    "card",
-			Factory: func() models.VaultEntry { return &vaults_domain.CardEntry{} },
+			Factory: func() vaults_domain.VaultEntry { return &vaults_domain.CardEntry{} },
 			Handler: vault_ui.NewCardHandler(*db, appLogger),
 		},
 		{
 			Type:    "note",
-			Factory: func() models.VaultEntry { return &vaults_domain.NoteEntry{} },
+			Factory: func() vaults_domain.VaultEntry { return &vaults_domain.NoteEntry{} },
 			Handler: vault_ui.NewNoteHandler(*db, appLogger),
 		},
 		{
 			Type:    "identity",
-			Factory: func() models.VaultEntry { return &vaults_domain.IdentityEntry{} },
+			Factory: func() vaults_domain.VaultEntry { return &vaults_domain.IdentityEntry{} },
 			Handler: vault_ui.NewIdentityHandler(*db, appLogger),
 		},
 		{
 			Type:    "sshkey",
-			Factory: func() models.VaultEntry { return &vaults_domain.SSHKeyEntry{} },
+			Factory: func() vaults_domain.VaultEntry { return &vaults_domain.SSHKeyEntry{} },
 			Handler: vault_ui.NewSSHKeyHandler(*db, appLogger),
 		},
 	})
@@ -770,7 +770,7 @@ func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 		"User":                user,
 		"role":                "user",
 		"Vault":               userSession.Vault,
-		"SharedEntries":       []models.VaultEntry{},
+		"SharedEntries":       []vaults_domain.VaultEntry{},
 		"VaultRuntimeContext": userSession.Runtime,
 		"LastCID":             userSession.LastCID,
 		"Dirty":               userSession.Dirty,
@@ -794,6 +794,7 @@ func (a *App) EditConfig(vaultName string, s *app_config_dto.Settings, jwtToken 
 
 	return a.AppConfigHandler.EditSettings(claims.UserID, vaultName, s)
 }
+
 // -----------------------------
 // JWT Token
 // -----------------------------
@@ -885,7 +886,7 @@ func (a *App) GetVault(userID string) (map[string]interface{}, error) {
 		"User":                user,
 		"role":                "user",
 		"Vault":               session.Vault,
-		"SharedEntries":       []models.VaultEntry{},
+		"SharedEntries":       []vaults_domain.VaultEntry{},
 		"VaultRuntimeContext": *session.Runtime,
 		"LastCID":             session.LastCID,
 		"Dirty":               session.Dirty,
@@ -1155,6 +1156,33 @@ func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
 	}
 	return avatar, nil
 }
+
+func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType string, raw json.RawMessage, attachments vault_dto.SelectedAttachments) (*vaults_domain.VaultEntry, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachment - error: %v", err)
+		return nil, err
+	}
+	a.Logger.Info("App - UploadAttachment - vaultName", vaultName)
+	ve, err := a.Vault.UpdateEntryWithAttachments(claims.UserID, entryType, raw, vaultName, attachments)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachment - error: %v", err)
+		return nil, err
+	}
+
+	return ve, nil
+}
+
+func (a *App) LoadAttachment(jwtToken string, vaultName string, hash string) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - LoadAttachment - error: %v", err)
+		return "", err
+	}
+	a.Logger.Info("App - LoadAttachment - vaultName", vaultName)
+	return a.Vault.LoadAttachment(claims.UserID, vaultName, hash)
+}
+
 // -----------------------------
 // Link shares
 // -----------------------------
@@ -1374,6 +1402,19 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 		return nil, err
 	}
 	a.Logger.LogPretty("✅ App - GenerateApiKey - user session updated: %s", updatedUserCfg)
+
+	// -------------------------------------------------------------------------------------------------
+	// Ankhora cloud - add public key to customer
+	// -------------------------------------------------------------------------------------------------
+	response, err := a.Vault.TracecoreClient.AddPublicKeyToCustomer(context.Background(), tracecore_types.AddPublicKeyToCustomerRequest{
+		PublicKey: account.PublicKey,
+		Email:     identityUser.Email,
+	})
+	if err != nil {
+		a.Logger.Error("❌ App - GenerateApiKey - failed to add public key to customer: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("✅ App - GenerateApiKey - public key added to customer: %s", response)
 
 	return &GenerateApiKeyOutput{
 		PublicKey:  account.PublicKey,

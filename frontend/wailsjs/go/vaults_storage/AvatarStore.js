@@ -18,8 +18,8 @@ export function Load(arg1, arg2) {
   return window['go']['vaults_storage']['AvatarStore']['Load'](arg1, arg2);
 }
 
-export function LoadBase64(arg1, arg2, arg3) {
-  return window['go']['vaults_storage']['AvatarStore']['LoadBase64'](arg1, arg2, arg3);
+export function LoadBase64(arg1, arg2) {
+  return window['go']['vaults_storage']['AvatarStore']['LoadBase64'](arg1, arg2);
 }
 
 export function Save(arg1, arg2) {

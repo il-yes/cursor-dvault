@@ -3147,6 +3147,22 @@ export namespace vault_dto {
 		    return a;
 		}
 	}
+	export class SelectedAttachment {
+	    name: string;
+	    size: number;
+	    data: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SelectedAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.size = source["size"];
+	        this.data = source["data"];
+	    }
+	}
 
 }
 
@@ -3225,6 +3241,7 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
+	    attachments?: Attachment[];
 	    private_key: string;
 	    public_key: string;
 	    e_fingerprint: string;
@@ -3246,10 +3263,29 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.private_key = source["private_key"];
 	        this.public_key = source["public_key"];
 	        this.e_fingerprint = source["e_fingerprint"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class NoteEntry {
 	    id: string;
@@ -3263,6 +3299,7 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
+	    attachments?: Attachment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new NoteEntry(source);
@@ -3281,7 +3318,26 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class IdentityEntry {
 	    id: string;
@@ -3295,6 +3351,7 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
+	    attachments?: Attachment[];
 	    genre?: string;
 	    firstname?: string;
 	    second_firstname?: string;
@@ -3331,6 +3388,7 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.genre = source["genre"];
 	        this.firstname = source["firstname"];
 	        this.second_firstname = source["second_firstname"];
@@ -3350,6 +3408,24 @@ export namespace vaults_domain {
 	        this.postal_code = source["postal_code"];
 	        this.country = source["country"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class CardEntry {
 	    id: string;
@@ -3363,6 +3439,7 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
+	    attachments?: Attachment[];
 	    owner: string;
 	    number: string;
 	    expiration: string;
@@ -3385,10 +3462,49 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.owner = source["owner"];
 	        this.number = source["number"];
 	        this.expiration = source["expiration"];
 	        this.cvc = source["cvc"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Attachment {
+	    id: string;
+	    entry_id: string;
+	    hash: string;
+	    name: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Attachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.entry_id = source["entry_id"];
+	        this.hash = source["hash"];
+	        this.name = source["name"];
+	        this.size = source["size"];
 	    }
 	}
 	export class LoginEntry {
@@ -3403,6 +3519,7 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
+	    attachments?: Attachment[];
 	    user_name: string;
 	    password: string;
 	    web_site?: string;
@@ -3424,10 +3541,29 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.user_name = source["user_name"];
 	        this.password = source["password"];
 	        this.web_site = source["web_site"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Entries {
 	    login: LoginEntry[];

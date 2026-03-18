@@ -2,7 +2,9 @@ package vaults_storage
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"vault-app/internal/logger/logger"
@@ -33,7 +35,11 @@ func (s *AttachmentStore) Save(data []byte) (string, error) {
 		return "", err
 	}
 
-	path := s.path(hash)
+	path, err := s.path(hash)
+	if err != nil {
+		s.logger.Error("AttachmentStore - Save - Failed to get path: %v", err)
+		return "", err
+	}
 
 	if _, err := os.Stat(path); err == nil {
 		return hash, nil
@@ -44,12 +50,34 @@ func (s *AttachmentStore) Save(data []byte) (string, error) {
 		s.logger.Error("AttachmentStore - Save - Failed to write file: %v", err)
 		return "", err
 	}
+	s.logger.Info("AttachmentStore - Save - File saved: %s", path)
 
 	return hash, nil
 }
 
+func (s *AttachmentStore) LoadBase64(hash string) (string, error) {
+	path, err := s.path(hash)
+	if err != nil {
+		s.logger.Error("AttachmentStore - LoadBase64 - Failed to get path: %v", err)
+		return "", err
+	}
+
+    data, err := os.ReadFile(path)
+    if err != nil {
+        return "", err
+    }
+
+    b64 := base64.StdEncoding.EncodeToString(data)
+
+    return fmt.Sprintf("data:application/octet-stream;base64,%s", b64), nil
+}
+
 func (s *AttachmentStore) Load(hash string) ([]byte, error) {
-	path := s.path(hash)
+	path, err := s.path(hash)
+	if err != nil {
+		s.logger.Error("AttachmentStore - Load - Failed to get path: %v", err)
+		return nil, err
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -61,16 +89,24 @@ func (s *AttachmentStore) Load(hash string) ([]byte, error) {
 }
 
 func (s *AttachmentStore) Exists(hash string) bool {
-	path := s.path(hash)
+	path, err := s.path(hash)
+	if err != nil {
+		s.logger.Error("AttachmentStore - Exists - Failed to get path: %v", err)
+		return false
+	}
 
-	_, err := os.Stat(path)
+	_, err = os.Stat(path)
 	return err == nil
 }
 
 func (s *AttachmentStore) Delete(hash string) error {
-	path := s.path(hash)
+	path, err := s.path(hash)
+	if err != nil {
+		s.logger.Error("AttachmentStore - Delete - Failed to get path: %v", err)
+		return err
+	}
 
-	err := os.Remove(path)
+	err = os.Remove(path)
 	if err != nil {
 		s.logger.Error("AttachmentStore - Delete - Failed to remove file: %v", err)
 		return err
@@ -85,6 +121,10 @@ func (s *AttachmentStore) Cleanup() error {
 	// 3️⃣ delete unused files
 	return nil
 }
-func (s *AttachmentStore) path(hash string) string {
-	return filepath.Join(s.Root, "attachments", "sha256", hash[:2], hash+".enc")
+func (s *AttachmentStore) path(hash string) (string, error) {
+	if len(hash) < 2 {
+		s.logger.Error("AttachmentStore - path - Invalid hash: %s", hash)
+		return "", fmt.Errorf("invalid hash")
+	}
+	return filepath.Join(s.Root, "attachments", "sha256", hash[:2], hash+".enc"), nil
 }

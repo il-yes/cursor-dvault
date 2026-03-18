@@ -16,6 +16,7 @@ import (
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
+	vaults_domain "vault-app/internal/vault/domain"
 
 	// "os"
 	"golang.org/x/crypto/bcrypt"
@@ -314,7 +315,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		CurrentUser:    *userCfg,
 		SessionSecrets: make(map[string]string),
 		WorkingBranch:  "main",
-		LoadedEntries:  []models.VaultEntry{},
+		LoadedEntries:  []vaults_domain.VaultEntry{},
 	}
 
 	// -----------------------------
@@ -438,7 +439,7 @@ func RehydrateSession(s *models.VaultSession) *models.VaultSession {
 		s.VaultRuntimeContext.WorkingBranch = "main"
 	}
 	if s.VaultRuntimeContext.LoadedEntries == nil {
-		s.VaultRuntimeContext.LoadedEntries = []models.VaultEntry{}
+		s.VaultRuntimeContext.LoadedEntries = []vaults_domain.VaultEntry{}
 	}
 	return s
 }

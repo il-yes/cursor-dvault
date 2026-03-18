@@ -13,7 +13,6 @@ import (
 	"vault-app/internal/blockchain"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/models"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
@@ -228,7 +227,7 @@ func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCo
 		vh.logger.Error("❌ OpenVault - app config handler is required")
 		return nil, errors.New("app config handler is required")
 	}
-	
+
 	openHandler := NewOpenVaultHandler(
 		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler),
 		vh.EventBus,
@@ -244,14 +243,14 @@ func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCo
 }
 
 // AddEntryFor: resilient behaviour: will always add the entry; Tracecore commit best-effort
-func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*models.VaultEntry, error) {
+func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*vaults_domain.VaultEntry, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			vh.logger.Error("🔥 Panic in AddEntryFor: %v\nStack:\n%s", r, debug.Stack())
 		}
 	}()
 	// 1. ---------- Validate entry type ----------
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("❌ entry does not implement VaultEntry interface")
 	}
@@ -279,7 +278,7 @@ func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*models.VaultEntr
 
 	return &ve, err
 }
-func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (*models.VaultEntry, error) {
+func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (*vaults_domain.VaultEntry, error) {
 	// 1. ---------- Unmarshal entry ----------
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
@@ -294,11 +293,11 @@ func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMe
 	}
 	return res, nil
 }
-func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*models.VaultEntry, error) {
+func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*vaults_domain.VaultEntry, error) {
 	vh.logger.Info("✅ Updating entry for user %s", userID)
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
-		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
+		return nil, fmt.Errorf("entry does not implement VaultEntry interface %v", entry)
 	}
 	// 1.1 ---------- Validate entry type ----------
 	entryType := ve.GetTypeName()
@@ -339,7 +338,7 @@ func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.Ra
 }
 func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	// 1. ---------- Validate entry type ----------
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return fmt.Errorf("entry does not implement VaultEntry interface")
 	}
@@ -368,9 +367,9 @@ func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 
 	return err
 }
-func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) (*models.VaultEntry, error) {
+func (vh *VaultHandler) RestoreEntryFor(userID string, entry any) (*vaults_domain.VaultEntry, error) {
 	// 1. ---------- Validate entry type ----------
-	ve, ok := entry.(models.VaultEntry)
+	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
 		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
 	}
@@ -405,7 +404,7 @@ func (vh *VaultHandler) TrashEntry(userID string, entryType string, raw json.Raw
 	}
 	return &parsed, nil // Return the restored entry
 }
-func (vh *VaultHandler) RestoreEntry(userID string, entryType string, raw json.RawMessage) (*models.VaultEntry, error) {
+func (vh *VaultHandler) RestoreEntry(userID string, entryType string, raw json.RawMessage) (*vaults_domain.VaultEntry, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
@@ -623,7 +622,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	// 5. ---------- Submit to Stellar ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
 	userCfg := session.Runtime.UserConfig
-	
+
 	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - stellar submission failed: %w", err)
@@ -803,7 +802,7 @@ func (vh *VaultHandler) LoadAvatar(userID string, vaultName string) (string, err
 	}
 	vh.logger.Info("✅ VaultHandler - LoadAvatar: vault retrieved for user %s", userID)
 
-	// Get avatar path
+	// Get vault avatar path
 	vaultPath := vault.GetVaultPath()
 	vh.logger.Info("✅ VaultHandler - LoadAvatar: vault path: %s", vaultPath)
 
@@ -819,4 +818,74 @@ func (vh *VaultHandler) LoadAvatar(userID string, vaultName string) (string, err
 	vh.logger.Info("✅ VaultHandler - LoadAvatar: avatar loaded")
 
 	return avatar, nil
+}
+func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash string) (string, error) {
+	// Get vault
+	vault, err := vh.VaultRepository.GetByUserIDAndName(userID, vaultName)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to get vault for user %s: %w", userID, err)
+	}
+	// vh.logger.Info("✅ VaultHandler - LoadAttachments: vault retrieved for user %s", userID)
+
+	// Get vault attachement path
+	vaultPath := vault.GetVaultPath()
+	vh.logger.Info("✅ VaultHandler - LoadAttachments: vault path: %s", vaultPath)
+
+	// Create attachment store
+	attachmentStore := vaults_storage.NewAttachmentStore(vaultPath)
+	// vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment store created")
+
+	// Load attachment
+	attachment, err := attachmentStore.LoadBase64(hash)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
+	}
+	vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment loaded")
+
+	return attachment, nil
+}
+
+func (vh *VaultHandler) UpdateEntryWithAttachments(userID string, entryType string, raw json.RawMessage, vaultName string, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
+	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse entry: %w", err)
+	}
+	return vh.UpdateEntryWithAttachmentsFor(userID, parsed, attachments)	
+}
+
+func (vh *VaultHandler) UpdateEntryWithAttachmentsFor(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
+	vh.logger.Info("✅ Updating entry for user %s", userID)
+	ve, ok := entry.(vaults_domain.VaultEntry)
+	if !ok {
+		return nil, fmt.Errorf("entry does not implement VaultEntry interface %v", entry)
+	}
+	// 1.1 ---------- Validate entry type ----------
+	entryType := ve.GetTypeName()
+	vh.logger.Info("✅ Updating %s entry for user %s", entryType, userID)
+	// 1.2 ---------- Get handler for entry type ----------
+	handler, err := vh.EntryRegistry.HandlerFor(entryType)
+	if err != nil {
+		return nil, err
+	}
+	// 1.3 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return nil, err
+	}
+	handler.SetSession(session)
+	handler.SetVaultRepository(vh.VaultRepository)
+	vh.logger.Info("VaultHandler - UpdateEntryWithAttachmentFor - session Before", session.Dirty)
+	// 1.4 ---------- Update entry ----------
+	vaultSessionWithUpdatedEntry, err := handler.EditWithAttachments(userID, entry, attachments)
+	if err != nil {
+		return nil, err
+	}
+	// 1.5 ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, vaultSessionWithUpdatedEntry)
+	vh.logger.Info("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
+	// 1.6 ---------- Mark session as dirty ----------
+	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
+	// Fires vault stores Edit entry event
+	vh.SessionManager.MarkDirty(userID)
+	return &ve, nil
 }

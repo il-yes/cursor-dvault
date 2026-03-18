@@ -1154,7 +1154,36 @@ func (c *TracecoreClient) GetVaultByUserIDAndName(ctx context.Context, req trace
 
 	return &cloudResp, nil
 }
+func (c *TracecoreClient) AddPublicKeyToCustomer(ctx context.Context, req tracecore_types.AddPublicKeyToCustomerRequest) (*tracecore_types.CloudResponse[tracecore_types.AddPublicKeyToCustomerResponse], error) {
+	body := &bytes.Buffer{}
+	if err := json.NewEncoder(body).Encode(req); err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/customers/add-public-key", body)
+	if err != nil {
+		return nil, err
+	}
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	request.Header.Set("Content-Type", "application/json")
 
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.AddPublicKeyToCustomerResponse]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		log.Printf("invalid cloud response: %w", err)
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	utils.LogPretty("AddPublicKeyToCustomer - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
 // ---------------------------------------------------------
 // Helper Functions
 // ---------------------------------------------------------

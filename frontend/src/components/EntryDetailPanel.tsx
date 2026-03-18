@@ -4,8 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Copy, Shield, Edit, Share2, Trash2, Sparkles } from "lucide-react";
-import { Folder, VaultEntry } from "@/types/vault";
-import { decryptField, logAuditEvent } from "@/services/api";
+import { Attachment, Folder, VaultEntry } from "@/types/vault";
+import { decryptField, loadAttachment, logAuditEvent } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
@@ -18,6 +18,7 @@ import { useVaultStore } from "@/store/vaultStore";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
+import { useAuthStore } from "@/store/useAuthStore";
 
 
 interface EntryDetailPanelProps {
@@ -51,6 +52,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
     const vaultContext = useVaultStore((state) => state.vault);
     const stellar = vaultContext?.vault_runtime_context?.UserConfig?.stellar_account
+    const { jwtToken } = useAuthStore.getState();
+    // just for dev checks
+    const [attachments, setAttachments] = useState<Attachment[]>([])
 
     useEffect(() => {
         vaultContext && setFolders(vaultContext.Vault.folders || []);
@@ -105,6 +109,20 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         }
     }, [entry, editMode]);
 
+
+    const fetchAttachment = async (hash: string) => {
+        const attachmentHash = await loadAttachment(jwtToken, vaultContext.Vault.name, hash);
+        return attachmentHash;
+    };
+
+    useEffect(() => {
+        if (entry) {
+            console.log(vaultContext.Vault)
+            const attachements = entry.attachments || [];
+            setAttachments(attachements)
+        }
+    }, [entry?.id]);
+
     const handleFieldChange = (fieldName: string, value: any) => {
         setEditData(prev => ({ ...prev, [fieldName]: value }));
     };
@@ -142,7 +160,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             const signature = Buffer.from(
                 keypair.sign(Buffer.from(challenge))
             ).toString("base64");
-            
+
             const { plaintext, expires_in } = await decryptField({
                 entry_id: entry.id,
                 field_name: fieldName,
@@ -464,6 +482,37 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
 
+    const AttachmentPreview = ({ attachment }: { attachment: Attachment }) => {
+        const [src, setSrc] = useState<string>("");
+
+        useEffect(() => {
+            let isMounted = true;
+            fetchAttachment(attachment.hash).then((url) => {
+                if (isMounted && url) setSrc(url as string);
+            }).catch(console.error);
+
+            return () => { isMounted = false; };
+        }, [attachment.hash]);
+
+        if (!src) {
+            return <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded-2xl w-full h-32 flex items-center justify-center text-sm text-zinc-500">Loading image...</div>;
+        }
+
+        return <img src={src} alt={attachment.hash} className="rounded-2xl shadow-xl max-w-full h-auto object-cover border border-white/20 dark:border-zinc-700/20" />;
+    }
+
+    const RenderAttachements = ({attachments}: {attachments: Attachment[]}) => {
+        if (!attachments || attachments.length === 0) return null;
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {attachments.map((attachment, index) => (
+                    <AttachmentPreview key={index} attachment={attachment} />
+                ))}
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col h-full backdrop-blur-xl bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 border border-white/20 dark:border-zinc-700/20 shadow-2xl">
             {/* Glass Header */}
@@ -747,8 +796,12 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         onFileSelect={setAttachedFiles}
                         value={attachedFiles}
                         maxFiles={5}
+                        entry={current}
+                        vaultName={vaultContext.Vault.name}
                     />
                 </div>
+                {/* gallery attachements */}
+                <RenderAttachements attachments={attachments} />
 
                 {/* Timestamps */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -47,7 +47,7 @@ import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
 import PaymentRequestModal from "./Payments/PaymentRequestModal";
 import { useVault } from "@/hooks/useVault";
-import { getVaultAvatar, loadAvatar } from "@/services/api";
+import { getVaultAvatar, loadAttachment, loadAvatar } from "@/services/api";
 
 
 
@@ -430,6 +430,7 @@ function AppSidebar() {
 	const filter = searchParams.get("filter") || "all"; // "all", "sent", etc.
 	const { vault, lastSyncTime, loadVault, clearVault: clearVaultStore } = useVaultStore();
 	const [avatar, setAvatar] = useState<string | null>(null);
+	const [attachments, setAttachments] = useState<File[]>([]);
 
 	const handleTabChange = (type) => {
 		setSearchParams({ ...Object.fromEntries(searchParams), type });
@@ -493,12 +494,13 @@ function AppSidebar() {
 
 	useEffect(() => {
 		const fetchAvatar = async () => {
-			const b64 = await loadAvatar(jwtToken, vaultContext.Vault.name);
+			const b64 = await loadAvatar(jwtToken, vaultContext?.Vault?.name);
 			setAvatar(b64);
 		};
 
 		fetchAvatar();
-	}, [jwtToken, vaultContext.Vault]);
+	}, [jwtToken, vaultContext]);
+
 
 	return (
 		<Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">

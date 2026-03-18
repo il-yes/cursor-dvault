@@ -11,3 +11,9 @@ type UserRepository interface {
 	Update(user *User) error
 	Delete(id string) error	
 }
+
+type AppStateRepository interface {
+	Get() (*AppState, error)
+	Update(appState *AppState) error
+	Save(appState *AppState) error
+}

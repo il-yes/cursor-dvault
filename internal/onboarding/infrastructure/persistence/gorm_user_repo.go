@@ -38,7 +38,7 @@ func (r *GormUserRepository) GetByID(id string) (*onboarding_domain.User, error)
 
 func (r *GormUserRepository) List() ([]onboarding_domain.User, error) {
 	var usersDB []UserDB
-	if err := r.db.Order("last_connected_at ASC").Find(&usersDB).Error; err != nil {
+	if err := r.db.Order("last_connected_at DESC").Find(&usersDB).Error; err != nil {
 		return nil, err
 	}
 	var users []onboarding_domain.User

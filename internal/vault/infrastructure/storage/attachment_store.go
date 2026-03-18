@@ -126,5 +126,5 @@ func (s *AttachmentStore) path(hash string) (string, error) {
 		s.logger.Error("AttachmentStore - path - Invalid hash: %s", hash)
 		return "", fmt.Errorf("invalid hash")
 	}
-	return filepath.Join(s.Root, "attachments", "sha256", hash[:2], hash+".enc"), nil
+	return filepath.Join(s.Root, "sha256", hash[:2], hash+".enc"), nil
 }

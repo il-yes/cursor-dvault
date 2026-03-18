@@ -3,6 +3,7 @@ package driver
 import (
 	"vault-app/internal/auth"
 	app_config_domain "vault-app/internal/config/domain"
+
 	// auth_domain "vault-app/internal/auth/domain"
 	// auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	app_config "vault-app/internal/config"
@@ -11,6 +12,7 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/models"
+	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
@@ -51,6 +53,7 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// Onboarding
 		&onboarding_persistence.UserDB{},
+		&onboarding_domain.AppState{},
 
 		// Subscription
 		&subscription_persistence.SubscriptionMapper{},

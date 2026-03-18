@@ -811,7 +811,7 @@ func (vh *VaultHandler) LoadAvatar(userID string, vaultName string) (string, err
 	vh.logger.Info("✅ VaultHandler - LoadAvatar: avatar store created")
 
 	// Load avatar
-	avatar, err := avatarStore.LoadBase64(userID, ".jpg")
+	avatar, err := avatarStore.LoadBase64(userID)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - LoadAvatar: failed to load avatar: %w", err)
 	}
@@ -828,7 +828,7 @@ func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash str
 	// vh.logger.Info("✅ VaultHandler - LoadAttachments: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	vh.logger.Info("✅ VaultHandler - LoadAttachments: vault path: %s", vaultPath)
 
 	// Create attachment store

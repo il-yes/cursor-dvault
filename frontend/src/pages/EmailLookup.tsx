@@ -78,15 +78,6 @@ const EmailLookup = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-6">
       <div className="w-full max-w-md space-y-8 animate-fadeIn">
-        <Button
-          variant="ghost"
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
-
         <div className="text-center space-y-3">
           <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-2xl bg-white/60 dark:bg-zinc-800/50 shadow-sm backdrop-blur-sm">
             <Shield className="h-8 w-8 text-primary" />
@@ -106,7 +97,7 @@ const EmailLookup = () => {
                 <Label htmlFor="email" className="text-sm font-medium">
                   Email Address
                 </Label>
-                
+
                 <select
                   id="user"
                   value={email}
@@ -145,6 +136,15 @@ const EmailLookup = () => {
                 {isLoading ? "Checking..." : "Continue"}
               </Button>
             </form>
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => navigate("/on-boarding")}
+                className="text-sm text-primary hover:underline"
+              >
+                Create a new account
+              </button>
+            </div>
 
             <div className="relative mt-7">
               <div className="absolute inset-0 flex items-center">

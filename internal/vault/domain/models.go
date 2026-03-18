@@ -64,7 +64,7 @@ func (v *Vault) GetVaultPath() string {
 	return filepath.Join("vault", v.UserID, v.Name)
 }
 func (v *Vault) GetVaultAttachmentPath() string {
-	return filepath.Join("vault", v.UserID, v.Name, "attachments")
+	return filepath.Join("vault", "attachments")
 }
 func (v *Vault) AttachAvatar(avatar string) {
     v.Avatar = avatar

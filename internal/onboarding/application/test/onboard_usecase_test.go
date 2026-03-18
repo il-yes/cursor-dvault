@@ -18,6 +18,8 @@ import (
 	vault_commands "vault-app/internal/vault/application/commands"
 
 	"vault-app/internal/logger/logger"
+
+	"gorm.io/gorm"
 )
 
 type fakeIdentity struct {
@@ -187,6 +189,25 @@ func (f *fakeAppConfigHandler) GetUserConfigByUserID(
 	f.called = true
 	return &app_config_domain.UserConfig{}, nil
 }
+
+
+type fakeAppStateRepo struct {
+	called bool
+}
+func (f *fakeAppStateRepo) Get() (*onboarding_domain.AppState, error) {
+	f.called = true
+	return &onboarding_domain.AppState{}, nil
+}
+func (f *fakeAppStateRepo) Update(appState *onboarding_domain.AppState) error {
+	f.called = true
+	return nil
+}
+func (f *fakeAppStateRepo) Save(appState *onboarding_domain.AppState) error {
+	f.called = true
+	return nil
+}
+
+
 func TestOnboardUseCase_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -199,6 +220,7 @@ func TestOnboardUseCase_Success(t *testing.T) {
 		&fakeIdentity{},
 		&fakeBilling{},
 		&fakeAppConfigHandler{},
+		&gorm.DB{},
 	)
 
 	res, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -227,6 +249,7 @@ func TestOnboardUseCase_AnonymousMissingKey(t *testing.T) {
 		&fakeIdentity{},
 		&fakeBilling{},
 		&fakeAppConfigHandler{},
+		&gorm.DB{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -250,6 +273,7 @@ func TestOnboardUseCase_IdentityFails(t *testing.T) {
 		&fakeIdentity{err: errors.New("identity-fail")},
 		&fakeBilling{},
 		&fakeAppConfigHandler{},
+		&gorm.DB{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -273,6 +297,7 @@ func TestOnboardUseCase_VaultFails(t *testing.T) {
 		&fakeIdentity{},
 		&fakeBilling{},
 		&fakeAppConfigHandler{},
+		&gorm.DB{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{
@@ -295,6 +320,7 @@ func TestOnboardUseCase_BillingFails(t *testing.T) {
 		&fakeIdentity{},
 		&fakeBilling{err: errors.New("billing-fail")},
 		&fakeAppConfigHandler{},
+		&gorm.DB{},
 	)
 
 	_, err := uc.Execute(ctx, onboarding_usecase.OnboardRequest{

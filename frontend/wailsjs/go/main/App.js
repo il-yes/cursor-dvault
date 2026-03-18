@@ -34,6 +34,10 @@ export function CheckStellarKeyForVault(arg1) {
   return window['go']['main']['App']['CheckStellarKeyForVault'](arg1);
 }
 
+export function CompleteOnboarding() {
+  return window['go']['main']['App']['CompleteOnboarding']();
+}
+
 export function ConnectWithStellar(arg1) {
   return window['go']['main']['App']['ConnectWithStellar'](arg1);
 }
@@ -108,6 +112,10 @@ export function FlushAllSessions() {
 
 export function GenerateApiKey(arg1) {
   return window['go']['main']['App']['GenerateApiKey'](arg1);
+}
+
+export function GetAppState() {
+  return window['go']['main']['App']['GetAppState']();
 }
 
 export function GetBillingHistory(arg1, arg2) {
@@ -246,6 +254,10 @@ export function RequireAuth(arg1) {
   return window['go']['main']['App']['RequireAuth'](arg1);
 }
 
+export function ResetOnboarding() {
+  return window['go']['main']['App']['ResetOnboarding']();
+}
+
 export function RestoreEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2, arg3);
 }
@@ -288,6 +300,10 @@ export function SynchronizeVault(arg1, arg2) {
 
 export function TrashEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['TrashEntry'](arg1, arg2, arg3);
+}
+
+export function UpdateAppState(arg1) {
+  return window['go']['main']['App']['UpdateAppState'](arg1);
 }
 
 export function UpdateFolder(arg1, arg2, arg3, arg4) {

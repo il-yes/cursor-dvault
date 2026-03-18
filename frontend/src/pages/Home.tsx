@@ -297,9 +297,9 @@ const Home = () => {
               <a href="#privacy" className="text-muted-foreground/80 hover:text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/50 backdrop-blur-sm">
                 Privacy
               </a>
-              <a href="https://github.com" className="text-muted-foreground/80 hover:text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/50 backdrop-blur-sm">
-                GitHub
-              </a>
+              <Button onClick={() => navigate('/on-boarding')} className="text-muted-foreground/80 hover:text-primary transition-all px-4 py-2 rounded-xl hover:bg-white/50 backdrop-blur-sm">
+                Onboarding
+              </Button>
             </div>
 
             <div className="flex gap-4">

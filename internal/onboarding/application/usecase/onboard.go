@@ -13,15 +13,17 @@ import (
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
+	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vaults_domain "vault-app/internal/vault/domain"
+
+	"gorm.io/gorm"
 )
 
 // This use case orchestrates creating the user profiles, adding payment method, (creating subscription), and creating vault.
 // It uses application ports (interfaces) to interact with other bounded contexts.
-
-
 
 // ----------- Interfaces -----------
 type IdentityRegisterPort interface {
@@ -90,6 +92,7 @@ type OnboardUseCase struct {
 	BillingHandler           BillingHandlerInterface
 	Vault                    VaultPort
 	AppConfigHandler         AppConfigHandlerInterface
+	AppStateRepo             onboarding_domain.AppStateRepository
 }
 
 // ----------- UseCase Constructor -----------
@@ -101,7 +104,13 @@ func NewOnboardUseCase(
 	logger *logger.Logger,
 	identityHandler IdentityHandlerInterface,
 	billingHandler BillingHandlerInterface,
-	appConfigHandler AppConfigHandlerInterface) *OnboardUseCase {
+	appConfigHandler AppConfigHandlerInterface,
+	gormDb *gorm.DB,
+) *OnboardUseCase {
+
+	appStateRepo := onboarding_persistence.NewAppStateRepository(
+		gormDb,
+	)
 	return &OnboardUseCase{
 		Vault:                    v,
 		StellarService:           stellarService,
@@ -111,6 +120,7 @@ func NewOnboardUseCase(
 		IdentityHandler:          identityHandler,
 		BillingHandler:           billingHandler,
 		AppConfigHandler:         appConfigHandler,
+		AppStateRepo:             appStateRepo,
 	}
 }
 
@@ -209,6 +219,10 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 
 	// 5. ------------- (Optional event...) ------------------
+	appState := onboarding_domain.NewAppState()
+	appState.SetHasVault(true)
+	uc.AppStateRepo.Save(appState)
+		
 
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil
 }

@@ -15,5 +15,9 @@ export default defineConfig(({ mode }) => ({
       "./wailsjs/*": path.resolve(__dirname, "./wailsjs/*"),
       "@": path.resolve(__dirname, "./src"),
     },
+    dedupe: ['react', 'react-dom'],
+    optimizeDeps: {
+      include: ['react', 'react-dom']
+    }
   },
 }));

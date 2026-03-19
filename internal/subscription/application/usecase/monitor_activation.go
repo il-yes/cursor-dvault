@@ -15,6 +15,8 @@ import (
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 	utils "vault-app/internal/utils"
+
+	"gorm.io/gorm"
 )
 
 // ----------- Interface -----------
@@ -50,6 +52,7 @@ type SubscriptionActivationMonitor struct {
 	IdentityHandler            IdentityHandlerInterface
 	BillingHandler             BillingHandlerInterface
 	AppConfigHandler           AppConfigHandlerInterface
+	DB                         *gorm.DB
 }
 
 // ----------- Constructor -----------
@@ -65,6 +68,7 @@ func NewSubscriptionActivationMonitor(
 	identityHandler IdentityHandlerInterface,
 	billingHandler BillingHandlerInterface,
 	AppConfigHandler AppConfigHandlerInterface,
+	gormDb *gorm.DB,
 ) *SubscriptionActivationMonitor {
 	return &SubscriptionActivationMonitor{
 		Logger:                     log,
@@ -78,6 +82,7 @@ func NewSubscriptionActivationMonitor(
 		IdentityHandler:            identityHandler,
 		BillingHandler:             billingHandler,
 		AppConfigHandler:           AppConfigHandler,
+		DB:                         gormDb,
 	}
 }
 
@@ -123,6 +128,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			m.IdentityHandler,
 			m.BillingHandler,
 			m.AppConfigHandler,
+			m.DB,
 		)
 		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
 			Identity:             event.UserID,

@@ -15,10 +15,10 @@ import {tracecore_types} from '../models';
 import {models} from '../models';
 import {app_config_dto} from '../models';
 import {identity_dtos} from '../models';
+import {onboarding_domain} from '../models';
 import {identity_domain} from '../models';
 import {app_config_domain} from '../models';
 import {billing_domain} from '../models';
-import {onboarding_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {subscription_domain} from '../models';
 import {vault_dto} from '../models';
@@ -38,6 +38,8 @@ export function CheckPaymentOnResume():Promise<void>;
 export function CheckSession(arg1:string):Promise<auth.TokenPairs>;
 
 export function CheckStellarKeyForVault(arg1:string):Promise<main.CheckKeyResponse>;
+
+export function CompleteOnboarding():Promise<void>;
 
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
 
@@ -76,6 +78,8 @@ export function FetchUsers():Promise<Array<models.UserDTO>>;
 export function FlushAllSessions():Promise<void>;
 
 export function GenerateApiKey(arg1:main.GenerateApiKeyInput):Promise<main.GenerateApiKeyOutput>;
+
+export function GetAppState():Promise<onboarding_domain.AppState>;
 
 export function GetBillingHistory(arg1:string,arg2:number):Promise<Array<main.PaymentHistory>>;
 
@@ -145,6 +149,8 @@ export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<block
 
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
+export function ResetOnboarding():Promise<void>;
+
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function SaveSessionTest(arg1:string):Promise<void>;
@@ -166,6 +172,8 @@ export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResp
 export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function UpdateAppState(arg1:onboarding_domain.AppState):Promise<void>;
 
 export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<vaults_domain.Folder>;
 

@@ -122,6 +122,7 @@ type config struct {
 }
 
 type App struct {
+	AppStateGuard onboarding_domain.AppState
 	config   config
 	Logger   logger.Logger
 	version  string
@@ -433,6 +434,12 @@ func NewApp() *App {
 	// ResetAndMigrate(db.DB) // Run ONCE on prod startup
 
 	return &App{
+		AppStateGuard: onboarding_domain.AppState{
+			HasVault:        false,
+			HasSession:      false,
+			HasImportedKey:  false,
+			NeedsOnboarding: false,
+		},
 		AppConfigHandler:          appConfigHandler,
 		Auth:                      auth,
 		BillingHandler:            billingHandler,
@@ -455,6 +462,35 @@ func NewApp() *App {
 		Vaults:                    vaults,       // internal/handlers/vault_handler.go legacy
 		version:                   version,
 	}
+}
+
+
+func (a *App) GetAppState() (*onboarding_domain.AppState, error) {
+	as, err := a.OnBoardingHandler.GetAppState()
+	if err != nil {
+		a.Logger.LogPretty("❌ App state: %+v", err)
+		return &a.AppStateGuard, nil
+	}
+	a.Logger.LogPretty("✅ App state: %+v", as)
+
+	return as, nil
+}
+
+func (a *App) UpdateAppState(appState *onboarding_domain.AppState) error {
+	err := a.OnBoardingHandler.UpdateAppState(appState)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+func (a *App) CompleteOnboarding() error {
+	a.Logger.Info("✅ Completing onboarding")
+	return a.OnBoardingHandler.CompleteOnboarding()
+}
+func (a *App) ResetOnboarding() error {
+	a.Logger.Info("✅ Resetting onboarding")
+	return a.OnBoardingHandler.ResetOnboarding()
 }
 
 // -----------------------------

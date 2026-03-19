@@ -113,6 +113,7 @@ func (h *SubscriptionHandler) SetBillingHandler(billingHandler billing_ui.Billin
 		h.IdentityHandler,
 		&billingHandler,
 		&h.AppConfigHandler,
+		h.DB,
 	)
 	h.BillingHandler = &billingHandler
 	h.MonitorActivationService = *activationMonitor

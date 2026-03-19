@@ -155,3 +155,38 @@ func (h *OnBoardingHandler) FetchUsers() ([]onboarding_domain.User, error) {
     findUserUC := onboarding_usecase.NewFindUsersUseCase(userRepository)
     return findUserUC.Execute()
 }
+
+func (h *OnBoardingHandler) GetAppState() (*onboarding_domain.AppState, error) {
+	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
+	return appStateRepo.Get()
+}
+
+func (h *OnBoardingHandler) UpdateAppState(appState *onboarding_domain.AppState) error {
+	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
+    return appStateRepo.Update(appState)
+}
+
+func (h *OnBoardingHandler) CompleteOnboarding() error {
+	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
+
+    appState, err := appStateRepo.Get()
+	if err != nil {
+		appState = onboarding_domain.NewAppState()
+	}
+    appState.SetHasVault(true)
+	appState.SetNeedsOnboarding(false)
+
+	return appStateRepo.Update(appState)
+} 
+
+func (h *OnBoardingHandler) ResetOnboarding() error {
+	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
+    as, err := appStateRepo.Get()
+    if err != nil {
+        as = onboarding_domain.NewAppState()
+    }
+    as.SetHasVault(false)
+    as.SetNeedsOnboarding(true)
+	appStateRepo.Update(as)
+	return nil
+}

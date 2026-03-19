@@ -2140,6 +2140,31 @@ export namespace models {
 
 }
 
+export namespace onboarding_domain {
+	
+	export class AppState {
+	    id: string;
+	    has_vault: boolean;
+	    has_session: boolean;
+	    has_imported_key: boolean;
+	    needs_onboarding: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.has_vault = source["has_vault"];
+	        this.has_session = source["has_session"];
+	        this.has_imported_key = source["has_imported_key"];
+	        this.needs_onboarding = source["needs_onboarding"];
+	    }
+	}
+
+}
+
 export namespace onboarding_ui_wails {
 	
 	export class AccountCreationResponse {

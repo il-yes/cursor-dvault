@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 
@@ -84,4 +85,43 @@ type SubscriptionFeatures struct {
     Compliance          []string `json:"compliance,omitempty"`
     CustomIntegrations  bool     `json:"custom_integrations"`
     SLA                 string   `json:"sla,omitempty"` // 99.9, 99.99, etc.
+}
+
+
+
+type AppState struct {
+    ID string `json:"id" gorm:"column:id"`
+	HasVault        bool `json:"has_vault" gorm:"column:has_vault"`
+	HasSession      bool `json:"has_session" gorm:"column:has_session"`
+	HasImportedKey  bool `json:"has_imported_key" gorm:"column:has_imported_key"`
+	NeedsOnboarding bool `json:"needs_onboarding" gorm:"column:needs_onboarding"`
+}
+func (a *AppState) BeforeCreate(tx *gorm.DB) (err error) {
+	a.ID = uuid.New().String()
+	return nil
+}
+func NewAppState() *AppState {
+	return &AppState{
+		ID: uuid.New().String(),
+		HasVault:        false,
+		HasSession:      false,
+		HasImportedKey:  false,
+		NeedsOnboarding: true,
+	}
+}
+
+func (a *AppState) SetHasVault(hasVault bool) {
+	a.HasVault = hasVault
+}
+
+func (a *AppState) SetHasSession(hasSession bool) {
+	a.HasSession = hasSession
+}
+
+func (a *AppState) SetHasImportedKey(hasImportedKey bool) {
+	a.HasImportedKey = hasImportedKey
+}
+
+func (a *AppState) SetNeedsOnboarding(needsOnboarding bool) {
+	a.NeedsOnboarding = needsOnboarding
 }

@@ -149,8 +149,6 @@ export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<block
 
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
-export function ResetOnboarding():Promise<void>;
-
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function SaveSessionTest(arg1:string):Promise<void>;
@@ -172,8 +170,6 @@ export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResp
 export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
-
-export function UpdateAppState(arg1:onboarding_domain.AppState):Promise<void>;
 
 export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<vaults_domain.Folder>;
 

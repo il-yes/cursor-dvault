@@ -155,6 +155,7 @@ type AccessCryptoShareResponse struct {
 	DownloadAllowed bool
 }
 type DecryptCryptoShareRequest struct {
+	// IPAddress string `json:"ip_address"`
 	EncryptedKey        string `json:"encrypted_key"`
 	EncryptedPayload    string `json:"encrypted_payload"`
 	RecipientPrivateKey string `json:"recipient_private_key"`

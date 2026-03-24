@@ -712,7 +712,7 @@ function AppSidebar() {
 					</Avatar>
 					<div className="flex-1 min-w-0">
 						<p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{user?.username}</p>
-						<p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+						<p className="text-xs text-muted-foreground truncate">{user?.email || user?.Email}</p>
 					</div>
 
 

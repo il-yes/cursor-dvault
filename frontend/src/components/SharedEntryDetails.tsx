@@ -1,4 +1,4 @@
-import { SharedEntry, DetailView, Recipient } from "@/types/sharing";
+import { SharedEntry, DetailView, Recipient, AuditEvent } from "@/types/sharing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAppStore } from "@/store/appStore";
 import { Textarea } from "./ui/textarea";
+import { CardEntry, IdentityEntry, LoginEntry, NoteEntry, SSHKeyEntry } from "@/types/vault";
 
 
 interface SharedEntryDetailsProps {
@@ -236,47 +237,195 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			});
 		}
 	};
-	const renderSensitiveField = (fieldName: string, label: string, isSensitive: boolean = true) => {
+	const renderSensitiveField = (
+		fieldName: string,
+		label: string,
+		isSensitive: boolean = true,
+		entry: any, // original encrypted/metadata entry
+	) => {
 		const revealed = revealedFields.get(fieldName);
 		const isRevealed = !!revealed;
 		const isDecrypting = decryptingField === fieldName;
+		console.log({entry})
 
-		// Value to display when in view-mode
-		const viewPlaintext = isRevealed ? revealed!.value : undefined;
+		// Parse decrypted value when present; fall back to original entry shape for type
+		let decryptedEntry: LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry | null = null;
+		if (isRevealed && typeof revealed!.value === "string") {
+			try {
+				decryptedEntry = JSON.parse(revealed!.value);
+			} catch {
+				decryptedEntry = null;
+			}
+		}
 
-		// view mode for sensitive field
+		const effectiveEntry = (decryptedEntry as any) || entry;
+
+		const renderEntryContent = () => {
+			switch (effectiveEntry.type) {
+				case "login": {
+					const login = effectiveEntry as LoginEntry;
+					return (
+						<div className="space-y-3">
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Username:</span>
+								<span className="text-lg font-bold">
+									{isRevealed ? login.user_name : "••••••••"}
+								</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Website:</span>
+								<span className="text-sm">{login.web_site || "—"}</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Password:</span>
+								<span className="text-lg font-bold">
+									{isRevealed ? login.password : "••••••••••••"}
+								</span>
+							</div>
+						</div>
+					);
+				}
+
+				case "card": {
+					const card = effectiveEntry as CardEntry;
+					const last4 = card.number?.slice(-4) ?? "••••";
+					return (
+						<div className="space-y-3">
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Owner:</span>
+								<span className="text-lg font-bold">{card.owner}</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Card:</span>
+								<span className="text-lg font-bold">
+									•••• •••• •••• {isRevealed ? last4 : "••••"}
+								</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">Expires:</span>
+								<span className="text-lg font-bold">{card.expiration}</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<span className="text-sm font-semibold text-muted-foreground">CVC:</span>
+								<span className="text-lg font-bold">
+									{isRevealed ? card.cvc : "•••"}
+								</span>
+							</div>
+						</div>
+					);
+				}
+
+				case "identity": {
+					const identity = effectiveEntry as IdentityEntry;
+					return (
+						<div className="space-y-2">
+							<div className="grid grid-cols-2 gap-4 text-sm">
+								<div>
+									<span className="font-semibold text-muted-foreground">First Name:</span>
+									<span className="ml-2">{identity.firstname || "—"}</span>
+								</div>
+								<div>
+									<span className="font-semibold text-muted-foreground">Last Name:</span>
+									<span className="ml-2">{identity.lastname || "—"}</span>
+								</div>
+							</div>
+							<div>
+								<span className="font-semibold text-muted-foreground">Company:</span>
+								<span className="ml-2">{identity.company || "—"}</span>
+							</div>
+							<div className="flex flex-wrap gap-4 text-sm">
+								<span>
+									<span className="font-semibold text-muted-foreground">Email:</span>
+									<span className="ml-2">{identity.mail || "—"}</span>
+								</span>
+								<span>
+									<span className="font-semibold text-muted-foreground">Phone:</span>
+									<span className="ml-2">{identity.telephone || "—"}</span>
+								</span>
+							</div>
+							<div>
+								<span className="font-semibold text-muted-foreground">Address:</span>
+								<span className="ml-2">
+									{identity.address_one} {identity.address_two} {identity.city},{" "}
+									{identity.state} {identity.postal_code}
+								</span>
+							</div>
+						</div>
+					);
+				}
+
+				case "note": {
+					const note = effectiveEntry as NoteEntry;
+					const text = (note as any).note ?? (note as any).content;
+					return (
+						<div className="text-sm">
+							{isRevealed ? text || "No content" : "••••••••••••"}
+						</div>
+					);
+				}
+
+				case "sshkey": {
+					const ssh = effectiveEntry as SSHKeyEntry;
+					return (
+						<div className="space-y-2 text-sm">
+							<div>
+								<span className="font-semibold text-muted-foreground">Public Key:</span>
+								<span className="ml-2 block font-mono bg-muted/50 p-2 rounded text-xs">
+									{ssh.public_key}
+								</span>
+							</div>
+							<div>
+								<span className="font-semibold text-muted-foreground">Fingerprint:</span>
+								<span className="ml-2">{ssh.e_fingerprint}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-muted-foreground">Private Key:</span>
+								<span className="ml-2 block font-mono bg-muted/50 p-2 rounded text-xs">
+									{isRevealed ? ssh.private_key : "••••••••••••"}
+								</span>
+							</div>
+						</div>
+					);
+				}
+
+				default:
+					return (
+						<div className="text-xs font-mono">
+							{isRevealed ? revealed?.value ?? JSON.stringify(entry, null, 2) : "••••••••••••"}
+						</div>
+					);
+			}
+		};
+
 		return (
 			<div className="group backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-2 border border-white/40 dark:border-zinc-700/40 hover:shadow-2xl transition-all duration-500">
-				<Label htmlFor={fieldName} className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all">
+				<Label
+					htmlFor={fieldName}
+					className="text-lg font-semibold mb-4 flex items-center gap-2 text-muted-foreground/80 group-hover:text-foreground transition-all"
+				>
 					{label}
 					<Shield className="h-3 w-3 text-primary" />
 				</Label>
-				<div className="flex gap-2"><div className="relative flex-1">
-					<Textarea
-						id={fieldName}
-						value={isRevealed ? revealed!.value : "••••••••••••"}
-						readOnly
-						className={cn(
-							'h-40 text-xl font-bold backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2ll shadow-inner resize-none',
-							// Keep single line behavior when masked
-							!isRevealed && 'h-14 text-2xl'
-						)}
-					/>
-					{isDecrypting && (
-						<div className="absolute inset-0 pointer-events-none">
-							<Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-pulse" />
+				<div className="flex gap-2">
+					<div className="relative flex-1">
+						<div className="h-40 backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl shadow-inner p-4 overflow-auto">
+							{renderEntryContent()}
 						</div>
-					)}
-				</div>
+						{isDecrypting && (
+							<div className="absolute inset-0 pointer-events-none">
+								<Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-pulse" />
+							</div>
+						)}
+					</div>
 
 					<Button
 						size="icon"
 						variant="outline"
-						onClick={() => isRevealed ? handleMaskField(fieldName) : handleRevealField(fieldName)}
+						onClick={() => (isRevealed ? handleMaskField(fieldName) : handleRevealField(fieldName))}
 						disabled={isRevealing === fieldName}
 						className={cn(
 							"transition-all",
-							isRevealed && "border-primary/50 text-primary hover:bg-primary/10"
+							isRevealed && "border-primary/50 text-primary hover:bg-primary/10",
 						)}
 					>
 						{isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -294,7 +443,9 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 				</div>
 			</div>
 		);
-	}
+	};
+
+
 
 	const getRowRecipient = () => {
 		return recipients.find((r) => r.email === user?.Email)
@@ -439,26 +590,48 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 							<Separator />
 
 							<div className="space-y-3">
-								{entry.audit_log.map((event) => (
+								{entry.access_log.length > 0 && entry.access_log.map((event: AuditEvent) => (
 									<div
-										key={event.id}
+										key={event.EventID}
 										className="p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
 									>
 										<div className="flex items-start justify-between mb-2">
-											<Badge variant="outline">{event.action}</Badge>
+											<Badge variant="outline">{event.EventType}</Badge>
 											<span className="text-xs text-muted-foreground">
-												{new Date(event.timestamp).toLocaleString()}
+												{new Date(event.Timestamp).toLocaleString()}
 											</span>
 										</div>
-										<p className="text-sm font-medium">{event.actor}</p>
-										{event.details && (
-											<p className="text-sm text-muted-foreground mt-1">{event.details}</p>
+
+										{/* Primary line: IP / actor */}
+										<p className="text-sm font-medium">
+											{event.IPAddress || "Unknown source"}
+										</p>
+
+										{/* Details line: human description + Stellar tx if present */}
+										<p className="text-sm text-muted-foreground mt-1">
+											{event.Event}
+											{event.StellarTx && (
+												<>
+													{" · "}
+													<span className="font-mono text-[11px]">
+														Tx: {event.StellarTx}
+													</span>
+												</>
+											)}
+										</p>
+
+										{/* Optional: ShareID for cross‑reference */}
+										{event.ShareID && (
+											<p className="text-[11px] text-muted-foreground mt-1">
+												Share ID: <span className="font-mono">{event.ShareID}</span>
+											</p>
 										)}
 									</div>
 								))}
 							</div>
 						</div>
 					)}
+
 
 					{/* Encryption View */}
 					{view === "encryption" && (
@@ -557,7 +730,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 							{/* Show Encrypted payload */}
 							<div key={entry.entry_name}>
 								<Label className="text-muted-foreground">Encrypted Payload</Label>
-								{renderSensitiveField("EncryptedPayload", "Encrypted Payload", true)}
+								{renderSensitiveField("EncryptedPayload", "Encrypted Payload", true, entry)}
 							</div>
 						</div>
 					)}

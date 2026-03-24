@@ -110,10 +110,6 @@ function AppContent() {
 
 	useEffect(() => {
 		init();
-
-		// Poll for Wails readiness (handles hot reload)
-		// const interval = setInterval(init, 1000);
-		// return () => clearInterval(interval);
 	}, [init]);
 
 	if (!appState.has_vault) {

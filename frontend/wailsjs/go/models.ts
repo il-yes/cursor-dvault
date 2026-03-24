@@ -3518,6 +3518,8 @@ export namespace vaults_domain {
 	    hash: string;
 	    name: string;
 	    size: number;
+	    cid?: string;
+	    storage?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attachment(source);
@@ -3530,6 +3532,8 @@ export namespace vaults_domain {
 	        this.hash = source["hash"];
 	        this.name = source["name"];
 	        this.size = source["size"];
+	        this.cid = source["cid"];
+	        this.storage = source["storage"];
 	    }
 	}
 	export class LoginEntry {

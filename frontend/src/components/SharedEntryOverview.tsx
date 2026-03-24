@@ -148,7 +148,7 @@ export function SharedEntryOverview({ entry, onViewChange }: SharedEntryOverview
 								<FileText className="h-4 w-4 mr-2" />
 								Audit Log
 								<Badge variant="secondary" className="ml-auto">
-									{entry.audit_log?.length ? entry?.audit_log.length : 0}
+									{entry.access_log?.length ? entry?.access_log.length : 0}
 								</Badge>
 							</Button>
 

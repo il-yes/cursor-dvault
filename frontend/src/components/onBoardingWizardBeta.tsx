@@ -656,7 +656,6 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 )}
 
                 {/* STEP 5: Payment setup (card / Stellar) */}
-
                 {step === 5 && (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-semibold text-foreground">

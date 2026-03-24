@@ -190,7 +190,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 }
 
 // ------------------------------------------------
-// Use case: list shared entries for a user
+// Use case: list shared entries by the user
 // ------------------------------------------------
 func (s *ShareUseCase) ListSharedEntries(ctx context.Context, email string) ([]share_domain.ShareEntry, error) {
 	// Mirror to cloud if client available
@@ -203,7 +203,7 @@ func (s *ShareUseCase) ListSharedEntries(ctx context.Context, email string) ([]s
 }
 
 // ------------------------------------------------
-// Use case: fetch shares *received* by the user
+// Use case: fetch shares *received* with the user
 // ------------------------------------------------
 func (s *ShareUseCase) ListReceivedShares(ctx context.Context, email string) ([]share_domain.ShareEntry, error) {
 	cloudShares, err := s.tc.GetShareWithMe(ctx, email)

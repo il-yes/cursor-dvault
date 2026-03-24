@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	// "encoding/base64"
 	"encoding/json"
 	"errors"
@@ -122,7 +123,6 @@ type config struct {
 }
 
 type App struct {
-	AppStateGuard onboarding_domain.AppState
 	config   config
 	Logger   logger.Logger
 	version  string
@@ -434,12 +434,6 @@ func NewApp() *App {
 	// ResetAndMigrate(db.DB) // Run ONCE on prod startup
 
 	return &App{
-		AppStateGuard: onboarding_domain.AppState{
-			HasVault:        false,
-			HasSession:      false,
-			HasImportedKey:  false,
-			NeedsOnboarding: false,
-		},
 		AppConfigHandler:          appConfigHandler,
 		Auth:                      auth,
 		BillingHandler:            billingHandler,
@@ -465,32 +459,16 @@ func NewApp() *App {
 }
 
 
+
 func (a *App) GetAppState() (*onboarding_domain.AppState, error) {
-	as, err := a.OnBoardingHandler.GetAppState()
+	appState, err := a.OnBoardingHandler.GetAppState()
 	if err != nil {
-		a.Logger.LogPretty("❌ App state: %+v", err)
-		return &a.AppStateGuard, nil
+		return onboarding_domain.NewAppState(), nil
 	}
-	a.Logger.LogPretty("✅ App state: %+v", as)
-
-	return as, nil
-}
-
-func (a *App) UpdateAppState(appState *onboarding_domain.AppState) error {
-	err := a.OnBoardingHandler.UpdateAppState(appState)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return appState, nil
 }
 func (a *App) CompleteOnboarding() error {
-	a.Logger.Info("✅ Completing onboarding")
 	return a.OnBoardingHandler.CompleteOnboarding()
-}
-func (a *App) ResetOnboarding() error {
-	a.Logger.Info("✅ Resetting onboarding")
-	return a.OnBoardingHandler.ResetOnboarding()
 }
 
 // -----------------------------
@@ -1500,7 +1478,7 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 			ID:              user.ID,
 			Email:           user.Email,
 			Role:            "user",
-			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"),
+			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"), // Should be from the db not hardcoded
 		})
 	}
 
@@ -1772,6 +1750,24 @@ func (a *App) OpenGoogle() {
 	runtime.BrowserOpenURL(a.ctx, "http://164.90.213.173:4002/checkout")
 }
 
+func GetLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		fmt.Println("Error getting local IP:", err)
+		return "unknown"
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				fmt.Println("Local IP:", ipnet.IP.String())
+				return ipnet.IP.String()
+			}
+		}
+	}
+
+	return "unknown"
+}
 // main.go - FORCE clean schema
 func ResetAndMigrate(db *gorm.DB) error {
 	// Drop problematic tables

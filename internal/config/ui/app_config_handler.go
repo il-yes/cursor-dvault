@@ -124,7 +124,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vaultName string) (*app_con
 }
 
 func (vh *AppConfigHandler) GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error) {
-	utils.LogPretty("AppConfigHandler - GetAppConfigByUserID - userID", userID)
 	if userID == "" {
 		return nil, errors.New("user id is required")
 	}

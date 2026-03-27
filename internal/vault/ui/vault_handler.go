@@ -850,7 +850,7 @@ func (vh *VaultHandler) UpdateEntryWithAttachments(userID string, entryType stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
 	}
-	return vh.UpdateEntryWithAttachmentsFor(userID, parsed, attachments)	
+	return vh.UpdateEntryWithAttachmentsFor(userID, parsed, attachments)
 }
 
 func (vh *VaultHandler) UpdateEntryWithAttachmentsFor(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
@@ -888,4 +888,25 @@ func (vh *VaultHandler) UpdateEntryWithAttachmentsFor(userID string, entry any, 
 	// Fires vault stores Edit entry event
 	vh.SessionManager.MarkDirty(userID)
 	return &ve, nil
+}
+
+func (vh *VaultHandler) CheckEmail(email string) (*tracecore_types.User, error) {
+	response, err := vh.TracecoreClient.GetUserByEmail(context.Background(), email)
+	if err != nil {
+		return nil, err
+
+	}
+
+	return response, nil
+}
+
+func (vh *VaultHandler) GetVaultFromCloud(subID string) (*tracecore_types.CloudResponse[tracecore_types.Vault], error) {
+	// Get vault from cloud
+	vaultCloud, err := vh.TracecoreClient.GetVaultBySubscription(context.Background(), subID)
+	if err != nil {
+		vh.logger.Error("VaultHandler - GetVaultFromCloud - error", err)
+		return nil, err
+	}
+	return vaultCloud, nil
+
 }

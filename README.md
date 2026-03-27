@@ -671,20 +671,7 @@ for _, bc := range app.boundaryContexts {
 app.Run() 
 
 
-vault.json - Vault metadata:
-{
-  "vault_id": "main",
-  "owner": "userID",
-  "created_at": "2026-03-12",
-  "version": 1
-}
 
-entries: no need as there are stored in my sqlite db
-so devices and metadata are generated on the fly for export, Snapshot backups and device sync ?
-the logs folder, usefull for debugging and audit trail, failed decrypt attempts or sync events...
-
-Still if i understood, my vault boundary context will become:
- vault git:(main) ✗ tree -L2
 .
 ├── application
 │   ├── commands
@@ -736,3 +723,5 @@ vault/
               ├── logs/                     # Logs and audit trail
               │   └── vault.log
               └── entries.db                # SQLite DB for entries storage (encrypted blobs)  
+
+  

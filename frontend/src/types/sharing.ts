@@ -1,13 +1,17 @@
 import { VaultEntry } from "./vault";
 
 export interface AuditEvent {
-  id: string;
-  action: string;
-  actor?: string;
-  timestamp: string;
-  details?: string;
+  Event: string;
+  EventID: string;
+  EventType: 'view' | 'decrypt' | 'create' | 'update' | 'delete';
+  IPAddress: string;
+  ShareID: string;
+  StellarTx: string;
+  Timestamp: string;
 }
-
+/**
+ * 
+ */
 export interface SharedEntryV0 {
   id: string;
   entry_name: string;
@@ -30,6 +34,7 @@ export interface SharedEntry {
   id: string; // backend-generated
   entry_name: string;
   entry_type: "login" | "card" | "note" | "identity" | "sshkey";
+  owner_id: string;
 
   status: "active" | "expired" | "revoked" | "pending";
   access_mode: "read" | "edit";
@@ -45,7 +50,7 @@ export interface SharedEntry {
   created_at: string;
   updated_at: string;
 
-  audit_log: AuditEvent[]; // always empty for now, backend returns nothing
+  access_log: AuditEvent[]; // always empty for now, backend returns nothing
 }
 
 export type ShareFilter = "all" | "sent" | "received" | "pending" | "revoked" | "withme";

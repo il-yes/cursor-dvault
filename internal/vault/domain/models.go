@@ -616,6 +616,8 @@ type Attachment struct {
 	Hash string `json:"hash"`
 	Name string `json:"name"`
 	Size int64 `json:"size"`
+	CID       string `json:"cid,omitempty" gorm:"column:cid"`
+	Storage string `json:"storage,omitempty"`	// "local" | "cloud" | "ipfs";
 }
 
 // ==============================================================================

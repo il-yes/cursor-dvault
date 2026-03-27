@@ -93,6 +93,7 @@ type OnboardUseCase struct {
 	Vault                    VaultPort
 	AppConfigHandler         AppConfigHandlerInterface
 	AppStateRepo             onboarding_domain.AppStateRepository
+	gormDb                   *gorm.DB
 }
 
 // ----------- UseCase Constructor -----------
@@ -111,6 +112,7 @@ func NewOnboardUseCase(
 	appStateRepo := onboarding_persistence.NewAppStateRepository(
 		gormDb,
 	)
+	utils.LogPretty("OnboardUseCase - Constructor - appStateRepo", appStateRepo)
 	return &OnboardUseCase{
 		Vault:                    v,
 		StellarService:           stellarService,
@@ -121,6 +123,7 @@ func NewOnboardUseCase(
 		BillingHandler:           billingHandler,
 		AppConfigHandler:         appConfigHandler,
 		AppStateRepo:             appStateRepo,
+		gormDb:                   gormDb,
 	}
 }
 
@@ -206,6 +209,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		return nil, err
 	}
 	uc.Logger.Info("vault created", result)
+	uc.Logger.Info("OnboardUseCase - BillingHandler", uc.BillingHandler)
 
 	// 4. ------------- Billing registration optional) ------------------
 	if req.PaymentMethod != "" {
@@ -219,9 +223,16 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 
 	// 5. ------------- (Optional event...) ------------------
+	utils.LogPretty("OnboardUseCase - Executing... - appStateRepo", uc.AppStateRepo)
 	appState := onboarding_domain.NewAppState()
+	utils.LogPretty("OnboardUseCase - Executing... - appState", appState)
 	appState.SetHasVault(true)
-	uc.AppStateRepo.Save(appState)
+	utils.LogPretty("OnboardUseCase - Executing... - appState", appState)
+	appStateRepo := onboarding_persistence.NewAppStateRepository(
+		uc.gormDb,
+	)
+	utils.LogPretty("OnboardUseCase - Executing... - appStateRepo", appStateRepo)
+	appStateRepo.Save(appState)
 		
 
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil

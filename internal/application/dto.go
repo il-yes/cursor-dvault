@@ -30,3 +30,16 @@ type LinkShareCreateRequest struct {
 	EntryType string `json:"entry_type"`
 	Title string `json:"title"`
 }
+type AddRecipientRequest struct {
+	ShareID string `json:"share_id"`
+	Email   string `json:"email"`
+	PublicKey string `json:"public_key"`
+	Role    string `json:"role"`
+	RevokedAt    *time.Time `json:"revoked_at"`
+}
+type UpdateRecipientRequest struct {
+	ShareID string `json:"share_id"`
+	Email   string `json:"email"`
+	Role    string `json:"role"`
+	RevokedAt    *time.Time `json:"revoked_at"`
+}

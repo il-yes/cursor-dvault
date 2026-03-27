@@ -2,6 +2,7 @@ package identity_ui
 
 import (
 	"context"
+	"errors"
 	"log"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_commands "vault-app/internal/identity/application/commands"
@@ -62,12 +63,28 @@ func (h *IdentityHandler) Registers(req OnboardRequest) (*identity_domain.User, 
 
 
 func (h *IdentityHandler) Login(req identity_commands.LoginCommand) (*identity_commands.LoginResult, error) {
-	
+	if (h.tokenService == nil) {
+		return nil, errors.New("IdentityHandler - Login - token service is not initialized")
+	}
+	if (h.eventBus == nil) {
+		return nil, errors.New("IdentityHandler - Login - event bus is not initialized")
+	}
+	if (h.DB == nil) {
+		return nil, errors.New("IdentityHandler - Login - database is not initialized")
+	}	
+	identityCommandHandler := identity_commands.NewLoginCommandHandler(h.DB)
+	if (identityCommandHandler == nil) {
+		return nil, errors.New("IdentityHandler - Login - identity command handler is not initialized")
+	}
+
 	loginHandler := NewLoginHandler(
-		identity_commands.NewLoginCommandHandler(h.DB),
+		identityCommandHandler,
 		h.tokenService,
 		h.eventBus,
 	)
+	if (loginHandler == nil) {
+		return nil, errors.New("IdentityHandler - Login - login handler is not initialized")
+	} 
 		
 	return loginHandler.Handle(req)
 }

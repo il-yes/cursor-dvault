@@ -22,6 +22,7 @@ import "../components/contributionGraph/g-scrollbar.css";
 import EncryptionVerificationModal from "@/components/EncryptionVerificationModal";
 import EncryptionVerificationModalBeta from "@/components/EncryptionVerificationModalBeta";
 import { EditUserInfos, GenerateApiKey, getVaultAvatar, uploadAvatar, loadAvatar } from "@/services/api";
+import { withAuth } from "@/hooks/withAuth";
 
 
 const mockFile = {
@@ -89,7 +90,9 @@ const Profile = () => {
 
 	useEffect(() => {
 		const fetchAvatar = async () => {
-			const b64 = await loadAvatar(jwtToken, vaultContext.Vault.name);
+			const b64 = await withAuth((token) => {
+				return loadAvatar(token, vaultContext.Vault.name);
+			});
 			setAvatarUrl(b64);
 		};
 

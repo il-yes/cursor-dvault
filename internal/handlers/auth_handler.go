@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -520,6 +521,18 @@ func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
 	}, nil
 }
 
+func (ah *AuthHandler) CheckUserEmail(email string, token string) (*tracecore_types.User, error) {
+	// tracecoreClient := tracecore.NewTracecoreFromConfig(appCfg, token)
+	user, err := ah.TracecoreClient.GetUserByEmail(context.Background(), email)
+	if err != nil {
+		ah.logger.Error("❌ AuthHandler - CheckUserEmail Failed to get user by email: %v", err)
+		return nil, err
+	}
+	// user, err := ah.DB.GetUserByEmail(email)
+	utils.LogPretty("user in checkemail", user)
+
+	return user, nil
+}
 // -----------------------------
 // Sign Up
 // -----------------------------

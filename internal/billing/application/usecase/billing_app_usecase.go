@@ -5,8 +5,8 @@ import (
 	billing_domain "vault-app/internal/billing/domain"
 	"vault-app/internal/subscription/domain"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 )
-
 
 // --------- Interfaces ---------
 type SubscriptionServiceInterface interface {
@@ -24,7 +24,7 @@ type AnkhoraCloudServiceInterface interface {
 	GetPendingPaymentRequests(ctx context.Context, userID string) ([]*billing_domain.PaymentRequest, error)
 	ProcessEncryptedPayment(ctx context.Context, req *billing_domain.ClientPaymentRequest) (*tracecore.ClientPaymentResponse, error)
 	HandleClientInitiatedPayment(ctx context.Context, req *billing_domain.ClientPaymentRequest) (*tracecore.ClientPaymentResponse, error)
-	GetBillingHistory(ctx context.Context, userID string, limit int) ([]*billing_domain.PaymentHistory, error)
+	GetBillingHistory(ctx context.Context, userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error)
 	GenerateReceipt(ctx context.Context, userID string, paymentID string) (*billing_domain.Receipt, error)		
 }
 
@@ -88,8 +88,8 @@ func (a *BillingApp) HandleClientInitiatedPayment(req *billing_domain.ClientPaym
 	return response, nil
 }
 
-func (a *BillingApp) GetBillingHistory(userID string, limit int) ([]*billing_domain.PaymentHistory, error) {
-	response, err := a.AnkhoraCloudService.GetBillingHistory(a.ctx, userID, limit)
+func (a *BillingApp) GetBillingHistory(subID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+	response, err := a.AnkhoraCloudService.GetBillingHistory(a.ctx, subID, limit)
 	if err != nil {
 		return nil, err
 	}

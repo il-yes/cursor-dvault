@@ -3,6 +3,7 @@ package billing_ui_handlers
 import (
 	billing_usecase "vault-app/internal/billing/application/usecase"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 
 	"context"
 	billing_domain "vault-app/internal/billing/domain"
@@ -70,8 +71,8 @@ func (a *BillingAppHandler) UpdatePaymentMethod(userID string, req *billing_doma
 }
 
 // GetBillingHistory returns payment history
-func (a *BillingAppHandler) GetBillingHistory(userID string, limit int) ([]*billing_domain.PaymentHistory, error) {
-    return a.BillingAppUC.GetBillingHistory(userID, limit)
+func (a *BillingAppHandler) GetBillingHistory(subID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+    return a.BillingAppUC.GetBillingHistory(subID, limit)
 }
 
 // DownloadReceipt downloads blockchain-verified receipt

@@ -83,6 +83,7 @@ func NewSubscriptionHandler(
 	createdListener := subscription_usecase.NewSubscriptionCreatedListener(&logger, activator, subscriptionBus)
 
 	return &SubscriptionHandler{
+		DB: db,
 		CreateUC: *createSubscriptionUC, 
 		SubscriptionSyncService: *subscriptionService,
 		SubscriptionRepository: subscriptionSubRepo,

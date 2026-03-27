@@ -8,6 +8,8 @@ import {
     UpgradeSubscription,
     CancelSubscription,
     GetBillingHistory,
+    getVaultFromCloud,
+    getSubscriptionFromCloud,
 } from '../../services/api';
 import { cn } from '@/lib/utils'; // Adjust import path
 import { Button } from '@/components/ui/button'; // shadcn/ui or your button component
@@ -15,14 +17,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DashboardLayout } from "@/components/DashboardLayout";
 import PaymentRequestModal from '../Payments/PaymentRequestModal';
+import { useVaultStore } from '@/store/vaultStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { Vault } from '@/types/vault';
+import { tracecore_types, vaults_domain } from '@/wailsjs/go/models';
 
 interface Subscription {
     tier: string;
     price: number;
     status: string;
     payment_method: string;
-    next_billing_date: string;
-    trial_ends_at?: string;
+    next_billing_date: string | number;
+    trial_ends_at?: string | number;
     stellar_tx_hash?: string;
     features: Record<string, any>;
 }
@@ -41,6 +47,9 @@ interface BillingHistoryItem {
     status: string;
     stellar_tx_hash?: string;
     stripe_intent_id?: string;
+    user_id?: string;
+    subscription_id?: string;
+    payment_method?: string;
 }
 
 const SubscriptionManager: React.FC = () => {
@@ -52,8 +61,37 @@ const SubscriptionManager: React.FC = () => {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const userId = localStorage.getItem('user_id');
-    const [useMocks, setUseMocks] = useState(true);
-    const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);  
+    const [useMocks, setUseMocks] = useState(false);
+    const [isPaymentRequestOpen, setIsPaymentRequestOpen] = useState(false);
+    const { jwtToken } = useAuthStore.getState();
+    const { vault, loadVault, clearVault: clearVaultStore } = useVaultStore();
+    const [vaultCloud, setVaultCloud] = useState(null);
+
+
+    useEffect(() => {
+        GetVaultFromCloud();
+    }, [jwtToken, vault?.Vault?.name]);
+
+    useEffect(() => {
+        GetSubscriptionFromCloud();
+    }, [jwtToken, vault?.Vault?.name]);
+
+    // Get GetVaultFromCloud first from cloud, then from local storage if cloud fails
+    const GetVaultFromCloud = async () => {
+        const response = await getVaultFromCloud(jwtToken, vault?.Vault?.name);
+        return response;
+    };
+
+    const GetSubscriptionFromCloud = async () => {
+        const response = await getSubscriptionFromCloud(jwtToken, vault?.Vault?.name);
+        return response as Subscription;
+    };
+
+    // Get GetSubscriptionDetails first from cloud, then from local storage if cloud fails
+    // const { subscription } = useSubscriptionStore();
+
+    // Get GetBillingHistory first from cloud, then from local storage if cloud fails
+    // const { billingHistory } = useBillingHistoryStore();
 
 
     // MOCK VERSION - Replace loadSubscriptionData with this:
@@ -130,15 +168,21 @@ const SubscriptionManager: React.FC = () => {
             setLoading(false);
         } else {
             setLoading(true);
+            console.log("loading subscription data")
             try {
-                const [sub, usage, historyResponse] = await Promise.all([
-                    GetSubscriptionDetails(),
-                    GetStorageUsage(),
-                    GetBillingHistory(),
-                ]);
-                setSubscription(sub as Subscription);
-                setStorageUsage(usage as StorageUsage);
+                const vault = await GetVaultFromCloud();
+                console.log({ vault })
+                const sub = await GetSubscriptionFromCloud();
+                console.log({ sub })
+                const historyResponse = await GetBillingHistory(jwtToken, 10);
+                console.log({ historyResponse })
+                
+                setVaultCloud(vault);
+                setSubscription(sub);
+                setStorageUsage(getStorage(vault));
                 setBillingHistory(historyResponse.history as BillingHistoryItem[]);
+
+
             } catch (err) {
                 console.error('Failed to load subscription data:', err);
             } finally {
@@ -149,7 +193,7 @@ const SubscriptionManager: React.FC = () => {
 
     // Load data on mount
     useEffect(() => {
-         loadSubscriptionData();
+        loadSubscriptionData();
     }, []);
 
     const getTierColor = useCallback((tier: string) => {
@@ -208,6 +252,16 @@ const SubscriptionManager: React.FC = () => {
         }
     }, [cancelReason]);
 
+    const getStorage = (vault: tracecore_types.Vault) => {
+        const viewStorage = {
+            used_gb: vault.UsedBytes,
+            quota_gb: vault.QuotaBytes,
+            percentage: (vault.UsedBytes / vault.QuotaBytes) * 100,
+
+        }
+        return viewStorage as StorageUsage;
+    }
+
     if (loading) {
         return (
             <DashboardLayout>
@@ -225,7 +279,7 @@ const SubscriptionManager: React.FC = () => {
                 {/* Hero Header */}
                 <div className="text-center backdrop-blur-xl bg-white/40 dark:bg-zinc-900/40 rounded-3xl p-12 border border-white/30 dark:border-zinc-700/30 shadow-2xl">
                     <h1 className="text-6xl font-black bg-gradient-to-r from-foreground via-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-2xl mb-4">
-                        Account    
+                        Account
                     </h1>
                     <p className="text-2xl text-muted-foreground/90 max-w-2xl mx-auto leading-relaxed backdrop-blur-sm">
                         Manage your subscription and vault preferences

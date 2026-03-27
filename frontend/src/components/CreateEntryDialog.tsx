@@ -352,11 +352,11 @@ export function CreateEntryDialog({
           {/* File Upload Widget */}
           <div className="space-y-2">
             <Label>Attachments</Label>
-            <FileUploadWidget
+            {/* <FileUploadWidget
               onFileSelect={setAttachedFiles}
               value={attachedFiles}
               maxFiles={5}
-            />
+            /> */}
           </div>
 
           <DialogFooter>

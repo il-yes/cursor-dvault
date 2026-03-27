@@ -2,9 +2,9 @@ package identity_commands
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
-	utils "vault-app/internal/utils"
 	auth_domain "vault-app/internal/auth/domain"
 	"vault-app/internal/blockchain"
 	identity_eventbus "vault-app/internal/identity/application"
@@ -12,6 +12,7 @@ import (
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 
@@ -72,8 +73,8 @@ func NewLoginCommandHandler(
 func (h *LoginCommandHandler) Handle(
 	cmd LoginCommand, tokenService TokenServiceInterface, eventBus identity_eventbus.EventBus,
 ) (*LoginResult, error) {
+	utils.LogPretty("Login command - cmd", cmd)
 
-	utils.LogPretty("Login command", cmd)
 	// 1. Resolve credentials
 	creds := auth_domain.Credentials{
 		Email:    cmd.Email,
@@ -82,6 +83,8 @@ func (h *LoginCommandHandler) Handle(
 		SignedMessage: cmd.SignedMessage,
 		Signature: cmd.Signature,
 	}
+
+	utils.LogPretty("LoginCommandHandler - Credentials", creds)
 
 	// 2. Identity - Authenticate
 	if cmd.PublicKey != "" {
@@ -110,6 +113,7 @@ func (h *LoginCommandHandler) Handle(
 			[]byte(onboardingUser.Password),
 			[]byte(creds.Password),
 		); err != nil {
+			utils.LogPretty("LoginCommandHandler - Authenticated with bcrypt - Error", err)
 			return nil, auth_domain.ErrInvalidCredentials
 		}
 		utils.LogPretty("LoginCommandHandler - Authenticated with bcrypt", "true")
@@ -117,14 +121,20 @@ func (h *LoginCommandHandler) Handle(
 	
 	// 3. Identity - Load identity user
 	utils.LogPretty("LoginCommandHandler - Loading identity user by email", creds.Email)
+	if(h.userRepo == nil) {
+		utils.LogPretty("LoginCommandHandler - userRepo is not initialized", "true")
+		return nil, errors.New("LoginCommandHandler - userRepo is not initialized")
+	}
 	user, err := h.userRepo.FindByEmail(context.Background(), creds.Email)
 	if err != nil {
+		utils.LogPretty("LoginCommandHandler - userRepo.FindByEmail - Error", err)
 		return nil, err
 	}
 	utils.LogPretty("LoginCommandHandler - Loaded identity user", user)
 
 	user.LastConnectedAt = time.Now()
 	if err := h.userRepo.Update(context.Background(), user); err != nil {
+		utils.LogPretty("LoginCommandHandler - userRepo.Update - Error", err)
 		return nil, err
 	}
 

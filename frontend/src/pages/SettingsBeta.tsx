@@ -17,6 +17,7 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { EditConfig, GetConfig } from "@/services/api";
+import { withAuth } from "@/hooks/withAuth";
 
 
 
@@ -141,7 +142,10 @@ const SettingsBeta = () => {
 
 	const fetchConfig = async (vaultName, jwtToken) => {
 		try {
-			const response = await GetConfig(vaultName, jwtToken)
+
+			const response = await withAuth((token) => {
+				return GetConfig(vaultName, token)
+			});
 
 			console.log("fetchConfig response", response)
 

@@ -1595,28 +1595,6 @@ export namespace main {
 	        this.identity = source["identity"];
 	    }
 	}
-	export class PaymentHistory {
-	    id: string;
-	    amount: number;
-	    currency: string;
-	    description: string;
-	    status: string;
-	    user_id: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PaymentHistory(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.amount = source["amount"];
-	        this.currency = source["currency"];
-	        this.description = source["description"];
-	        this.status = source["status"];
-	        this.user_id = source["user_id"];
-	    }
-	}
 	export class Receipt {
 	    id: string;
 	    amount: number;
@@ -3022,6 +3000,64 @@ export namespace subscription_domain {
 
 export namespace tracecore {
 	
+	export class CloudCryptographicShare {
+	    ID: string;
+	    EncryptedPayload: string;
+	    SenderUserID: string;
+	    SenderEmail: string;
+	    SenderPublicKey: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    RevokedAt?: any;
+	    AccessMode: string;
+	    AccessLog: number[];
+	    Signature: string;
+	    Title: string;
+	    EntryType: string;
+	    DownloadAllowed: boolean;
+	    Metadata: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudCryptographicShare(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.EncryptedPayload = source["EncryptedPayload"];
+	        this.SenderUserID = source["SenderUserID"];
+	        this.SenderEmail = source["SenderEmail"];
+	        this.SenderPublicKey = source["SenderPublicKey"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.RevokedAt = this.convertValues(source["RevokedAt"], null);
+	        this.AccessMode = source["AccessMode"];
+	        this.AccessLog = source["AccessLog"];
+	        this.Signature = source["Signature"];
+	        this.Title = source["Title"];
+	        this.EntryType = source["EntryType"];
+	        this.DownloadAllowed = source["DownloadAllowed"];
+	        this.Metadata = source["Metadata"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class WailsLinkShare {
 	    id: string;
 	    entry_name: string;
@@ -3075,6 +3111,127 @@ export namespace tracecore_types {
 	        this.signature = source["signature"];
 	    }
 	}
+	export class PaymentHistory {
+	    id: string;
+	    user_id: string;
+	    subscription_id: string;
+	    amount: number;
+	    status: string;
+	    payment_method: string;
+	    description: string;
+	    stellar_tx_hash?: string;
+	    stripe_intent_id?: string;
+	    // Go type: time
+	    created_at: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new PaymentHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.subscription_id = source["subscription_id"];
+	        this.amount = source["amount"];
+	        this.status = source["status"];
+	        this.payment_method = source["payment_method"];
+	        this.description = source["description"];
+	        this.stellar_tx_hash = source["stellar_tx_hash"];
+	        this.stripe_intent_id = source["stripe_intent_id"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CloudResponse___vault_app_internal_tracecore_types_PaymentHistory_ {
+	    status: number;
+	    data: PaymentHistory[];
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse___vault_app_internal_tracecore_types_PaymentHistory_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], PaymentHistory);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_ {
+	    status: number;
+	    data: tracecore.CloudCryptographicShare;
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], tracecore.CloudCryptographicShare);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DecryptCryptoShareResponse {
 	    payload: string;
 	    expires_in?: number;
@@ -3105,6 +3262,110 @@ export namespace tracecore_types {
 	        this.data = this.convertValues(source["data"], DecryptCryptoShareResponse);
 	        this.message = source["message"];
 	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	export class User {
+	    id: number;
+	    first_name: string;
+	    last_name: string;
+	    email: string;
+	    public_key: string;
+	    password: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
+	        this.email = source["email"];
+	        this.public_key = source["public_key"];
+	        this.password = source["password"];
+	    }
+	}
+	export class VaultFeatures {
+	    CloudBackup: boolean;
+	    Versioning: boolean;
+	    Sharing: boolean;
+	    Telemetry: boolean;
+	    Tracecore: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultFeatures(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.CloudBackup = source["CloudBackup"];
+	        this.Versioning = source["Versioning"];
+	        this.Sharing = source["Sharing"];
+	        this.Telemetry = source["Telemetry"];
+	        this.Tracecore = source["Tracecore"];
+	    }
+	}
+	export class Vault {
+	    ID: string;
+	    OwnerID: string;
+	    OwnerType: string;
+	    SubscriptionID: string;
+	    Name: string;
+	    PlanID: string;
+	    Active: boolean;
+	    QuotaBytes: number;
+	    UsedBytes: number;
+	    StorageBackend: string;
+	    Features: VaultFeatures;
+	    IPFSNodeID: string;
+	    PinataPinID: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.OwnerID = source["OwnerID"];
+	        this.OwnerType = source["OwnerType"];
+	        this.SubscriptionID = source["SubscriptionID"];
+	        this.Name = source["Name"];
+	        this.PlanID = source["PlanID"];
+	        this.Active = source["Active"];
+	        this.QuotaBytes = source["QuotaBytes"];
+	        this.UsedBytes = source["UsedBytes"];
+	        this.StorageBackend = source["StorageBackend"];
+	        this.Features = this.convertValues(source["Features"], VaultFeatures);
+	        this.IPFSNodeID = source["IPFSNodeID"];
+	        this.PinataPinID = source["PinataPinID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

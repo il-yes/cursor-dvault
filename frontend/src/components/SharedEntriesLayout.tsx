@@ -6,6 +6,7 @@ import { SharedEntryOverview } from "@/components/SharedEntryOverview";
 import { SharedEntryDetails } from "@/components/SharedEntryDetails";
 import { useVaultStore } from "@/store/vaultStore";
 import "./contributionGraph/g-scrollbar.css";
+import * as AppAPI from "../../wailsjs/go/main/App";
 
 import QRCode from "react-qr-code"; // npm install qrcode.react
 import { NewLinkShareModal } from "./NewLinkShare";
@@ -74,17 +75,17 @@ export function SharedEntriesLayout() {
 		let filtered = sharedEntries;
 
 		switch (filterParam) {
-			case "sent":
-				// In real app, filter by entries shared by current user
-				filtered = filtered.filter(e => e.status === "active" || e.status === "pending");
-				break;
-			case "received":
-				// In real app, filter by entries received by current user
-				filtered = filtered.filter(e => e.status === "active");
-				break;
-			case "pending":
-				filtered = filtered.filter(e => e.status === "pending");
-				break;
+			// case "sent":
+			// 	// In real app, filter by entries shared by current user
+			// 	filtered = filtered.filter(e => e.status === "active" || e.status === "pending");
+			// 	break;
+			// case "received":
+			// 	// In real app, filter by entries received by current user
+			// 	filtered = filtered.filter(e => e.status === "active");
+			// 	break;
+			// case "pending":
+			// 	filtered = filtered.filter(e => e.status === "pending");
+			// 	break;
 			case "revoked":
 				filtered = filtered.filter(e => e.status === "revoked");
 				break;
@@ -157,9 +158,9 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 	const [qrShare, setQrShare] = useState(null);
 
 	const onCopyLink = (share) => {
-		alert('ok')
+		const text = `${share.link}\n\nPassword: ${share.password}`;
 		navigator.clipboard.writeText(share.link);
-		console.log(share.link)
+		console.log(text)
 		setQrShare(share);
 	};
 
@@ -289,7 +290,15 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 					<div className="bg-white rounded-xl p-6 shadow-xl flex flex-col items-center">
 						<QRCode value={qrShare.link} size={180} />
 						<div className="mt-3 text-xs font-bold">
-							<a href={qrShare.link} target="_blank" rel="noopener noreferrer" className="text-[#C9A44A] hover:underline">{qrShare.link}</a>
+							<a 
+								onClick={() => AppAPI.OpenURL(qrShare.link)}
+								href={qrShare.link} 
+								target="_blank" 
+								rel="noopener noreferrer" 
+								className="text-[#C9A44A] hover:underline"
+							>
+								https://ankhora.io/shares/{qrShare.id}
+							</a>
 						</div>
 						<button
 							className="mt-4 px-4 py-2 bg-[#C9A44A] text-white rounded-lg font-medium"

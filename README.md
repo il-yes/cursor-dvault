@@ -671,20 +671,7 @@ for _, bc := range app.boundaryContexts {
 app.Run() 
 
 
-vault.json - Vault metadata:
-{
-  "vault_id": "main",
-  "owner": "userID",
-  "created_at": "2026-03-12",
-  "version": 1
-}
 
-entries: no need as there are stored in my sqlite db
-so devices and metadata are generated on the fly for export, Snapshot backups and device sync ?
-the logs folder, usefull for debugging and audit trail, failed decrypt attempts or sync events...
-
-Still if i understood, my vault boundary context will become:
- vault git:(main) ✗ tree -L2
 .
 ├── application
 │   ├── commands
@@ -737,48 +724,4 @@ vault/
               │   └── vault.log
               └── entries.db                # SQLite DB for entries storage (encrypted blobs)  
 
-
-// Login Entry
-export interface LoginEntry extends BaseEntry {
-  user_name: string;
-  password: string;
-  web_site?: string;
-}
-
-// Card Entry
-export interface CardEntry extends BaseEntry {
-  owner: string;
-  number: string;
-  expiration: string;
-  cvc: string;
-}
-
-// Identity Entry
-export interface IdentityEntry extends BaseEntry {
-  genre?: string;
-  firstname?: string;
-  second_firstname?: string;
-  lastname?: string;
-  username?: string;
-  company?: string;
-  social_security_number?: string;
-  ID_number?: string;
-  driver_license?: string;
-  mail?: string;
-  telephone?: string;
-  address_one?: string;
-  address_two?: string;
-  address_three?: string;
-  city?: string;
-  state?: string;
-  postal_code?: string;
-  country?: string;
-}
-
-
-// SSH Key Entry
-export interface SSHKeyEntry extends BaseEntry {
-  private_key: string;
-  public_key: string;
-  e_fingerprint: string;
-}
+  

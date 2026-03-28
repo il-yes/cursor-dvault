@@ -34,6 +34,7 @@ export interface SharedEntry {
   id: string; // backend-generated
   entry_name: string;
   entry_type: "login" | "card" | "note" | "identity" | "sshkey";
+  owner_id: string;
 
   status: "active" | "expired" | "revoked" | "pending";
   access_mode: "read" | "edit";

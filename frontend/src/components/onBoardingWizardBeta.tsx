@@ -424,16 +424,12 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                                 </div>
                             </button>
                         </div>
-                        <button onClick={() => setStep(1.5)}>Stellar Key backup</button>
-
-                        <button onClick={GetSession}>Get Session</button>
-
                         <Button
                             onClick={handleSkip}
                             size="lg"
                             className="h-14 px-12 text-lg bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg hover:shadow-xl transition-all font-semibold"
                         >
-                            Continue with New Account
+                            Continue with Current Account
                         </Button>
                     </div>
                 )}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+
 	// "encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,7 +25,7 @@ import (
 	"vault-app/internal/blockchain"
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
-	"vault-app/internal/config/infrastructure/persistence"
+	// "vault-app/internal/config/infrastructure/persistence"
 	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
@@ -363,6 +364,8 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	billingHandler := billing_ui.NewBillingHandler(db.DB, &subscriptionHandler.SubscriptionSyncService, tracecoreClient)
 	subscriptionHandler.SetBillingHandler(*billingHandler)
+	appLogger.Info("billingHandler", billingHandler)
+	appLogger.Info("subscriptionHandler", subscriptionHandler)
 
 	// -------------------------------------------------------------------------------------------------
 	// Stellar Recovery
@@ -460,6 +463,9 @@ func NewApp() *App {
 
 
 
+// -----------------------------
+// AppState
+// -----------------------------
 func (a *App) GetAppState() (*onboarding_domain.AppState, error) {
 	appState, err := a.OnBoardingHandler.GetAppState()
 	if err != nil {
@@ -602,6 +608,7 @@ func (a *App) PollPaymentStatus(sessionID string, email string, plainPassword st
 	a.Logger.Info("Polling payment status:", url)
 	resp, err := http.Get(url)
 	if err != nil {
+		a.Logger.Error("Polling payment status failed:", err)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -620,7 +627,7 @@ func (a *App) PollPaymentStatus(sessionID string, email string, plainPassword st
 	}
 
 	// 2. 	------------- Check payment status -------------
-	if r.Status == "paid" {
+	if r.Status == "active" || r.Status == "paid" {
 		go func() {
 			if err := a.OnPaymentConfirmation(sessionID, email, plainPassword); err != nil {
 				a.Logger.Error("Payment confirmation failed:", err)
@@ -637,6 +644,7 @@ func (a *App) OnPaymentConfirmation(sessionID string, email string, plainPasswor
 	// 0. ------------- OnPaymentConfirmation -------------
 	response, err := a.SubscriptionHandler.CreateSubscription(a.ctx, sessionID, email, plainPassword)
 	if err != nil {
+		a.Logger.Error("OnPaymentConfirmation - Payment confirmation failed:", err)
 		return err
 	}
 	a.Logger.Info("✅ Subscription created successfully: %v", response)
@@ -647,7 +655,7 @@ func (a *App) OnPaymentConfirmation(sessionID string, email string, plainPasswor
 }
 
 // -----------------------------
-// Connexion
+// Connexion Legagcy
 // -----------------------------
 func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
 	return a.Auth.Login(req)
@@ -677,6 +685,14 @@ func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
 }
+func (a *App) CheckUserEmail(jwtToken string, email string) (*tracecore_types.User, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("❌ App - CheckUserEmail - failed to require auth %s: %v", claims.UserID, err)
+		return nil, err
+	}
+	return a.Auth.CheckUserEmail(email, "token")
+}
 func (a *App) SaveSessionTest(jwtToken string) error {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -688,7 +704,7 @@ func (a *App) SaveSessionTest(jwtToken string) error {
 }
 
 // -----------------------------
-// Connexion (identity) - V2
+// Connexion (identity)
 // -----------------------------
 func (a *App) SignInWithStellar(req handlers.LoginRequest) (*vault_dto.LoginResponse, error) {
 	a.Logger.Info("App - SignInWithStellar req", req)
@@ -707,9 +723,15 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		Signature:     req.Signature,
 	}
 	// --------- Identity login ---------
+	if a.Identity == nil {
+		a.Logger.Error("❌ App - SignIn - identity is not initialized")
+		return nil, errors.New("App - SignIn - identity is not initialized")
+	}
+	a.Logger.Info("App - SignIn - identity is initialized")
+
 	result, err := a.Identity.Login(cmd)
 	if err != nil {
-		a.Logger.Error("❌ App - SignInWithIdentity - failed to identify user %s: %v", result.User.ID, err)
+		a.Logger.Error("❌ App - SignIn - failed to identify user %s: %v", result.User.ID, err)
 		return nil, err
 	}
 	a.Logger.Info("Identity login successful: %v", result)
@@ -717,10 +739,10 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// --------- Session Warm Up ---------
 	session, err := a.Vault.PrepareSession(result.User.ID)
 	if err != nil {
-		a.Logger.Error("❌ App - SignInWithIdentity - failed to get session for user %s: %v", result.User.ID, err)
+		a.Logger.Error("❌ App - SignIn - failed to get session for user %s: %v", result.User.ID, err)
 	}
 	if session == nil {
-		a.Logger.Error("❌ App - SignInWithIdentity - failed to get session for user %s: %v", result.User.ID, err)
+		a.Logger.Error("❌ App - SignIn - failed to get session for user %s: %v", result.User.ID, err)
 		// return	 nil, err
 	} else {
 		a.Logger.Info("Session fetched successfully: %v", session)
@@ -757,7 +779,6 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		Dirty:               session.Dirty,
 	}
 
-	a.Logger.LogPretty("SignInWithIdentity - loginRes", loginRes.Vault)
 	return loginRes, nil
 }
 
@@ -840,7 +861,7 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
 
-func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
+func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
@@ -884,29 +905,6 @@ func (a *App) DecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCry
 // -----------------------------
 // Vault Crud
 // -----------------------------
-func (a *App) GetVault(userID string) (map[string]interface{}, error) {
-	user, err := a.Identity.FindUserById(a.ctx, userID)
-	if err != nil {
-		a.Logger.Error("App - GetVault - error: %v", err)
-		return nil, err
-	}
-	session, err := a.Vault.GetSession(userID)
-	if err != nil {
-		a.Logger.Error("App - GetVault - error: %v", err)
-		return nil, err
-	}
-
-	response := map[string]interface{}{
-		"User":                user,
-		"role":                "user",
-		"Vault":               session.Vault,
-		"SharedEntries":       []vaults_domain.VaultEntry{},
-		"VaultRuntimeContext": *session.Runtime,
-		"LastCID":             session.LastCID,
-		"Dirty":               session.Dirty,
-	}
-	return response, nil
-}
 func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -921,7 +919,6 @@ func (a *App) AddEntry(entryType string, raw json.RawMessage, jwtToken string) (
 	utils.LogPretty("App - AddEntry - res", res)
 	return res, nil
 }
-
 func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -936,7 +933,6 @@ func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) 
 	utils.LogPretty("App - EditEntry - res", res)
 	return res, nil
 }
-
 func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -953,7 +949,6 @@ func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string)
 	a.Logger.LogPretty("App - TrashEntry - res", res)
 	return res, nil
 }
-
 func (a *App) RestoreEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1019,6 +1014,10 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
 
+
+// -----------------------------
+// Cloud Services
+// -----------------------------
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1044,7 +1043,6 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 
 	return a.Vault.SyncVault(a.ctx, input, *a.Auth.TracecoreClient)
 }
-
 func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1142,6 +1140,10 @@ func (a *App) UploadAvatar(jwtToken string, vaultName string, avatar []byte) (st
 	a.Logger.Info("App - UploadAvatar - vaultName", vaultName)
 	return a.Vault.UploadAvatar(claims.UserID, vaultName, avatar)
 }
+
+// -----------------------------
+// Vault Avatar - Vault Attachments
+// -----------------------------
 func (a *App) GetVaultAvatar(jwtToken string, vaultName string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1170,7 +1172,6 @@ func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
 	}
 	return avatar, nil
 }
-
 func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType string, raw json.RawMessage, attachments vault_dto.SelectedAttachments) (*vaults_domain.VaultEntry, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1186,7 +1187,6 @@ func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType str
 
 	return ve, nil
 }
-
 func (a *App) LoadAttachment(jwtToken string, vaultName string, hash string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1195,6 +1195,76 @@ func (a *App) LoadAttachment(jwtToken string, vaultName string, hash string) (st
 	}
 	a.Logger.Info("App - LoadAttachment - vaultName", vaultName)
 	return a.Vault.LoadAttachment(claims.UserID, vaultName, hash)
+}
+
+func (a *App) GetVault(userID string) (map[string]interface{}, error) {
+	user, err := a.Identity.FindUserById(a.ctx, userID)
+	if err != nil {
+		a.Logger.Error("App - GetVault - error: %v", err)
+		return nil, err
+	}
+	session, err := a.Vault.GetSession(userID)
+	if err != nil {
+		a.Logger.Error("App - GetVault - error: %v", err)
+		return nil, err
+	}
+
+	response := map[string]interface{}{
+		"User":                user,
+		"role":                "user",
+		"Vault":               session.Vault,
+		"SharedEntries":       []vaults_domain.VaultEntry{},
+		"VaultRuntimeContext": *session.Runtime,
+		"LastCID":             session.LastCID,
+		"Dirty":               session.Dirty,
+	}
+	return response, nil
+}
+func (a *App) GetVaultFromCloud(jwtToken string, vaultName string) (*tracecore_types.Vault, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+		return nil, err
+	}
+	// FETCH SUBSCRIPTION
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - GetVaultFromCloud - sub", sub)
+
+	response, err := a.Vault.GetVaultFromCloud(sub.ID)
+	if err != nil {
+		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+		return nil, err
+	}
+	utils.LogPretty("App - GetVaultFromCloud - response", response.Data)
+	return &response.Data, nil
+}
+func (a *App) GetSubscriptionFromCloud(jwtToken string, vaultName string) (*subscription_domain.Subscription, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - GetSubscriptionFromCloud - error: %v", err)
+		return nil, err
+	}
+	a.Logger.Info("App - GetSubscriptionFromCloud - claims", claims)
+
+	// FETCH SUBSCRIPTION
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - GetVaultFromCloud - sub cloud", sub)
+
+	subCloud, err := a.Vault.TracecoreClient.GetSubscriptionByID(context.Background(), sub.ID)
+	if err != nil {
+		a.Logger.Error("App - GetSubscriptionFromCloud - error: %v", err)
+		return nil, err
+	}
+	utils.LogPretty("App - GetSubscriptionFromCloud - response", subCloud)
+	return subCloud, nil
 }
 
 // -----------------------------
@@ -1301,6 +1371,7 @@ func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, er
 		a.Logger.Error("App - ListSharedEntries - error: %v", err)
 		return nil, err
 	}
+	a.Logger.LogPretty("App - ListSharedEntries - Cryptographic entries: %v", entries)
 
 	return &entries, nil
 }
@@ -1353,6 +1424,68 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
 }
 
+func (a *App) AddRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - AddRecipient - error: %v", err)
+		return nil, err
+	}
+
+	var addRecipRequest share_application_dto.AddRecipientRequest
+	if err := json.Unmarshal(raw, &addRecipRequest); err != nil {
+		a.Logger.Error("App - AddRecipient - error: %v", err)
+		return nil, err
+	}
+	return a.Vaults.AddRecipient(context.Background(), claims.UserID, addRecipRequest, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
+}
+
+func (a *App) UpdateRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - UpdateRecipient - error: %v", err)
+		return nil, err
+	}
+
+	var updateRecipRequest share_application_dto.UpdateRecipientRequest
+	if err := json.Unmarshal(raw, &updateRecipRequest); err != nil {
+		a.Logger.Error("App - UpdateRecipient - error: %v", err)
+		return nil, err
+	}
+	return a.Vaults.UpdateRecipient(context.Background(), claims.UserID, updateRecipRequest)
+}
+
+func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - RevokeRecipient - error: %v", err)
+		return nil, err
+	}
+
+	var revokeRecipRequest share_application_dto.UpdateRecipientRequest
+	if err := json.Unmarshal(raw, &revokeRecipRequest); err != nil {
+		a.Logger.Error("App - RevokeRecipient - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - RevokeRecipient - request: %v", revokeRecipRequest)
+	return a.Vaults.RevokeRecipient(context.Background(), claims.UserID, revokeRecipRequest)
+}
+
+func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - RevokeShare - error: %v", err)
+		return nil, err
+	}
+
+	var revokeShareRequest share_application_dto.UpdateRecipientRequest
+	if err := json.Unmarshal(raw, &revokeShareRequest); err != nil {
+		a.Logger.Error("App - RevokeShare - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - RevokeShare - request: %v", revokeShareRequest)
+	return a.Vaults.RevokeShare(context.Background(), claims.UserID, revokeShareRequest, *a.AppConfigHandler)
+}
+
 // -----------------------------
 // Vault Config
 // -----------------------------
@@ -1364,7 +1497,6 @@ type GenerateApiKeyOutput struct {
 	PublicKey  string `json:"public_key"`
 	PrivateKey string `json:"private_key"`
 }
-
 func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
 	claims, err := a.Auth.RequireAuth(input.JwtToken)
 	if err != nil {
@@ -1436,28 +1568,6 @@ func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, 
 	}, nil
 }
 
-// FlushAllSessions persists and clears all active sessions.
-func (a *App) FlushAllSessions() {
-	a.Vault.SessionsMu.Lock()
-	defer a.Vault.SessionsMu.Unlock()
-	// -----------------------------
-	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
-	// -----------------------------
-	if !a.Vault.HasSession() {
-		a.Logger.Info("No sessions to flush")
-		return
-	}
-
-	a.Logger.Info("💾 Flushing %d active sessions...", len(a.Vault.GetAllSessions()))
-	// -----------------------------
-	// 1. FLUSH ALL SESSIONS
-	// -----------------------------
-	for userID := range a.Vault.GetAllSessions() {
-		a.Vault.SessionManager.EndSession(userID)
-	}
-	a.Logger.Info("✨ All sessions flushed and cleared")
-}
-
 func (a *App) IsVaultDirty(jwtToken string) (bool, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1466,27 +1576,8 @@ func (a *App) IsVaultDirty(jwtToken string) (bool, error) {
 	return a.Vault.IsMarkedDirty(claims.UserID), nil
 }
 
-func (a *App) FetchUsers() ([]models.UserDTO, error) {
-	users, err := a.OnBoardingHandler.FetchUsers()
-	if err != nil {
-		a.Logger.Error("APP - FetchUsers -failed to load all vault users")
-		return nil, err
-	}
-	var userDTOs []models.UserDTO
-	for _, user := range users {
-		userDTOs = append(userDTOs, models.UserDTO{
-			ID:              user.ID,
-			Email:           user.Email,
-			Role:            "user",
-			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"), // Should be from the db not hardcoded
-		})
-	}
-
-	return userDTOs, nil
-}
-
 // -----------------------------
-// Billing
+// Billing - Subscription
 // -----------------------------
 // GetPendingPaymentRequests returns all pending payment requests for current user
 func (a *App) GetPendingPaymentRequests(jwtToken string) ([]*billing_domain.PaymentRequest, error) {
@@ -1574,14 +1665,26 @@ type PaymentHistory struct {
 }
 
 // GetBillingHistory returns payment history
-func (a *App) GetBillingHistory(jwtToken string, limit int) ([]*PaymentHistory, error) {
+func (a *App) GetBillingHistory(jwtToken string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 	fmt.Println("userID", claims.UserID)
-	// return a.billingService.GetPaymentHistory(a.ctx, claims.UserID, limit)
-	return nil, nil
+
+	// FETCH SUBSCRIPTION
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+		return nil, err
+	}
+	
+	response, err := a.BillingHandler.GetPaymentHistory(a.ctx, sub.ID, limit)
+	if err != nil {
+		return nil, err
+	}
+	a.Logger.LogPretty("✅ App - GetBillingHistory - payment history fetched: %v", response)	
+	return response, nil
 }
 
 type Receipt struct {
@@ -1678,9 +1781,50 @@ func (a *App) EditUserInfos(jwtToken string, req *identity_dtos.EditUserInfosReq
 	return nil
 }
 
+func (a *App) FetchUsers() ([]models.UserDTO, error) {
+	users, err := a.OnBoardingHandler.FetchUsers()
+	if err != nil {
+		a.Logger.Error("APP - FetchUsers -failed to load all vault users")
+		return nil, err
+	}
+	var userDTOs []models.UserDTO
+	for _, user := range users {
+		userDTOs = append(userDTOs, models.UserDTO{
+			ID:              user.ID,
+			Email:           user.Email,
+			Role:            "user",
+			LastConnectedAt: time.Now().Format("2006-01-02 15:04:05"), // Should be from the db not hardcoded
+		})
+	}
+
+	return userDTOs, nil
+}
 // -----------------------------
 // Helpers
 // -----------------------------
+
+// FlushAllSessions persists and clears all active sessions.
+func (a *App) FlushAllSessions() {
+	a.Vault.SessionsMu.Lock()
+	defer a.Vault.SessionsMu.Unlock()
+	// -----------------------------
+	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
+	// -----------------------------
+	if !a.Vault.HasSession() {
+		a.Logger.Info("No sessions to flush")
+		return
+	}
+
+	a.Logger.Info("💾 Flushing %d active sessions...", len(a.Vault.GetAllSessions()))
+	// -----------------------------
+	// 1. FLUSH ALL SESSIONS
+	// -----------------------------
+	for userID := range a.Vault.GetAllSessions() {
+		a.Vault.SessionManager.EndSession(userID)
+	}
+	a.Logger.Info("✨ All sessions flushed and cleared")
+}
+
 // Wails needs this to generate Entries struct in TypeScript
 func (a *App) DummyExposeEntries(e models.Entries) models.Entries {
 	return e
@@ -1768,16 +1912,19 @@ func GetLocalIP() string {
 
 	return "unknown"
 }
+
 // main.go - FORCE clean schema
 func ResetAndMigrate(db *gorm.DB) error {
 	// Drop problematic tables
-	db.Migrator().DropTable(&persistence.UserConfigMapper{})
-	db.Migrator().DropTable(&app_config_domain.SharingRule{})
+	// db.Migrator().DropTable(&persistence.UserConfigMapper{})
+	// db.Migrator().DropTable(&app_config_domain.SharingRule{})
+	db.Migrator().DropTable(&onboarding_domain.AppState{})
 
 	// Recreate with correct types
 	return db.AutoMigrate(
-		&persistence.UserConfigMapper{},
-		&app_config_domain.SharingRule{},
-		&app_config_domain.StellarAccountConfig{},
+		// &persistence.UserConfigMapper{},
+		// &app_config_domain.SharingRule{},
+		// &app_config_domain.StellarAccountConfig{},
+		&onboarding_domain.AppState{},
 	)
 }

@@ -178,3 +178,77 @@ type AddPublicKeyToCustomerResponse struct {
 	UpdatedAt time.Time `json:"-"`
 }
 	
+
+type AddRecipientRequest struct {
+	ShareID string `json:"share_id"`
+	Email   string `json:"email"`
+	Role    string `json:"role"`
+	EncryptedKey string `json:"encrypted_key"`
+	RevokedAt    *time.Time `json:"revoked_at"`
+	Signature    string `json:"signature"`
+}
+
+type RevokeShareRequest struct {
+	ShareID string `json:"share_id"`
+	Challenge      string `json:"challenge"`
+	Email    string `json:"email"`
+	Signature    string `json:"signature"`
+}	
+
+type GetBillingHistory struct {
+	ID string `json:"id"`
+	UserID string `json:"user_id"`
+	SubscriptionID string `json:"subscription_id"`
+	Amount int64 `json:"amount"`
+	Status string `json:"status"`
+	PaymentMethod string `json:"payment_method"`
+	Description string `json:"description"`
+	StripeIntentID string `json:"stripe_intent_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PaymentHistory struct {
+    ID              string    `json:"id" gorm:"primaryKey"`
+	UserID          string    `json:"user_id" gorm:"not null"`
+	SubscriptionID  string    `json:"subscription_id" gorm:"not null"`
+    Amount          float64   `json:"amount" gorm:"not null"`
+    Status          string    `json:"status" gorm:"not null"` // succeeded, failed, pending
+    PaymentMethod   string    `json:"payment_method" gorm:"not null"`
+    Description     string    `json:"description" gorm:"omitempty"`
+    StellarTxHash   string    `json:"stellar_tx_hash,omitempty" gorm:"omitempty"`
+    StripeIntentID  string    `json:"stripe_intent_id,omitempty" gorm:"omitempty"`
+    CreatedAt       time.Time `json:"created_at" gorm:"not null"`
+}
+type Vault struct {
+	ID        string
+	OwnerID  string // user or team
+	OwnerType string // user | team
+	SubscriptionID string
+
+	Name      string
+	PlanID    string
+	Active    bool
+
+	// Storage
+	QuotaBytes int64
+	UsedBytes  int64    
+	StorageBackend string // ipfs | s3 | hybrid
+
+	// Features (resolved from subscription)
+	Features VaultFeatures
+
+	// Blockchain refs
+	IPFSNodeID  string
+	PinataPinID string
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type VaultFeatures struct {
+	CloudBackup bool
+	Versioning  bool
+	Sharing     bool
+	Telemetry   bool
+	Tracecore   bool
+}

@@ -10,6 +10,9 @@ import { Trash2, UserPlus, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SharedEntry, Recipient } from "@/types/sharing";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useVaultStore } from "@/store/vaultStore";
 
 interface RecipientsManagementModalProps {
   open: boolean;
@@ -24,19 +27,58 @@ export function RecipientsManagementModal({
 }: RecipientsManagementModalProps) {
   const { toast } = useToast();
   const [recipients, setRecipients] = useState<Recipient[]>(entry?.recipients || []);
+  const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" | "read" }>({
+    name: "",
+    email: "",
+    role: "viewer"
+  });
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newRecipientEmail, setNewRecipientEmail] = useState("");
-  const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner"| "read">("viewer");
+  const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner" | "read">("viewer");
+  const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
 
   useEffect(() => {
     setRecipients(entry?.recipients || []);
-  }, [entry]);
+  }, [entry, updateRecipients]);
 
+  const { jwtToken } = useAuthStore.getState();
 
-  const handleRoleChange = (recipientId: string, newRole: "viewer" | "editor" | "owner"| "read") => {
-    setRecipients(recipients.map(r =>
-      r.id === recipientId ? { ...r, role: newRole } : r
-    ));
+  const getPublicKey = async (email: string) => {
+    const response = await AppAPI.CheckUserEmail(jwtToken, email)
+    console.log({ response });
+    return response.public_key;
+  };
+
+  const handleRoleChange = async (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
+    setRecipients(recipients.map(r => r.email === email ? { ...r, role: newRole } : r));
+    // call Ankhora cloud backend to update role
+    // send UpdateRecipientRequest payload to Ankhora cloud backend
+    const publicKey = await getPublicKey(email);
+    if (!publicKey) {
+      toast({
+        title: "Error",
+        description: "No public key found for this email",
+      });
+      return;
+    }
+
+    const updateRequest = {
+      share_id: entry.id,
+      email: email,
+      role: newRole,
+    };
+
+    // send UpdateRecipientRequest payload to Ankhora cloud backend
+    const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
+    console.log({ response })
+
+    // zustand store update
+    updateRecipients(entry.id, recipients);
+
+    toast({
+      title: "Role updated",
+      description: "Recipient role has been changed",
+    });
   };
 
   const handleRemoveRecipient = (recipientId: string) => {
@@ -49,26 +91,67 @@ export function RecipientsManagementModal({
 
 
 
-  const handleAddRecipient = () => {
-    if (!newRecipientEmail.trim()) return;
+  // const handleAddRecipient = () => {
+  //   if (!newRecipientEmail.trim()) return;
 
-    const newRecipient: Recipient = {
-      id: `recipient-${Date.now()}`,
-      name: newRecipientEmail.split("@")[0],
-      email: newRecipientEmail,
-      role: newRecipientRole,
-      share_id: entry!.id,
+  //   const newRecipient: Recipient = {
+  //     id: `recipient-${Date.now()}`,
+  //     name: newRecipientEmail.split("@")[0],
+  //     email: newRecipientEmail,
+  //     role: newRecipientRole,
+  //     share_id: entry!.id,
+  //   };
+
+  //   setRecipients([...recipients, newRecipient]);
+  //   setNewRecipientEmail("");
+  //   setNewRecipientRole("viewer");
+  //   setIsAddingNew(false);
+
+  //   toast({
+  //     title: "Recipient added",
+  //     description: `${newRecipient.email} has been added as ${newRecipientRole}.`,
+  //   });
+  // };
+
+  const handleAddRecipient = async () => {
+    // TODO: get public key from cloud backend
+    const publicKey = await getPublicKey(newRecipient.email);
+    if (!publicKey) {
+      toast({
+        title: "Error",
+        description: "No public key found for this email",
+      });
+      return;
+    }
+
+    const recipient: Recipient = {
+      id: `rec-${Date.now()}`,
+      share_id: entry.id,
+      public_key: publicKey,
+      ...newRecipient,
+      joined_at: new Date().toISOString(),
     };
 
-    setRecipients([...recipients, newRecipient]);
-    setNewRecipientEmail("");
+    // send AddRecipientRequest payload to Ankhora cloud backend
+    const response = await AppAPI.AddRecipient(jwtToken, recipient);
+    console.log({ response })
+
+    // zustand store update
+    setRecipients(prev => {
+      const updated = [...prev, recipient];
+      updateRecipients(entry.id, updated);   // correct sync
+      return updated;
+    });
+
+    setNewRecipient({ name: "", email: "", role: "viewer" });
     setNewRecipientRole("viewer");
     setIsAddingNew(false);
 
     toast({
       title: "Recipient added",
-      description: `${newRecipient.email} has been added as ${newRecipientRole}.`,
+      description: `${recipient.name} has been added as a ${recipient.role}`,
     });
+
   };
 
   const handleResendInvitation = (recipient: Recipient) => {
@@ -131,7 +214,7 @@ export function RecipientsManagementModal({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-role">Role</Label>
-                  <Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner" | "read" )}>
+                  <Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner" | "read")}>
                     <SelectTrigger id="new-role">
                       <SelectValue />
                     </SelectTrigger>
@@ -202,13 +285,13 @@ export function RecipientsManagementModal({
 
                     <Select
                       value={recipient?.role}
-                      onValueChange={(value) => handleRoleChange(recipient.id, value as "viewer" | "editor" | "owner"| "read")}
+                      onValueChange={(value) => handleRoleChange(recipient.email, value as "viewer" | "editor" | "owner" | "read")}
                     >
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                      <SelectItem value="read">Viewer</SelectItem>
+                        <SelectItem value="read">Viewer</SelectItem>
                         <SelectItem value="viewer">Viewer</SelectItem>
                         <SelectItem value="editor">Editor</SelectItem>
                         <SelectItem value="owner">Owner</SelectItem>

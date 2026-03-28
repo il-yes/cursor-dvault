@@ -24,7 +24,7 @@
  */
 import { LoginRequest, SelectedAttachment, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto, tracecore_types, vaults_domain } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
@@ -384,7 +384,7 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 	try {
 		const jwtToken = useAuthStore.getState().jwtToken;
 
-		const result = await AppAPI.DecryptVaultEntry(jwtToken, input);
+		const result = await AppAPI.AccessDecryptVaultEntry(jwtToken, input);
 		console.log("Decrypted vault entry:", result);
 		console.log("Decrypted vault entry Data:", JSON.parse(result.data.payload));
 
@@ -853,12 +853,15 @@ type CancelSubscriptionPayload = {
 type BillingHistoryResponse = {
 	history: {
 		id: string;
-		created_at: string;
-		description: string;
+		user_id: string;
+		subscription_id: string;
 		amount: number;
 		status: string;
-		stellar_tx_hash?: string;
-		stripe_intent_id?: string;
+		payment_method: string;
+		description: string;
+		stripe_intent_id: string;
+		stellar_tx_hash: string;
+		created_at: string;	
 	}[];
 }
 export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
@@ -889,17 +892,24 @@ export const CancelSubscription = async (payload: CancelSubscriptionPayload): Pr
 	return response.json();
 };
 
-export const GetBillingHistory = async (): Promise<BillingHistoryResponse> => {
-	const response = await fetch(`${API_BASE_URL}/get-billing-history`, {
-		method: 'GET',
-		headers: { 'Content-Type': 'application/json' },
-	});
+export const GetBillingHistory = async (jwtToken: string, limit: number): Promise<BillingHistoryResponse> => {
+	const response = await AppAPI.GetBillingHistory(jwtToken, limit);
+	console.log("Billing history:", { response });
 
-	if (!response.ok) {
-		throw new Error(`Failed to get billing history: ${response.statusText}`);
-	}
-
-	return response.json();
+	return {
+		history: response.data.map((item: any) => ({
+			id: item.id,
+			user_id: item.user_id,
+			subscription_id: item.subscription_id,
+			amount: item.amount,
+			status: item.status,
+			payment_method: item.payment_method,
+			description: item.description,
+			stripe_intent_id: item.stripe_intent_id,
+			stellar_tx_hash: item.stellar_tx_hash,
+			created_at: item.created_at,
+		}))
+	};
 };
 export const GetSubscriptionDetails = async (): Promise<AuthResponse> => {
 	const response = await fetch(`${API_BASE_URL}/get-subscription-details`, {
@@ -1228,4 +1238,15 @@ export const uploadAttachments = async (jwtToken: string, vaultName: string, ent
 export const loadAttachment = async (jwtToken: string, vaultName: string, entryID: string): Promise<string> => {
 	const response = await AppAPI.LoadAttachment(jwtToken, vaultName, entryID);
 	return response;
+};
+
+export const getVaultFromCloud = async (jwtToken: string, vaultName: string): Promise<tracecore_types.Vault> => {
+	const getVaultFromCloudResponse = await AppAPI.GetVaultFromCloud(jwtToken, vaultName);
+	return getVaultFromCloudResponse;
+};
+
+export const getSubscriptionFromCloud = async (jwtToken: string, vaultName: string): Promise<subscription_domain.Subscription> => {
+	const getSubscriptionFromCloudResponse = await AppAPI.GetSubscriptionFromCloud(jwtToken, vaultName);
+	console.log({ getSubscriptionFromCloudResponse })
+	return getSubscriptionFromCloudResponse;
 };

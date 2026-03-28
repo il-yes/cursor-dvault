@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff, Copy, Shield, Edit, Share2, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Copy, Shield, Edit, Share2, Trash2, Sparkles, Loader2, Maximize2, Cloud, HardDrive } from "lucide-react";
 import { Attachment, Folder, SettingsState, VaultEntry } from "@/types/vault";
 import { decryptField, loadAttachment, logAuditEvent } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, formatFileSize } from "@/lib/utils";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { Clock } from "lucide-react";
 import "./contributionGraph/g-scrollbar.css";
@@ -20,6 +20,8 @@ import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
+import { withAuth } from "@/hooks/withAuth";
+import { ToastAction } from "@radix-ui/react-toast";
 
 
 interface EntryDetailPanelProps {
@@ -134,6 +136,11 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const { vault } = useVaultStore();
     const vaultPassword = "vaultPassword";
 
+    const [selectedAttachment, setSelectedAttachment] = useState<ExtendedAttachment | null>(null);
+
+    const [transferring, setTransferring] = useState<Record<string, TransferStatus>>({});
+
+
 
     useEffect(() => {
         if (!vault?.Vault?.name) return
@@ -142,7 +149,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
     const fetchConfig = async (vaultName: string, jwtToken: string) => {
         try {
-            const response = await AppAPI.GetConfig(vaultName, jwtToken)
+            const response = await withAuth((token) => {
+                return AppAPI.GetConfig(vaultName, token)
+            });
 
             console.log("fetchConfig response", response)
 
@@ -254,64 +263,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
     const currentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handleRevealField = async (fieldName: string) => {
-        if (!entry) return;
-
-        // Clear any existing timeout first
-        if (currentTimeoutRef.current) {
-            clearTimeout(currentTimeoutRef.current);
-            currentTimeoutRef.current = null;
-        }
-
-        setIsRevealing(fieldName);
-        // setDecryptingField(fieldName);
-
-        try {
-            const clearClipboardAfter = settings?.Vaults?.security?.ClearClipboardAfter;
-
-            // Clear previous timeout and set new one
-            const timeout = setTimeout(() => {
-                handleMaskField(fieldName);
-                currentTimeoutRef.current = null; // Reset ref
-            }, clearClipboardAfter * 1000);
-
-            // Store the timeout ID in ref
-            currentTimeoutRef.current = timeout;
-
-            setRevealedFields(prev => {
-                const newMap = new Map(prev);
-                newMap.set(fieldName, { name: fieldName, value: entry?.password, timeout });
-                return newMap;
-            });
-
-            toast({
-                title: "Field revealed",
-                description: `Will auto-mask in ${clearClipboardAfter}s`,
-            });
-        } catch (error) {
-            toast({
-                title: "Decryption failed",
-                description: error instanceof Error ? error.message : "Could not decrypt field.",
-                variant: "destructive",
-            });
-        } finally {
-            setIsRevealing(null);
-            setDecryptingField(null);
-        }
-    };
-
-    const handleMaskField = (fieldName: string) => {
-        const field = revealedFields.get(fieldName);
-        if (field) {
-            clearTimeout(field.timeout);
-            setRevealedFields(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(fieldName);
-                return newMap;
-            });
-        }
-    };
-
     const handleCopyField = (fieldName: string) => {
         const field = revealedFields.get(fieldName);
         if (field) {
@@ -322,6 +273,56 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             });
         }
     };
+
+    const handleRevealField = (fieldName: string) => {
+        if (!entry) return;
+
+        // Clear existing timeout
+        if (currentTimeoutRef.current) {
+            clearTimeout(currentTimeoutRef.current);
+            currentTimeoutRef.current = null;
+        }
+
+        const clearClipboardAfter = settings?.Vaults?.security?.ClearClipboardAfter;
+
+        // Create timeout
+        const timeout = setTimeout(() => {
+            handleMaskField(fieldName);
+            currentTimeoutRef.current = null;
+        }, clearClipboardAfter * 1000);
+
+        currentTimeoutRef.current = timeout;
+
+        // Use entry data directly (no decryption)
+        setRevealedFields(prev => {
+            const newMap = new Map(prev);
+            newMap.set(fieldName, {
+                name: fieldName,
+                value: entry[fieldName] as string, // ← Direct from entry
+                timeout
+            });
+            return newMap;
+        });
+
+        toast({
+            title: "Field revealed",
+            description: `Will auto-mask in ${clearClipboardAfter}s`,
+        });
+    };
+
+    const handleMaskField = useCallback((fieldName: string) => {
+        setRevealedFields(prev => {
+            const field = prev.get(fieldName);
+            if (!field) return prev;
+
+            clearTimeout(field.timeout);
+
+            // ← CRITICAL: Create COMPLETELY NEW Map every time
+            const newMap = new Map(prev);
+            newMap.delete(fieldName);
+            return newMap; // ← React sees new reference → re-renders
+        });
+    }, []);
 
     /**
      * Renders a sensitive or non-sensitive field.
@@ -552,7 +553,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         { name: 'number', label: 'Number' },
         { name: 'expiration', label: 'Expiration' },
         { name: 'cvc', label: 'CVC' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
+        // { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
     const identityFields = [
         { name: 'firstname', label: 'First name' },
@@ -571,76 +572,15 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         { name: 'state', label: 'State' },
         { name: 'zip', label: 'Zip' },
         { name: 'country', label: 'Country' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
+        // { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
     const sshkeyFields = [
         { name: 'public_key', label: 'Public key' },
         { name: 'private_key', label: 'Private key' },
         { name: 'e_fingerprint', label: 'Fingerprint' },
-        { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
+        // { name: 'additionnal_note', label: 'Additionnal note', isSensitive: false },
     ];
 
-    const onTransferToBlockchain0 = (attachment: Attachment) => {
-        console.log("Transfer to blockchain:", attachment);
-        // upload to IPFS / Pinata
-        // handleAttachmentUploadOnIpfs 
-    }
-    const onTransferToCloud0 = (attachment: Attachment) => {
-        console.log("Transfer to cloud:", attachment);
-        // send to Google Drive / S3 / cloud backend
-        // handleAttachmentUploadOnCloud 
-    }
-
-    const handleAttachmentUploadOnIpfs = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        setProgressVisible(true);
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 2 * 1024 * 1024) {
-                toast({
-                    title: "File too large",
-                    description: "Please select an image smaller than 2MB.",
-                    variant: "destructive",
-                });
-                return;
-            }
-            const { jwtToken } = useAuthStore.getState();
-            setProgress(0); // Start at 0
-
-            try {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-
-                setStage('encrypting...');
-                // Pass file buffer/path to backend (adjust encrypt to accept File or ArrayBuffer)
-                const filePath = await readFileAsBuffer(file); // Helper to get buffer
-                const encryptedData = await encryptFile(jwtToken, filePath, vaultPassword); // Now async with progress events
-
-                setStage('uploading...');
-                const cid = await uploadToIPFS(jwtToken, encryptedData); // Progress events update UI
-                console.log({ cid });
-                setStage('committing...');
-                const stellarOp = await createStellarCommit(jwtToken, cid); // Final progress to 100
-                console.log({ stellarOp });
-
-                toast({
-                    title: "Attachment pinned",
-                    description: "The file was uploaded to IPFS and committed.",
-                });
-
-                setProgress(100);
-                setStage('complete');
-                setTimeout(() => setProgressVisible(false), 2000);
-            } catch (error) {
-                setProgressVisible(false);
-                toast({
-                    title: "Upload failed",
-                    description: "Please try again.",
-                    variant: "destructive",
-                });
-                setProgress(0);
-            }
-        }
-    };
     const readFileAsBuffer = (file: File): Promise<Uint8Array> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -661,187 +601,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         transferStatus?: TransferStatus;
     }
 
-    const AttachmentPreview0 = ({
-        attachment,
-        onTransferToCloud,
-        onTransferToBlockchain,
-    }: {
-        attachment: Attachment;
-        onTransferToCloud: (attachment: Attachment) => void;
-        onTransferToBlockchain: (attachment: Attachment) => void;
-    }) => {
-        const [src, setSrc] = useState<string>("");
-        const [showCid, setShowCid] = useState(false);
-
-        useEffect(() => {
-            let isMounted = true;
-            fetchAttachment(attachment.hash)
-                .then((url) => {
-                    if (isMounted && url) setSrc(url as string);
-                })
-                .catch(console.error);
-
-            return () => {
-                isMounted = false;
-            };
-        }, [attachment.hash]);
-
-        const isIpfs = attachment.storage === "ipfs" || !!attachment.cid;
-        const isLocal = !attachment.storage || attachment.storage === "local";
-
-        if (!src) {
-            return (
-                <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded-2xl w-full h-32 flex items-center justify-center text-sm text-zinc-500">
-                    Loading image...
-                </div>
-            );
-        }
-
-        return (
-            <div className="group relative overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-700/20 shadow-xl bg-black/5">
-                <img
-                    src={src}
-                    alt={attachment.name || attachment.hash}
-                    className="w-full h-auto object-cover"
-                />
-
-                {/* top-left status chip */}
-                <div className="absolute left-3 top-3 z-20 flex gap-2">
-                    {isIpfs && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCid((v) => !v);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                            title="View IPFS CID"
-                        >
-                            <span className="h-2 w-2 rounded-full bg-cyan-300" />
-                            IPFS
-                        </button>
-                    )}
-
-                    {isLocal && (
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-md">
-                            Local
-                        </span>
-                    )}
-                </div>
-
-                {/* Hover overlay */}
-                <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 via-black/25 to-transparent">
-                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
-                        <div className="flex items-end justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-xs text-white/70 truncate">
-                                    {attachment.name || attachment.hash}
-                                </p>
-                                <p className="mt-1 text-[11px] text-white/50 truncate font-mono">
-                                    {attachment.hash}
-                                </p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                {isLocal && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md hover:bg-white/20 transition"
-                                            onClick={() => onTransferToCloud(attachment)}
-                                        >
-                                            Cloud
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="rounded-full bg-[#C9A44A]/20 px-3 py-1.5 text-[11px] font-semibold text-[#F3DFA6] backdrop-blur-md hover:bg-[#C9A44A]/30 transition"
-                                            onClick={() => onTransferToBlockchain(attachment)}
-                                        >
-                                            Blockchain
-                                        </button>
-                                    </>
-                                )}
-
-                                {isIpfs && (
-                                    <button
-                                        type="button"
-                                        className="rounded-full bg-cyan-500/20 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowCid((v) => !v);
-                                        }}
-                                    >
-                                        CID
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CID panel */}
-                {showCid && isIpfs && (
-                    <div className="absolute top-14 left-3 right-3 z-30 rounded-xl border border-white/20 bg-black/75 p-3 text-xs text-white backdrop-blur-xl shadow-2xl">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="font-semibold text-white/80">IPFS CID</p>
-                                <p className="mt-1 break-all font-mono text-[11px] text-white/90">
-                                    {attachment.cid || "CID unavailable"}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowCid(false)}
-                                className="rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20 transition"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-
 
     /** Beta version */
     type TransferStatus = "idle" | "uploading" | "success" | "error";
-
-    const useAttachmentTransfer = () => {
-        const [transferring, setTransferring] = useState<Record<string, TransferStatus>>({});
-
-        const updateTransferStatus = (hash: string, status: TransferStatus) => {
-            setTransferring(prev => ({ ...prev, [hash]: status }));
-        };
-        return { transferring, updateTransferStatus };
-    };
-    const onTransferToCloud = async (attachment: Attachment) => {
-        const hash = attachment.hash;
-        updateTransferStatus(hash, "uploading");
-
-        try {
-            // Your cloud upload logic (Google Drive, S3, etc.)
-            const result = await uploadToCloud(attachment.hash);
-
-            // Update attachment in parent state
-            updateAttachmentStorage(hash, "cloud");
-
-            toast({
-                title: "Uploaded to cloud",
-                description: `Attachment "${attachment.name}" is now safely stored.`,
-            });
-        } catch (error) {
-            updateTransferStatus(hash, "error");
-            toast({
-                title: "Cloud upload failed",
-                description: "Please try again.",
-                variant: "destructive",
-            });
-        } finally {
-            setTimeout(() => updateTransferStatus(hash, "success"), 2000);
-        }
-    };
     const uploadToCloud = async (hash: string) => {
         const { jwtToken } = useAuthStore.getState();
         const buffer = await fetchLocalAttachmentBuffer(hash);
@@ -851,10 +613,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         return { cid, stellarOp };
     }
 
-
-    const updateAttachmentStorage = (hash: string, storage: "local" | "cloud" | "ipfs", cid?: string) => {
-        setAttachments(prev => prev.map(att => att.hash === hash ? { ...att, storage, cid } : att));
-    };
     const fetchLocalAttachmentBuffer = async (hash: string) => {
         const attachment = attachments.find(att => att.hash === hash);
         if (!attachment) throw new Error("Attachment not found");
@@ -862,382 +620,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         if (!response.ok) throw new Error("Failed to fetch attachment");
         return Buffer.from(await response.arrayBuffer());
     };
-
-    const onTransferToBlockchain = async (attachment: Attachment) => {
-        const hash = attachment.hash;
-        updateTransferStatus(hash, "uploading");
-
-        try {
-            // Your existing IPFS pipeline, adapted for attachment hash
-            const fileBuffer = await fetchLocalAttachmentBuffer(hash); // Get local file
-            const { jwtToken } = useAuthStore.getState();
-
-            const encryptedData = await encryptFile(jwtToken, fileBuffer, vaultPassword);
-            const cid = await uploadToIPFS(jwtToken, encryptedData);
-            const stellarOp = await createStellarCommit(jwtToken, cid);
-
-            // Update attachment
-            updateAttachmentStorage(hash, "ipfs", cid);
-
-            toast({
-                title: "Pinned to IPFS",
-                description: `CID: ${cid.slice(0, 16)}...`,
-            });
-        } catch (error) {
-            updateTransferStatus(hash, "error");
-            toast({
-                title: "IPFS upload failed",
-                description: "Please try again.",
-                variant: "destructive",
-            });
-        } finally {
-            setTimeout(() => updateTransferStatus(hash, "success"), 2000);
-        }
-    };
-
-    const copyCidToClipboard = async (cid: string) => {
-        await navigator.clipboard.writeText(cid);
-        toast({
-            title: "CID copied",
-            description: "IPFS Content ID copied to clipboard.",
-        });
-    };
-
-
-
-    const AttachmentPreview1 = ({
-        attachment,
-        onTransferToCloud,
-        onTransferToBlockchain,
-    }: {
-        attachment: Attachment;
-        onTransferToCloud: (attachment: Attachment) => void;
-        onTransferToBlockchain: (attachment: Attachment) => void;
-    }) => {
-        const [src, setSrc] = useState("");
-        const [showCid, setShowCid] = useState(false);
-
-        useEffect(() => {
-            let isMounted = true;
-
-            fetchAttachment(attachment.hash)
-                .then((url) => {
-                    if (isMounted && url) setSrc(url as string);
-                })
-                .catch(console.error);
-
-            return () => {
-                isMounted = false;
-            };
-        }, [attachment.hash]);
-
-        const isIpfs = attachment.storage === "ipfs" || !!attachment.cid;
-        const isLocal = !attachment.storage || attachment.storage === "local";
-
-        if (!src) {
-            return (
-                <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded-2xl w-full h-32 flex items-center justify-center text-sm text-zinc-500">
-                    Loading image...
-                </div>
-            );
-        }
-
-        return (
-            <div className="group relative overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-700/20 shadow-xl bg-black/5">
-                <img
-                    src={src}
-                    alt={attachment.name || attachment.hash}
-                    className="w-full h-auto object-cover"
-                />
-
-                <div className="absolute left-3 top-3 z-20 flex gap-2">
-                    {isIpfs && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCid((v) => !v);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                        >
-                            <span className="h-2 w-2 rounded-full bg-cyan-300" />
-                            IPFS
-                        </button>
-                    )}
-
-                    {isLocal && (
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-md">
-                            Local
-                        </span>
-                    )}
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 via-black/25 to-transparent">
-                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
-                        <div className="flex items-end justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-xs text-white/70 truncate">
-                                    {attachment.name || attachment.hash}
-                                </p>
-                                <p className="mt-1 text-[11px] text-white/50 truncate font-mono">
-                                    {attachment.hash}
-                                </p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                {isLocal && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md hover:bg-white/20 transition"
-                                            onClick={() => onTransferToCloud(attachment)}
-                                        >
-                                            Cloud
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="rounded-full bg-[#C9A44A]/20 px-3 py-1.5 text-[11px] font-semibold text-[#F3DFA6] backdrop-blur-md hover:bg-[#C9A44A]/30 transition"
-                                            onClick={() => onTransferToBlockchain(attachment)}
-                                        >
-                                            Blockchain
-                                        </button>
-                                    </>
-                                )}
-
-                                {isIpfs && (
-                                    <button
-                                        type="button"
-                                        className="rounded-full bg-cyan-500/20 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowCid((v) => !v);
-                                        }}
-                                    >
-                                        CID
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {showCid && isIpfs && (
-                    <div className="absolute top-14 left-3 right-3 z-30 rounded-xl border border-white/20 bg-black/75 p-3 text-xs text-white backdrop-blur-xl shadow-2xl">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="font-semibold text-white/80">IPFS CID</p>
-                                <p className="mt-1 break-all font-mono text-[11px] text-white/90">
-                                    {attachment.cid || "CID unavailable"}
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setShowCid(false)}
-                                className="rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20 transition"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-
-    const AttachmentPreview2 = ({
-        attachment,
-        onTransferToCloud,
-        onTransferToBlockchain,
-        transferring,
-    }: {
-        attachment: Attachment;
-        onTransferToCloud: (attachment: Attachment) => void;
-        onTransferToBlockchain: (attachment: Attachment) => void;
-        transferring: Record<string, TransferStatus>;
-    }) => {
-        const [src, setSrc] = useState("");
-        const [showCid, setShowCid] = useState(false);
-
-        // ... existing useEffect for src ...
-        useEffect(() => {
-            let isMounted = true;
-
-            fetchAttachment(attachment.hash)
-                .then((url) => {
-                    if (isMounted && url) setSrc(url as string);
-                })
-                .catch(console.error);
-
-            return () => {
-                isMounted = false;
-            };
-        }, [attachment.hash]);
-
-        const status = transferring[attachment.hash];
-        const isIpfs = attachment.storage === "ipfs" || !!attachment.cid;
-        const isLocal = !attachment.storage || attachment.storage === "local";
-        const isTransferring = status === "uploading";
-
-        // ... existing loading state ...
-        if (!src) {
-            return (
-                <div className="animate-pulse bg-zinc-200 dark:bg-zinc-800 rounded-2xl w-full h-32 flex items-center justify-center text-sm text-zinc-500">
-                    Loading image...
-                </div>
-            );
-        }
-
-        return (
-            <div className="group relative overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-700/20 shadow-xl bg-black/5">
-                <img src={src} alt={attachment.name || attachment.hash} className="w-full h-auto object-cover" />
-
-                {/* Status badges */}
-                <div className="absolute left-3 top-3 z-20 flex gap-2">
-                    {isIpfs && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCid((v) => !v);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                            title="View IPFS CID"
-                        >
-                            <span className="h-2 w-2 rounded-full bg-cyan-300" />
-                            IPFS
-                        </button>
-                    )}
-
-                    {isLocal && (
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-md">
-                            Local
-                        </span>
-                    )}
-
-                    {status === "uploading" && (
-                        <div className="inline-flex items-center rounded-full bg-primary/20 px-3 py-1 text-[11px] font-semibold text-primary backdrop-blur-md">
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                            Uploading
-                        </div>
-                    )}
-                </div>
-
-                {/* Hover overlay */}
-                <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 via-black/25 to-transparent">
-                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
-                        <div className="flex items-end justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-xs text-white/70 truncate">{attachment.name || attachment.hash}</p>
-                                <p className="mt-1 text-[11px] text-white/50 truncate font-mono">{attachment.hash}</p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                {isLocal && !isTransferring && (
-                                    <>
-                                        <button
-                                            disabled={isTransferring}
-                                            className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md hover:bg-white/20 transition disabled:opacity-50"
-                                            onClick={() => onTransferToCloud(attachment)}
-                                        >
-                                            Cloud
-                                        </button>
-                                        <button
-                                            disabled={isTransferring}
-                                            className="rounded-full bg-[#C9A44A]/20 px-3 py-1.5 text-[11px] font-semibold text-[#F3DFA6] backdrop-blur-md hover:bg-[#C9A44A]/30 transition disabled:opacity-50"
-                                            onClick={() => onTransferToBlockchain(attachment)}
-                                        >
-                                            IPFS
-                                        </button>
-                                    </>
-                                )}
-
-                                {isIpfs && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            copyCidToClipboard(attachment.cid!);
-                                        }}
-                                        className="rounded-full bg-cyan-500/20 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition"
-                                    >
-                                        Copy CID
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* CID details panel */}
-                {showCid && isIpfs && (
-                    <div className="absolute top-14 left-3 right-3 z-30 rounded-xl border border-white/20 bg-black/75 p-3 text-xs text-white backdrop-blur-xl shadow-2xl">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-white/80 mb-1">IPFS CID</p>
-                                <div className="flex items-center gap-2">
-                                    <p className="break-all font-mono text-[11px] text-white/90 flex-1">
-                                        {attachment.cid}
-                                    </p>
-                                    <button
-                                        onClick={() => copyCidToClipboard(attachment.cid!)}
-                                        className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20 transition whitespace-nowrap"
-                                        title="Copy to clipboard"
-                                    >
-                                        Copy
-                                    </button>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowCid(false)}
-                                className="rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[10px] text-white hover:bg-white/20 transition flex-shrink-0"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const AttachmentsSection2 = ({ attachments }: { attachments: Attachment[] }) => {
-        const { transferring, updateTransferStatus } = useAttachmentTransfer();
-
-        // Update attachment storage status (you'd call your state management)
-        const updateAttachmentStorage = (hash: string, storage: AttachmentStorage, cid?: string) => {
-            // Update your attachments array / zustand store
-            console.log(`Updated ${hash} → ${storage}${cid ? ` (CID: ${cid})` : ""}`);
-        };
-
-        return (
-            <div className="space-y-6">
-                <RenderAttachements
-                    attachments={attachments}
-                    transferring={transferring}
-                    onTransferToCloud={onTransferToCloud}
-                    onTransferToBlockchain={onTransferToBlockchain}
-                />
-            </div>
-        );
-    };
-
-    const RenderAttachements2 = ({ attachments, transferring, onTransferToCloud, onTransferToBlockchain }: { attachments: Attachment[], transferring: Record<string, TransferStatus>, onTransferToCloud: (attachment: Attachment) => void, onTransferToBlockchain: (attachment: Attachment) => void }) => {
-        if (!attachments?.length) return null;
-
-        return (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {attachments.map((attachment) => (
-                    <AttachmentPreview
-                        key={attachment.hash}
-                        attachment={attachment}
-                        onTransferToCloud={onTransferToCloud}
-                        onTransferToBlockchain={onTransferToBlockchain}
-                        transferring={transferring}
-                    />
-                ))}
-            </div>
-        );
-    };
-
 
     interface ExtendedAttachment {
         hash: string;
@@ -1247,64 +629,64 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         transferStatus?: TransferStatus;
     }
 
+
+
+    const updateTransferStatus = (hash: string, status: TransferStatus) => {
+        setTransferring(prev => ({ ...prev, [hash]: status }));
+    };
+
+    const updateAttachmentStorage = (hash: string, storage: AttachmentStorage, cid?: string) => {
+        // Update your main attachments array here
+        console.log(`Updated ${hash} → ${storage}${cid ? ` (CID: ${cid})` : ""}`);
+        // Example: setAttachments(prev => prev.map(att => att.hash === hash ? {...att, storage, cid} : att))
+    };
+
+    const onTransferToCloud = async (attachment: ExtendedAttachment) => {
+        const hash = attachment.hash;
+        updateTransferStatus(hash, "uploading");
+
+        try {
+            // Your cloud upload logic
+            await uploadToCloud(attachment.hash);
+            updateAttachmentStorage(hash, "cloud");
+            toast({ title: "Cloud upload complete" });
+        } catch (error) {
+            console.error("🚀 ~ onTransferToCloud ~ error:", error)
+            updateTransferStatus(hash, "error");
+            toast({ title: "Upload failed", variant: "destructive" });
+        } finally {
+            setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
+        }
+    };
+
+    const onTransferToBlockchain = async (attachment: ExtendedAttachment) => {
+        const hash = attachment.hash;
+        updateTransferStatus(hash, "uploading");
+
+        try {
+            const fileBuffer = await fetchLocalAttachmentBuffer(hash);
+            const { jwtToken } = useAuthStore.getState();
+
+            const encryptedData = await encryptFile(jwtToken, fileBuffer, vaultPassword);
+            const cid = await uploadToIPFS(jwtToken, encryptedData);
+
+            updateAttachmentStorage(hash, "ipfs", cid);
+            toast({ title: "IPFS pinned", description: `CID: ${cid.slice(0, 16)}...` });
+        } catch (error) {
+            updateTransferStatus(hash, "error");
+            console.error("🚀 ~ onTransferToBlockchain ~ error:", error)
+            toast({ title: "IPFS upload failed", variant: "destructive" });
+        } finally {
+            setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
+        }
+    };
+
+    const copyCidToClipboard = async (cid: string) => {
+        await navigator.clipboard.writeText(cid);
+        toast({ title: "CID copied to clipboard" });
+    };
     // 2. Parent component with local state
     const AttachmentsSection = ({ attachments }: { attachments: ExtendedAttachment[] }) => {
-        const [transferring, setTransferring] = useState<Record<string, TransferStatus>>({});
-
-        const updateTransferStatus = (hash: string, status: TransferStatus) => {
-            setTransferring(prev => ({ ...prev, [hash]: status }));
-        };
-
-        const updateAttachmentStorage = (hash: string, storage: AttachmentStorage, cid?: string) => {
-            // Update your main attachments array here
-            console.log(`Updated ${hash} → ${storage}${cid ? ` (CID: ${cid})` : ""}`);
-            // Example: setAttachments(prev => prev.map(att => att.hash === hash ? {...att, storage, cid} : att))
-        };
-
-        const onTransferToCloud = async (attachment: ExtendedAttachment) => {
-            const hash = attachment.hash;
-            updateTransferStatus(hash, "uploading");
-
-            try {
-                // Your cloud upload logic
-                await uploadToCloud(attachment.hash);
-                updateAttachmentStorage(hash, "cloud");
-                toast({ title: "Cloud upload complete" });
-            } catch (error) {
-                console.error("🚀 ~ onTransferToCloud ~ error:", error)
-                updateTransferStatus(hash, "error");
-                toast({ title: "Upload failed", variant: "destructive" });
-            } finally {
-                setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
-            }
-        };
-
-        const onTransferToBlockchain = async (attachment: ExtendedAttachment) => {
-            const hash = attachment.hash;
-            updateTransferStatus(hash, "uploading");
-
-            try {
-                const fileBuffer = await fetchLocalAttachmentBuffer(hash);
-                const { jwtToken } = useAuthStore.getState();
-
-                const encryptedData = await encryptFile(jwtToken, fileBuffer, vaultPassword);
-                const cid = await uploadToIPFS(jwtToken, encryptedData);
-
-                updateAttachmentStorage(hash, "ipfs", cid);
-                toast({ title: "IPFS pinned", description: `CID: ${cid.slice(0, 16)}...` });
-            } catch (error) {
-                updateTransferStatus(hash, "error");
-                console.error("🚀 ~ onTransferToBlockchain ~ error:", error)
-                toast({ title: "IPFS upload failed", variant: "destructive" });
-            } finally {
-                setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
-            }
-        };
-
-        const copyCidToClipboard = async (cid: string) => {
-            await navigator.clipboard.writeText(cid);
-            toast({ title: "CID copied to clipboard" });
-        };
 
         return (
             <RenderAttachements
@@ -1333,16 +715,47 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     }) => {
         if (!attachments?.length) return null;
 
+
+        const onFullscreen = (attachment: ExtendedAttachment) => {
+            setSelectedAttachment(attachment);
+        };
+
+
+        const [deletePending, setDeletePending] = useState<string | null>(null);
+
+        const onDeleteAttachment = (attachment: ExtendedAttachment) => {
+            alert(`Delete "${attachment.name || attachment.hash}"?`); // Forces gesture
+            const confirmed = window.confirm(`Confirm delete?`);
+            if (deletePending === attachment.hash) {
+                // Double click = delete
+                setAttachments(prev => prev.filter(att => att.hash !== attachment.hash));
+                toast({ title: "Attachment deleted" });
+                setDeletePending(null);
+            } else {
+                // First click = preview
+                setDeletePending(attachment.hash);
+                toast({
+                    title: "Double-click to delete",
+                    duration: 2000
+                });
+                setTimeout(() => setDeletePending(null), 3000);
+            }
+        };
+
+
+
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {attachments.map((attachment, index) => (
                     <AttachmentPreview
-                        key={index}
+                        key={attachment.hash}
                         attachment={attachment}
                         transferring={transferring[attachment.hash]}
                         onTransferToCloud={onTransferToCloud}
                         onTransferToBlockchain={onTransferToBlockchain}
                         onCopyCid={onCopyCid}
+                        onFullscreen={onFullscreen}
+                        onDelete={onDeleteAttachment}
                     />
                 ))}
             </div>
@@ -1356,12 +769,16 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         onTransferToCloud,
         onTransferToBlockchain,
         onCopyCid,
+        onFullscreen,
+        onDelete,
     }: {
         attachment: ExtendedAttachment;
         transferring?: TransferStatus;
         onTransferToCloud: (attachment: ExtendedAttachment) => void;
         onTransferToBlockchain: (attachment: ExtendedAttachment) => void;
         onCopyCid: (cid: string) => void;
+        onFullscreen: (attachment: ExtendedAttachment) => void;
+        onDelete: (attachment: ExtendedAttachment) => void;
     }) => {
         const [src, setSrc] = useState("");
         const [showCid, setShowCid] = useState(false);
@@ -1393,108 +810,270 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         }
 
         return (
-            <div className="group relative overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-700/20 shadow-xl bg-black/5">
-                <img src={src} alt={attachment.name || attachment.hash} className="w-full h-auto object-cover" />
+            <>
+                {selectedAttachment && selectedAttachment.hash === attachment.hash && (
+                    <FullscreenAttachmentModal
+                        attachment={attachment}
+                        onClose={() => setSelectedAttachment(null)}
+                        src={src}
+                    />
+                )}
+                <div className="group relative overflow-hidden rounded-2xl border border-white/20 dark:border-zinc-700/20 shadow-xl bg-black/5">
+                    <img src={src} alt={attachment.name || attachment.hash} className="w-full h-auto object-cover" />
 
-                {/* Status badges - top left */}
-                <div className="absolute left-3 top-3 z-20 flex gap-2">
-                    {isIpfs && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowCid(true);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition-all"
-                            title="View IPFS details"
-                        >
-                            <span className="h-2 w-2 rounded-full bg-cyan-300" />
-                            IPFS
-                        </button>
-                    )}
-                    {isLocal && (
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-md">
-                            Local
-                        </span>
-                    )}
-                    {isTransferring && (
-                        <div className="inline-flex items-center rounded-full bg-primary/20 px-3 py-1 text-[11px] font-semibold text-primary backdrop-blur-md animate-pulse">
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                            Transfer
-                        </div>
-                    )}
-                </div>
+                    {/* ← TRASH ICON - CENTERED, HOVER ONLY */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault(); // ← Extra safety
+                            onDelete(attachment);
+                        }}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-0 group-hover:scale-100 pointer-events-auto"
+                        title="Delete attachment"
+                    >
+                        <Trash2
+                            className="h-8 w-8 text-red-400 bg-red-500/20 hover:bg-red-500/30 rounded-2xl p-2 backdrop-blur-md shadow-2xl border border-red-500/30 transition-all hover:scale-110 hover:text-red-300"
+                        />
+                    </button>
 
-                {/* Hover overlay - bottom */}
-                <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-black/30 to-transparent">
-                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
-                        <div className="flex items-end justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-xs font-medium text-white/90 truncate">{attachment.name || attachment.hash}</p>
-                                <p className="mt-1 text-[11px] text-white/60 truncate font-mono">{attachment.hash.slice(0, 12)}...</p>
+                    {/* ← ADD FULLSCREEN BUTTON top-left */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onFullscreen(attachment);
+                        }}
+                        className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-2 backdrop-blur-md hover:bg-white/25 transition-all text-white shadow-lg"
+                        title="Fullscreen preview"
+                    >
+                        <Maximize2 className="h-4 w-4" />
+                    </button>
+
+                    {/* Status badges - top left */}
+                    <div className="absolute left-3 top-3 z-20 flex gap-2">
+                        {isIpfs && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowCid(true);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/30 transition-all"
+                                title="View IPFS details"
+                            >
+                                <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                                IPFS
+                            </button>
+                        )}
+                        {isLocal && (
+                            <span className="inline-flex items-center rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/80 backdrop-blur-md">
+                                Local
+                            </span>
+                        )}
+                        {isTransferring && (
+                            <div className="inline-flex items-center rounded-full bg-primary/20 px-3 py-1 text-[11px] font-semibold text-primary backdrop-blur-md animate-pulse">
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                Transfer
                             </div>
-                            <div className="flex gap-2 flex-shrink-0">
-                                {isLocal && !isTransferring && (
-                                    <>
-                                        <button
-                                            disabled={isTransferring}
-                                            className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md hover:bg-white/25 transition-all disabled:opacity-50"
-                                            onClick={() => onTransferToCloud(attachment)}
-                                        >
-                                            Cloud
-                                        </button>
-                                        <button
-                                            disabled={isTransferring}
-                                            className="rounded-full bg-[#C9A44A]/25 px-3 py-1.5 text-[11px] font-semibold text-[#F3DFA6] backdrop-blur-md hover:bg-[#C9A44A]/40 transition-all disabled:opacity-50"
-                                            onClick={() => onTransferToBlockchain(attachment)}
-                                        >
-                                            IPFS
-                                        </button>
-                                    </>
-                                )}
-                                {isIpfs && (
-                                    <button
-                                        className="rounded-full bg-cyan-500/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/40 transition-all"
-                                        onClick={() => onCopyCid(attachment.cid!)}
-                                    >
-                                        Copy CID
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        )}
                     </div>
-                </div>
 
-                {/* CID details panel */}
-                {showCid && isIpfs && (
-                    <div className="absolute top-14 left-3 right-3 z-30 rounded-xl border border-white/20 bg-black/80 backdrop-blur-xl shadow-2xl p-3 text-xs text-white">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-white/90 mb-2">IPFS Content ID</p>
-                                <div className="flex items-center gap-2">
-                                    <code className="break-all font-mono text-[11px] text-white/95 flex-1 bg-black/20 px-2 py-1 rounded">
-                                        {attachment.cid}
-                                    </code>
-                                    <button
-                                        onClick={() => onCopyCid(attachment.cid!)}
-                                        className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/30 transition-all whitespace-nowrap"
-                                        title="Copy to clipboard"
-                                    >
-                                        Copy
-                                    </button>
+                    {/* Hover overlay - bottom */}
+                    <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-black/30 to-transparent">
+                        <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
+                            <div className="flex items-end justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-white/90 truncate">{attachment.name || attachment.hash}</p>
+                                    <p className="mt-1 text-[11px] text-white/60 truncate font-mono">{attachment.hash.slice(0, 12)}...</p>
+                                </div>
+                                <div className="flex gap-2 flex-shrink-0">
+                                    {isLocal && !isTransferring && (
+                                        <>
+                                            <button
+                                                disabled={isTransferring}
+                                                className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md hover:bg-white/25 transition-all disabled:opacity-50"
+                                                onClick={() => onTransferToCloud(attachment)}
+                                            >
+                                                Cloud
+                                            </button>
+                                            <button
+                                                disabled={isTransferring}
+                                                className="rounded-full bg-[#C9A44A]/25 px-3 py-1.5 text-[11px] font-semibold text-[#F3DFA6] backdrop-blur-md hover:bg-[#C9A44A]/40 transition-all disabled:opacity-50"
+                                                onClick={() => onTransferToBlockchain(attachment)}
+                                            >
+                                                IPFS
+                                            </button>
+                                        </>
+                                    )}
+                                    {isIpfs && (
+                                        <button
+                                            className="rounded-full bg-cyan-500/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/40 transition-all"
+                                            onClick={() => onCopyCid(attachment.cid!)}
+                                        >
+                                            Copy CID
+                                        </button>
+                                    )}
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setShowCid(false)}
-                                className="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-[11px] text-white hover:bg-white/25 transition-all flex-shrink-0"
-                            >
-                                ✕
-                            </button>
                         </div>
                     </div>
-                )}
-            </div>
+
+                    {/* CID details panel */}
+                    {showCid && isIpfs && (
+                        <div className="absolute top-14 left-3 right-3 z-30 rounded-xl border border-white/20 bg-black/80 backdrop-blur-xl shadow-2xl p-3 text-xs text-white">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-white/90 mb-2">IPFS Content ID</p>
+                                    <div className="flex items-center gap-2">
+                                        <code className="break-all font-mono text-[11px] text-white/95 flex-1 bg-black/20 px-2 py-1 rounded">
+                                            {attachment.cid}
+                                        </code>
+                                        <button
+                                            onClick={() => onCopyCid(attachment.cid!)}
+                                            className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/30 transition-all whitespace-nowrap"
+                                            title="Copy to clipboard"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowCid(false)}
+                                    className="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-[11px] text-white hover:bg-white/25 transition-all flex-shrink-0"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </>
         );
     };
+
+
+    const FullscreenAttachmentModal = ({
+        attachment,
+        onClose,
+        src
+    }: {
+        attachment: ExtendedAttachment;
+        onClose: () => void;
+        src: string;
+    }) => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+            <div className="flex flex-col lg:flex-row gap-8 max-w-6xl max-h-screen overflow-hidden">
+                {/* Fullscreen image */}
+                <div className="flex-1 flex items-center justify-center min-h-[60vh] lg:min-h-[70vh]">
+                    <img
+                        src={src} // ← pass src from parent or refetch
+                        alt={attachment.name}
+                        className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                    />
+                </div>
+
+                {/* ← METADATA PANEL */}
+                <div className="hidden w-full lg:w-80 lg:max-w-sm flex flex-col justify-between bg-white/10 dark:bg-zinc-900/60 backdrop-blur-xl rounded-3xl border border-white/20 p-6 shadow-2xl max-h-[70vh] overflow-y-auto">
+                    {/* Header */}
+                    <div className="mb-6">
+                        <h3 className="text-xl font-bold text-white mb-2 truncate">
+                            {attachment.name || "Untitled"}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-white/70">
+                            <span>Size: {formatFileSize(attachment?.size || 0)}</span>
+                            <span>Hash: {attachment.hash.slice(0, 16)}...</span>
+                        </div>
+                    </div>
+
+                    {/* Storage status */}
+                    <div className="space-y-4 mb-8">
+                        <div>
+                            <span className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2 block">
+                                Storage
+                            </span>
+                            <div className="flex items-center gap-3">
+                                {attachment.storage === "ipfs" && (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
+                                        <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                                        Decentralized (IPFS)
+                                    </div>
+                                )}
+                                {attachment.storage === "cloud" && (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200">
+                                        <Cloud className="h-3 w-3" />
+                                        Cloud Storage
+                                    </div>
+                                )}
+                                {attachment.storage === "local" && (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/40 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-200">
+                                        <HardDrive className="h-3 w-3" />
+                                        Local
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {attachment.cid && (
+                            <div>
+                                <span className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2 block">
+                                    IPFS CID
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <code className="flex-1 break-all font-mono text-sm text-white/90 bg-black/20 px-3 py-2 rounded-xl">
+                                        {attachment.cid}
+                                    </code>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => copyCidToClipboard(attachment.cid!)}
+                                        className="h-8 w-8 p-0"
+                                    >
+                                        <Copy className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer actions */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-white/10">
+                        <Button
+                            variant="outline"
+                            className="flex-1 bg-white/20 text-white hover:bg-white/30 border-white/30"
+                            onClick={onClose}
+                        >
+                            Close
+                        </Button>
+                        {attachment.storage === "local" && (
+                            <div className="flex gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="bg-white/20 text-white hover:bg-white/30"
+                                    onClick={() => onTransferToCloud(attachment)}
+                                >
+                                    Upload Cloud
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-gradient-to-r from-[#C9A44A] to-amber-500 text-black hover:from-[#B8934A]"
+                                    onClick={() => onTransferToBlockchain(attachment)}
+                                >
+                                    Pin IPFS
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ESC key handler */}
+            <button
+                className="fixed inset-0 z-40"
+                onClick={onClose}
+                tabIndex={-1}
+            />
+        </div>
+    );
+
 
 
 
@@ -1786,6 +1365,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 </div>
                 {/* gallery attachements */}
                 <AttachmentsSection attachments={attachments} />
+
 
                 {/* Timestamps */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

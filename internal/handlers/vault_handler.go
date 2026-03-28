@@ -24,6 +24,7 @@ import (
 	"vault-app/internal/services"
 	"vault-app/internal/tracecore"
 	tracecore_models "vault-app/internal/tracecore/models"
+	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -756,6 +757,8 @@ func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share
 	return result, nil
 }
 
+
+
 type RecipientPayload struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -777,9 +780,9 @@ type CreateShareEntryPayload struct {
 	Recipients []RecipientPayload `json:"recipients"`
 	DownloadAllowed bool `json:"download_allowed"`
 }
-
-
+// ---------------------------------------------------------
 // Crypto share
+// ---------------------------------------------------------
 func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID string, ownerEmail string, configFacade app_config_ui.AppConfigHandler, secret string) (*share_domain.ShareEntry, error) {
 	// Convert JSON string -> domain struct
 	var snapshot share_domain.EntrySnapshot
@@ -854,8 +857,64 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, email string) ([
 
 	return res, nil
 }
+func (	vh *VaultHandler) AddRecipient(
+	ctx context.Context, 
+	userID string, 
+	in share_application_dto.AddRecipientRequest, 
+	configFacade app_config_ui.AppConfigHandler, 
+	secret string,
+) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	
+	result, err := usecase.AddRecipient(ctx, userID, in, configFacade, secret)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - AddRecipient: Failed to add recipient: %v\n", err)
+		return nil, err
+	}
 
+	vh.logger.Info("✅ VaultHandler - AddRecipient: Successfully added recipient: %v\n", result)
+	return result, nil
+}
+func (vh *VaultHandler) UpdateRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	result, err := usecase.UpdateRecipient(ctx, userID, in)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - UpdateRecipient: Failed to update recipient: %v\n", err)
+		return nil, err
+	}
+
+	vh.logger.Info("✅ VaultHandler - UpdateRecipient: Successfully updated recipient: %v\n", result)
+	return result, nil
+}
+func (vh *VaultHandler) RevokeRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	result, err := usecase.UpdateRecipient(ctx, userID, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}	
+func (vh *VaultHandler) RevokeShare(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest, configFacade app_config_ui.AppConfigHandler) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	result, err := usecase.RevokeShare(ctx, userID, in, configFacade)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - RevokeShare: Failed to revoke share: %v\n", err)
+		return nil, err
+	}
+
+	vh.logger.Info("✅ VaultHandler - RevokeShare: Successfully revoked share: %v\n", result)
+	return result, nil
+}			
+
+
+// ---------------------------------------------------------
 // Link share
+// ---------------------------------------------------------
 func (vh *VaultHandler) CreateLinkShare(email string, payload share_application_dto.LinkShareCreateRequest) (*share_domain.LinkShare, error) {
 	payload.CreatorEmail = email
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)

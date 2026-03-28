@@ -45,9 +45,8 @@ import "./contributionGraph/g-scrollbar.css";
 import AvatarImg from '@/assets/7.jpg'
 import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
-import PaymentRequestModal from "./Payments/PaymentRequestModal";
 import { useVault } from "@/hooks/useVault";
-import { getVaultAvatar, loadAttachment, loadAvatar } from "@/services/api";
+import { loadAvatar } from "@/services/api";
 
 
 
@@ -367,7 +366,7 @@ function DashboardNavbar() {
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" className="w-48">
-						<DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/settings-beta")}>
+						<DropdownMenuItem style={{ cursor: "pointer" }} onClick={() => navigate("/dashboard/settings")}>
 							<Settings className="mr-2 h-4 w-4  rounded-full" />
 							Settings
 						</DropdownMenuItem>
@@ -472,29 +471,12 @@ function AppSidebar() {
 		removeFolder(folder.id);
 	};
 
-	const handleLogout = () => {
-		// Clear all stores and state
-		clearVaultStore();                   // Clear vault store (entries, vault data)
-		clearVaultContext();                 // Clear vault context provider
-		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-		useAppStore.getState().reset();      // Clear app store (session)
-
-		// Clear specific localStorage items (not all, to preserve settings)
-		localStorage.removeItem('userId');
-		localStorage.removeItem('vault-storage');
-
-		toast({
-			title: "Logged out",
-			description: "You have been successfully logged out.",
-		});
-		AppAPI.SignOut(useAuthStore.getState().user?.id);
-		navigate("/login/email");
-	};
-
 
 	useEffect(() => {
 		const fetchAvatar = async () => {
-			const b64 = await loadAvatar(jwtToken, vaultContext?.Vault?.name);
+			const b64 = await withAuth((token) => {
+				return loadAvatar(jwtToken, vaultContext?.Vault?.name);
+			});
 			setAvatar(b64);
 		};
 
@@ -668,7 +650,7 @@ function AppSidebar() {
 									</div>
 									{/* Sub-filters */}
 									<SidebarMenu>
-										{["all", "sent", "pending", "revoked"].map((sub) => (
+										{["all", "revoked"].map((sub) => (
 											<SidebarMenuItem key={sub}>
 												<SidebarMenuButton asChild>
 													<NavLink
@@ -705,7 +687,7 @@ function AppSidebar() {
 
 				{/* User Info */}
 				<div className="flex items-center gap-3 p-4 rounded-2xl bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-zinc-200/30 dark:border-zinc-700/30 hover:bg-white/60 dark:hover:bg-zinc-800/60 transition-all group">
-					<Avatar className="h-10 w-10 flex-shrink-0" onClick={() => navigate("/dashboard/profile-beta")} style={{ cursor: "pointer" }}>
+					<Avatar className="h-10 w-10 flex-shrink-0" onClick={() => navigate("/dashboard/profile")} style={{ cursor: "pointer" }}>
 						<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
 							{avatar ? <img src={avatar} alt="User Avatar" className="h-10 w-10" /> : <User className="h-5 w-5 text-primary" />}
 						</AvatarFallback>

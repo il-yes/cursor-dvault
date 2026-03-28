@@ -7,18 +7,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen, Eye, EyeOff, Copy, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { useVaultStore } from "@/store/vaultStore";
 import { cn } from "@/lib/utils";
-import { decryptField, logAuditEvent } from "@/services/api";
+import { decryptField, GetConfig, logAuditEvent } from "@/services/api";
 import * as AppAPI from "../../wailsjs/go/main/App";
+import { share_application_dto } from "../../wailsjs/go/models";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAppStore } from "@/store/appStore";
 import { Textarea } from "./ui/textarea";
-import { CardEntry, IdentityEntry, LoginEntry, NoteEntry, SSHKeyEntry } from "@/types/vault";
+import { CardEntry, IdentityEntry, LoginEntry, NoteEntry, SettingsState, SSHKeyEntry } from "@/types/vault";
+import { useAuthStore } from "@/store/useAuthStore";
+import { withAuth } from "@/hooks/withAuth";
 
 
 interface SharedEntryDetailsProps {
@@ -53,106 +56,101 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
 	const session = useAppStore.getState().session;
 	const user = session?.user
+	const { jwtToken } = useAuthStore.getState();
+	const { user: authUser } = useAuthStore();
 
 	useEffect(() => {
 		setRecipients(entry?.recipients || []);
 	}, [entry?.id]);
 
-	const getPublicKey = async (email: string) => {
-		const response = await fetch(`http://164.90.213.173:4001/api/check-email?email=${email}`, {
-			method: "GET",
-			headers: {
-				"Content-Type": "application/json",
+	const defaultSettings: SettingsState = {
+		security: {
+			autoLockSeconds: 300,
+			clearClipboardAfter: 60,
+			twoFactorEnabled: false
+		},
+		sync: {
+			stellarFrequency: "manual",
+			ipfsPinning: false,
+			syncIntervalSeconds: 60,
+			maxRetries: 3
+		},
+		ui: {
+			theme: "system",
+			animationsEnabled: false
+		},
+		features: {
+			tracecoreEnabled: false,
+			cloudBackupEnabled: false,
+			threatDetectionEnabled: false,
+			browserExtensionEnabled: false,
+			gitCLIEnabled: false
+		},
+		backup: {
+			enabled: false,
+			schedule: "daily",
+			retentionDays: 30,
+			encryption: false
+		},
+		device: {
+			user_id: user.id,
+			vault_name: "",
+			device_id: "0",
+			device_name: "",
+			last_synced: 0,
+		},
+		subscription: {
+			plan: "free",
+			features: {
+				tracecoreEnabled: false,
+				cloudBackupEnabled: false,
+				threatDetectionEnabled: false,
+				browserExtensionEnabled: false,
+				gitCLIEnabled: false
+
 			},
-		});
-		const data = await response.json();
-		console.log({ data });
-		return data.public_key;
+			limits: {
+				maxVaults: 1,
+				maxUsers: 1,
+				maxDevices: 1,
+				maxShares: 1
+			}
+		},
+		sharing: {
+			allowExternalSharing: false,
+			defaultExpiryHours: 60,
+			requirePassword: false,
+			maxSharesPerEntry: 3,
+		},
+
+		privacy: {
+			telemetryEnabled: false,
+			anonymousMode: false,
+		},
 	};
 
-	const handleAddRecipient = async () => {
-		// TODO: get public key from cloud backend
-		const publicKey = await getPublicKey(newRecipient.email);
-		if (!publicKey) {
+	const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+
+	useEffect(() => {
+		if (!vault?.Vault?.name) return
+		fetchConfig(vault.Vault.name, jwtToken)
+	}, [vault])
+
+
+	const currentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+	const handleCopyField = (fieldName: string) => {
+		const field = revealedFields.get(fieldName);
+		if (field) {
+			navigator.clipboard.writeText(field.value);
 			toast({
-				title: "Error",
-				description: "No public key found for this email",
+				title: "Copied to clipboard",
+				description: "Field value copied securely.",
 			});
-			return;
 		}
-
-		const recipient: Recipient = {
-			id: `rec-${Date.now()}`,
-			share_id: entry.id,
-			public_key: publicKey,
-			...newRecipient,
-			joined_at: new Date().toISOString(),
-		};
-
-		// send AddRecipientRequest payload to Ankhora cloud backend
-
-		// zustand store update
-		setRecipients(prev => {
-			const updated = [...prev, recipient];
-			updateRecipients(entry.id, updated);   // correct sync
-			return updated;
-		});
-
-		setNewRecipient({ name: "", email: "", role: "viewer" });
-		setShowAddForm(false);
-
-		toast({
-			title: "Recipient added",
-			description: `${recipient.name} has been added as a ${recipient.role}`,
-		});
-
 	};
 
-	if (!entry) {
-		return (
-			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
-				<div className="relative">
-					<img src={ankhoraLogo} alt="Ankhora Logo" className="w-32 h-auto mx-auto" />
-					{/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
-					{/* <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" /> */}
-				</div>
-				<p className="text-sm mt-4 text-muted-foreground max-w-xs italic" style={{ opacity: "0.8" }}>
-					Select an action to view details.
-				</p>
-			</div>
-		);
-	}
-
-	const handleRemoveRecipient = (id: string) => {
-		const recipient = recipients.find(r => r.id === id);
-
-		// call Ankhora cloud backend to remove recipient
-		// send RevokeShareRequest payload to Ankhora cloud backend
-
-		// zustand store update
-		setRecipients(recipients.filter(r => r.id !== id));
-
-		toast({
-			title: "Recipient removed",
-			description: `${recipient?.name} has been removed`,
-		});
-	};
-
-	const handleChangeRole = (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
-		setRecipients(recipients.map(r => r.email === email ? { ...r, role: newRole } : r));
-		// call Ankhora cloud backend to update role
-		// send UpdateRecipientRequest payload to Ankhora cloud backend
-
-		// zustand store update
-		updateRecipients(entry.id, recipients);
-
-		toast({
-			title: "Role updated",
-			description: "Recipient role has been changed",
-		});
-	};
-
-	const handleRevealField = async (fieldName: string) => {
+	const RevealToRecipien0 = async (fieldName: string) => {
 		if (!entry) return;
 
 		setIsRevealing(fieldName);
@@ -204,6 +202,69 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 				description: `Will auto-mask in ${expires_in || DEFAULT_REVEAL_TIMEOUT}s`,
 			});
 		} catch (error) {
+			console.log("Decryption failed", error)
+			toast({
+				title: "Decryption failed",
+				description: error instanceof Error ? error.message : "Could not decrypt field.",
+				variant: "destructive",
+			});
+		} finally {
+			setIsRevealing(null);
+			setDecryptingField(null);
+		}
+	}
+	const RevealToRecipient = async (fieldName: string) => {
+		if (!entry) return;
+
+		setIsRevealing(fieldName);
+		setDecryptingField(fieldName);
+
+		const rowRecipient = getRowRecipient();
+		if (!rowRecipient) return;
+
+		try {
+			const keypair = Keypair.fromSecret(stellar.private_key);
+			const { challenge } = await AppAPI.RequestChallenge({
+				public_key: stellar.public_key
+			});
+			const signature = Buffer.from(
+				keypair.sign(Buffer.from(challenge))
+			).toString("base64");
+
+			console.log({ entry_id: entry.id, field_name: fieldName }); // ← DEBUG
+
+			const { plaintext, expires_in } = await decryptField({
+				entry_id: entry.id,
+				field_name: fieldName,
+				challenge,
+				signature,
+			});
+
+			// ← ADD AWAIT HERE
+			await logAuditEvent({
+				event_type: 'decrypt',
+				entry_id: entry.id,
+				field_name: fieldName,
+				timestamp: new Date().toISOString(),
+				user_id: 'current_user',
+			});
+
+			const timeout = setTimeout(() => {
+				handleMaskField(fieldName);
+			}, (expires_in || DEFAULT_REVEAL_TIMEOUT) * 1000);
+
+			setRevealedFields(prev => {
+				const newMap = new Map(prev);
+				newMap.set(fieldName, { name: fieldName, value: plaintext, timeout });
+				return newMap;
+			});
+
+			toast({
+				title: "Field revealed",
+				description: `Will auto-mask in ${expires_in || DEFAULT_REVEAL_TIMEOUT}s`,
+			});
+		} catch (error) {
+			console.error("Full error:", error); // ← MORE DEBUG
 			toast({
 				title: "Decryption failed",
 				description: error instanceof Error ? error.message : "Could not decrypt field.",
@@ -214,29 +275,67 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			setDecryptingField(null);
 		}
 	};
+	const RevealToOwner = (fieldName: string) => {
+		if (!entry) return;
 
-	const handleMaskField = (fieldName: string) => {
-		const field = revealedFields.get(fieldName);
-		if (field) {
+		// Clear existing timeout
+		if (currentTimeoutRef.current) {
+			clearTimeout(currentTimeoutRef.current);
+			currentTimeoutRef.current = null;
+		}
+
+		const clearClipboardAfter = settings?.security?.clearClipboardAfter;
+
+		const timeout = setTimeout(() => {
+			handleMaskField(fieldName);
+		}, clearClipboardAfter * 1000);
+
+		currentTimeoutRef.current = timeout;
+
+		setRevealedFields(prev => {
+			const newMap = new Map(prev);
+			newMap.set(fieldName, {
+				name: fieldName,
+				value: JSON.stringify(entry) as string,
+				timeout  // ← ADD THIS LINE
+			});
+			return newMap;
+		});
+
+		toast({
+			title: "Field revealed",
+			description: `Will auto-mask in ${clearClipboardAfter}s`,
+		});
+	};
+
+	const handleMaskField = useCallback((fieldName: string) => {
+		setRevealedFields(prev => {
+			const field = prev.get(fieldName);
+			if (!field) return prev;
+
 			clearTimeout(field.timeout);
-			setRevealedFields(prev => {
-				const newMap = new Map(prev);
-				newMap.delete(fieldName);
-				return newMap;
-			});
+
+			// ← CRITICAL: Create COMPLETELY NEW Map every time
+			const newMap = new Map(prev);
+			newMap.delete(fieldName);
+			return newMap; // ← React sees new reference → re-renders
+		});
+	}, []);
+
+	const handleRevealField = async (fieldName: string) => {
+		if (!entry) return;
+		console.log("authUser", authUser)
+		console.log("entry.owner_id", entry.owner_id)
+
+		if (authUser?.email === entry.owner_id || authUser?.Email === entry.owner_id) {
+			console.log("RevealToOwner")
+			RevealToOwner(fieldName);
+		} else {
+			console.log("RevealToRecipient")
+			RevealToRecipient(fieldName);
 		}
 	};
 
-	const handleCopyField = (fieldName: string) => {
-		const field = revealedFields.get(fieldName);
-		if (field) {
-			navigator.clipboard.writeText(field.value);
-			toast({
-				title: "Copied to clipboard",
-				description: "Field value copied securely.",
-			});
-		}
-	};
 	const renderSensitiveField = (
 		fieldName: string,
 		label: string,
@@ -246,7 +345,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		const revealed = revealedFields.get(fieldName);
 		const isRevealed = !!revealed;
 		const isDecrypting = decryptingField === fieldName;
-		console.log({entry})
 
 		// Parse decrypted value when present; fall back to original entry shape for type
 		let decryptedEntry: LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry | null = null;
@@ -406,7 +504,31 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 					{label}
 					<Shield className="h-3 w-3 text-primary" />
 				</Label>
-				<div className="flex gap-2">
+				<div className="gap-2">
+					<div className="flex gap-2 mb-3">
+						<Button
+							size="icon"
+							variant="outline"
+							onClick={() => (isRevealed ? handleMaskField(fieldName) : handleRevealField(fieldName))}
+							disabled={isRevealing === fieldName}
+							className={cn(
+								"transition-all",
+								isRevealed && "border-primary/50 text-primary hover:bg-primary/10",
+							)}
+						>
+							{isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+						</Button>
+						{isRevealed && (
+							<Button
+								size="icon"
+								variant="outline"
+								onClick={() => handleCopyField(fieldName)}
+								className="border-primary/50 text-primary hover:bg-primary/10 transition-all"
+							>
+								<Copy className="h-4 w-4" />
+							</Button>
+						)}
+					</div>
 					<div className="relative flex-1">
 						<div className="h-40 backdrop-blur-sm border-0 focus-visible:ring-2 focus-visible:ring-primary/40 rounded-2xl shadow-inner p-4 overflow-auto">
 							{renderEntryContent()}
@@ -418,34 +540,133 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 						)}
 					</div>
 
-					<Button
-						size="icon"
-						variant="outline"
-						onClick={() => (isRevealed ? handleMaskField(fieldName) : handleRevealField(fieldName))}
-						disabled={isRevealing === fieldName}
-						className={cn(
-							"transition-all",
-							isRevealed && "border-primary/50 text-primary hover:bg-primary/10",
-						)}
-					>
-						{isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-					</Button>
-					{isRevealed && (
-						<Button
-							size="icon"
-							variant="outline"
-							onClick={() => handleCopyField(fieldName)}
-							className="border-primary/50 text-primary hover:bg-primary/10 transition-all"
-						>
-							<Copy className="h-4 w-4" />
-						</Button>
-					)}
 				</div>
 			</div>
 		);
 	};
 
 
+	const fetchConfig = async (vaultName, jwtToken) => {
+		try {
+			const response = await withAuth((token) => {
+				return GetConfig(vaultName, token)
+			});
+
+			setSettings(response)
+			
+		} catch (err) {
+			console.error("fetchConfig failed", err)
+		}
+	}
+
+	const getPublicKey = async (email: string) => {
+		const response = await AppAPI.CheckUserEmail(jwtToken, email)
+		console.log({ response });
+		return response.public_key;
+	};
+
+	const handleAddRecipient = async () => {
+		// TODO: get public key from cloud backend
+		const publicKey = await getPublicKey(newRecipient.email);
+		if (!publicKey) {
+			toast({
+				title: "Error",
+				description: "No public key found for this email",
+			});
+			return;
+		}
+
+		const recipient: Recipient = {
+			id: `rec-${Date.now()}`,
+			share_id: entry.id,
+			public_key: publicKey,
+			...newRecipient,
+			joined_at: new Date().toISOString(),
+		};
+
+		// send AddRecipientRequest payload to Ankhora cloud backend
+		const response = await AppAPI.AddRecipient(jwtToken, recipient);
+		console.log({ response })
+
+		// zustand store update
+		setRecipients(prev => {
+			const updated = [...prev, recipient];
+			updateRecipients(entry.id, updated);   // correct sync
+			return updated;
+		});
+
+		setNewRecipient({ name: "", email: "", role: "viewer" });
+		setShowAddForm(false);
+
+		toast({
+			title: "Recipient added",
+			description: `${recipient.name} has been added as a ${recipient.role}`,
+		});
+
+	};
+
+	if (!entry) {
+		return (
+			<div className="flex flex-col items-center justify-center h-full text-center p-8 bg-gradient-to-b from-background to-secondary/20">
+				<div className="relative">
+					<img src={ankhoraLogo} alt="Ankhora Logo" className="w-32 h-auto mx-auto" />
+					{/* <Shield className="h-20 w-20 text-primary/20 mb-4" /> */}
+					{/* <Sparkles className="h-8 w-8 text-primary/40 absolute -top-2 -right-2 animate-pulse" /> */}
+				</div>
+				<p className="text-sm mt-4 text-muted-foreground max-w-xs italic" style={{ opacity: "0.8" }}>
+					Select an action to view details.
+				</p>
+			</div>
+		);
+	}
+
+	const handleChangeRole = async (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
+		setRecipients(recipients.map(r => r.email === email ? { ...r, role: newRole } : r));
+		// call Ankhora cloud backend to update role
+		// send UpdateRecipientRequest payload to Ankhora cloud backend
+		const updateRequest = {
+			share_id: entry.id,
+			email: email,
+			role: newRole,
+		};
+
+		// send UpdateRecipientRequest payload to Ankhora cloud backend
+		const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
+		console.log({ response })
+
+		// zustand store update
+		updateRecipients(entry.id, recipients);
+
+		toast({
+			title: "Role updated",
+			description: "Recipient role has been changed",
+		});
+	};
+
+	const handleRemoveRecipient = async (id: string, email: string) => {
+		const recipient = recipients.find(r => r.id === id);
+
+		// call Ankhora cloud backend to remove recipient
+		// send RevokeShareRequest payload to Ankhora cloud backend
+		const updateRequest = {
+			share_id: entry.id,
+			email: email,
+			revoked_at: new Date().toISOString(),
+		};
+		console.log({ updateRequest })
+		// send UpdateRecipientRequest payload to Ankhora cloud backend
+		const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
+		console.log({ response })
+
+
+		// zustand store update
+		setRecipients(recipients.filter(r => r.id !== id));
+
+		toast({
+			title: "Recipient removed",
+			description: `${recipient?.name} has been removed`,
+		});
+	};
 
 	const getRowRecipient = () => {
 		return recipients.find((r) => r.email === user?.Email)
@@ -563,7 +784,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 												<Button
 													variant="ghost"
 													size="icon"
-													onClick={() => handleRemoveRecipient(recipient.id)}
+													onClick={() => handleRemoveRecipient(recipient.id, recipient.email)}
 												>
 													<Trash2 className="h-4 w-4 text-destructive" />
 												</Button>

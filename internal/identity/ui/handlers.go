@@ -32,6 +32,7 @@ func NewLoginHandler(
 }
 
 func (h *LoginHandler) Handle(cmd identity_commands.LoginCommand) (*identity_commands.LoginResult, error) {
+	utils.LogPretty("LoginHandler - Handle - cmd", cmd)
 	return h.loginCommandHandler.Handle(cmd, h.tokenService, h.eventBus)
 }
 

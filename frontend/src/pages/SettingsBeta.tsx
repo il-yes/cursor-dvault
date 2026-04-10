@@ -92,6 +92,12 @@ const SettingsBeta = () => {
 			telemetryEnabled: false,
 			anonymousMode: false,
 		},
+		onboarding: {
+			packs: [],
+			use_cases: [],
+			installed_templates: [],
+			completed: false
+		}
 	};
 
 	const [settings, setSettings] = useState<SettingsState>(defaultSettings);

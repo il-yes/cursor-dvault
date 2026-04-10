@@ -61,6 +61,7 @@ type AccountCreationResponse struct {
 func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCreationResponse, error) {
 	// I. ---------- Check existing user ----------
 	if existingUser, _ := a.UserRepo.FindByEmail(req.Email); existingUser != nil {
+		a.Logger.Error("CreateAccountUseCase - FindByEmail - Failed to find user: %v", existingUser)
 		return nil, onboarding_domain.ErrUserExists
 	}
 
@@ -69,6 +70,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		// 1. ---------- Create Stellar account for anonymous or user account (included encrypted password) ----------
 		pub, secret, txID, err := a.StellarService.CreateKeypair()
 		if err != nil {
+			a.Logger.Error("CreateAccountUseCase - CreateKeypair - Failed to create stellar account: %v", err)
 			return nil, err
 		}
 

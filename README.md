@@ -562,12 +562,11 @@ curl -X POST https://ankhora.io/back/vaults/839471c9-a394-40e5-b5a5-aa5e4ca02288
   }'
 
 
-- extend config 
-- settings, profile and subscription management
 - shares: improve ux
-- document manager
+- entries: improve ux - data | attachements | Add Attachments
+- document manager - ipfs
 - tracecore compliance
-- browser extension
+- browser extensionimprove app + vault connection
 - cli-enterprise tool
 - partenariat framework (for establishing the templates)
 - metrics dashboard
@@ -576,6 +575,9 @@ curl -X POST https://ankhora.io/back/vaults/839471c9-a394-40e5-b5a5-aa5e4ca02288
 
 
 type BoundaryContext interface {
+  Name() string
+  Version() string
+  Build() string
 	BuildInfra() string
   InjectDependency(dependency BoundaryContext) 
   InjectDependencies(app application.Application) 
@@ -587,13 +589,20 @@ type VaultBC struct {
 
 	name string
 	version string
+  isWarmedUp bool
   isBuilt bool
   isDependenciesInjected bool
   dependencyList map[string]bool
 
 	userRepo user_repo.UserRepository
+  vaultRepo vault_repo.VaultRepository
+  avatarStorage attachment_storage.AvatarStorage
+  attachmentStorage attachment_storage.AttachmentStorage
   useCase UseCase
+  createVaultCommand
+  openVaultCommand
   monitor Monitor
+  
 
   SubscriptionBC *SubscriptionBC
   IdentityBC *IdentityBC
@@ -615,16 +624,53 @@ func (bc *VaultBC) New(db *gorm.DB, logger logger.Logger) *VaultBC {
 	}
 }
 
-func (bc *VaultBC) BuildInfra(db *gorm.DB, logger logger.Logger) error {
-	bc.userRepo = user_repo.NewUserRepository(db, logger)
-	bc.useCase = usecase.NewUseCase(db, logger)
-	bc.monitor = monitor.NewMonitor(db, logger)
+
+func (bc *VaultBC) BuildInfra(db *gorm.DB, logger logger.Logger) (bool, error) {
+	bc.userRepo, err := user_repo.NewUserRepository(db, logger)
+  if err != nil {
+    return false, err
+  }
+  bc.vaultRepo, err := vault_repo.NewVaultRepository(db, logger)
+  if err != nil {
+    return false, err
+  }
+  bc.avatarStorage, err := attachment_storage.NewAvatarStorage()
+  if err != nil {
+    return false, err
+  }
+  bc.attachmentStorage, err := attachment_storage.NewAttachmentStorage()
+  if err != nil {
+    return false, err
+  }
   bc.isBuilt = true
-	return nil  
+	return true, nil  
+}
+
+func (bc *VaultBC) Build(db *gorm.DB, logger logger.Logger) (bool, error) {
+  if !bc.isWarmedUp {
+    return false, errors.New("infra not warmed up")
+  }
+	bc.useCase, err := usecase.NewUseCase(db, logger)
+  if err != nil {
+    return false, err
+  }
+  bc.createVaultCommand, err := command.NewCreateVaultCommand(bc.vaultRepo, db, logger)
+  if err != nil {
+    return false, err
+  }
+  bc.openVaultCommand, err := command.NewOpenVaultCommand(db, logger)
+  if err != nil {
+    return false, err
+  }
+  bc.monitor, err = monitor.NewMonitor(db, logger)
+  if err != nil {
+    return false, err
+  }
+  return true, nil
 }
 
 func (bc *VaultBC) InjectDependency(dependency BoundaryContext) {
-  if dependency.isBuilt {
+  if dependency.isWarmedUp {
     bc.dependencyList[dependency.name] = true
 	  bc[dependency.name] = dependency
   }
@@ -656,16 +702,18 @@ func (bc *SubscriptionBC) BuildInfra() string {
 	return "infra built"
 }
 
-
-
-
+// ====== build application implementation ========
 app := NewApplication()
 app.AddBoundaryContext(NewVaultBC(db, logger))
 app.AddBoundaryContext(NewSubscriptionBC(db, logger))
 app.AddBoundaryContext(NewIdentityBC(db, logger))
-
+// inject dependencies
 for _, bc := range app.boundaryContexts {
   bc.InjectDependencies(app)
+}
+// build - build boundaries context app
+for _, bc := range app.boundaryContexts {
+  bc.Build(db, logger)
 }
 
 app.Run() 
@@ -707,21 +755,519 @@ app.Run()
 
 vault/
   └── user_id/ 
-        └── vault_name/ 
-              ├── avatars/                  # User avatars (encrypted)
-              │   └── user123.enc
-              ├── attachments/              # Attachments (encrypted)
-              │   └── file1.enc
-              │   └── file2.enc
-              ├── metadata/
-              │   ├── vault.json            # Vault metadata (id, owner, version, created_at)
-              │   ├── vaultKey.enc          # VaultKey encrypted with MasterKey
-              │   └── vaultIndex.enc        # Encrypted index: entries, folders, attachment pointers
-              ├── devices/                  # Devices synced metadata
-              │   └── device1.json
-              │   └── device2.json
-              ├── logs/                     # Logs and audit trail
-              │   └── vault.log
-              └── entries.db                # SQLite DB for entries storage (encrypted blobs)  
+  |     └── vault_name/ 
+  |           ├── avatars/                  # User avatars (encrypted)
+  |           │   └── user123.enc
+  |           │   └── file1.enc
+  |           │   └── file2.enc
+  |           ├── metadata/
+  |           │   ├── vault.json            # Vault metadata (id, owner, version, created_at)
+  |           │   ├── vaultKey.enc          # VaultKey encrypted with MasterKey
+  |           │   └── vaultIndex.enc        # Encrypted index: entries, folders, attachment pointers
+  |           ├── devices/                  # Devices synced metadata
+  |           │   └── device1.json
+  |           │   └── device2.json
+  |           ├── logs/                     # Logs and audit trail
+  |           │   └── vault.log
+  |           └── entries.db                # SQLite DB for entries storage (encrypted blobs)  
+  ├── attachments/              # Attachments (encrypted)
 
   
+
+
+
+ update & revoke recipient
+ revoke share
+ logs in link share (optional)
+ handle share links attachement view
+ handle share cryptographic attachement view
+
+
+
+Error to track - token expired
+🚀 ~ withAuth ~ errorString: – "unauthorized: expired token"
+2DashboardLayout.tsx:477
+	useEffect(() => {
+		const fetchAvatar = async () => {
+			const b64 = await withAuth((token) => {
+				return loadAvatar(jwtToken, vaultContext?.Vault?.name);
+			});
+			setAvatar(b64);
+		};
+
+		fetchAvatar();
+	}, [jwtToken, vaultContext]);
+
+
+
+
+
+  Perfect — let’s go one level deeper. This is where your project becomes **truly decentralized**.
+
+---
+
+# 🧠 Goal
+
+👉 Reconstruct a full vault from **only:**
+
+```id="z3k9w1"
+CID (IPFS)
++ password
+```
+
+No backend. No database. No server.
+
+---
+
+# 1️⃣ What you already have
+
+You already built:
+
+```id="n8x4dp"
+Vault → snapshot → IPFS → CID → Stellar
+Attachments → CAS → optional IPFS
+Encryption
+```
+
+So you're very close.
+
+---
+
+# 2️⃣ What’s missing
+
+Right now your snapshot likely contains:
+
+```json id="y5p2vk"
+{
+  "entries": [...],
+  "attachments": [
+    {
+      "hash": "...",
+      "name": "...",
+      "size": 1234
+    }
+  ]
+}
+```
+
+👉 Problem: this is **not enough to rebuild everything globally**
+
+Because:
+
+* hash = local reference
+* but IPFS needs **CID**
+
+---
+
+# 3️⃣ The key idea
+
+👉 Your snapshot must become a **complete manifest**
+
+Like a mini filesystem index.
+
+---
+
+# 4️⃣ Final snapshot format (important)
+
+You want something like:
+
+```json id="m2v8xk"
+{
+  "vault": {
+    "id": "...",
+    "name": "Default Vault"
+  },
+  "entries": [...],
+  "attachments": [
+    {
+      "id": "...",
+      "entry_id": "...",
+      "name": "passport.pdf",
+      "size": 123456,
+      "hash": "a4f9c8...",
+      "cid": "bafybeigdyrzt7...", 
+      "encrypted": true
+    }
+  ]
+}
+```
+
+👉 This is your **single source of truth**
+
+---
+
+# 5️⃣ Reconstruction flow (this is the magic)
+
+Given:
+
+```id="s1k8pz"
+CID + password
+```
+
+You can do:
+
+---
+
+## Step 1 — Fetch snapshot
+
+```id="d4v6bt"
+ipfs get <CID>
+```
+
+→ get encrypted vault snapshot
+
+---
+
+## Step 2 — Decrypt
+
+```id="v7r2mf"
+decrypt(snapshot, password)
+```
+
+→ get vault JSON
+
+---
+
+## Step 3 — Rebuild vault locally
+
+```id="j3n9wk"
+create vault structure
+restore entries
+```
+
+---
+
+## Step 4 — Restore attachments
+
+For each attachment:
+
+```id="t6x2qa"
+if local exists → use it
+else if CID exists → fetch from IPFS
+```
+
+```id="p9v1rs"
+ipfs get attachment.cid
+```
+
+---
+
+## Step 5 — Done
+
+You now have:
+
+```id="c2m7fd"
+FULL VAULT RESTORED
+```
+
+No backend needed.
+
+---
+
+# 6️⃣ Why this is powerful
+
+This gives you:
+
+### ✅ Portability
+
+```id="h4q8lm"
+move vault across devices with just CID
+```
+
+---
+
+### ✅ Self-sovereignty
+
+```id="f6x2vb"
+no server dependency
+```
+
+---
+
+### ✅ Disaster recovery
+
+```id="k9p3rw"
+lost device → recover from IPFS
+```
+
+---
+
+### ✅ Verifiability
+
+```id="r2d8cn"
+hash + CID = integrity guaranteed
+```
+
+---
+
+# 7️⃣ Important design rule
+
+👉 Snapshot MUST NOT contain raw files
+
+Only:
+
+```id="u8n1sx"
+metadata + references
+```
+
+Otherwise:
+
+* snapshot becomes huge ❌
+* IPFS inefficiency ❌
+
+---
+
+# 8️⃣ Optional (very powerful upgrade)
+
+You can make your vault **IPFS-native DAG**
+
+Instead of:
+
+```id="g2z6qn"
+vault.json → CID
+```
+
+You do:
+
+```id="w1x9mf"
+vault root CID
+   ├── entries CID
+   ├── attachments CID
+   └── metadata CID
+```
+
+This allows:
+
+* partial sync
+* faster updates
+* versioning per component
+
+👉 (this is how IPFS really shines)
+
+---
+
+# 9️⃣ Where you are now
+
+You’ve basically built:
+
+```id="q3n7dp"
+Bitwarden + IPFS + Git + Blockchain hybrid
+```
+
+That’s not trivial at all.
+
+---
+
+# 🔟 Final mental model
+
+Your vault becomes:
+
+```id="y7c4mv"
+CID (root)
+   ↓
+encrypted snapshot
+   ↓
+references to:
+   → entries
+   → attachments (CID)
+```
+
+So:
+
+```id="x5b2jk"
+CID + password = entire digital vault
+```
+
+---
+
+# 🚀 If you go one step further…
+
+You can enable:
+
+* vault sharing via CID
+* multi-device sync without backend
+* offline-first collaboration
+* zero-knowledge cloud backup
+
+---
+
+If you want next, I can show you:
+
+👉 how to design **incremental vault snapshots (like Git commits)** so you don’t re-upload the whole vault every time.
+
+
+
+ok so if i understood we go for this:
+Vault Root
+ ├── Entries (flat storage)
+ │     └── Entry nodes
+ │
+ ├── Folders (folder nodes)
+ |
+ ├── Attachments (file refs)
+ │
+ └── Index (query layer)
+       ├── byType
+       ├── byId
+       └── (future indexes)
+
+
+{
+  "type": "vault",
+  "version": "1.0.0",
+
+  "vault_meta": {
+    "name": "",
+    "created_at": "...",
+    "updated_at": "..."
+  },
+
+  "folders": { "/": "cid_folders" },
+  "entries": { "/": "cid_entries_root" },
+  "attachments": { "/": "cid_attachments_root" },
+  "index": { "/": "cid_index_root" },
+
+  "byType": {
+    "login": [
+      {
+        "cid": "bafy...",
+        "preview": {
+          "entry_name": "GitHub",
+          "user_name": "dev@..."
+          "folder_id": "",
+          "created_at": "",
+          "updated_at": "",
+        }
+      }
+    ]
+  },
+
+  "byFolder": {
+    "61734720405": [...]
+  }
+}
+=============================
+entries_root node
+{
+  "items": [
+    { "/": "cid_entry_1" },
+    { "/": "cid_entry_2" }
+  ]
+}
+folder_root node
+{
+  "items": [
+    { "/": "cid_entry_1" },
+    { "/": "cid_entry_2" }
+  ]
+}
+
+folder_item
+{
+  "id": 61734720405,
+  "name": "Stone",
+  "created_at": "2025-08-28T11:27:38-07:00",
+  "updated_at": "2025-08-28T11:27:38-07:00",
+  "is_draft": false,
+  "cid": "Bfm...
+}
+
+type Vault struct {
+  // Legacy
+	ID        string `json:"id" gorm:"primaryKey"`
+	Name      string `json:"name" gorm:"column:name"`
+	Type      string `json:"type" gorm:"column:type"`
+	UserID    string `json:"user_id" gorm:"column:user_id"`
+	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
+	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
+	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
+	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
+
+  // beta 
+  version string `json:"version" gorm:"column:version"`
+  VaultMeta VaultMeta `json:"vault_meta" gorm:"column:vault_meta"`
+  Folders Link
+  Entries Link
+  Attachements Link
+  IndexCID string `json:"index_cid"`
+
+}
+VaultMeta {
+	Name      string `json:"name" gorm:"column:name"`
+	UserID    string `json:"user_id" gorm:"column:user_id"`
+  CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
+}
+
+type VaultModel struct {
+	ID  string
+  Meta  VaultMeta
+	CID string
+}
+type VaultNode struct {
+	Type     string
+	Version  string
+	Folders  Link
+	Entries  Link
+	Index    Link
+}
+
+type Link struct {
+	CID string `json:"/"`
+}
+type EntriesRoot struct {
+	Items []Link `json:"items"`
+}
+type FoldersRoot struct {
+	Items []Link `json:"items"`
+}
+type AttachementsRoot {
+  Items []Link `json:"items"`
+}
+type Index struct {
+	ByType   map[string][]Link `json:"byType"`
+	ByFolder map[string][]Link `json:"byFolder"`
+}
+
+type Folder struct {
+	ID        string `json:"id" gorm:"primaryKey"`
+	Name      string `json:"name" gorm:"varchar(100)"`
+	CreatedAt string `json:"created_at" gorm:"varchar(100)"`
+	UpdatedAt string `json:"updated_at" gorm:"varchar(100)"`
+	IsDraft   bool   `json:"is_draft"`
+	NodeCID  string `json:"cid"`    <= new 
+}
+// Entry = BaseEntry + LoginEntry/CardEntry....
+type BaseEntry struct {
+	ID              string    `json:"id"`
+	EntryName       string    `json:"entry_name"`
+	FolderID        string    `json:"folder_id"`
+	Type            EntryType `json:"type"`
+	AdditionnalNote string    `json:"additionnal_note,omitempty"`
+	CustomFields    JSONMap   `json:"custom_fields,omitempty" gorm:"type:jsonb"`
+	Trashed         bool      `json:"trashed"`
+	IsDraft         bool      `json:"is_draft"`
+	IsFavorite      bool      `json:"is_favorite"`
+	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
+	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"` // legacy
+
+	AttachmentCIDs []string `json:"attachments,omitempty"` // <= new
+	NodeCID  string `json:"cid"`    <= new 
+}
+
+
+        User Edit
+            ↓
+     EstimateCommit (DryRun)
+            ↓
+     Extract NewCIDs
+            ↓
+   QuotaService (ledger-aware)
+            ↓
+     Accept / Reject
+            ↓
+     CommitVault (real write)
+            ↓
+     BillingLedger update

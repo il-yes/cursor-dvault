@@ -104,6 +104,7 @@ export interface Recipient {
   joined_at?: string;  // backend-generated
   created_at?: string;
   updated_at?: string;
+  revoked_at?: string;
 }
 
 export interface AuditEvent {
@@ -157,6 +158,7 @@ export interface AccessCryptoShareRequest {
 	recipient_email: string;
 	challenge: string;
 	signature: string;
+	ip_address?: string;
 }
 export interface AddRecipientRequest {
 	share_id: string;

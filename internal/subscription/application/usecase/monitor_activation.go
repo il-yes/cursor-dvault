@@ -132,6 +132,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 		)
 		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
 			Identity:             event.UserID,
+			VaultName:            subscription.Name,
 			Email:                userSubscription.Email,
 			IsAnonymous:          false,
 			Password:             event.Password,

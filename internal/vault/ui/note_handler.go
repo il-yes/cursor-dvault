@@ -20,7 +20,8 @@ type NoteHandler struct {
 	NowUTC func() string
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session
-	VaultRepository vaults_domain.VaultRepository	
+	VaultRepository vaults_domain.VaultRepository
+	SyncMode bool	
 }
 
 func NewNoteHandler(db models.DBModel, log *logger.Logger) *NoteHandler {
@@ -34,12 +35,12 @@ func NewNoteHandler(db models.DBModel, log *logger.Logger) *NoteHandler {
 func (h *NoteHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	entry, err := anEntry.(*vaults_domain.NoteEntry)
 	if !err {
-		return nil, fmt.Errorf("entry does not implement VaultEntry interface")
+		return nil, fmt.Errorf("NoteHandler - Add - entry does not implement VaultEntry interface")
 	}
 	entry.ID = uuid.New().String() // Ensure entry has a UUID
 	h.Vault.Entries.Note = append(h.Vault.Entries.Note, *entry)
 
-	h.logger.Info("✅ Added note entry for user %s: %s\n", userID, entry.EntryName)
+	h.logger.Info("✅ NoteHandler - Add - Added note entry for user %s: %s\n", userID, entry.EntryName)
 
 	return &h.Vault, nil
 
@@ -56,6 +57,9 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			entries[i] = *updatedEntry
+			updatedEntry.IsDraft = true
+			updatedEntry.IsDirty = true
+			updatedEntry.UpdatedAt = h.NowUTC()
 			updated = true
 			break
 		}
@@ -82,6 +86,8 @@ func (h *NoteHandler) TrashNoteEntryAction(userID string, entryID string, trashe
 	for i, entry := range h.Vault.Entries.Note {
 		if entry.ID == entryID {
 			h.Vault.Entries.Note[i].Trashed = trashed
+			h.Vault.Entries.Note[i].IsDirty = true
+
 			state := "restored"
 			if trashed {
 				state = "trashed"
@@ -114,6 +120,7 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 	
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
+	updatedEntry.IsDirty = true
 
 	entries := h.Vault.Entries.Note
 	updated := false
@@ -169,7 +176,7 @@ func (h *NoteHandler) SaveAttachment(userID string, data []byte) (string, error)
 	h.logger.Info("✅ NoteHandler - SaveAttachment: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	h.logger.Info("✅ NoteHandler - SaveAttachment: vault path: %s", vaultPath)
 
 	// Create attachment store
@@ -189,4 +196,8 @@ func (h *NoteHandler) SaveAttachment(userID string, data []byte) (string, error)
 
 func (h *NoteHandler) SetVaultRepository(vaultRepository vaults_domain.VaultRepository) {
 	h.VaultRepository = vaultRepository
+}
+
+func (h *NoteHandler) SetSyncMode(b bool) {
+	h.SyncMode = b
 }

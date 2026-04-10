@@ -28,7 +28,7 @@ func (s *AttachmentStore) Save(data []byte) (string, error) {
 
 	hash := HashFile(data)
 
-	dir := filepath.Join(s.Root, "attachments", "sha256", hash[:2])
+	dir := filepath.Join(s.Root, hash[:2])
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		s.logger.Error("AttachmentStore - Save - Failed to create directory: %v", err)
@@ -126,5 +126,5 @@ func (s *AttachmentStore) path(hash string) (string, error) {
 		s.logger.Error("AttachmentStore - path - Invalid hash: %s", hash)
 		return "", fmt.Errorf("invalid hash")
 	}
-	return filepath.Join(s.Root, "sha256", hash[:2], hash+".enc"), nil
+	return filepath.Join(s.Root, hash+".enc"), nil
 }

@@ -8,7 +8,6 @@ import (
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/utils"
 
 	"gorm.io/gorm"
 )
@@ -34,7 +33,6 @@ func NewAppConfigHandler(
 	Logger logger.Logger,
 ) *AppConfigHandler {
 	appConfigRepository := app_config_persistence.NewGormAppConfigRepository(DB)
-	utils.LogPretty("AppConfigHandler - NewAppConfigHandler - AppConfigRepository", appConfigRepository)
 	userConfigRepository := app_config_persistence.NewGormUserConfigRepository(DB)
 	vaultConfigRepository := app_config_persistence.NewGormVaultConfigRepository(DB)
 	deviceConfigRepository := app_config_persistence.NewGormDeviceConfigRepository(DB)
@@ -135,7 +133,7 @@ func (vh *AppConfigHandler) GetAppConfigByUserID(ctx context.Context, userID str
 		vh.Logger.Error("AppConfigHandler: GetAppConfigByUserID - Failed to get app config: %v", err)
 		return nil, err
 	}
-	utils.LogPretty("AppConfigHandler - GetAppConfigByUserID - appConfig", appConfig)
+
 	return appConfig, nil
 }
 
@@ -150,7 +148,7 @@ func (vh *AppConfigHandler) GetUserConfigByUserID(userID string) (*app_config_do
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("AppConfigHandler - GetUserConfigByUserID - userConfig", userConfig)
+
 	return userConfig, nil
 }
 
@@ -165,7 +163,7 @@ func (vh *AppConfigHandler) GetDeviceConfigsByUserID(userID string, vaultName st
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("AppConfigHandler - GetDeviceConfigsByUserID - deviceConfigs", deviceConfigs)
+
 	return deviceConfigs, nil
 }
 
@@ -183,7 +181,7 @@ func (vh *AppConfigHandler) GetVaultConfigByUserID(userID string, vaultName stri
 	if err != nil {
 		return app_config_domain.VaultConfigBeta{}, err
 	}
-	utils.LogPretty("AppConfigHandler - GetVaultConfigByUserID - vaultConfig", vaultConfig)
+	// utils.LogPretty("AppConfigHandler - GetVaultConfigByUserID - vaultConfig", vaultConfig)
 	return vaultConfig, nil
 }
 
@@ -201,14 +199,14 @@ func (vh *AppConfigHandler) GetSubscriptionConfigByUserID(userID string, vaultNa
 	if err != nil {
 		return app_config_domain.SubscriptionConfig{}, err
 	}
-	utils.LogPretty("AppConfigHandler - GetSubscriptionConfigByUserID - subscriptionConfig", subscriptionConfig)
+
 	return subscriptionConfig, nil
 }
 
 // -------- UPDATERS --------
 
 func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settings *app_config_dto.Settings) error {
-	vh.Logger.LogPretty("AppConfigHandler - EditSettings - settings", settings)
+
 	if settings.UI != nil {
 		userCfg, err := vh.GetUserConfigByUserID(userID)
 		if err != nil {
@@ -225,7 +223,6 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			return err
 		}
 	}
-	vh.Logger.Info("userCfg passed....")
 	
 	// vh.UpdateVaultConfigCommand.CreateIfNotExists(&settings.Vaults)
 	

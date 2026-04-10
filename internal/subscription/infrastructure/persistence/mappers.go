@@ -50,6 +50,7 @@ func (UserSubscriptionMapper) TableName() string {
 
 type SubscriptionMapper struct {
 	ID            string        `json:"id"`
+	Name          string        `json:"name"`
 	Email         string        `json:"email"`
 	Wallet        string        `json:"wallet,omitempty"` // only filled for crypto billing
 	UserID        string        `json:"user_id"`          // optional, not required for crypto validation
@@ -85,6 +86,7 @@ type SubscriptionMapper struct {
 func (s *SubscriptionMapper) ToDomain() *subscription_domain.Subscription {
 	return &subscription_domain.Subscription{
 		ID:            s.ID,
+		Name:          s.Name,
 		Wallet:        s.Wallet,
 		UserID:        s.UserID,
 		Email:         s.Email,
@@ -120,6 +122,7 @@ func (s *SubscriptionMapper) ToDomain() *subscription_domain.Subscription {
 func SubscriptionToDB(s *subscription_domain.Subscription) *SubscriptionMapper {
 	return &SubscriptionMapper{
 		ID:            s.ID,
+		Name:          s.Name,
 		Wallet:        s.Wallet,
 		UserID:        s.UserID,
 		Email:         s.Email,

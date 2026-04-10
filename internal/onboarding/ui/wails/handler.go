@@ -19,6 +19,7 @@ type OnBoardingHandler struct {
 	uc onboarding_usecase.GetRecommendedTierUseCase
 	createAccountUseCase onboarding_usecase.CreateAccountUseCase   
     setupPaymentUseCase onboarding_usecase.SetupPaymentAndActivateUseCase
+    freeSetupUseCase onboarding_usecase.FreeSetupUseCase
     GetRecommendedTierUseCase onboarding_usecase.GetRecommendedTierUseCase
     DB *gorm.DB
     appLogger *logger.Logger
@@ -44,10 +45,15 @@ func  NewOnBoardingHandler(
         onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
     )
 
+	onboardingFreeSetupUseCase := onboarding_usecase.NewFreeSetupUseCase(
+        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
+    )
+
 	return &OnBoardingHandler{
         uc: getRecommendedTierUC, 
         createAccountUseCase: *onboardingCreateAccountUC, 
         setupPaymentUseCase: *onboardingSetupPaymentUseCase, 
+        freeSetupUseCase: *onboardingFreeSetupUseCase, 
         GetRecommendedTierUseCase: getRecommendedTierUC,
         DB: DB,
         appLogger: appLogger,
@@ -144,6 +150,18 @@ func (h *OnBoardingHandler) CreateAccount(req onboarding_usecase.AccountCreation
 func (h *OnBoardingHandler) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest) (*subscription_domain.Subscription, error) {
     response, err := h.setupPaymentUseCase.Execute(req)
     if err != nil {
+        return nil, err
+    }
+
+    return response, nil
+}
+
+// Step 5: Setup Free Payment
+func (h *OnBoardingHandler) SetupFreeAndActivate(req onboarding_usecase.FreeSetupRequest) (*tracecore.FreeCheckoutResponse, error) {
+    h.appLogger.Info("✅ SetupFreeAndActivate - Starting setup free and activate...")
+    response, err := h.freeSetupUseCase.Execute(req)
+    if err != nil {
+        h.appLogger.Error("❌ SetupFreeAndActivate - Failed to setup free and activate: %v", err)
         return nil, err
     }
 

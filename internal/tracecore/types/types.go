@@ -145,6 +145,7 @@ type AccessCryptoShareRequest struct {
 	RecipientEmail string `json:"recipient_email"`
 	Challenge      string `json:"challenge"`
 	Signature      string `json:"signature"`
+	IPAddress      string `json:"ip_address,omitempty"`
 }
 
 // AccessCryptoShareResponse holds the decrypted data returned after accessing a share.

@@ -111,6 +111,21 @@ func (r *GormSessionRepository) GetLatestByUserID(userID string) (*vault_session
 func (r *GormSessionRepository) UpdateSession(session *vault_session.Session) error {
 	return r.SaveSession(session.UserID, session)
 }
+func (r *GormSessionRepository) GetEntries(s vault_session.Session) (*vaults_domain.Entries, error) {
+	vp, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return nil, err
+	}
+	return  &vp.Entries, nil
+}
+func (r *GormSessionRepository) GetFolders(s vault_session.Session) ([]vaults_domain.Folder, error) {
+	vp, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return nil, err
+	}
+	return  vp.Folders, nil
+}
+
 
 type SessionDBModel struct {
 	db *gorm.DB

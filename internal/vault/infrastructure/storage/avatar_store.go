@@ -49,9 +49,7 @@ func (s *AvatarStore) Save(userID string, data []byte) (string, error) {
 	}
 
 	filename := userID + ext
-	fmt.Println("AvatarStore - Save - filename", filename)
 	path := filepath.Join(dir, filename)
-	fmt.Println("AvatarStore - Save - path", path)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		fmt.Println("AvatarStore - Save - error", err)
 		return "", err

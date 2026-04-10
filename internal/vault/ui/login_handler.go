@@ -21,6 +21,7 @@ type LoginHandler struct {
 	Vault  *vaults_domain.VaultPayload
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
+	SyncMode bool
 }
 
 func NewLoginHandler(db models.DBModel, log *logger.Logger) *LoginHandler {
@@ -62,13 +63,14 @@ func (h *LoginHandler) Edit(userID string, entry any) (*vaults_domain.VaultPaylo
 
 	entries := h.Vault.Entries.Login
 	updated := false
+	utils.LogPretty("", updatedEntry)
 
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			// Update the fields (you could also do a full replace)
 			entries[i] = *updatedEntry
-			updatedEntry.IsDraft = false
-			updatedEntry.CreatedAt = h.NowUTC()
+			updatedEntry.IsDraft = true
+			updatedEntry.IsDirty = !h.SyncMode
 			updatedEntry.UpdatedAt = h.NowUTC()
 			updated = true
 			break
@@ -95,6 +97,7 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 	for i, entry := range h.Vault.Entries.Login {
 		if entry.ID == entryID {
 			h.Vault.Entries.Login[i].Trashed = trashed
+			h.Vault.Entries.Login[i].IsDirty = true
 			state := "restored"
 			if trashed {
 				state = "trashed"
@@ -129,6 +132,7 @@ func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments
 	
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
+	updatedEntry.IsDirty = true
 
 	entries := h.Vault.Entries.Login
 	updated := false
@@ -185,7 +189,7 @@ func (h *LoginHandler) SaveAttachment(userID string, data []byte) (string, error
 	h.logger.Info("✅ VaultHandler - SaveAttachment: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	h.logger.Info("✅ VaultHandler - SaveAttachment: vault path: %s", vaultPath)
 
 	// Create attachment store
@@ -205,4 +209,7 @@ func (h *LoginHandler) SaveAttachment(userID string, data []byte) (string, error
 
 func (h *LoginHandler) SetVaultRepository(vaultRepository vaults_domain.VaultRepository) {
 	h.VaultRepository = vaultRepository
+}
+func (h *LoginHandler) SetSyncMode(b bool) {
+	h.SyncMode = b
 }

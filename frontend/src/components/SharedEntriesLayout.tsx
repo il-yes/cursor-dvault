@@ -33,42 +33,50 @@ export function SharedEntriesLayout() {
 	const sharedByMeCrypto = useVaultStore(state => state.shared.items); // for Cryptographic Share, by me
 	const sharedWithMeCrypto = useVaultStore(state => state.sharedWithMe.items); // for Cryptographic Share, with me
 
+
+	const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
+
 	// Pick the correct entries based on params
-	const sharedEntries = useMemo(() => {
-		if (shareTypeParam !== "linkshare") {
-			return scopeParam === "byme" ? sharedByMeCrypto : sharedWithMeCrypto;
-		}
-	}, [shareTypeParam, scopeParam, sharedByMeLink, sharedWithMeLink, sharedByMeCrypto, sharedWithMeCrypto]);
+	// const sharedEntries = useMemo(() => {
+	// 	if (shareTypeParam === "linkshare") {
+	// 		return scopeParam === "byme" ? sharedByMeLink : sharedWithMeLink;
+	// 	}
+	// 	return scopeParam === "byme" ? sharedByMeCrypto : sharedWithMeCrypto;
+	// }, [
+	// 	shareTypeParam,
+	// 	scopeParam,
+	// 	sharedByMeLink,
+	// 	sharedWithMeLink,
+	// 	sharedByMeCrypto,
+	// 	sharedWithMeCrypto
+	// ]);
+	const sharedEntries: SharedEntry[] = useMemo(() => {
+		if (shareTypeParam !== "cryptographicshare") return [];
+		return scopeParam === "byme" ? sharedByMeCrypto : sharedWithMeCrypto;
+	}, [shareTypeParam, scopeParam, sharedByMeCrypto, sharedWithMeCrypto]);
+
 
 	useEffect(() => {
 		setFilter(filterParam);
 	}, [filterParam]);
 
-	useEffect(() => {
-		const handleRefresh = () => {
-			setRefreshKey(prev => prev + 1);
-		};
+	// useEffect(() => {
+	// 	const handleRefresh = () => {
+	// 		setRefreshKey(prev => prev + 1);
+	// 	};
 
-		window.addEventListener('shareEntriesRefresh', handleRefresh);
-		return () => window.removeEventListener('shareEntriesRefresh', handleRefresh);
-	}, []);
+	// 	window.addEventListener('shareEntriesRefresh', handleRefresh);
+	// 	return () => window.removeEventListener('shareEntriesRefresh', handleRefresh);
+	// }, []);
 
-	useEffect(() => {
-		if (!selectedEntry) return;
+	// useEffect(() => {
+	// 	if (!selectedEntry) return;
 
-		const fresh = sharedByMe.find(e => e.id === selectedEntry.id);
-		if (fresh) {
-			setSelectedEntry(fresh);
-		}
-	}, [sharedByMe]);
-
-	useEffect(() => {
-		const handleRefresh = () => {
-			setRefreshKey(prev => prev + 1);
-		};
-
-		return () => window.removeEventListener('shareEntriesRefresh', handleRefresh);
-	}, [detailView]);
+	// 	const fresh = sharedByMe.find(e => e.id === selectedEntry.id);
+	// 	if (fresh) {
+	// 		setSelectedEntry(fresh);
+	// 	}
+	// }, [sharedByMe]);
 
 	// Filter entries
 	const filteredEntries = useMemo(() => {
@@ -99,10 +107,17 @@ export function SharedEntriesLayout() {
 	}, [filterParam, sharedEntries, scopeParam, shareTypeParam]);
 
 	// Reset selectedEntry when data source changes
-	const [selectedEntry, setSelectedEntry] = useState<SharedEntry | null>(null);
-	useEffect(() => {
-		setSelectedEntry(null);
-	}, [shareTypeParam, scopeParam, filterParam]);
+	// const [selectedEntry, setSelectedEntry] = useState<SharedEntry | null>(null);
+	// useEffect(() => {
+	// 	setSelectedEntry(null);
+	// }, [shareTypeParam, scopeParam, filterParam]);
+
+
+	const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+
+	const selectedEntry = useMemo(() => {
+		return sharedEntries?.find(e => e.id === selectedEntryId) || null;
+	}, [sharedEntries, selectedEntryId]);
 
 	return (
 		<div className="flex h-full" key={shareTypeParam + scopeParam + filterParam}>
@@ -113,7 +128,8 @@ export function SharedEntriesLayout() {
 						<SharedEntriesList
 							entries={filteredEntries}
 							selectedEntryId={selectedEntry?.id || null}
-							onSelectEntry={setSelectedEntry}
+							onSelectEntry={(entry) => setSelectedEntryId(entry.id)}
+
 						/>
 					</div>
 
@@ -133,6 +149,7 @@ export function SharedEntriesLayout() {
 							<SharedEntryDetails
 								entry={selectedEntry}
 								view={detailView}
+								updateRecipients={updateRecipients}
 							/>
 						</div>
 					</div>
@@ -226,10 +243,10 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 										<div className="w-[14%] px-0 py-3">
 											<span
 												className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur-md border ${share.status === "active"
-														? "bg-emerald-500/15 text-emerald-300 border-emerald-400/40"
-														: share.status === "expired"
-															? "bg-slate-500/15 text-slate-300 border-slate-400/40"
-															: "bg-red-500/15 text-red-300 border-red-400/40"
+													? "bg-emerald-500/15 text-emerald-300 border-emerald-400/40"
+													: share.status === "expired"
+														? "bg-slate-500/15 text-slate-300 border-slate-400/40"
+														: "bg-red-500/15 text-red-300 border-red-400/40"
 													}`}
 											>
 												{share.status}
@@ -290,11 +307,11 @@ const LinkShareContent = ({ linkShares, onAddLinkShare }) => {
 					<div className="bg-white rounded-xl p-6 shadow-xl flex flex-col items-center">
 						<QRCode value={qrShare.link} size={180} />
 						<div className="mt-3 text-xs font-bold">
-							<a 
+							<a
 								onClick={() => AppAPI.OpenURL(qrShare.link)}
-								href={qrShare.link} 
-								target="_blank" 
-								rel="noopener noreferrer" 
+								href={qrShare.link}
+								target="_blank"
+								rel="noopener noreferrer"
 								className="text-[#C9A44A] hover:underline"
 							>
 								https://ankhora.io/shares/{qrShare.id}

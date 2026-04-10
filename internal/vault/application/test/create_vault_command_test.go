@@ -93,6 +93,10 @@ func (f *fakeVaultRepo) GetByUserIDAndName(string, string) (*vault_domain.Vault,
 	}
 	return nil, vault_domain.ErrVaultNotFound
 }
+func (f *fakeVaultRepo) UpdateVaultCID(vaultID, cid string) error {
+	f.updateCalled = true
+	return f.updateError 
+}
 
 //
 // ---------- TESTS ----------

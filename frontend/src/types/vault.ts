@@ -44,18 +44,18 @@ export interface AppSettings {
   auto_sync_enabled: boolean;
 }
 export interface UserConfig {
-    id:               string;
-    role:             string;
-    signature:        string;
-    connected_orgs:    any[];
-    stellar_account:   StellarAccountConfig;
-    two_factor_enabled: boolean;
-    ui:               UIConfig;
+  id: string;
+  role: string;
+  signature: string;
+  connected_orgs: any[];
+  stellar_account: StellarAccountConfig;
+  two_factor_enabled: boolean;
+  ui: UIConfig;
 }
 
 export interface UIConfig {
-	theme: string;
-	animations_enabled: boolean;
+  theme: string;
+  animations_enabled: boolean;
 }
 
 export interface CommitRule {
@@ -74,11 +74,11 @@ export interface BlockchainConfig2 {
   ipfs: IPFSConfig;
 }
 export interface StellarAccountConfig {
-	public_key:   string;
-	private_key:  string;
-	enc_password: number[];
-	enc_nonce:    number[];
-	enc_salt:     number[];
+  public_key: string;
+  private_key: string;
+  enc_password: number[];
+  enc_nonce: number[];
+  enc_salt: number[];
 }
 export interface StellarConfig {
   network: string;
@@ -97,8 +97,12 @@ export interface FederatedProvider {
   client_secret?: string;
   scopes?: string[];
 }
-
-
+ export const ENTRY_TYPE_LOGIN = "login";
+ export const ENTRY_TYPE_CARD = "card";
+ export const ENTRY_TYPE_NOTE = "note";
+ export const ENTRY_TYPE_SSHKEY = "sshkey";
+ export const ENTRY_TYPE_IDENTITY = "identity";
+ 
 // Base Entry matching Go BaseEntry struct
 export interface BaseEntry {
   id: string;
@@ -117,7 +121,7 @@ export interface BaseEntry {
 
 // Login Entry
 export interface LoginEntry extends BaseEntry {
-  type: 'login';
+  type: "login";
   user_name: string;
   password: string;
   web_site?: string;
@@ -194,12 +198,23 @@ export interface Vault {
 
 }
 
+export type AttachmentStorage = "local" | "cloud" | "ipfs";
+export type TransferStatus = "idle" | "uploading" | "success" | "error";
 export interface Attachment {
   id: string;
   entry_id: string;
   hash: string;
   name: string;
   size: number;
+  storage: AttachmentStorage;
+  cid?: string;
+  transferStatus?: TransferStatus;
+}
+
+export const UploadStorage = {
+  LOCAL: "local",
+  IPFS: "ipfs",
+  STELLAR: "stellar",
 }
 
 export interface VaultRuntimeContext {
@@ -381,11 +396,18 @@ export type SettingsState = {
     theme?: string
     animationsEnabled?: boolean
   }
+  onboarding: {
+    packs: string[],
+    use_cases: string[],
+    installed_templates: string[],
+    completed: boolean
+  }
 }
 
 export type SelectedAttachment = {
   name: string
   size: number
   data: number[]
+  storage: string
 }
 

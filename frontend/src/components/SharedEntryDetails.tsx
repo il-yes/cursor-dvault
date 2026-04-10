@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen, Eye, EyeOff, Copy, Sparkles } from "lucide-react";
+import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen, Eye, EyeOff, Copy, Sparkles, Image } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
 import { useVaultStore } from "@/store/vaultStore";
-import { cn } from "@/lib/utils";
+import { cn, Gateways } from "@/lib/utils";
 import { decryptField, GetConfig, logAuditEvent } from "@/services/api";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { share_application_dto } from "../../wailsjs/go/models";
@@ -19,7 +19,7 @@ import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAppStore } from "@/store/appStore";
 import { Textarea } from "./ui/textarea";
-import { CardEntry, IdentityEntry, LoginEntry, NoteEntry, SettingsState, SSHKeyEntry } from "@/types/vault";
+import { Attachment, CardEntry, IdentityEntry, LoginEntry, NoteEntry, SettingsState, SSHKeyEntry } from "@/types/vault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { withAuth } from "@/hooks/withAuth";
 
@@ -27,6 +27,7 @@ import { withAuth } from "@/hooks/withAuth";
 interface SharedEntryDetailsProps {
 	entry: SharedEntry | null;
 	view: DetailView;
+	updateRecipients: (entryId: string, recipients: Recipient[]) => void;
 }
 
 interface RevealedField {
@@ -37,7 +38,7 @@ interface RevealedField {
 
 const DEFAULT_REVEAL_TIMEOUT = 15;
 
-export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
+export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntryDetailsProps) {
 	const { toast } = useToast();
 	const [showAddForm, setShowAddForm] = useState(false);
 	const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" | "read" }>({
@@ -45,7 +46,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		email: "",
 		role: "viewer"
 	});
-	const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
+	// const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
 
 	const [recipients, setRecipients] = useState<Recipient[]>([]);
 	const [revealedFields, setRevealedFields] = useState<Map<string, RevealedField>>(new Map());
@@ -58,10 +59,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	const user = session?.user
 	const { jwtToken } = useAuthStore.getState();
 	const { user: authUser } = useAuthStore();
-
-	useEffect(() => {
-		setRecipients(entry?.recipients || []);
-	}, [entry?.id]);
 
 	const defaultSettings: SettingsState = {
 		security: {
@@ -127,15 +124,23 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			telemetryEnabled: false,
 			anonymousMode: false,
 		},
+		onboarding: {
+			packs: [],
+			use_cases: [],
+			installed_templates: [],
+			completed: false
+		}
 	};
-
 	const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+
+	useEffect(() => {
+		setRecipients(entry?.recipients || []);
+	}, [entry?.recipients]);
 
 	useEffect(() => {
 		if (!vault?.Vault?.name) return
 		fetchConfig(vault.Vault.name, jwtToken)
 	}, [vault])
-
 
 	const currentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -149,70 +154,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			});
 		}
 	};
-
-	const RevealToRecipien0 = async (fieldName: string) => {
-		if (!entry) return;
-
-		setIsRevealing(fieldName);
-		setDecryptingField(fieldName);
-
-		const rowRecipient = getRowRecipient();
-
-		if (!rowRecipient) return;
-
-		try {
-			// 1. Generate keypair
-			const keypair = Keypair.fromSecret(stellar.private_key);
-
-			// 2. Request challenge from backend
-			const { challenge } = await AppAPI.RequestChallenge({ public_key: stellar.public_key });
-
-			// 3. Sign challenge
-			const signature = Buffer.from(
-				keypair.sign(Buffer.from(challenge))
-			).toString("base64");
-
-			const { plaintext, expires_in } = await decryptField({
-				entry_id: entry.id,
-				field_name: fieldName,
-				challenge,
-				signature,
-			}); // send AccessCryptoShareRequest payload to Ankhora cloud backend
-
-			await logAuditEvent({
-				event_type: 'decrypt',
-				entry_id: entry.id,
-				field_name: fieldName,
-				timestamp: new Date().toISOString(),
-				user_id: 'current_user',
-			});
-
-			const timeout = setTimeout(() => {
-				handleMaskField(fieldName);
-			}, (expires_in || DEFAULT_REVEAL_TIMEOUT) * 1000);
-
-			setRevealedFields(prev => {
-				const newMap = new Map(prev);
-				newMap.set(fieldName, { name: fieldName, value: plaintext, timeout });
-				return newMap;
-			});
-
-			toast({
-				title: "Field revealed",
-				description: `Will auto-mask in ${expires_in || DEFAULT_REVEAL_TIMEOUT}s`,
-			});
-		} catch (error) {
-			console.log("Decryption failed", error)
-			toast({
-				title: "Decryption failed",
-				description: error instanceof Error ? error.message : "Could not decrypt field.",
-				variant: "destructive",
-			});
-		} finally {
-			setIsRevealing(null);
-			setDecryptingField(null);
-		}
-	}
 	const RevealToRecipient = async (fieldName: string) => {
 		if (!entry) return;
 
@@ -321,7 +262,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			return newMap; // ← React sees new reference → re-renders
 		});
 	}, []);
-
 	const handleRevealField = async (fieldName: string) => {
 		if (!entry) return;
 		console.log("authUser", authUser)
@@ -333,6 +273,69 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		} else {
 			console.log("RevealToRecipient")
 			RevealToRecipient(fieldName);
+		}
+	};
+
+	const formatFileSize = (bytes: number): string => {
+		if (bytes === 0) return "0 Bytes";
+		const k = 1024;
+		const sizes = ["Bytes", "KB", "MB"];
+		const i = Math.floor(Math.log(bytes) / Math.log(k));
+		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+	};
+	const RenderAttachements = ({ selectedFiles }) => (
+
+		<div className="space-y-3 max-h-48 overflow-y-auto glass-scrollbar">
+			{selectedFiles.map((attachment, index) => (
+				<div
+					key={index}
+					className="group flex items-center gap-4 p-4 rounded-2xl backdrop-blur-xl bg-white/70 dark:bg-zinc-900/70 border border-white/40 shadow-xl hover:shadow-2xl hover:shadow-primary/20 hover:scale-[1.01] transition-all duration-300 hover:border-primary/50"
+				>
+					{/* File icon */}
+					<div className="flex-shrink-0 p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/30 shadow-md">
+						<Image className="w-5 h-5 text-primary" />
+
+					</div>
+
+					{/* File info */}
+					<div className="flex-1 min-w-0">
+						<p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+							{attachment.name}
+						</p>
+						<p className="text-xs text-muted-foreground/80 font-mono">
+							{formatFileSize(attachment.size)}
+						</p>
+					</div>
+
+					{/* Show full screen button */}
+					<button
+						onClick={() => openIpfsInBrowser(attachment)}
+						className="
+								rounded-full 
+								bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
+								px-3 py-1.5 
+								text-[11px] font-semibold text-[#F3DFA6] 
+								backdrop-blur-md 
+								hover:from-[#C9A44A]/50 hover:to-amber-500/50
+								transition-all 
+								shadow-lg
+								border border-[#C9A44A]/30
+								hover:scale-105 active:scale-95
+							"
+						title="View on IPFS"
+					>
+						👁 View
+					</button>
+				</div>
+			))}
+		</div>
+	)
+	const openIpfsInBrowser = async (attachment: Attachment) => {
+		try {
+			const url = `${Gateways.local}/${attachment.cid}`;
+			AppAPI.OpenURL(url);
+		} catch (err) {
+			console.error("Decrypt view failed:", err);
 		}
 	};
 
@@ -359,6 +362,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		const effectiveEntry = (decryptedEntry as any) || entry;
 
 		const renderEntryContent = () => {
+			console.log({effectiveEntry})
 			switch (effectiveEntry.type) {
 				case "login": {
 					const login = effectiveEntry as LoginEntry;
@@ -380,6 +384,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 									{isRevealed ? login.password : "••••••••••••"}
 								</span>
 							</div>
+							{effectiveEntry?.attachements?.length > 0 && <RenderAttachements selectedFiles={effectiveEntry.attachements} />}
 						</div>
 					);
 				}
@@ -553,7 +558,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 			});
 
 			setSettings(response)
-			
+
 		} catch (err) {
 			console.error("fetchConfig failed", err)
 		}
@@ -588,13 +593,14 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		const response = await AppAPI.AddRecipient(jwtToken, recipient);
 		console.log({ response })
 
-		// zustand store update
+		// zustand store update - view list
 		setRecipients(prev => {
 			const updated = [...prev, recipient];
 			updateRecipients(entry.id, updated);   // correct sync
 			return updated;
 		});
 
+		// Reset form
 		setNewRecipient({ name: "", email: "", role: "viewer" });
 		setShowAddForm(false);
 
@@ -621,7 +627,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	}
 
 	const handleChangeRole = async (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
-		setRecipients(recipients.map(r => r.email === email ? { ...r, role: newRole } : r));
 		// call Ankhora cloud backend to update role
 		// send UpdateRecipientRequest payload to Ankhora cloud backend
 		const updateRequest = {
@@ -634,8 +639,13 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 		const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
 		console.log({ response })
 
-		// zustand store update
-		updateRecipients(entry.id, recipients);
+		// zustand view list
+		const updated = recipients.map(r =>
+			r.email === email ? { ...r, role: newRole } : r
+		);
+
+		setRecipients(updated);
+		updateRecipients(entry.id, updated);
 
 		toast({
 			title: "Role updated",
@@ -644,7 +654,6 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 	};
 
 	const handleRemoveRecipient = async (id: string, email: string) => {
-		const recipient = recipients.find(r => r.id === id);
 
 		// call Ankhora cloud backend to remove recipient
 		// send RevokeShareRequest payload to Ankhora cloud backend
@@ -660,7 +669,11 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 
 
 		// zustand store update
-		setRecipients(recipients.filter(r => r.id !== id));
+		const recipient = recipients.find(r => r.id === id);
+		const updated = recipients.filter(r => r.id !== id);
+
+		setRecipients(updated);
+		updateRecipients(entry.id, updated);
 
 		toast({
 			title: "Recipient removed",
@@ -756,7 +769,7 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 										key={recipient.id}
 										className="p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
 									>
-										<div className="flex items-start justify-between">
+										<div className="flex items-start justify-between mb-6">
 											<div className="flex-1">
 												<h4 className="font-medium">{recipient.name}</h4>
 												<p className="text-sm text-muted-foreground">{recipient.email}</p>
@@ -789,6 +802,10 @@ export function SharedEntryDetails({ entry, view }: SharedEntryDetailsProps) {
 													<Trash2 className="h-4 w-4 text-destructive" />
 												</Button>
 											</div>
+										</div>
+										<div className="text-xs text-muted-foreground mt-1 flex items-start justify-between">
+											{recipient?.updated_at && <span>Updated: {new Date(recipient?.updated_at).toLocaleDateString()}</span>}
+											{recipient?.revoked_at && <span>Revoked: {new Date(recipient?.revoked_at).toLocaleDateString()}</span>}
 										</div>
 									</div>
 								))}

@@ -129,16 +129,30 @@ type PaymentSetupRequest struct {
 type PaymentSetupRequestBeta struct {
 	Rail  string `json:"rail"`
 	Tier  string `json:"tier"`
+	Month int64  `json:"month"`
+	UserID string `json:"user_id"`
 	Email string `json:"email"`
+	FirstName string `json:"first_name"`
+	LastName string `json:"last_name"`
 
 	Plan         string `json:"plan"`
-	PeriodMonths int    `json:"period_months"`
+	PeriodMonths string `json:"period_months"`
+	Amount string `json:"amount"`
+	ProductID string `json:"product_id"`
+	Currency string `json:"currency"`
+	IsAnonymous bool `json:"is_anonymous"`
 	SessionID    string `json:"session_id"`
 }
 
 type PaymentSetupResponse struct {
 	Data       json.RawMessage `json:"data"`
 	Status     string          `json:"status"`
+	StatusCode int             `json:"status_code"`
+	Message    string          `json:"message"`
+}
+type FreeCheckoutResponse struct {
+	Data       json.RawMessage `json:"data"`
+	Status     int          `json:"status"`
 	StatusCode int             `json:"status_code"`
 	Message    string          `json:"message"`
 }
@@ -174,6 +188,40 @@ func (c *TracecoreClient) SetupSubscription(ctx context.Context, payload Payment
 	return &cloudResp, nil
 }
 
+func (c *TracecoreClient) FreeCheckout(ctx context.Context, req PaymentSetupRequestBeta) (*FreeCheckoutResponse, error) {
+	utils.LogPretty("TracecoreClient - FreeCheckout - payload", req)
+	bodyBytes, _ := json.Marshal(req)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/subscriptions/activate", bytes.NewReader(bodyBytes))
+	if err != nil {
+		utils.LogPretty("TracecoreClient - FreeCheckout - error", err)
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp FreeCheckoutResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 201 {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
 // when onboarding new user, we dont have user id yet, so we use session id to get the subscription
 func (c *TracecoreClient) GetSubscriptionBySessionID(
 	ctx context.Context,

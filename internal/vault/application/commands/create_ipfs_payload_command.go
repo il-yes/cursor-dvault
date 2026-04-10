@@ -95,6 +95,7 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(ctx context.Context, req S
 	// ------------------------------------------------------------
 	// 1. LOAD TRACECORE CLIENT
 	// ------------------------------------------------------------
+	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
 	tracecoreClient := tracecore.NewTracecoreFromConfig(&req.AppCfg, "token")	
 	utils.LogPretty("StoreOnIpfs - tracecoreClient", tracecoreClient.BaseURL)
 	// ------------------------------------------------------------

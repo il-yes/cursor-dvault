@@ -4,6 +4,7 @@ import (
 	"context"
 
 	// "encoding/base64"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_eventbus "vault-app/internal/vault/infrastructure/eventbus"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
+	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
 
 	"github.com/google/uuid"
@@ -209,6 +211,9 @@ func (vh *VaultHandler) GetAppConfig(userID string) (app_config_domain.AppConfig
 func (vh *VaultHandler) GetUserConfig(userID string) (app_config_domain.UserConfig, error) {
 	return vh.SessionManager.GetUserConfig(userID)
 }
+func (vh *VaultHandler) UpdateAppConfig(userID string, appCfg app_config_domain.AppConfig) (app_config_domain.AppConfig, error) {
+	return vh.SessionManager.UpdateAppConfig(userID, appCfg)
+}
 
 // -----------------------------
 // Vault - Crud
@@ -282,8 +287,8 @@ func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMe
 	// 1. ---------- Unmarshal entry ----------
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
-		vh.logger.Error("❌ AddEntry - Failed to unmarshal %s entry for user %s: %v", entryType, userID, err)
-		return nil, fmt.Errorf("failed to parse %s entry: %w", entryType, err)
+		vh.logger.Error("❌ VaultHandler - AddEntry - Failed to unmarshal %s entry for user %s: %v", entryType, userID, err)
+		return nil, fmt.Errorf("VaultHandler - failed to parse %s entry: %w", entryType, err)
 
 	}
 	// 2. ---------- Add entry (route to handler) ----------
@@ -293,7 +298,7 @@ func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMe
 	}
 	return res, nil
 }
-func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*vaults_domain.VaultEntry, error) {
+func (vh *VaultHandler) UpdateEntryFor(userID string, entry any, isSyncMode bool) (*vaults_domain.VaultEntry, error) {
 	vh.logger.Info("✅ Updating entry for user %s", userID)
 	ve, ok := entry.(vaults_domain.VaultEntry)
 	if !ok {
@@ -313,7 +318,10 @@ func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*vaults_domain
 		return nil, err
 	}
 	handler.SetSession(session)
-	utils.LogPretty("VaultHandler - UpdateEntryFor - session Before", session)
+	if isSyncMode {
+		handler.SetSyncMode(isSyncMode)
+	}
+	// utils.LogPretty("VaultHandler - UpdateEntryFor - session Before", session)
 	// 1.4 ---------- Update entry ----------
 	vaultSessionWithUpdatedEntry, err := handler.Edit(userID, entry)
 	if err != nil {
@@ -321,20 +329,20 @@ func (vh *VaultHandler) UpdateEntryFor(userID string, entry any) (*vaults_domain
 	}
 	// 1.5 ---------- Update session ----------
 	vh.SessionManager.SetVault(userID, vaultSessionWithUpdatedEntry)
-	utils.LogPretty("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
+	// utils.LogPretty("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
 	// 1.6 ---------- Mark session as dirty ----------
 	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
 	// Fires vault stores Edit entry event
 	vh.SessionManager.MarkDirty(userID)
 	return &ve, nil
 }
-func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
-	utils.LogPretty("VaultHandler - UpdateEntry - raw", raw)
+func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage, isSyncMode bool) (any, error) {
+	// utils.LogPretty("VaultHandler - UpdateEntry - raw", raw)
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse entry: %w", err)
 	}
-	return vh.UpdateEntryFor(userID, parsed)
+	return vh.UpdateEntryFor(userID, parsed, isSyncMode)
 }
 func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	// 1. ---------- Validate entry type ----------
@@ -499,7 +507,7 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 				return fmt.Errorf("failed to marshal entry %s: %w", e.ID, err)
 			}
 
-			if _, err := vh.UpdateEntry(userID, string(e.Type), raw); err != nil {
+			if _, err := vh.UpdateEntry(userID, string(e.Type), raw, false); err != nil {
 				return fmt.Errorf("failed to update login entry %s: %w", e.ID, err)
 			}
 		}
@@ -509,7 +517,7 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 				return fmt.Errorf("failed to marshal entry %s: %w", e.ID, err)
 			}
 
-			if _, err := vh.UpdateEntry(userID, string(e.Type), raw); err != nil {
+			if _, err := vh.UpdateEntry(userID, string(e.Type), raw, false); err != nil {
 				return fmt.Errorf("failed to update card entry %s: %w", e.ID, err)
 			}
 		}
@@ -519,7 +527,7 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 				return fmt.Errorf("failed to marshal entry %s: %w", e.ID, err)
 			}
 
-			if _, err := vh.UpdateEntry(userID, string(e.Type), raw); err != nil {
+			if _, err := vh.UpdateEntry(userID, string(e.Type), raw, false); err != nil {
 				return fmt.Errorf("failed to update identity entry %s: %w", e.ID, err)
 			}
 		}
@@ -529,7 +537,7 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 				return fmt.Errorf("failed to marshal entry %s: %w", e.ID, err)
 			}
 
-			if _, err := vh.UpdateEntry(userID, string(e.Type), raw); err != nil {
+			if _, err := vh.UpdateEntry(userID, string(e.Type), raw, false); err != nil {
 				return fmt.Errorf("failed to update note entry %s: %w", e.ID, err)
 			}
 		}
@@ -539,7 +547,7 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 				return fmt.Errorf("failed to marshal entry %s: %w", e.ID, err)
 			}
 
-			if _, err := vh.UpdateEntry(userID, string(e.Type), raw); err != nil {
+			if _, err := vh.UpdateEntry(userID, string(e.Type), raw, false); err != nil {
 				return fmt.Errorf("failed to update sshkey entry %s: %w", e.ID, err)
 			}
 		}
@@ -599,6 +607,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - encryption failed: %w", err)
 	}
+	fmt.Print(encrypted)
 
 	// 4. ---------- Upload to IPFS ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
@@ -607,17 +616,12 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 		return "", fmt.Errorf("SyncVault - failed to get app config: %w", err)
 	}
 
-	newCID, err := vh.CreateIPFSPayloadCommandHandler.StoreOnIpfs(
-		ctx,
-		vault_commands.StoreIpfsParams{
-			AppCfg:    appCfg,
-			Data:      encrypted,
-			UserID:    input.Vault.UserSubscriptionID,
-			VaultName: input.Vault.Name,
-		})
+	newCID, entryUpdates, err := vh.CommitVault(appCfg, userID, input.Vault.Name, input.Password, *session)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - IPFS upload failed: %w", err)
 	}
+	vh.logger.LogPretty("SyncVault - CommitVault - newCid", newCID)
+	vh.logger.LogPretty("SyncVault - CommitVault - entryUpdates", entryUpdates)
 
 	// 5. ---------- Submit to Stellar ----------
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
@@ -665,6 +669,30 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	// 9. ---------- Fires vault stores Sync event ----------
 
 	return newCID, nil
+}
+func (vh *VaultHandler) CommitVault(
+	appCfg app_config_domain.AppConfig, 
+	userID string, 
+	vaultName string,
+	userPassword string,
+	session vault_session.Session,
+) (string, []vaults_service.EntryUpdate, error) {
+
+	mode := vaults_service.IncrementalSync
+	service := vaults_service.NewVaultServiceReal(
+		&vaults_service.AESEncryptor{}, 
+		*vh.CreateIPFSPayloadCommandHandler, 
+		vh.VaultRepository, 
+		vh.SessionManager.SessionRepository,
+	)
+	service.IpfsParams = vault_commands.StoreIpfsParams{
+		AppCfg:    appCfg,
+		UserID:    userID,
+		VaultName: vaultName,
+	}
+	service.Password = userPassword
+
+	return service.CommitVault(session, mode)
 }
 
 func (vh *VaultHandler) GetVault(userID string, vaultName string) (*vaults_domain.Vault, error) {
@@ -732,6 +760,31 @@ func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, e
 		return "", fmt.Errorf("❌ VaultHandler - UploadToIPFS: failed to upload to IPFS: %w", err)
 	}
 	vh.logger.Info("📤 VaultHandler - UploadToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
+	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
+
+	return newCID, nil
+}
+func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(userID string, encrypted string) (string, error) {
+	raw, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - UploadAttachementToIPFS: ", err)
+		return "", err
+	}
+	newCID, err := vh.IPFS.AddData(raw)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
+	}
+	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
+	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
+
+	return newCID, nil
+}
+func (vh *VaultHandler) UploadAttachementToIPFS(userID string, encrypted []byte) (string, error) {
+	newCID, err := vh.IPFS.AddData(encrypted)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
+	}
+	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
 	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
 
 	return newCID, nil
@@ -823,6 +876,7 @@ func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash str
 	// Get vault
 	vault, err := vh.VaultRepository.GetByUserIDAndName(userID, vaultName)
 	if err != nil {
+		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to get vault for user %s: %w", userID, err)
 		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to get vault for user %s: %w", userID, err)
 	}
 	// vh.logger.Info("✅ VaultHandler - LoadAttachments: vault retrieved for user %s", userID)
@@ -838,13 +892,22 @@ func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash str
 	// Load attachment
 	attachment, err := attachmentStore.LoadBase64(hash)
 	if err != nil {
+		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
 		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
 	}
 	vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment loaded")
 
 	return attachment, nil
 }
-
+func (vh *VaultHandler) EncryptAttachment(data []byte, password string) ([]byte, error) {
+	return blockchain.Encrypt(data, password)
+}
+func (vh *VaultHandler) DecryptAttachment(data []byte, password string) ([]byte, error) {
+	return blockchain.Decrypt(data, password)
+}
+func (vh *VaultHandler) DecryptAttachmentBase64(data string, password string) ([]byte, error) {
+	return blockchain.Decrypt([]byte(data), password)
+}
 func (vh *VaultHandler) UpdateEntryWithAttachments(userID string, entryType string, raw json.RawMessage, vaultName string, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
@@ -910,3 +973,4 @@ func (vh *VaultHandler) GetVaultFromCloud(subID string) (*tracecore_types.CloudR
 	return vaultCloud, nil
 
 }
+

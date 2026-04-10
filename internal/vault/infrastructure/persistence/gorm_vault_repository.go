@@ -52,4 +52,8 @@ func (r *GormVaultRepository) GetByUserIDAndName(userID string, name string) (*v
 	return record.ToDomain(), nil
 }
 
-	
+func (r *GormVaultRepository) UpdateVaultCID(vaultID, cid string) error 	 {
+	// vdb := VaultDomainToMapper(vault)
+	// return r.db.Save(&vdb).Error
+	return  nil
+}

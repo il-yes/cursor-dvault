@@ -5,6 +5,7 @@ import (
 	"net"
 
 	// "encoding/base64"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,10 @@ import (
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
+	app_config "vault-app/internal/config"
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
+
 	// "vault-app/internal/config/infrastructure/persistence"
 	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
@@ -155,6 +158,7 @@ type App struct {
 // NewApp creates a new App instance (required by Wails)
 func NewApp() *App {
 	startTime := time.Now()
+	utils.LogPretty("Local IP Address", GetLocalIP())
 
 	// -----------------------------------
 	// Initialize
@@ -462,6 +466,109 @@ func NewApp() *App {
 }
 
 
+// func (a *App) TestUploadIPFS(jwtToken string) error {
+
+
+// 	vaultName := "tamboo"
+// 	entryType := "login"
+
+// 	// =========================
+// 	// 1. LOAD FILE
+// 	// =========================
+// 	filePath := "./img-001.png"
+
+// 	fileBytes, err := os.ReadFile(filePath)
+// 	if err != nil {
+// 		log.Println("❌ failed to read file:", err)
+// 	}
+
+// 	log.Println("📦 Original file size:", len(fileBytes))
+
+// 	// =========================
+// 	// 2. LOCAL UPLOAD (OPTIONAL)
+// 	// =========================
+// 	raw := json.RawMessage{}
+
+// 	attachments := vault_dto.SelectedAttachments{}
+
+// 	_, errUpload := a.UploadAttachments(
+// 		jwtToken,
+// 		vaultName,
+// 		entryType,
+// 		raw,
+// 		attachments,
+// 	)
+
+// 	if errUpload != nil {
+// 		log.Println("❌ UploadAttachments error:", errUpload)
+// 	}
+
+// 	// =========================
+// 	// 3. ENCRYPT
+// 	// =========================
+// 	encrypted, err := a.EncryptAttachment(
+// 		jwtToken,
+// 		fileBytes,
+// 		"vaultPassword",
+// 	)
+
+// 	if err != nil {
+// 		log.Println("❌ Encrypt error:", err)
+// 	}
+
+// 	log.Println("🔐 Encrypted size:", len(encrypted))
+
+// 	// =========================
+// 	// 4. IPFS UPLOAD
+// 	// =========================
+// 	cid, err := a.UploadAttachmentToIPFSWithEncryption(
+// 		jwtToken,
+// 		encrypted,
+// 	)
+
+// 	if err != nil {
+// 		log.Println("❌ IPFS upload error:", err)
+// 	}
+
+// 	log.Println("🌐 CID:", cid)
+
+// 	// =========================
+// 	// 5. FETCH FROM IPFS
+// 	// =========================
+// 	ipfsFile, err := a.GetIPFSFile(jwtToken, cid)
+// 	if err != nil {
+// 		log.Println("❌ IPFS fetch error:", err)
+// 	}
+
+// 	log.Println("📥 IPFS size:", len(ipfsFile))
+
+// 	// =========================
+// 	// 6. DECRYPT
+// 	// =========================
+// 	decrypted, err := a.DecryptAttachment(
+// 		jwtToken,
+// 		ipfsFile,
+// 		"vaultPassword",
+// 	)
+
+// 	if err != nil {
+// 		log.Println("❌ Decrypt error:", err)
+// 	}
+
+// 	log.Println("🔓 Decrypted size:", len(decrypted))
+
+// 	// =========================
+// 	// 7. VERIFY
+// 	// =========================
+// 	if bytes.Equal(fileBytes, decrypted) {
+// 		log.Println("✅ SUCCESS: encryption roundtrip OK")
+// 	} else {
+// 		log.Println("❌ FAILURE: decrypted != original")
+// 		log.Println("Original:", len(fileBytes))
+// 		log.Println("Decrypted:", len(decrypted))
+// 	}
+// 	return nil
+// }
 
 // -----------------------------
 // AppState
@@ -566,6 +673,19 @@ type UseCaseResponse struct {
 func (a *App) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest) (*subscription_domain.Subscription, error) {
 	utils.LogPretty("SetupPaymentAndActivate req", req)
 	return a.OnBoardingHandler.SetupPaymentAndActivate(req)
+}
+
+func (a *App) SetupFreeAndActivate(req onboarding_usecase.FreeSetupRequest) (*tracecore.FreeCheckoutResponse, error) {
+	utils.LogPretty("SetupFreeAndActivate req", req)
+
+	response, err := a.OnBoardingHandler.SetupFreeAndActivate(req)
+	if err != nil {
+		utils.LogPretty("SetupFreeAndActivate err", err)
+		return nil, err
+	}
+	utils.LogPretty("SetupFreeAndActivate response", response)
+
+	return response, nil
 }
 
 // Response with session ID
@@ -868,6 +988,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	fmt.Println("userID", claims.UserID)
 	// 1. Access encrypted entry ==============================
+	entry.IPAddress = GetLocalIP()
 	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *a.Auth.TracecoreClient)
 	if err != nil {
 		return nil, err
@@ -886,6 +1007,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 		EncryptedPayload:    res.Data.EncryptedPayload,
 		RecipientPrivateKey: stellarAccount.PrivateKey,
 	}
+	// TODO: check if thisshoild be made by the user and not the cloud
 	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *a.Auth.TracecoreClient)
 	if err != nil {
 		return nil, err
@@ -925,12 +1047,13 @@ func (a *App) EditEntry(entryType string, raw json.RawMessage, jwtToken string) 
 		a.Logger.Error("App - EditEntry - error: %v", err)
 		return nil, err
 	}
-	res, err := a.Vault.UpdateEntry(claims.UserID, entryType, raw)
+	isSyncMode := false
+	res, err := a.Vault.UpdateEntry(claims.UserID, entryType, raw, isSyncMode)
 	if err != nil {
 		a.Logger.Error("App - EditEntry - error: %v", err)
 		return nil, err
 	}
-	utils.LogPretty("App - EditEntry - res", res)
+	// utils.LogPretty("App - EditEntry - res", res)
 	return res, nil
 }
 func (a *App) TrashEntry(entryType string, raw json.RawMessage, jwtToken string) (any, error) {
@@ -1014,7 +1137,6 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
 
-
 // -----------------------------
 // Cloud Services
 // -----------------------------
@@ -1055,6 +1177,7 @@ func (a *App) EncryptFile(jwtToken string, fileData string, password string) (st
 		"percent": 0,
 		"stage":   "encrypting",
 	})
+	a.Logger.LogPretty("App - EncryptFile - fileData", fileData)
 
 	// Real AES-256-GCM encryption with progress
 	encryptedPath, err := a.Vaults.EncryptFile(claims.UserID, []byte(fileData), password)
@@ -1069,6 +1192,53 @@ func (a *App) EncryptFile(jwtToken string, fileData string, password string) (st
 	})
 
 	return encryptedPath, nil
+}
+func (a *App) EncryptAttachment(jwtToken string, data []byte, password string) ([]byte, error) {
+	_, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Vault.EncryptAttachment(data, password)
+}
+func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) ([]byte, error) {
+	_, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	a.Logger.Info("DecryptAttachment processing....")
+
+	return a.Vault.DecryptAttachment(data, password)
+}
+// func (a *App) DecryptAttachmentBase64(jwtToken string, data string, password string) (string, error) {
+// 	_, err := a.Auth.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	data, errR 	:= a.Vault.DecryptAttachmentBase64(data, password)
+// 	if errR != nil {
+// 		return "", err
+// 	}
+
+	
+// 	return base64.StdEncoding.EncodeToString(data), nil
+// }
+
+func (a *App) GetIPFSFile(jwtToken string, cid string) (string, error) {
+	_, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		return "", err
+	}
+
+	a.Logger.Info("App - GetIPFSFile processing")
+
+	data, err := a.Vault.IPFS.GetData(cid)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1092,6 +1262,22 @@ func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 		return "", err
 	}
 	return cid, nil
+}
+func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []byte) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	return a.Vault.UploadAttachementToIPFS(claims.UserID, data)
+}
+func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	return a.Vault.UploadAttachementToIPFS(claims.UserID, data)
 }
 func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1497,6 +1683,7 @@ type GenerateApiKeyOutput struct {
 	PublicKey  string `json:"public_key"`
 	PrivateKey string `json:"private_key"`
 }
+
 func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
 	claims, err := a.Auth.RequireAuth(input.JwtToken)
 	if err != nil {
@@ -1678,12 +1865,12 @@ func (a *App) GetBillingHistory(jwtToken string, limit int) (*tracecore_types.Cl
 		a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
 		return nil, err
 	}
-	
+
 	response, err := a.BillingHandler.GetPaymentHistory(a.ctx, sub.ID, limit)
 	if err != nil {
 		return nil, err
 	}
-	a.Logger.LogPretty("✅ App - GetBillingHistory - payment history fetched: %v", response)	
+	a.Logger.LogPretty("✅ App - GetBillingHistory - payment history fetched: %v", response)
 	return response, nil
 }
 
@@ -1799,6 +1986,7 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 
 	return userDTOs, nil
 }
+
 // -----------------------------
 // Helpers
 // -----------------------------
@@ -1928,3 +2116,24 @@ func ResetAndMigrate(db *gorm.DB) error {
 		&onboarding_domain.AppState{},
 	)
 }
+func (a *App) SetStorageMode(JwtToken string) {
+	claims, err := a.Auth.RequireAuth(JwtToken)
+	if err != nil {
+		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
+	}
+	appCfg, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background() , claims.UserID)
+	if err != nil {
+		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
+	}
+	appCfg.Storage.Mode = app_config.StorageLocal
+	a.AppConfigHandler.UpdateAppConfig(appCfg)
+	a.Vault.UpdateAppConfig(claims.UserID, *appCfg)
+	
+
+	appCfgUpdated, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background() , claims.UserID)
+	if err != nil {
+		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
+	}
+	utils.LogPretty("appCfgUpdated", appCfgUpdated)
+}
+	

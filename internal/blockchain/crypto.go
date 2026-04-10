@@ -177,11 +177,10 @@ func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, erro
 	log.Printf("🔁 Nonce: %x", nonce)
 	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
 
-
 	// Test determinism
 	key1, _ := DeriveKey("testpass", salt)
 	key2, _ := DeriveKey("testpass", salt)
-	log.Printf("Key deterministic: %v", bytes.Equal(key1, key2))  // MUST be true
+	log.Printf("Key deterministic: %v", bytes.Equal(key1, key2)) // MUST be true
 
 	// 1. Verify GCM roundtrip works
 	testPlain := []byte("hello")
@@ -346,7 +345,7 @@ func DeriveKey(password string, salt []byte) ([]byte, error) {
 }
 
 // Encrypt encrypts plain data using a password.
-func Encrypt(data []byte, password string) ([]byte, error) {
+func Encrypt0(data []byte, password string) ([]byte, error) {
 	// Generate random salt
 	salt := make([]byte, saltSize)
 	if _, err := rand.Read(salt); err != nil {
@@ -377,11 +376,52 @@ func Encrypt(data []byte, password string) ([]byte, error) {
 	ciphertext := gcm.Seal(nil, nonce, data, nil)
 	final := append(salt, nonce...)
 	final = append(final, ciphertext...)
-	return final, nil
+	// return final, nil
+
+	encoded := base64.StdEncoding.EncodeToString(final)
+	return []byte(encoded), nil
+}
+func Encrypt(data []byte, password string) ([]byte, error) {
+	// Generate random salt
+	salt := make([]byte, saltSize)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("key derivation failed: %w", err)
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCM: %w", err)
+	}
+
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("failed to generate nonce: %w", err)
+	}
+
+	// salt + nonce + ciphertext
+	ciphertext := gcm.Seal(nil, nonce, data, nil)
+
+	final := append(salt, nonce...)
+	final = append(final, ciphertext...)
+
+	log.Printf("PASSWORD: %s", password)
+	log.Printf("SALT: %x", salt)
+	log.Printf("DERIVED KEY: %x", key)
+	return final, nil // ✅ RAW BYTES ONLY
 }
 
 // Decrypt decrypts encrypted data using a password.
-func Decrypt(encrypted []byte, password string) ([]byte, error) {
+func Decrypt0(encrypted []byte, password string) ([]byte, error) {
 	if len(encrypted) < saltSize+nonceSize {
 		return nil, fmt.Errorf("❌ invalid data length")
 	}
@@ -411,6 +451,94 @@ func Decrypt(encrypted []byte, password string) ([]byte, error) {
 
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	return plain, nil
+}
+func Decrypt1(encrypted []byte, password string) ([]byte, error) {
+	// 1. Decode base64 (IMPORTANT if you encoded during storage/transport)
+	raw, err := base64.StdEncoding.DecodeString(string(encrypted))
+	if err != nil {
+		return nil, fmt.Errorf("❌ base64 decode failed: %w", err)
+	}
+
+	// 2. Validate minimum length
+	if len(raw) < saltSize+nonceSize {
+		return nil, fmt.Errorf("❌ invalid data length")
+	}
+
+	// 3. Extract parts
+	salt := raw[:saltSize]
+	nonce := raw[saltSize : saltSize+nonceSize]
+	ciphertext := raw[saltSize+nonceSize:]
+
+	// 4. Derive key again using same salt
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("❌ key derivation failed: %w", err)
+	}
+
+	// 5. Create AES-GCM
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("❌ cipher creation failed: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
+	}
+
+	// 6. Decrypt
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	return plain, nil
+}
+func Decrypt(encrypted []byte, password string) ([]byte, error) {
+	// 1. NO BASE64 DECODE (IMPORTANT FIX)
+	raw := encrypted
+
+	// 2. Validate minimum length
+	if len(raw) < saltSize+nonceSize {
+		return nil, fmt.Errorf("❌ invalid data length")
+	}
+
+	// 3. Extract parts
+	salt := raw[:saltSize]
+	nonce := raw[saltSize : saltSize+nonceSize]
+	ciphertext := raw[saltSize+nonceSize:]
+
+	// 4. Derive key
+	key, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, fmt.Errorf("❌ key derivation failed: %w", err)
+	}
+
+	// 5. AES-GCM setup
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("❌ cipher creation failed: %w", err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
+	}
+
+	log.Printf("TOTAL LEN: %d", len(encrypted))
+	log.Printf("SALT: %x", salt)
+	log.Printf("NONCE: %x", nonce)
+	log.Printf("CIPHERTEXT LEN: %d", len(ciphertext))
+	log.Printf("PASSWORD: %d", password)
+
+	// 6. Decrypt
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		log.Printf("❌ GCM OPEN FAILED: %v", err)
 		return nil, fmt.Errorf("❌ decryption failed: %w", err)
 	}
 

@@ -13,27 +13,46 @@ import (
 //     Code    string
 // }
 
-type errorResponse struct {
+type ErrorResponse struct {
     Status   int         `json:"status"`
     Message  string      `json:"message"`
-    Error    interface{} `json:"error,omitempty"`
+    Err      interface{} `json:"error,omitempty"`
     Code     string      `json:"code"`
     Success  bool        `json:"success"`
+}
+
+func (e ErrorResponse) Error() string {
+    return e.Message
 }
 
 func JSONAppError(w http.ResponseWriter, appErr AppError, err error) {
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(appErr.Status)
 
-    resp := errorResponse{
+    resp := ErrorResponse{
         Status:  appErr.Status,
         Message: appErr.Message,
         Code:    appErr.Code,
         Success: false,
     }
     if err != nil {
-        resp.Error = err.Error()
+        resp.Err = err.Error()
     }
 
     _ = json.NewEncoder(w).Encode(resp)
+}
+
+func JSONAppErrorWails(appErr AppError, err error) ErrorResponse {
+
+    resp := ErrorResponse{
+        Status:  appErr.Status,
+        Message: appErr.Message,
+        Code:    appErr.Code,
+        Success: false,
+    }
+    if err != nil {
+        resp.Err = err.Error()
+    }
+
+    return resp
 }

@@ -293,6 +293,7 @@ function DashboardNavbar() {
 				<div className="hidden md:flex items-center gap-3">
 					{/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
 					<span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
+					<Button onClick={() => AppAPI.SetStorageMode(jwtToken)} className="text-lg font-bold text-foreground rounded-full"><small>Set Storage Mode</small></Button>
 				</div>
 
 				<div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
@@ -482,6 +483,8 @@ function AppSidebar() {
 
 		fetchAvatar();
 	}, [jwtToken, vaultContext]);
+
+
 
 
 	return (

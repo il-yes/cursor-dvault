@@ -71,7 +71,8 @@ type Recipient struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
     // Blob containing encrypted vault snapshot (optional)
-    EncryptedBlob []byte `json:"encrypted_blob"`	
+    EncryptedBlob []byte `json:"encrypted_blob"`
+	RevokedAt	time.Time `json:"revoked_at"`	
 }
 
 type ShareAcceptData struct {

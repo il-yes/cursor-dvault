@@ -20,6 +20,7 @@ type CardHandler struct {
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
+	SyncMode bool
 }
 
 func NewCardHandler(db models.DBModel, log *logger.Logger) *CardHandler {
@@ -59,6 +60,9 @@ func (h *CardHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 		if entry.ID == updatedEntry.ID {
 			// Update the fields (you could also do a full replace)
 			entries[i] = *updatedEntry
+			updatedEntry.IsDraft = true
+			updatedEntry.IsDirty = true
+			updatedEntry.UpdatedAt = h.NowUTC()
 			updated = true
 			break
 		}
@@ -85,6 +89,7 @@ func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashe
 	for i, entry := range h.Vault.Entries.Card {
 		if entry.ID == entryID {
 			h.Vault.Entries.Card[i].Trashed = trashed
+			h.Vault.Entries.Card[i].IsDirty = true
 
 			state := "restored"
 			if trashed {
@@ -124,6 +129,7 @@ func (h *CardHandler) EditWithAttachments(userID string, entry any, attachments 
 	
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
+	updatedEntry.IsDirty = true
 
 	entries := h.Vault.Entries.Card
 	updated := false
@@ -180,7 +186,7 @@ func (h *CardHandler) SaveAttachment(userID string, data []byte) (string, error)
 	h.logger.Info("✅ CardHandler - SaveAttachment: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	h.logger.Info("✅ CardHandler - SaveAttachment: vault path: %s", vaultPath)
 
 	// Create attachment store
@@ -200,4 +206,8 @@ func (h *CardHandler) SaveAttachment(userID string, data []byte) (string, error)
 
 func (h *CardHandler) SetVaultRepository(vaultRepository vaults_domain.VaultRepository) {
 	h.VaultRepository = vaultRepository
+}
+
+func (h *CardHandler) SetSyncMode(b bool) {
+	h.SyncMode = b
 }

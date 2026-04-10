@@ -74,6 +74,10 @@ export function CreateStellarCommit(arg1, arg2) {
   return window['go']['main']['App']['CreateStellarCommit'](arg1, arg2);
 }
 
+export function DecryptAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DecryptAttachment'](arg1, arg2, arg3);
+}
+
 export function DeleteEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteEntry'](arg1, arg2, arg3);
 }
@@ -100,6 +104,10 @@ export function EditEntry(arg1, arg2, arg3) {
 
 export function EditUserInfos(arg1, arg2) {
   return window['go']['main']['App']['EditUserInfos'](arg1, arg2);
+}
+
+export function EncryptAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['EncryptAttachment'](arg1, arg2, arg3);
 }
 
 export function EncryptFile(arg1, arg2, arg3) {
@@ -140,6 +148,10 @@ export function GetConfig(arg1, arg2) {
 
 export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
+}
+
+export function GetIPFSFile(arg1, arg2) {
+  return window['go']['main']['App']['GetIPFSFile'](arg1, arg2);
 }
 
 export function GetPendingPaymentRequests(arg1) {
@@ -286,6 +298,14 @@ export function SaveSessionTest(arg1) {
   return window['go']['main']['App']['SaveSessionTest'](arg1);
 }
 
+export function SetStorageMode(arg1) {
+  return window['go']['main']['App']['SetStorageMode'](arg1);
+}
+
+export function SetupFreeAndActivate(arg1) {
+  return window['go']['main']['App']['SetupFreeAndActivate'](arg1);
+}
+
 export function SetupPaymentAndActivate(arg1) {
   return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
 }
@@ -336,6 +356,14 @@ export function UpdateRecipient(arg1, arg2) {
 
 export function UpgradeSubscription(arg1, arg2) {
   return window['go']['main']['App']['UpgradeSubscription'](arg1, arg2);
+}
+
+export function UploadAttachmentToIPFS(arg1, arg2) {
+  return window['go']['main']['App']['UploadAttachmentToIPFS'](arg1, arg2);
+}
+
+export function UploadAttachmentToIPFSWithEncryption(arg1, arg2) {
+  return window['go']['main']['App']['UploadAttachmentToIPFSWithEncryption'](arg1, arg2);
 }
 
 export function UploadAttachments(arg1, arg2, arg3, arg4, arg5) {

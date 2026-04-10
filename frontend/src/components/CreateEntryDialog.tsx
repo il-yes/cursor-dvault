@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder, VaultEntry } from "@/types/vault";
+import { ENTRY_TYPE_CARD, ENTRY_TYPE_IDENTITY, ENTRY_TYPE_LOGIN, ENTRY_TYPE_NOTE, ENTRY_TYPE_SSHKEY, Folder, VaultEntry } from "@/types/vault";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import "./ContributionGraph/g-scrollbar.css";
 import { useVaultStore } from "@/store/vaultStore";
+import { devsecops_incident_v1 } from "@/data/mockTemplate";
 
 interface CreateEntryDialogProps {
   open: boolean;
@@ -65,9 +66,16 @@ export function CreateEntryDialog({
   const [sshPublic, setSSHPublic] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
+  const [customFields, setCustomFields] = useState<Record<string, any>>({});
+
   useEffect(() => {
     vaultContext && setFolders(vaultContext.Vault.folders || []);
-  }, [vaultContext]); 
+  }, [vaultContext]);
+
+  useEffect(() => {
+    // For testing
+    // setCustomFields(devsecops_incident_v1);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +83,7 @@ export function CreateEntryDialog({
     const base = {
       entry_name: entryName,
       type,
+      custom_fields: customFields,
       trashed: false,
       is_draft: true,
       is_favorite: false,
@@ -128,6 +137,7 @@ export function CreateEntryDialog({
         break;
     }
     entry.folder_id = folderId;
+    console.log({ entry })
 
     onSubmit(entry);
 
@@ -146,13 +156,14 @@ export function CreateEntryDialog({
     setSSHPrivate("");
     setSSHPublic("");
     setAttachedFiles([]);
+    setCustomFields({});
 
     onOpenChange(false);
   };
 
   const renderFields = () => {
     switch (type) {
-      case "login":
+      case ENTRY_TYPE_LOGIN:
         return (
           <>
             <div className="space-y-2">
@@ -180,7 +191,7 @@ export function CreateEntryDialog({
           </>
         );
 
-      case "card":
+      case ENTRY_TYPE_CARD:
         return (
           <>
             <div className="space-y-2">
@@ -218,7 +229,7 @@ export function CreateEntryDialog({
           </>
         );
 
-      case "identity":
+      case ENTRY_TYPE_IDENTITY:
         const identityFields = [
           "firstname",
           "second_firstname",
@@ -259,7 +270,7 @@ export function CreateEntryDialog({
           </div>
         );
 
-      case "note":
+      case ENTRY_TYPE_NOTE:
         return (
           <div className="space-y-2">
             <Label>Secure Note</Label>
@@ -271,7 +282,7 @@ export function CreateEntryDialog({
           </div>
         );
 
-      case "sshkey":
+      case ENTRY_TYPE_SSHKEY:
         return (
           <>
             <div className="space-y-2">
@@ -296,6 +307,77 @@ export function CreateEntryDialog({
     }
   };
 
+  // - Custom Fields
+  const updateCustomFieldKey = (oldKey: string, newKey: string) => {
+    setCustomFields(prev => {
+      const next: Record<string, any> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (k === oldKey) {
+          if (newKey.trim()) next[newKey] = v;
+        } else {
+          next[k] = v;
+        }
+      }
+      return next;
+    });
+  };
+
+  const updateCustomFieldValue = (key: string, value: string) => {
+    setCustomFields(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const addCustomField = () => {
+    setCustomFields(prev => {
+      let i = 1;
+      let key = `new_field_${i}`;
+      while (prev[key]) {
+        i++;
+        key = `new_field_${i}`;
+      }
+      return { ...prev, [key]: "" };
+    });
+  };
+
+  const removeCustomField = (key: string) => {
+    setCustomFields(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+  // - Helpers - Custom Fields
+  const RESERVED = new Set(["template_id", "record_type", "schema_version"]); // Ankhora templates identifiers
+
+  function isObject(v: any) {
+    return v && typeof v === "object" && !Array.isArray(v);
+  }
+  function isPlainObject(v: any) {
+    return v && typeof v === "object" && !Array.isArray(v);
+  }
+
+  function isArrayOfObjects(v: any) {
+    return Array.isArray(v) && v.some(isPlainObject);
+  }
+
+  function formatValue(v: any) {
+    if (v === null || v === undefined) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+
+    if (Array.isArray(v)) {
+      // array of primitives
+      if (!isArrayOfObjects(v)) return v.map((x) => String(x)).join(", ");
+      // array of objects -> pretty JSON
+      return JSON.stringify(v, null, 2);
+    }
+
+    // object
+    return JSON.stringify(v, null, 2);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] bg-card border-border">
@@ -308,69 +390,119 @@ export function CreateEntryDialog({
 
         <form onSubmit={handleSubmit} style={{ padding: "30px" }} className="space-y-4 max-h-[70vh] overflow-y-auto scrollbar-glassmorphism thin-scrollbar pr-2">
 
-          <Select value={folderId} onValueChange={setFolderId}>
-            <SelectTrigger id="entry">
-              <SelectValue placeholder="Choose an entry from your vault" />
-            </SelectTrigger>
-            <SelectContent>
-              {folders && folders.map((folder) => (
-                <SelectItem key={folder.id} value={folder.id}>
-                  <span className="capitalize">{folder.name}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <div className="space-y-2">
-            <Label>Entry Name</Label>
-            <Input
-              required
-              value={entryName}
-              onChange={(e) => setEntryName(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Entry Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as any)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select type" />
+            <Label>Folder</Label>
+            <Select value={folderId} onValueChange={setFolderId}>
+              <SelectTrigger id="entry">
+                <SelectValue placeholder="Choose an entry from your vault" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="login">Login</SelectItem>
-                <SelectItem value="card">Payment Card</SelectItem>
-                <SelectItem value="identity">Identity</SelectItem>
-                <SelectItem value="note">Secure Note</SelectItem>
-                <SelectItem value="sshkey">SSH Key</SelectItem>
+                {folders && folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    <span className="capitalize">{folder.name}</span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {renderFields()}
+        <div className="space-y-2">
+          <Label>Entry Name</Label>
+          <Input
+            required
+            value={entryName}
+            onChange={(e) => setEntryName(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Entry Type</Label>
+          <Select value={type} onValueChange={(v) => setType(v as any)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="login">Login</SelectItem>
+              <SelectItem value="card">Payment Card</SelectItem>
+              <SelectItem value="identity">Identity</SelectItem>
+              <SelectItem value="note">Secure Note</SelectItem>
+              <SelectItem value="sshkey">SSH Key</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {renderFields()}
 
 
-          {/* File Upload Widget */}
+        {/* Custom Fields */}
+        <div className="backdrop-blur-xl bg-gradient-to-br from-white/40 to-zinc-50/20 dark:from-zinc-900/40 dark:to-black/20 rounded-3xl border border-white/30 dark:border-zinc-700/30 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-primary to-amber-500/80 bg-clip-text text-transparent">
+              Custom Fields
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            {customFields && Object.entries(customFields)
+              .filter(([k]) => !RESERVED.has(k))
+              .map(([key, value]) => (
+                <div
+                  key={key}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start rounded-2xl border border-white30 dark:border-zinc-70030 bg-white40 dark:bg-zinc-90040 p-4"
+                >
+                  <Input
+                    className="md:col-span-4"
+                    value={key}
+                    onChange={(e) => updateCustomFieldKey(key, e.target.value)}
+                    placeholder="Field key"
+                  />
+
+                  <Input
+                    className="md:col-span-7"
+                    value={String(value ?? "")}
+                    onChange={(e) => updateCustomFieldValue(key, e.target.value)}
+                    placeholder="Field value"
+                  />
+
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="md:col-span-1"
+                    onClick={() => removeCustomField(key)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ))}
+
+            <Button type="button" onClick={addCustomField}>
+              Add field
+            </Button>
+          </div>
+        </div>
+
+        {/* File Upload Widget 
           <div className="space-y-2">
             <Label>Attachments</Label>
-            {/* <FileUploadWidget
+             <FileUploadWidget
               onFileSelect={setAttachedFiles}
               value={attachedFiles}
               maxFiles={5}
-            /> */}
-          </div>
+            /> 
+          </div> */}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit">Create</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit">Create</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+    </Dialog >
   );
 }

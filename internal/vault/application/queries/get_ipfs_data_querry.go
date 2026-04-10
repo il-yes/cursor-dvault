@@ -78,7 +78,6 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 	// ------------------------------------------------------------
 	tracecoreClient := tracecore.NewTracecoreFromConfig(&req.AppCfg, "token")
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - tracecoreClient", tracecoreClient.BaseURL)
-	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
 	// ------------------------------------------------------------
 	// 2. LOAD STORAGE PROVIDER
 	// ------------------------------------------------------------

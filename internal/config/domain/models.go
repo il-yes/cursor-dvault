@@ -22,7 +22,9 @@ func (c *CommitRule) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // -----------------------------
-// 			 AppConfig 
+//
+//	AppConfig
+//
 // -----------------------------
 // 🔧 Load this on boot from embedded JSON/YAML or system file (e.g., $HOME/.dvault/config.json)
 type AppConfig struct {
@@ -53,13 +55,14 @@ func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-
 // -----------------------------
-// 			 UserConfig 
+//
+//	UserConfig
+//
 // -----------------------------
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type UserConfig struct {
-	ID               string               `json:"id" gorm:"primaryKey"`	// -> UserId reference
+	ID               string               `json:"id" gorm:"primaryKey"` // -> UserId reference
 	Role             string               `json:"role" gorm:"column:role"`
 	Signature        string               `json:"signature" gorm:"column:signature"`
 	ConnectedOrgs    []string             `json:"connected_orgs" gorm:"type:json;serializer:json"`
@@ -73,14 +76,15 @@ func (u *UserConfig) OnGenerateApiKey(stellarAccount *StellarAccountConfig) {
 	u.StellarAccount = *stellarAccount
 }
 
-
 type UIConfig struct {
 	Theme             string `json:"theme" gorm:"theme"`
 	AnimationsEnabled bool   `json:"animations_enabled" gorm:"animations_enabled"`
 }
 
 // -----------------------------
-// 	 StellarAccountConfig 
+//
+//	StellarAccountConfig
+//
 // -----------------------------
 type StellarAccountConfig struct {
 	PublicKey   string `json:"public_key" yaml:"public_key" gorm:"column:public_key"`
@@ -90,9 +94,10 @@ type StellarAccountConfig struct {
 	EncSalt     []byte `gorm:"column:enc_salt"`                                                              // salt
 }
 
-
 // -----------------------------
-// 	 VaultConfig 
+//
+//	VaultConfig
+//
 // -----------------------------
 type VaultConfig struct {
 	MaxEntries       int    `json:"max_entries" yaml:"max_entries" gorm:"column:max_entries"`
@@ -100,9 +105,10 @@ type VaultConfig struct {
 	EncryptionScheme string `json:"encryption_scheme" yaml:"encryption_scheme" gorm:"column:encryption_scheme"`
 }
 
-
 // -----------------------------
-// 	 BlockchainConfig 
+//
+//	BlockchainConfig
+//
 // -----------------------------
 // internal/config/blockchain.go
 type BlockchainConfig struct {
@@ -110,9 +116,10 @@ type BlockchainConfig struct {
 	IPFS    IPFSConfig    `json:"ipfs" yaml:"ipfs" gorm:"embedded;embeddedPrefix:ipfs_"`
 }
 
-
 // -----------------------------
-// 	 StellarConfig 
+//
+//	StellarConfig
+//
 // -----------------------------
 type StellarConfig struct {
 	Network       string `json:"network" yaml:"network" gorm:"column:network"`
@@ -132,18 +139,20 @@ func NewStellarAccountConfigOnGeneratedApiKey(account *blockchain.CreateAccountR
 
 }
 
-
 // -----------------------------
-// 	 IPFSConfig 
+//
+//	IPFSConfig
+//
 // -----------------------------
 type IPFSConfig struct {
 	APIEndpoint string `json:"api_endpoint" yaml:"api_endpoint" gorm:"column:api_endpoint"`
 	GatewayURL  string `json:"gateway_url" yaml:"gateway_url" gorm:"column:gateway_url"`
 }
 
-
 // -----------------------------
-// 	 SharingRule 
+//
+//	SharingRule
+//
 // -----------------------------
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type SharingRule struct {
@@ -161,9 +170,10 @@ func (s *SharingRule) BeforeCreate(tx *gorm.DB) (err error) {
 	return nil
 }
 
-
 // -----------------------------
-// 	 SharingConfig 
+//
+//	SharingConfig
+//
 // -----------------------------
 type SharingConfig struct {
 	ID              string   `json:"id" gorm:"primaryKey"`
@@ -191,7 +201,9 @@ type BaseVaultConfig struct {
 }
 
 // -----------------------------
-// 	 FeatureFlags 
+//
+//	FeatureFlags
+//
 // -----------------------------
 type FeatureFlags struct {
 	TracecoreEnabled        bool `json:"tracecore_enabled"`
@@ -202,16 +214,19 @@ type FeatureFlags struct {
 }
 
 // -----------------------------
-// 	 SyncConfig 
+//
+//	SyncConfig
+//
 // -----------------------------
 type SyncConfig struct {
 	BaseVaultConfig
-	AutoSync bool `json:"auto_sync" gorm:"column:auto_sync"`
-	SyncIntervalSeconds int `json:"sync_interval_seconds" gorm:"column:sync_interval_seconds"`
-	ConflictStrategy string `json:"conflict_strategy" gorm:"column:conflict_strategy"`
-	MaxRetries int `json:"max_retries" gorm:"column:max_retries"`
-	StellarFrequency string `json:"stellar_frequency" gorm:"column:stellar_frequency"`
+	AutoSync            bool   `json:"auto_sync" gorm:"column:auto_sync"`
+	SyncIntervalSeconds int    `json:"sync_interval_seconds" gorm:"column:sync_interval_seconds"`
+	ConflictStrategy    string `json:"conflict_strategy" gorm:"column:conflict_strategy"`
+	MaxRetries          int    `json:"max_retries" gorm:"column:max_retries"`
+	StellarFrequency    string `json:"stellar_frequency" gorm:"column:stellar_frequency"`
 }
+
 func (s *SyncConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if s.ID == "" {
 		s.ID = uuid.New().String()
@@ -219,17 +234,18 @@ func (s *SyncConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	return nil
 }
 
-
 type VaultConfigBeta struct {
 	BaseVaultConfig
 
-	Features FeatureFlags `json:"features" gorm:"embedded;embeddedPrefix:features_"`
-	Sync     SyncConfig `json:"sync" gorm:"embedded;embeddedPrefix:sync_"`
-	Backup   BackupConfig `json:"backup" gorm:"embedded;embeddedPrefix:backup_"`
-	Privacy  PrivacyConfig `json:"privacy" gorm:"embedded;embeddedPrefix:privacy_"`
-	Security SecurityConfig `json:"security" gorm:"embedded;embeddedPrefix:security_"`
-	Sharing  SharingPolicy `json:"sharing" gorm:"embedded;embeddedPrefix:sharing_"`
+	Features   FeatureFlags     `json:"features" gorm:"embedded;embeddedPrefix:features_"`
+	Sync       SyncConfig       `json:"sync" gorm:"embedded;embeddedPrefix:sync_"`
+	Backup     BackupConfig     `json:"backup" gorm:"embedded;embeddedPrefix:backup_"`
+	Privacy    PrivacyConfig    `json:"privacy" gorm:"embedded;embeddedPrefix:privacy_"`
+	Security   SecurityConfig   `json:"security" gorm:"embedded;embeddedPrefix:security_"`
+	Sharing    SharingPolicy    `json:"sharing" gorm:"embedded;embeddedPrefix:sharing_"`
+	Onboarding OnboardingConfig `json:"onboarding" gorm:"embedded;embeddedPrefix:onboarding_"`
 }
+
 func (dc *VaultConfigBeta) BeforeCreate(tx *gorm.DB) (err error) {
 	if dc.ID == "" {
 		dc.ID = uuid.New().String()
@@ -237,17 +253,19 @@ func (dc *VaultConfigBeta) BeforeCreate(tx *gorm.DB) (err error) {
 	return nil
 }
 
-
 // -----------------------------
-// 	 BackupConfig 
+//
+//	BackupConfig
+//
 // -----------------------------
 type BackupConfig struct {
 	BaseVaultConfig
-	Enabled bool `json:"enabled" gorm:"column:enabled"`
-	Schedule string `json:"schedule" gorm:"column:schedule"`
-	RetentionDays int `json:"retention_days" gorm:"column:retention_days"`
-	Encryption bool `json:"encryption" gorm:"column:encryption"`
+	Enabled       bool   `json:"enabled" gorm:"column:enabled"`
+	Schedule      string `json:"schedule" gorm:"column:schedule"`
+	RetentionDays int    `json:"retention_days" gorm:"column:retention_days"`
+	Encryption    bool   `json:"encryption" gorm:"column:encryption"`
 }
+
 func (b *BackupConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if b.ID == "" {
 		b.ID = uuid.New().String()
@@ -256,13 +274,16 @@ func (b *BackupConfig) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // -----------------------------
-// 	 PrivacyConfig 
+//
+//	PrivacyConfig
+//
 // -----------------------------
 type PrivacyConfig struct {
 	BaseVaultConfig
 	TelemetryEnabled bool `json:"telemetry_enabled" gorm:"column:telemetry_enabled"`
-	AnonymousMode bool `json:"anonymous_mode" gorm:"column:anonymous_mode"`
+	AnonymousMode    bool `json:"anonymous_mode" gorm:"column:anonymous_mode"`
 }
+
 func (p *PrivacyConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if p.ID == "" {
 		p.ID = uuid.New().String()
@@ -270,17 +291,19 @@ func (p *PrivacyConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	return nil
 }
 
-
 // -----------------------------
-// 	 NotificationConfig 
+//
+//	NotificationConfig
+//
 // -----------------------------
 type NotificationConfig struct {
 	BaseVaultConfig
-	BillingAlerts bool `json:"billing_alerts" gorm:"column:billing_alerts"`
+	BillingAlerts  bool `json:"billing_alerts" gorm:"column:billing_alerts"`
 	SecurityAlerts bool `json:"security_alerts" gorm:"column:security_alerts"`
-	ShareInvites bool `json:"share_invites" gorm:"column:share_invites"`
-	SystemUpdates bool `json:"system_updates" gorm:"column:system_updates"`
+	ShareInvites   bool `json:"share_invites" gorm:"column:share_invites"`
+	SystemUpdates  bool `json:"system_updates" gorm:"column:system_updates"`
 }
+
 func (nc *NotificationConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if nc.ID == "" {
 		nc.ID = uuid.New().String()
@@ -289,24 +312,29 @@ func (nc *NotificationConfig) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // -----------------------------
-// 	 DeviceConfig 
+//
+//	DeviceConfig
+//
 // -----------------------------
 type DeviceConfig struct {
 	BaseVaultConfig
-	DeviceID string `json:"device_id" gorm:"column:device_id"`
+	DeviceID   string `json:"device_id" gorm:"column:device_id"`
 	DeviceName string `json:"device_name" gorm:"column:device_name"`
-	Trusted bool `json:"trusted" gorm:"column:trusted"`
-	LastSync int64 `json:"last_sync" gorm:"column:last_sync"`
+	Trusted    bool   `json:"trusted" gorm:"column:trusted"`
+	LastSync   int64  `json:"last_sync" gorm:"column:last_sync"`
 }
+
 func (dc *DeviceConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if dc.ID == "" {
 		dc.ID = uuid.New().String()
 	}
 	return nil
-}	
+}
 
 // -----------------------------
-// 	 SecurityConfig 
+//
+//	SecurityConfig
+//
 // -----------------------------
 type SecurityConfig struct {
 	AutoLockSeconds     int
@@ -316,7 +344,9 @@ type SecurityConfig struct {
 }
 
 // -----------------------------
-// 	 SharingPolicy 
+//
+//	SharingPolicy
+//
 // -----------------------------
 type SharingPolicy struct {
 	AllowExternalSharing bool
@@ -326,7 +356,9 @@ type SharingPolicy struct {
 }
 
 // -----------------------------
-// 	 DevicePolicy 
+//
+//	DevicePolicy
+//
 // -----------------------------
 type DevicePolicy struct {
 	MaxDevices             int
@@ -335,14 +367,17 @@ type DevicePolicy struct {
 }
 
 // -----------------------------
-// 		SubscriptionConfig 
-// -----------------------------	
+//
+//	SubscriptionConfig
+//
+// -----------------------------
 type SubscriptionConfig struct {
 	BaseVaultConfig
-	Plan string `json:"plan" gorm:"column:plan"`
-	Features FeatureFlags `json:"features" gorm:"embedded;embeddedPrefix:features_"`
-	Limits SubscriptionLimits	`json:"limits" gorm:"embedded;embeddedPrefix:limits_"`
+	Plan     string             `json:"plan" gorm:"column:plan"`
+	Features FeatureFlags       `json:"features" gorm:"embedded;embeddedPrefix:features_"`
+	Limits   SubscriptionLimits `json:"limits" gorm:"embedded;embeddedPrefix:limits_"`
 }
+
 func (sc *SubscriptionConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	if sc.ID == "" {
 		sc.ID = uuid.New().String()
@@ -351,13 +386,26 @@ func (sc *SubscriptionConfig) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // -----------------------------
-// 		SubscriptionLimits 
+//
+//	SubscriptionLimits
+//
 // -----------------------------
 type SubscriptionLimits struct {
-	MaxVaults int `json:"max_vaults"`
-	MaxUsers int `json:"max_users"`
+	MaxVaults  int `json:"max_vaults"`
+	MaxUsers   int `json:"max_users"`
 	MaxDevices int `json:"max_devices"`
-	MaxShares int `json:"max_shares"`
+	MaxShares  int `json:"max_shares"`
 	MaxStorage int `json:"maxstorage"`
 }
-	
+
+// -----------------------------
+//
+//	OnboardingConfig
+//
+// -----------------------------
+type OnboardingConfig struct {
+	Packs              []string `json:"packs" gorm:"type:json"`               // ["compliance_critical","client_data"]
+	UseCases           []string `json:"use_cases" gorm:"type:json"`           // optional UI labels if you want
+	InstalledTemplates []string `json:"installed_templates" gorm:"type:json"` // ["devsecops.incident.v1", ...]
+	Completed          bool     `json:"completed" gorm:"column:completed"`
+}

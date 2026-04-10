@@ -20,6 +20,7 @@ type IdentityHandler struct {
 	Vault  *vaults_domain.VaultPayload
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
+	SyncMode bool
 }
 
 func NewIdentityHandler(db models.DBModel, log *logger.Logger) *IdentityHandler {
@@ -61,6 +62,9 @@ func (h *IdentityHandler) Edit(userID string, entry any) (*vaults_domain.VaultPa
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			entries[i] = *updatedEntry
+			updatedEntry.IsDraft = true
+			updatedEntry.IsDirty = true
+			updatedEntry.UpdatedAt = h.NowUTC()
 			updated = true
 			break
 		}
@@ -90,6 +94,8 @@ func (h *IdentityHandler) TrashIdentityEntryAction(userID string, entryID string
 	for i, entry := range h.Vault.Entries.Identity {
 		if entry.ID == entryID {
 			h.Vault.Entries.Identity[i].Trashed = trashed
+			h.Vault.Entries.Identity[i].IsDirty = true
+
 			state := "restored"
 			if trashed {
 				state = "trashed"
@@ -122,6 +128,7 @@ func (h *IdentityHandler) EditWithAttachments(userID string, entry any, attachme
 	
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
+	updatedEntry.IsDirty = true
 
 	entries := h.Vault.Entries.Identity
 	updated := false
@@ -177,7 +184,7 @@ func (h *IdentityHandler) SaveAttachment(userID string, data []byte) (string, er
 	h.logger.Info("✅ IdentityHandler - SaveAttachment: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	h.logger.Info("✅ IdentityHandler - SaveAttachment: vault path: %s", vaultPath)
 
 	// Create attachment store
@@ -197,4 +204,8 @@ func (h *IdentityHandler) SaveAttachment(userID string, data []byte) (string, er
 
 func (h *IdentityHandler) SetVaultRepository(vaultRepository vaults_domain.VaultRepository) {
 	h.VaultRepository = vaultRepository
+}
+
+func (h *IdentityHandler) SetSyncMode(b bool) {
+	h.SyncMode = b
 }

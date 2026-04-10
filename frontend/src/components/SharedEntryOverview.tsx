@@ -1,4 +1,4 @@
-import { SharedEntry, DetailView } from "@/types/sharing";
+import { SharedEntry, DetailView, Recipient } from "@/types/sharing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";

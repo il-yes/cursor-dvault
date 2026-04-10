@@ -6,7 +6,7 @@ import { useVault } from "@/hooks/useVault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useToast } from "@/hooks/use-toast";
 import { uploadAttachments } from "@/services/api";
-import { SelectedAttachment } from "@/types/vault";
+import { SelectedAttachment, UploadStorage } from "@/types/vault";
 import { useVaultStore } from "@/store/vaultStore";
 
 interface FileUploadWidgetProps {
@@ -16,6 +16,8 @@ interface FileUploadWidgetProps {
   value?: File[];
   entry: any;
   vaultName: string;
+  setAttachments: (attachments: any[]) => void;
+  attachments: any[];
 }
 
 const ACCEPTED_TYPES = [
@@ -35,6 +37,8 @@ export function FileUploadWidget({
   value = [],
   entry,
   vaultName,
+  setAttachments,
+  attachments,
 }: FileUploadWidgetProps) {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
@@ -42,7 +46,7 @@ export function FileUploadWidget({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const vaultPassword = "vaultPassword";
   const { jwtToken } = useAuthStore.getState();
-    const updateEntry = useVaultStore((state) => state.updateEntry);
+    const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
 
   const [progressVisible, setProgressVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -117,7 +121,8 @@ export function FileUploadWidget({
           return {
             name: file.name,
             size: file.size,
-            data: [...buffer]
+            data: [...buffer],
+            storage: UploadStorage.LOCAL
           }
         })
       )
@@ -129,7 +134,8 @@ export function FileUploadWidget({
       const updates = {
         attachments: entryWithAttachments.attachments
       }
-      await updateEntry(entry.id, updates);
+      await updateEntryAttachements(entry.id, updates);
+      setAttachments(entryWithAttachments.attachments)
 
       toast({
         title: "Attachments uploaded",

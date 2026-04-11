@@ -20,6 +20,7 @@ type SSHKeyHandler struct {
 	Vault  vaults_domain.VaultPayload
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
+	SyncMode bool
 }
 
 func NewSSHKeyHandler(db models.DBModel, log *logger.Logger) *SSHKeyHandler {
@@ -55,6 +56,9 @@ func (h *SSHKeyHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayl
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			entries[i] = *updatedEntry
+			updatedEntry.IsDraft = true
+			updatedEntry.IsDirty = true
+			updatedEntry.UpdatedAt = h.NowUTC()
 			updated = true
 			break
 		}
@@ -80,6 +84,8 @@ func (h *SSHKeyHandler) TrashSSHKeyEntryAction(userID string, entryID string, tr
 	for i, entry := range h.Vault.Entries.SSHKey {
 		if entry.ID == entryID {
 			h.Vault.Entries.SSHKey[i].Trashed = trashed
+			h.Vault.Entries.SSHKey[i].IsDirty = true
+
 			state := "restored"
 			if trashed {
 				state = "trashed"
@@ -112,6 +118,7 @@ func (h *SSHKeyHandler) EditWithAttachments(userID string, entry any, attachment
 	
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
+	updatedEntry.IsDirty = true
 
 	entries := h.Vault.Entries.SSHKey
 	updated := false
@@ -167,7 +174,7 @@ func (h *SSHKeyHandler) SaveAttachment(userID string, data []byte) (string, erro
 	h.logger.Info("✅ SSHKeyHandler - SaveAttachment: vault retrieved for user %s", userID)
 
 	// Get vault attachement path
-	vaultPath := vault.GetVaultPath()
+	vaultPath := vault.GetVaultAttachmentPath()
 	h.logger.Info("✅ SSHKeyHandler - SaveAttachment: vault path: %s", vaultPath)
 
 	// Create attachment store
@@ -187,4 +194,8 @@ func (h *SSHKeyHandler) SaveAttachment(userID string, data []byte) (string, erro
 
 func (h *SSHKeyHandler) SetVaultRepository(vaultRepository vaults_domain.VaultRepository) {
 	h.VaultRepository = vaultRepository
+}
+
+func (h *SSHKeyHandler) SetSyncMode(b bool) {
+	h.SyncMode = b
 }

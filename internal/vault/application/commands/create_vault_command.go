@@ -1,8 +1,11 @@
 package vault_commands
 
 import (
+	"context"
 	"errors"
+	"vault-app/internal/blockchain"
 	app_config_domain "vault-app/internal/config/domain"
+	"vault-app/internal/tracecore"
 	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
 )
@@ -29,7 +32,8 @@ type CryptoServiceInterface interface {
 }
 
 type IpfsServiceInterface interface {
-	AddData(data []byte) (string, error)
+	// AddData(data []byte) (string, error)
+	Add(ctx context.Context, data []byte) (string, error)
 }
 
 type InitializeVaultHandler interface {
@@ -38,6 +42,7 @@ type InitializeVaultHandler interface {
 
 type CreateIPFSPayloadHandler interface {
 	Execute(cmd CreateIPFSPayloadCommand) (*CreateIPFSPayloadCommandResult, error)
+	SetIpfsService(i IpfsServiceInterface)
 }
 
 // -------- COMMAND handler --------
@@ -72,11 +77,27 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 	// 2. Create IPFS payload	
 	// -----------------------------
+	// 1. LOAD TRACECORE CLIENT
+	// ------------------------------------------------------------
+	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&cmd.AppConfig, "token")	
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+	
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: cmd.AppConfig.Storage,
+		UserID:             cmd.UserSubscriptionID,
+		VaultName:          cmd.VaultName,
+	}, tracecoreClient)
+	h.createIPFSPayloadHandler.SetIpfsService(storageProvider)
+
 	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(CreateIPFSPayloadCommand{
 		Vault:     vault.Vault, 
 		Password:  cmd.Password,
 		AppCfg:    cmd.AppConfig,
-		UserID:    cmd.UserID,
+		UserID:    cmd.UserSubscriptionID,
 		VaultName: cmd.VaultName,
 	})
 	if err != nil {

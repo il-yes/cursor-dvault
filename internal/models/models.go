@@ -296,7 +296,7 @@ type BaseEntry struct {
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
 }
-type JSONMap map[string]string
+type JSONMap map[string]interface{}
 
 func (j *JSONMap) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)

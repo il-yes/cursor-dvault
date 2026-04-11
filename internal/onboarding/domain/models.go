@@ -95,6 +95,7 @@ type AppState struct {
 	HasSession      bool `json:"has_session" gorm:"column:has_session"`
 	HasImportedKey  bool `json:"has_imported_key" gorm:"column:has_imported_key"`
 	NeedsOnboarding bool `json:"needs_onboarding" gorm:"column:needs_onboarding"`
+    IsRecordSupported bool `json:"is_record_supported" gorm:"column:is_record_supported"`
 }
 func (a *AppState) BeforeCreate(tx *gorm.DB) (err error) {
 	a.ID = uuid.New().String()
@@ -107,6 +108,7 @@ func NewAppState() *AppState {
 		HasSession:      false,
 		HasImportedKey:  false,
 		NeedsOnboarding: true,
+        IsRecordSupported: false,
 	}
 }
 

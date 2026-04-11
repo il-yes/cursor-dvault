@@ -85,9 +85,9 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 			},
 		}
 	default:
-		log.Println("⚠️ TRACECORE_STORAGE_MODE is unknown — Tracecore features will be disabled")
+		log.Println("⚠️ TRACECORE_STORAGE_MODE is unknown — Tracecore features will be disabled", appCfg.Storage.Mode)
 		return &TracecoreClient{
-			BaseURL: "https://ankhora.io/back", // appCfg.Storage.Cloud.BaseURL,
+			BaseURL: appCfg.Storage.Cloud.BaseURL, // "https://ankhora.io/back", // appCfg.Storage.Cloud.BaseURL,
 			Token:   token,
 			HTTPClient: &http.Client{
 				Timeout: 30 * time.Second,

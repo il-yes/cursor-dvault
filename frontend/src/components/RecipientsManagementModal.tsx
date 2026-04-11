@@ -15,330 +15,348 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 
 interface RecipientsManagementModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  entry: SharedEntry | null;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	entry: SharedEntry | null;
 }
 
 export function RecipientsManagementModal({
-  open,
-  onOpenChange,
-  entry,
+	open,
+	onOpenChange,
+	entry,
 }: RecipientsManagementModalProps) {
-  const { toast } = useToast();
-  const [recipients, setRecipients] = useState<Recipient[]>(entry?.recipients || []);
-  const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" | "read" }>({
-    name: "",
-    email: "",
-    role: "viewer"
-  });
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newRecipientEmail, setNewRecipientEmail] = useState("");
-  const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner" | "read">("viewer");
-  const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
+	const { toast } = useToast();
+	const [newRecipient, setNewRecipient] = useState<{ name: string; email: string; role: "viewer" | "editor" | "owner" | "read" }>({
+		name: "",
+		email: "",
+		role: "viewer"
+	});
+	const [isAddingNew, setIsAddingNew] = useState(false);
+	const [newRecipientEmail, setNewRecipientEmail] = useState("");
+	const [newRecipientRole, setNewRecipientRole] = useState<"viewer" | "editor" | "owner" | "read">("viewer");
+	// const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
+	const recipients = entry?.recipients || [];
 
-  useEffect(() => {
-    setRecipients(entry?.recipients || []);
-  }, [entry, updateRecipients]);
+	const updateRecipients = useVaultStore(state => state.updateSharedEntryRecipients);
+	const { jwtToken } = useAuthStore.getState();
 
-  const { jwtToken } = useAuthStore.getState();
+	const getPublicKey = async (email: string) => {
+		const response = await AppAPI.CheckUserEmail(jwtToken, email)
+		console.log({ response });
+		return response.public_key;
+	};
 
-  const getPublicKey = async (email: string) => {
-    const response = await AppAPI.CheckUserEmail(jwtToken, email)
-    console.log({ response });
-    return response.public_key;
-  };
+	const handleRoleChange = async (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
+		const updated = recipients.map(r =>
+			r.email === email ? { ...r, role: newRole } : r
+		);
 
-  const handleRoleChange = async (email: string, newRole: "viewer" | "read" | "editor" | "owner") => {
-    setRecipients(recipients.map(r => r.email === email ? { ...r, role: newRole } : r));
-    // call Ankhora cloud backend to update role
-    // send UpdateRecipientRequest payload to Ankhora cloud backend
-    const publicKey = await getPublicKey(email);
-    if (!publicKey) {
-      toast({
-        title: "Error",
-        description: "No public key found for this email",
-      });
-      return;
-    }
+		// call Ankhora cloud backend to update role
+		// send UpdateRecipientRequest payload to Ankhora cloud backend
+		const publicKey = await getPublicKey(email);
+		if (!publicKey) {
+			toast({
+				title: "Error",
+				description: "No public key found for this email",
+			});
+			return;
+		}
 
-    const updateRequest = {
-      share_id: entry.id,
-      email: email,
-      role: newRole,
-    };
+		// zustand store update
+		updateRecipients(entry.id, updated);
 
-    // send UpdateRecipientRequest payload to Ankhora cloud backend
-    const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
-    console.log({ response })
+		try {
+			const updateRequest = {
+				share_id: entry.id,
+				email: email,
+				role: newRole,
+			};
 
-    // zustand store update
-    updateRecipients(entry.id, recipients);
+			// send UpdateRecipientRequest payload to Ankhora cloud backend
+			const response = await AppAPI.UpdateRecipient(jwtToken, updateRequest);
+			console.log({ response })
 
-    toast({
-      title: "Role updated",
-      description: "Recipient role has been changed",
-    });
-  };
+			toast({
+				title: "Role updated",
+				description: "Recipient role has been changed",
+			})
 
-  const handleRemoveRecipient = (recipientId: string) => {
-    setRecipients(recipients.filter(r => r.id !== recipientId));
-    toast({
-      title: "Recipient removed",
-      description: "The recipient has been removed from this shared entry.",
-    });
-  };
+		} catch (e) {
+			// rollback if needed
+			updateRecipients(entry.id, recipients);
+		}
+	};
+
+	const handleRemoveRecipient = (recipientId: string) => {
+		const updated = recipients.filter(r => r.id !== recipientId);
+
+		updateRecipients(entry.id, updated);
+		toast({
+			title: "Recipient removed",
+			description: "The recipient has been removed from this shared entry.",
+		});
+	};
 
 
 
-  // const handleAddRecipient = () => {
-  //   if (!newRecipientEmail.trim()) return;
+	// const handleAddRecipient = () => {
+	//   if (!newRecipientEmail.trim()) return;
 
-  //   const newRecipient: Recipient = {
-  //     id: `recipient-${Date.now()}`,
-  //     name: newRecipientEmail.split("@")[0],
-  //     email: newRecipientEmail,
-  //     role: newRecipientRole,
-  //     share_id: entry!.id,
-  //   };
+	//   const newRecipient: Recipient = {
+	//     id: `recipient-${Date.now()}`,
+	//     name: newRecipientEmail.split("@")[0],
+	//     email: newRecipientEmail,
+	//     role: newRecipientRole,
+	//     share_id: entry!.id,
+	//   };
 
-  //   setRecipients([...recipients, newRecipient]);
-  //   setNewRecipientEmail("");
-  //   setNewRecipientRole("viewer");
-  //   setIsAddingNew(false);
+	//   setRecipients([...recipients, newRecipient]);
+	//   setNewRecipientEmail("");
+	//   setNewRecipientRole("viewer");
+	//   setIsAddingNew(false);
 
-  //   toast({
-  //     title: "Recipient added",
-  //     description: `${newRecipient.email} has been added as ${newRecipientRole}.`,
-  //   });
-  // };
+	//   toast({
+	//     title: "Recipient added",
+	//     description: `${newRecipient.email} has been added as ${newRecipientRole}.`,
+	//   });
+	// };
 
-  const handleAddRecipient = async () => {
-    // TODO: get public key from cloud backend
-    const publicKey = await getPublicKey(newRecipient.email);
-    if (!publicKey) {
-      toast({
-        title: "Error",
-        description: "No public key found for this email",
-      });
-      return;
-    }
+	const handleAddRecipient = async () => {
+		// TODO: get public key from cloud backend
+		const publicKey = await getPublicKey(newRecipientEmail);
+		if (!publicKey) {
+			toast({
+				title: "Error",
+				description: "No public key found for this email",
+			});
+			return;
+		}
+		console.log({ newRecipient, newRecipientEmail, newRecipientRole })
+		const recipient: Recipient = {
+			...newRecipient,
+			id: `rec-${Date.now()}`,
+			share_id: entry.id,
+			public_key: publicKey,
+			email: newRecipientEmail,
+			role: newRecipientRole,
+			joined_at: new Date().toISOString(),
+		};
+		console.log({ recipient })
+		const updated = [...recipients, recipient];
 
-    const recipient: Recipient = {
-      id: `rec-${Date.now()}`,
-      share_id: entry.id,
-      public_key: publicKey,
-      ...newRecipient,
-      joined_at: new Date().toISOString(),
-    };
+		try {
+			// send AddRecipientRequest payload to Ankhora cloud backend
+			const response = await AppAPI.AddRecipient(jwtToken, recipient);
+			console.log({ response })
 
-    // send AddRecipientRequest payload to Ankhora cloud backend
-    const response = await AppAPI.AddRecipient(jwtToken, recipient);
-    console.log({ response })
+			// zustand store update
+			updateRecipients(entry.id, updated);   // correct sync		
 
-    // zustand store update
-    setRecipients(prev => {
-      const updated = [...prev, recipient];
-      updateRecipients(entry.id, updated);   // correct sync
-      return updated;
-    });
+			setNewRecipient({ name: "", email: "", role: "viewer" });
+			setNewRecipientRole("viewer");
+			setIsAddingNew(false);
 
-    setNewRecipient({ name: "", email: "", role: "viewer" });
-    setNewRecipientRole("viewer");
-    setIsAddingNew(false);
+			toast({
+				title: "Recipient added",
+				description: `${recipient.name} has been added as a ${recipient.role}`,
+			});
 
-    toast({
-      title: "Recipient added",
-      description: `${recipient.name} has been added as a ${recipient.role}`,
-    });
+		} catch (error) {
+			updateRecipients(entry.id, entry.recipients);
+			toast({
+				title: "Failed to add Recipient",
+				description: `${recipient.name} has been not added as a ${recipient.role}`,
+			});
 
-  };
+		}
 
-  const handleResendInvitation = (recipient: Recipient) => {
-    toast({
-      title: "Invitation sent",
-      description: `Invitation resent to ${recipient.email}`,
-    });
-  };
+	};
 
-  const handleSaveChanges = () => {
-    // In real app, this would make an API call
-    toast({
-      title: "Changes saved",
-      description: "Recipient permissions have been updated.",
-    });
-    onOpenChange(false);
-  };
+	const handleResendInvitation = (recipient: Recipient) => {
+		toast({
+			title: "Invitation sent",
+			description: `Invitation resent to ${recipient.email}`,
+		});
+	};
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "owner":
-        return "bg-[#C9A44A]/10 text-[#C9A44A] border-[#C9A44A]/20";
-      case "editor":
-        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
-      default:
-        return "bg-secondary";
-    }
-  };
+	const handleSaveChanges = () => {
+		// In real app, this would make an API call
+		toast({
+			title: "Changes saved",
+			description: "Recipient permissions have been updated.",
+		});
+		onOpenChange(false);
+	};
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>Manage Recipients</DialogTitle>
-          {entry && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {entry.entry_name}
-            </p>
-          )}
-        </DialogHeader>
+	const getRoleBadgeColor = (role: string) => {
+		switch (role) {
+			case "owner":
+				return "bg-[#C9A44A]/10 text-[#C9A44A] border-[#C9A44A]/20";
+			case "editor":
+				return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+			default:
+				return "bg-secondary";
+		}
+	};
 
-        <ScrollArea className="max-h-[50vh] pr-4">
-          <div className="space-y-4 py-4">
-            {/* Add New Recipient */}
-            {isAddingNew ? (
-              <div className="p-4 border border-border rounded-lg space-y-4 bg-secondary/20">
-                <div className="space-y-2">
-                  <Label htmlFor="new-email">Email Address</Label>
-                  <Input
-                    id="new-email"
-                    type="email"
-                    placeholder="recipient@example.com"
-                    value={newRecipientEmail}
-                    onChange={(e) => setNewRecipientEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddRecipient();
-                      if (e.key === "Escape") setIsAddingNew(false);
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-role">Role</Label>
-                  <Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner" | "read")}>
-                    <SelectTrigger id="new-role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="read">Viewer</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                      <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleAddRecipient}
-                    disabled={!newRecipientEmail.trim()}
-                    className="bg-[#C9A44A] hover:bg-[#B8934A]"
-                  >
-                    Add Recipient
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsAddingNew(false);
-                      setNewRecipientEmail("");
-                      setNewRecipientRole("viewer");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setIsAddingNew(true)}
-              >
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Recipient
-              </Button>
-            )}
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-2xl max-h-[80vh]">
+				<DialogHeader>
+					<DialogTitle>Manage Recipients</DialogTitle>
+					{entry && (
+						<p className="text-sm text-muted-foreground mt-1">
+							{entry.entry_name}
+						</p>
+					)}
+				</DialogHeader>
 
-            {/* Recipients List */}
-            {recipients.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No recipients yet</p>
-                <p className="text-sm mt-1">Add recipients to share this entry</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recipients.map((recipient) => (
-                  <div
-                    key={recipient.id}
-                    className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/50 transition-colors"
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10">
-                        {recipient.name.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+				<ScrollArea className="max-h-[50vh] pr-4">
+					<div className="space-y-4 py-4">
+						{/* Add New Recipient */}
+						{isAddingNew ? (
+							<div className="p-4 border border-border rounded-lg space-y-4 bg-secondary/20">
+								<div className="space-y-2">
+									<Label htmlFor="new-email">Email Address</Label>
+									<Input
+										id="new-email"
+										type="email"
+										placeholder="recipient@example.com"
+										value={newRecipientEmail}
+										onChange={(e) => setNewRecipientEmail(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") handleAddRecipient();
+											if (e.key === "Escape") setIsAddingNew(false);
+										}}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="new-role">Role</Label>
+									<Select value={newRecipientRole} onValueChange={(value) => setNewRecipientRole(value as "viewer" | "editor" | "owner" | "read")}>
+										<SelectTrigger id="new-role">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="read">Viewer</SelectItem>
+											<SelectItem value="viewer">Viewer</SelectItem>
+											<SelectItem value="editor">Editor</SelectItem>
+											<SelectItem value="owner">Owner</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="flex gap-2">
+									<Button
+										onClick={handleAddRecipient}
+										disabled={!newRecipientEmail.trim()}
+										className="bg-[#C9A44A] hover:bg-[#B8934A]"
+									>
+										Add Recipient
+									</Button>
+									<Button
+										variant="outline"
+										onClick={() => {
+											setIsAddingNew(false);
+											setNewRecipientEmail("");
+											setNewRecipientRole("viewer");
+										}}
+									>
+										Cancel
+									</Button>
+								</div>
+							</div>
+						) : (
+							<Button
+								variant="outline"
+								className="w-full"
+								onClick={() => setIsAddingNew(true)}
+							>
+								<UserPlus className="h-4 w-4 mr-2" />
+								Add Recipient
+							</Button>
+						)}
 
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{recipient.name}</p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {recipient.email}
-                      </p>
-                    </div>
+						{/* Recipients List */}
+						{recipients.length === 0 ? (
+							<div className="text-center py-8 text-muted-foreground">
+								<p>No recipients yet</p>
+								<p className="text-sm mt-1">Add recipients to share this entry</p>
+							</div>
+						) : (
+							<div className="space-y-3">
+								{recipients.map((recipient) => (
+									<div
+										key={recipient.id}
+										className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/50 transition-colors"
+									>
+										<Avatar className="h-10 w-10">
+											<AvatarFallback className="bg-primary/10">
+												{recipient.name.slice(0, 2).toUpperCase()}
+											</AvatarFallback>
+										</Avatar>
 
-                    <Select
-                      value={recipient?.role}
-                      onValueChange={(value) => handleRoleChange(recipient.email, value as "viewer" | "editor" | "owner" | "read")}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="read">Viewer</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="owner">Owner</SelectItem>
-                      </SelectContent>
-                    </Select>
+										<div className="flex-1 min-w-0">
+											<p className="font-medium truncate">{recipient.name}</p>
+											<p className="text-sm text-muted-foreground truncate">
+												{recipient.email}
+											</p>
+										</div>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleResendInvitation(recipient)}
-                      title="Resend invitation"
-                    >
-                      <Mail className="h-4 w-4" />
-                    </Button>
+										<Select
+											value={recipient?.role}
+											onValueChange={(value) => handleRoleChange(recipient.email, value as "viewer" | "editor" | "owner" | "read")}
+										>
+											<SelectTrigger className="w-32">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="read">Viewer</SelectItem>
+												<SelectItem value="viewer">Viewer</SelectItem>
+												<SelectItem value="editor">Editor</SelectItem>
+												<SelectItem value="owner">Owner</SelectItem>
+											</SelectContent>
+										</Select>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveRecipient(recipient.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      title="Remove recipient"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+										<Button
+											variant="ghost"
+											size="icon"
+											onClick={() => handleResendInvitation(recipient)}
+											title="Resend invitation"
+										>
+											<Mail className="h-4 w-4" />
+										</Button>
 
-            <p className="text-xs text-muted-foreground mt-4">
-              Recipients must have verified sovereign identity to access shared entries.
-            </p>
-          </div>
-        </ScrollArea>
+										<Button
+											variant="ghost"
+											size="icon"
+											onClick={() => handleRemoveRecipient(recipient.id)}
+											className="text-destructive hover:text-destructive hover:bg-destructive/10"
+											title="Remove recipient"
+										>
+											<Trash2 className="h-4 w-4" />
+										</Button>
+									</div>
+								))}
+							</div>
+						)}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveChanges}
-            className="bg-[#C9A44A] hover:bg-[#B8934A]"
-          >
-            Save Changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+						<p className="text-xs text-muted-foreground mt-4">
+							Recipients must have verified sovereign identity to access shared entries.
+						</p>
+					</div>
+				</ScrollArea>
+
+				<DialogFooter>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Cancel
+					</Button>
+					<Button
+						onClick={handleSaveChanges}
+						className="bg-[#C9A44A] hover:bg-[#B8934A]"
+					>
+						Save Changes
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
 }

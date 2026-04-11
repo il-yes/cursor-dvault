@@ -17,7 +17,6 @@ import (
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
-	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/gorm"
 )
@@ -66,6 +65,7 @@ type RegisterRequest struct {
 // ----------- UseCase Request -----------
 type OnboardRequest struct {
 	Identity             string
+	VaultName            string
 	Email                string
 	Password             string
 	IsAnonymous          bool
@@ -156,7 +156,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 	utils.LogPretty("OnboardUseCase - Execute - userIdentity", userIdentity)
 
-	// 3. ------------- App Config creation ------------------
+	// 3. ------------- App Configs creation ------------------
 	configs, err := app_config_domain.InitConfig(userIdentity.ID)
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
@@ -200,7 +200,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	// 3. ------------- Vault creation ------------------
 	result, err := uc.Vault.CreateVault(vault_commands.CreateVaultCommand{
 		UserID:             userIdentity.ID,
-		VaultName:          vaults_domain.DefaultVaultName,
+		VaultName:          req.VaultName,
 		Password:           req.Password,
 		UserSubscriptionID: req.UserSubscriptionID,
 		AppConfig:          *appConfig.AppConfig,
@@ -209,7 +209,6 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		return nil, err
 	}
 	uc.Logger.Info("vault created", result)
-	uc.Logger.Info("OnboardUseCase - BillingHandler", uc.BillingHandler)
 
 	// 4. ------------- Billing registration optional) ------------------
 	if req.PaymentMethod != "" {
@@ -223,15 +222,11 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 
 	// 5. ------------- (Optional event...) ------------------
-	utils.LogPretty("OnboardUseCase - Executing... - appStateRepo", uc.AppStateRepo)
 	appState := onboarding_domain.NewAppState()
-	utils.LogPretty("OnboardUseCase - Executing... - appState", appState)
 	appState.SetHasVault(true)
-	utils.LogPretty("OnboardUseCase - Executing... - appState", appState)
 	appStateRepo := onboarding_persistence.NewAppStateRepository(
 		uc.gormDb,
 	)
-	utils.LogPretty("OnboardUseCase - Executing... - appStateRepo", appStateRepo)
 	appStateRepo.Save(appState)
 		
 

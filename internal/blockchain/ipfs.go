@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
 	app_config "vault-app/internal/config"
-	"vault-app/internal/tracecore/types"
+	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 
-	"github.com/ipfs/go-ipfs-api"
+	shell "github.com/ipfs/go-ipfs-api"
 )
 
 type TracecoreClt interface {
@@ -24,18 +26,20 @@ type TracecoreClt interface {
 // ---------------------------------------------------------
 
 type Config struct {
-	StorageConfig      app_config.StorageConfig
-	UserID             string
-	VaultName          string
+	StorageConfig app_config.StorageConfig
+	UserID        string
+	VaultName     string
 }
 
 func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvider {
 	switch cfg.StorageConfig.Mode {
 
 	case app_config.StorageCloud:
+		utils.LogPretty("StorageCloud - Cloud.APIEndpoint", cfg.StorageConfig.Cloud.BaseURL)
 		return NewCloudIPFSStorage(client, cfg.UserID, cfg.VaultName)
 
 	case app_config.StorageLocal:
+		utils.LogPretty("StorageLocal - LocalIPFS.APIEndpoint", cfg.StorageConfig.LocalIPFS.APIEndpoint)
 		return NewDirectIPFSStorage(cfg.StorageConfig.LocalIPFS.APIEndpoint)
 
 	case app_config.StoragePrivateIPFS:
@@ -56,7 +60,7 @@ func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvi
 }
 
 // ---------------------------------------------------------
-// IPFS Client
+// IPFS Client - to delete - Duplicata with localIPFS 
 // ---------------------------------------------------------
 type IPFSClient struct {
 	shell *shell.Shell
@@ -73,32 +77,99 @@ func NewIPFSClient(endpoint string) *IPFSClient {
 	}
 }
 
-// AddData adds encrypted data to IPFS and returns the CID.
-func (client *IPFSClient) AddData(data []byte) (string, error) {
+// AddData adds encrypted data to IPFS and returns the CID. 
+func (client *IPFSClient) Add(ctx context.Context, data []byte) (string, error) {
 	fmt.Println("Adding data to IPFS...")
+	fmt.Println(len(data))
 	reader := bytes.NewReader(data)
 	cid, err := client.shell.Add(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to add data to IPFS: %w", err)
 	}
+	err = client.shell.Pin(cid)
+	if err != nil {
+		return "", fmt.Errorf("failed to pin: %w", err)
+	}
 	return cid, nil
 }
-
-// GetData retrieves data from IPFS using CID.
 func (client *IPFSClient) GetData(cid string) ([]byte, error) {
-	readCloser, err := client.shell.Cat(cid)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve data from IPFS: %w", err)
-	}
-	defer readCloser.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-	data, err := io.ReadAll(readCloser)
+	resp, err := client.shell.Request("cat", cid).Send(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("IPFS request failed: %w", err)
+	}
+	defer resp.Close()
+
+	if resp.Error != nil {
+		return nil, fmt.Errorf("IPFS response error: %v", resp.Error)
+	}
+
+	data, err := io.ReadAll(resp.Output) // 🔥 THIS IS THE FIX
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IPFS output: %w", err)
+	}
+
+	utils.LogPretty("IPFS DATA SIZE:", len(data)) // 🔥 DEBUG
+	utils.LogPretty("resp.Output is nil?", resp.Output == nil)
+
+	return data, nil
+}
+
+// Legacy
+func (client *IPFSClient) GetData1(cid string) ([]byte, error) {
+	// readCloser, err := client.shell.Cat(cid)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to retrieve data from IPFS: %w", err)
+	// }
+	fmt.Print("Before ReadAll")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.shell.Request("cat", cid).Send(ctx)
+	// resp, err := http.Get("http://127.0.0.1:8080/ipfs/" + cid)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Close()
+
+	data, err := io.ReadAll(resp.Output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read IPFS content: %w", err)
 	}
 	return data, nil
 }
+func (client *IPFSClient) GetData0(cid string) ([]byte, error) {
+	resp, err := http.Get("http://127.0.0.1:8080/ipfs/" + cid)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
+	return io.ReadAll(resp.Body)
+}
+func (client *IPFSClient) GetData2(cid string) ([]byte, error) {
+	resp, err := client.shell.Request("cat", cid).Send(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Close()
+
+	if resp.Error != nil {
+		return nil, fmt.Errorf("ipfs error: %s", resp.Error.Message)
+	}
+
+	data, err := io.ReadAll(resp.Output)
+	if err != nil {
+		return nil, err
+	}
+
+	// 🔥 CRITICAL: drain remaining body if any
+	io.Copy(io.Discard, resp.Output)
+
+	return data, nil
+}
 
 // ---------------------------------------------------------
 // Local IPFS Storage
@@ -117,8 +188,23 @@ func NewDirectIPFSStorage(endpoint string) *DirectIPFSStorage {
 }
 
 func (d *DirectIPFSStorage) Add(ctx context.Context, data []byte) (string, error) {
+	shellID, err := d.shell.ID()
+	if err != nil {
+		utils.LogPretty("DirectIPFSStorage - Add - shell.ID()", err)
+	}
+	utils.LogPretty("DirectIPFSStorage - Add - shell.ID()", shellID)
 	reader := bytes.NewReader(data)
-	return d.shell.Add(reader)
+	utils.LogPretty("DirectIPFSStorage - Add - reader", reader)
+	cid, err := d.shell.Add(reader)
+	if err != nil {
+		utils.LogPretty("DirectIPFSStorage - Add - err", err)
+	}
+	utils.LogPretty("DirectIPFSStorage - Add - added cid", cid)
+	err = d.shell.Pin(cid)
+	if err != nil {
+		utils.LogPretty("DirectIPFSStorage - Add - pin err", err)
+	}
+	return cid, nil
 }
 
 func (d *DirectIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) {
@@ -140,6 +226,8 @@ type CloudIPFSStorage struct {
 }
 
 func NewCloudIPFSStorage(client TracecoreClt, userID, vault string) *CloudIPFSStorage {
+	utils.LogPretty("CloudIPFSStorage - NewCloudIPFSStorage - userID", userID)
+
 	return &CloudIPFSStorage{
 		client: client,
 		userID: userID,
@@ -151,9 +239,8 @@ func (c *CloudIPFSStorage) Add(ctx context.Context, data []byte) (string, error)
 	req := tracecore_types.SyncVaultStreamRequest{
 		UserID:    c.userID,
 		VaultName: c.vault,
-		Stream:      data,
+		Stream:    data,
 	}
-
 	resp, err := c.client.AddToIPFS(ctx, req)
 	if err != nil {
 		return "", err
@@ -179,7 +266,6 @@ func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) 
 	return []byte(resp.Data), nil
 }
 
-
 // ---------------------------------------------------------
 // Enterprise S3 Storage
 // ---------------------------------------------------------
@@ -201,7 +287,7 @@ func (e *EnterpriseS3Storage) Add(ctx context.Context, data []byte) (string, err
 	response, err := e.client.AddToS3(ctx, tracecore_types.SyncVaultStreamRequest{
 		UserID:    e.userID,
 		VaultName: e.vault,
-		Stream:      data,
+		Stream:    data,
 	})
 	if err != nil {
 		return "", err
@@ -220,7 +306,6 @@ func (e *EnterpriseS3Storage) Get(ctx context.Context, cid string) ([]byte, erro
 	}
 	return []byte(response.Data.Data), nil
 }
-
 
 // ---------------------------------------------------------
 // Hybrid Storage

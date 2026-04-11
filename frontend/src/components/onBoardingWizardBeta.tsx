@@ -7,6 +7,7 @@ import {
     CreateAccount,
     SetupPaymentAndActivate,
     GetTierFeatures,
+    SetupFreeAndActivate,
 } from '../services/api';
 import StellarKeyImport from './ImportStellarKey';
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
@@ -66,6 +67,10 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
     const [cardError, setCardError] = useState<string | null>(null);
     const [cardLoading, setCardLoading] = useState(false);
+    const intervalRef = useRef<number | null>(null);
+    const [showConfirmation, setShowConfirmation] = useState(false);
+
+    const called = useRef(false)
 
 
     // ✅ Add these refs + types at top of component (after hooks):
@@ -73,8 +78,9 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     const emailRef = useRef<HTMLInputElement>(null);
     const firstNameRef = useRef<HTMLInputElement>(null);
     const lastNameRef = useRef<HTMLInputElement>(null);
-
+    const [pollingActive, setPollingActive] = useState(false);
     // const cardElement = elements?.getElement(CardElement);
+    const rail = "standard"
 
 
     // Load tier features on mount
@@ -94,6 +100,14 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
         })();
         return () => {
             isMounted = false;
+        };
+    }, []);
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
         };
     }, []);
 
@@ -170,6 +184,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 tier: selectedTier,
                 is_anonymous: isAnonymous,
             })) as unknown as CreateAccountResponse;
+            console.log({ response })
 
             setUserId(response.user_id);
 
@@ -181,9 +196,48 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 setStep(4.5); // secret key backup step
             } else {
                 // Identified account: branch based on tier
-                if (selectedTier === 'free') {
-                    setStep(6);
-                    onComplete?.();
+                if (response && selectedTier === 'free') {
+                    if (called.current) return
+                    called.current = true
+                    // Get checkoutUrl
+                    const bronzePlan = "bronze"
+                    const url = await AppAPI.GetCheckoutURL(identity, isAnonymous, rail, email, selectedTier, bronzePlan);
+
+                    // activate free tier subscription
+                    const response = await AppAPI.SetupFreeAndActivate({
+                        is_anonymous: isAnonymous,
+                        user_id: userId,
+                        email: email,
+                        tier: selectedTier,
+                        plan: "free",
+                        password: password,
+                        session_id: url.sessionId,
+                    });
+                    console.log({ response })
+
+                    setPollingActive(true);
+
+                    intervalRef.current = window.setInterval(async () => {
+                        try {
+
+                            console.log("Polling for payment status...");
+                            const status = await AppAPI.PollPaymentStatus(url.sessionId, email, password);
+
+                            if (status === "paid" || status === "active") {
+                                console.log("Payment confirmed");
+                                clearInterval(intervalRef.current!);
+                                intervalRef.current = null;
+
+                                setPollingActive(false);
+                                setShowConfirmation(true);
+
+                                onComplete();
+                                setStep(6);
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }, 1000);
                 } else {
                     setStep(5); // payment setup
                 }
@@ -197,7 +251,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
     }, [email, password, isAnonymous, selectedTier, onComplete]);
 
     // Step 4.5: Secret key backup (anonymous only)
-    const confirmSecretKeyBackup = useCallback(() => {
+    const confirmSecretKeyBackup = useCallback(async () => {
         if (selectedTier === 'free') {
             setStep(6);
             onComplete?.();
@@ -371,11 +425,6 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
 
     const handleSkip = () => {
         setStep(6);
-    };
-
-    const GetSession = async () => {
-        const session = await AppAPI.GetSession(userId);
-        console.log("Session:", session);
     };
 
     return (

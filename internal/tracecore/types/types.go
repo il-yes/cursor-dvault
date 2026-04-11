@@ -69,9 +69,8 @@ type SyncVaultStreamRequest struct {
 type SyncVaultResponse struct {
 	UserID    string
 	CID       string
-	Sync    VaultSync
 	CreatedAt string
-	Metadata  map[string]string `json:"metadata,omitempty"`
+	// Metadata  map[string]string `json:"metadata,omitempty"`
 }
 type VaultSync struct {
 	ID string
@@ -145,6 +144,7 @@ type AccessCryptoShareRequest struct {
 	RecipientEmail string `json:"recipient_email"`
 	Challenge      string `json:"challenge"`
 	Signature      string `json:"signature"`
+	IPAddress      string `json:"ip_address,omitempty"`
 }
 
 // AccessCryptoShareResponse holds the decrypted data returned after accessing a share.

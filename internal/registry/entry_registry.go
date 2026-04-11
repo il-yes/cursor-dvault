@@ -18,6 +18,7 @@ type EntryHandler interface {
 	SetSession(session *vault_session.Session)
 	SetVaultRepository(vaultRepository vaults_domain.VaultRepository)
 	EditWithAttachments(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultPayload, error)
+	SetSyncMode(syncMode bool)
 }
 
 type EntryRegistry struct {

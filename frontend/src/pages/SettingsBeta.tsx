@@ -92,6 +92,21 @@ const SettingsBeta = () => {
 			telemetryEnabled: false,
 			anonymousMode: false,
 		},
+		onboarding: {
+			packs: [],
+			use_cases: [],
+			installed_templates: [],
+			completed: false
+		},
+		storage: {
+			mode: "local",
+			localIPFS: {
+				api_endpoint: "http://localhost:5001",
+			},
+			cloud: {
+				base_url: "http://localhost:4001/api",
+			},
+		},
 	};
 
 	const [settings, setSettings] = useState<SettingsState>(defaultSettings);
@@ -416,6 +431,35 @@ const SettingsBeta = () => {
 											</AlertDialogFooter>
 										</AlertDialogContent>
 									</AlertDialog>
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Storage Settings */}
+						<Card className="backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl border border-white/40 dark:border-zinc-700/40 shadow-2xl">
+							<CardHeader>
+								<div className="flex items-center gap-2">
+									<Cloud className="h-6 w-6 text-primary" />
+									<CardTitle className="text-2xl font-bold">Storage</CardTitle>
+								</div>
+								<CardDescription className="text-base text-muted-foreground/80 mt-2">Configure storage and backup options</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-7">
+								{/* Storage Mode */}
+								<div className="flex items-center justify-between">
+									<div>
+										<Label htmlFor="storage-mode" className="text-lg font-semibold">Storage Mode</Label>
+										<p className="text-sm text-muted-foreground">Choose where your vault is stored</p>
+									</div>
+									<Select value={settings?.storage?.mode} onValueChange={(value) => updateSettings("storage.mode", value)}>
+										<SelectTrigger className="w-[200px]">
+											<SelectValue placeholder="Select storage mode" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="local">Local</SelectItem>
+											<SelectItem value="cloud">Cloud</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
 							</CardContent>
 						</Card>

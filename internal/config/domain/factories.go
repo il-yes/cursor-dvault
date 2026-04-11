@@ -1,6 +1,7 @@
 package app_config_domain
 
 import (
+	"os"
 	app_config "vault-app/internal/config"
 
 	"github.com/google/uuid"
@@ -14,10 +15,9 @@ const (
 	GitCLIEnabled           = "git_cli_enabled"
 )
 
-
 const (
 	DefaultSyncInterval         = 60
-	DefaultStellarFrequency	= "manual"
+	DefaultStellarFrequency     = "manual"
 	DefaultConflictStrategy     = "last_write_wins"
 	DefaultMaxRetries           = 3
 	DefaultBranch               = "main"
@@ -75,29 +75,7 @@ func InitConfig(userID string) (*Config, error) {
 					GatewayURL:  "https://ipfs.io/ipfs/",
 				},
 			},
-			Storage: app_config.StorageConfig{
-				Mode: app_config.StorageCloud, // ← production default
-
-				LocalIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://localhost:5001",
-					GatewayURL:  "https://ipfs.io/ipfs/",
-				},
-
-				PrivateIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://192.168.1.10:5001",
-					GatewayURL:  "http://192.168.1.10:8080/ipfs/",
-				},
-
-				Cloud: app_config.CloudConfig{
-					BaseURL: "https://ankhora.io/back",
-				},
-
-				EnterpriseS3: app_config.S3Config{
-					Region:   "us-east-1",
-					Bucket:   "ankhora-enterprise",
-					Endpoint: "https://s3.us-east-1.amazonaws.com",
-				},
-			},
+			Storage:  DefaultStorageConfig(),
 		},
 		User: &UserConfig{
 			ID:            userID,
@@ -150,29 +128,7 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 					GatewayURL:  "https://ipfs.io/ipfs/",
 				},
 			},
-			Storage: app_config.StorageConfig{
-				Mode: app_config.StorageCloud, // ← production default
-
-				LocalIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://localhost:5001",
-					GatewayURL:  "https://ipfs.io/ipfs/",
-				},
-
-				PrivateIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://192.168.1.10:5001",
-					GatewayURL:  "http://192.168.1.10:8080/ipfs/",
-				},
-
-				Cloud: app_config.CloudConfig{
-					BaseURL: "https://ankhora.io/back",
-				},
-
-				EnterpriseS3: app_config.S3Config{
-					Region:   "us-east-1",
-					Bucket:   "ankhora-enterprise",
-					Endpoint: "https://s3.us-east-1.amazonaws.com",
-				},
-			},
+			Storage: DefaultStorageConfig(),
 		},
 		User: &UserConfig{
 			ID:            userID,
@@ -243,6 +199,12 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 				RequirePassword:      true,
 				MaxSharesPerEntry:    10,
 			},
+			Onboarding: OnboardingConfig{
+				Packs:              []string{},
+				UseCases:           []string{},
+				InstalledTemplates: []string{},
+				Completed:          false,
+			},
 		},
 		Devices: []DeviceConfig{
 			{
@@ -257,30 +219,60 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 			},
 		},
 		Subscription: &SubscriptionConfig{
-				BaseVaultConfig: BaseVaultConfig{
-					ID:        uuid.NewString(),
-					UserID:    userID,
-					VaultName: vaultName,
-				},
-				Plan: "free",
-				Features: FeatureFlags{
-					TracecoreEnabled:        true,
-					CloudBackupEnabled:      true,
-					ThreatDetectionEnabled:  true,
-					BrowserExtensionEnabled: true,
-					GitCLIEnabled:           true,
-				},
-				Limits: SubscriptionLimits{
-					MaxVaults: DefaultMaxVaults,
-					MaxUsers:  DefaultMaxUsers,
-					MaxDevices: DefaultMaxDevices,
-					MaxShares: DefaultMaxShares,
-				},				
+			BaseVaultConfig: BaseVaultConfig{
+				ID:        uuid.NewString(),
+				UserID:    userID,
+				VaultName: vaultName,
+			},
+			Plan: "free",
+			Features: FeatureFlags{
+				TracecoreEnabled:        true,
+				CloudBackupEnabled:      true,
+				ThreatDetectionEnabled:  true,
+				BrowserExtensionEnabled: true,
+				GitCLIEnabled:           true,
+			},
+			Limits: SubscriptionLimits{
+				MaxVaults:  DefaultMaxVaults,
+				MaxUsers:   DefaultMaxUsers,
+				MaxDevices: DefaultMaxDevices,
+				MaxShares:  DefaultMaxShares,
+			},
 		},
 	}
 
 	return cfg, nil
 }
+
+func DefaultStorageConfig() app_config.StorageConfig {
+	return app_config.StorageConfig{
+		Mode: app_config.StorageCloud, // ← production default
+
+		LocalIPFS: app_config.IPFSConfig{
+			APIEndpoint: "http://localhost:5001",
+			GatewayURL:  "https://ipfs.io/ipfs/",
+		},
+
+		PrivateIPFS: app_config.IPFSConfig{
+			APIEndpoint: "http://192.168.1.10:5001",
+			GatewayURL:  "http://192.168.1.10:8080/ipfs/",
+		},
+
+		Cloud: app_config.CloudConfig{
+			BaseURL: os.Getenv("CLOUD_BACK_URL"), // "https://ankhora.io/back",
+		},
+
+		EnterpriseS3: app_config.S3Config{
+			Region:   "us-east-1",
+			Bucket:   "ankhora-enterprise",
+			Endpoint: "https://s3.us-east-1.amazonaws.com",
+		},
+	}
+}
+
+
+
+
 
 // func (c *Config) ValidateFeatures(sub SubscriptionSnapshot) {
 

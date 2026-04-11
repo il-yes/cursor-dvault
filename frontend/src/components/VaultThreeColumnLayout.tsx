@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { VaultEntry } from "@/types/vault";
+import { ENTRY_TYPE_CARD, ENTRY_TYPE_IDENTITY, ENTRY_TYPE_LOGIN, ENTRY_TYPE_NOTE, ENTRY_TYPE_SSHKEY, VaultEntry } from "@/types/vault";
 import { useSearchParams } from "react-router-dom";
 import { EntriesListPanel } from "@/components/EntriesListPanel";
 import { EntryDetailPanel } from "@/components/EntryDetailPanel";
@@ -237,11 +237,11 @@ export function VaultThreeColumnLayout({ filter }: VaultThreeColumnLayoutProps) 
               {filter === "all" && "All Items"}
               {filter === "favorites" && "Favorites"}
               {filter === "trash" && "Trash"}
-              {filter === "login" && "Identifiers"}
-              {filter == "card" && "Payment Cards"}
-              {filter === "identity" && "Identities"}
-              {filter === "note" && "Secure Notes"}
-              {filter === "sshkey" && "SSH Keys"}
+              {filter === ENTRY_TYPE_LOGIN && "Identifiers"}
+              {filter == ENTRY_TYPE_CARD && "Payment Cards"}
+              {filter === ENTRY_TYPE_IDENTITY && "Identities"}
+              {filter === ENTRY_TYPE_NOTE && "Secure Notes"}
+              {filter === ENTRY_TYPE_SSHKEY && "SSH Keys"}
               {filter.startsWith("folder:") &&
                 vaultContext?.Vault.folders?.find(f => f.id === filter.replace("folder:", ""))?.name || "Folder"
               }

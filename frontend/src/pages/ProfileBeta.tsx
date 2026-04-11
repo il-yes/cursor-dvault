@@ -488,7 +488,7 @@ const Profile = () => {
 										<Badge className="bg-green-500/20 text-green-600 border-green-500/30 px-4 py-2 text-lg font-semibold backdrop-blur-sm">
 											● Connected
 										</Badge>
-										<Button
+										{privateKey && <Button
 											variant="outline"
 											size="lg"
 											onClick={handleRotateKey}
@@ -496,14 +496,14 @@ const Profile = () => {
 										>
 											<RefreshCw className="h-4 w-4 mr-2 animate-spin" />
 											Rotate Keys
-										</Button>
+										</Button>}
 									</div>
 								</div>
 							</div>
 
 							{/* Quick Actions */}
 							<div className="grid grid-cols-2 gap-4">
-								<Button
+								{privateKey && <Button
 									variant="outline"
 									size="lg"
 									onClick={handleSyncBeta}
@@ -511,7 +511,16 @@ const Profile = () => {
 								>
 									<RefreshCw className="h-6 w-6 mr-3 group-hover:rotate-180 transition-all" />
 									Sync Now
-								</Button>
+								</Button>}
+								{!privateKey && <Button
+									variant="outline"
+									size="lg"
+									onClick={handleGenerateApiKey}
+									className="h-20 rounded-2xl backdrop-blur-xl bg-white/60 dark:bg-zinc-800/60 border-white/40 hover:bg-white/80 shadow-xl hover:shadow-2xl font-semibold"
+								>
+									<Key className="h-6 w-6 mr-3" />
+									Generate API Key
+								</Button>}
 
 								<div className="p-4">
 									<button onClick={() => setShowModal(true)} className="open-btn">
@@ -527,15 +536,6 @@ const Profile = () => {
 										</div>
 									)}
 								</div>
-								<Button
-									variant="outline"
-									size="lg"
-									onClick={handleGenerateApiKey}
-									className="h-20 rounded-2xl backdrop-blur-xl bg-white/60 dark:bg-zinc-800/60 border-white/40 hover:bg-white/80 shadow-xl hover:shadow-2xl font-semibold"
-								>
-									<Key className="h-6 w-6 mr-3" />
-									Generate API Key
-								</Button>
 							</div>
 						</div>
 					</div>

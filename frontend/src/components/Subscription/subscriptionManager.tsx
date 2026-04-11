@@ -176,10 +176,12 @@ const SubscriptionManager: React.FC = () => {
                 console.log({ sub })
                 const historyResponse = await GetBillingHistory(jwtToken, 10);
                 console.log({ historyResponse })
-                
+                const storage = await getStorage(vault);
+                console.log({ storage })
+
                 setVaultCloud(vault);
                 setSubscription(sub);
-                setStorageUsage(getStorage(vault));
+                setStorageUsage(storage);
                 setBillingHistory(historyResponse.history as BillingHistoryItem[]);
 
 
@@ -402,7 +404,7 @@ const SubscriptionManager: React.FC = () => {
                     )}
 
                     {/* Features */}
-                    {subscription && (
+                    {subscription && subscription.features && (
                         <div className="backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-8 border border-white/40 dark:border-zinc-700/40 shadow-xl">
                             <h3 className="text-2xl font-bold mb-6">Your Plan Includes:</h3>
                             <div className="grid md:grid-cols-2 gap-4">
@@ -426,7 +428,7 @@ const SubscriptionManager: React.FC = () => {
                     )}
 
                     {/* Billing History */}
-                    {billingHistory.length > 0 && (
+                    {billingHistory && billingHistory.length > 0 && (
                         <div className="backdrop-blur-xl bg-white/60 dark:bg-zinc-900/60 rounded-3xl p-8 border border-white/40 dark:border-zinc-700/40 shadow-xl overflow-x-auto">
                             <h3 className="text-2xl font-bold mb-6">Billing History</h3>
                             <div className="overflow-x-auto">

@@ -21,23 +21,7 @@ type Logger interface {
 	Warn(string, ...interface{})
 }
 
-type ManagerV0 struct {
-	mu                sync.RWMutex
-	sessions          map[string]*Session 
-	SessionRepository SessionRepository
-	VaultRepository   vaults_domain.VaultRepository
 
-	pendingMu      sync.Mutex
-	pendingCommits map[string][]tracecore_models.CommitEnvelope // optionally keep in-memory pending commits per user
-	SessionsMu     sync.Mutex
-	logger         Logger
-	NowUTC         func() string
-	IsDirty        bool
-
-	EventDispatcher share_application_events.EventDispatcher
-	IPFS            *blockchain.IPFSClient
-	Ctx             context.Context
-}
 type Manager struct {
 	mu sync.RWMutex
 
@@ -326,5 +310,18 @@ func (m *Manager) GetUserConfig(userID string) (app_config_domain.UserConfig, er
 		return app_config_domain.UserConfig{}, errors.New("no active session")
 	}
 	return s.Runtime.GetUserConfig(), nil
+}
+func (m *Manager) UpdateAppConfig(userID string, appCfgUpdated app_config_domain.AppConfig) (app_config_domain.AppConfig, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	s, ok := m.sessions[userID]
+	if !ok {
+		return app_config_domain.AppConfig{}, errors.New("no active session")
+	}
+	s.Runtime.AppConfig = appCfgUpdated
+
+
+	return s.Runtime.AppConfig, nil
 }
 	

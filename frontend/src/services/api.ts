@@ -24,7 +24,7 @@
  */
 import { LoginRequest, SelectedAttachment, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto, tracecore_types, vaults_domain } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto, tracecore_types, vaults_domain, tracecore } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
@@ -378,6 +378,7 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 		recipient_email: user?.email || user?.Email,
 		challenge: payload.challenge,
 		signature: payload.signature,
+		ip_address: "",
 	}
 	console.log("Decrypting vault entry:", input);
 
@@ -811,6 +812,16 @@ type PaymentSetupResponse = {
 	stellar_key?: string;
 	secret_key?: string;
 }
+type FreeSetupRequest = {
+	user_id: string;
+	tier: string;
+	plan: string;
+	product_id: string;
+	is_anonymous: boolean;
+	email: string;
+	password: string;
+	session_id: string;
+}
 
 export const SetupPaymentAndActivate = async (payload: PaymentSetupRequest): Promise<subscription_domain.Subscription> => {
 	console.log("SetupPaymentAndActivate payload:", { payload });
@@ -823,14 +834,22 @@ export const SetupPaymentAndActivate = async (payload: PaymentSetupRequest): Pro
 		console.error("Failed to setup payment and activate", error);
 		throw error;
 	}
+};
 
+export const SetupFreeAndActivate = async (payload: FreeSetupRequest): Promise<tracecore.FreeCheckoutResponse> => {
+	console.log("SetupFreeAndActivate payload:", { payload });
+
+	try {
+		const response = await AppAPI.SetupFreeAndActivate(payload);
+		console.log("SetupFreeAndActivateResponse:", response);
+		return response;
+	} catch (error) {
+		console.error("Failed to setup free and activate", error);
+		throw error;
+	}
 };
 
 export const GetTierFeatures = async (tier: string): Promise<TierFeaturesResponse> => {
-	// const response = await fetch(`${API_BASE_URL}/get-tier-features`, {
-	//   method: 'GET',
-	//   headers: { 'Content-Type': 'application/json' },
-	// });
 	try {
 		const response = await AppAPI.GetTierFeatures();
 		console.log("Tier features:", { response });
@@ -861,7 +880,7 @@ type BillingHistoryResponse = {
 		description: string;
 		stripe_intent_id: string;
 		stellar_tx_hash: string;
-		created_at: string;	
+		created_at: string;
 	}[];
 }
 export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
@@ -894,10 +913,11 @@ export const CancelSubscription = async (payload: CancelSubscriptionPayload): Pr
 
 export const GetBillingHistory = async (jwtToken: string, limit: number): Promise<BillingHistoryResponse> => {
 	const response = await AppAPI.GetBillingHistory(jwtToken, limit);
-	console.log("Billing history:", { response });
+	console.log("GetBillingHistory response:", { response });
+
 
 	return {
-		history: response.data.map((item: any) => ({
+		history: response?.data?.map((item: any) => ({
 			id: item.id,
 			user_id: item.user_id,
 			subscription_id: item.subscription_id,
@@ -1085,14 +1105,14 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			encryption: getConfigRes.Vaults.backup.encryption
 		},
 		device: {
-			user_id:getConfigRes?.User?.id,
+			user_id: getConfigRes?.User?.id,
 			vault_name: vaultName,
 			device_id: "6544568-665445",
 			device_name: getConfigRes.Devices.length > 0 && getConfigRes.Devices[0].device_name || "mac_os-62654",
 			last_synced: getConfigRes.Devices.length > 0 && getConfigRes.Devices[0].last_sync || 2,
 		},
 		subscription: {
-			user_id:getConfigRes?.User?.id,
+			user_id: getConfigRes?.User?.id,
 			vault_name: vaultName,
 			plan: getConfigRes.Subscription.plan || "free",
 			features: {
@@ -1105,9 +1125,9 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			},
 			limits: {
 				maxVaults: getConfigRes.Subscription.limits.max_vaults || 1,
-				maxUsers: getConfigRes.Subscription.limits.max_users  || 1,
-				maxDevices: getConfigRes.Subscription.limits.max_devices  || 1,
-				maxShares: getConfigRes.Subscription.limits.max_shares  || 1
+				maxUsers: getConfigRes.Subscription.limits.max_users || 1,
+				maxDevices: getConfigRes.Subscription.limits.max_devices || 1,
+				maxShares: getConfigRes.Subscription.limits.max_shares || 1
 			}
 		},
 		sharing: {
@@ -1121,6 +1141,21 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			telemetryEnabled: getConfigRes.Vaults.privacy.telemetry_enabled,
 			anonymousMode: getConfigRes.Vaults.privacy.anonymous_mode,
 		},
+		onboarding: {
+			packs: getConfigRes.Vaults.onboarding?.packs,
+			use_cases: getConfigRes.Vaults.onboarding?.use_cases,
+			installed_templates: getConfigRes.Vaults.onboarding?.installed_templates,
+			completed: getConfigRes.Vaults.onboarding?.completed
+		},
+		storage: {
+			mode: getConfigRes?.App?.storage?.mode,
+			localIPFS: {
+				api_endpoint: getConfigRes?.App?.storage?.local_ipfs?.api_endpoint,
+			},
+			cloud: {
+				base_url: getConfigRes?.App?.storage?.cloud?.base_url,
+			}
+		}
 	}
 	console.log({ getConfigRes, settings })
 
@@ -1131,14 +1166,14 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 	return settings;
 };
 const syncMap = {
-		auto: 60,
-		hourly: 3600,
-		daily: 86400,
-		manual: 0,
-	};
+	auto: 60,
+	hourly: 3600,
+	daily: 86400,
+	manual: 0,
+};
 
 export const EditConfig = async (user: User, vault: Vault, settings: SettingsState, jwtToken: string) => {
-	console.log({vault})
+	console.log({ vault })
 
 	const payload = {
 		ui: {
@@ -1207,9 +1242,18 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 				max_devices: settings.subscription.limits.maxDevices,
 				max_shares: settings.subscription.limits.maxShares
 			}
+		},
+		storage: {
+			mode: settings.storage.mode,
+			localIPFS: {
+				api_endpoint: "http://localhost:5001",
+			},
+			cloud: {
+				base_url: "http://localhost:4001/api"
+			}
 		}
 	}
-	console.log({payload})
+	console.log({ payload })
 
 	const settingsInstance = new app_config_dto.Settings(payload);
 	const editedSettings = await AppAPI.EditConfig(vault.name, settingsInstance, jwtToken)
@@ -1249,4 +1293,34 @@ export const getSubscriptionFromCloud = async (jwtToken: string, vaultName: stri
 	const getSubscriptionFromCloudResponse = await AppAPI.GetSubscriptionFromCloud(jwtToken, vaultName);
 	console.log({ getSubscriptionFromCloudResponse })
 	return getSubscriptionFromCloudResponse;
+};
+
+export const encryptAttachment = async (
+  jwtToken: string,
+  fileData: Uint8Array,
+  vaultPassword: string
+): Promise<number[]> => {
+  const normalized = Array.from(new Uint8Array(fileData));
+  
+  return await AppAPI.EncryptAttachment(
+    jwtToken,
+    normalized,
+    vaultPassword
+  );
+};
+export const decryptAttachment = async (jwtToken: string, fileData: Uint8Array, vaultPassword: string): Promise<Uint8Array<ArrayBuffer>> => {
+	const response = await AppAPI.DecryptAttachment(jwtToken, Array.from(fileData), vaultPassword);
+	return new Uint8Array(response);
+};
+// export const decryptAttachmentBase64 = async (token: string, base64String: string, password: string) => {
+// 	return await AppAPI.DecryptAttachmentBase64(token, base64String, password);
+// }
+export const uploadAttachementToIPFS = async (jwtToken: string, fileData: number[]): Promise<string> => {
+	const response = await AppAPI.UploadAttachmentToIPFS(jwtToken, fileData);
+	return response;
+};
+export const uploadToCloud = async (jwtToken: string, fileData: string): Promise<string> => {
+	// const response = await AppAPI.UploadToCloud(jwtToken, fileData);
+	// return response;
+	return "";
 };

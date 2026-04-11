@@ -3,38 +3,27 @@ package vault_queries
 import (
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
-	"vault-app/internal/blockchain"
+	"unicode/utf8"
 	app_config_domain "vault-app/internal/config/domain"
-	"vault-app/internal/tracecore"
-	"vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
-// -------- QUERRY --------
-type GetIPFSDataQuerry struct {
-	CID       string
-	Password  string
-	AppCfg    app_config_domain.AppConfig
-	UserID    string
-	VaultName string
-}
-
-// -------- RESPONSE --------
-type GetIPFSDataResponse struct {
-	Data vault_domain.VaultPayload
-}
 
 // -------- INTERFACES --------
 type CryptoServiceInterface interface {
 	Decrypt(data []byte, password string) ([]byte, error)
 }
+type IpfsServiceInterface interface {
+	Get(ctx context.Context, cid string) ([]byte, error)
+}
+
 
 // -------- HANDLER --------
 type GetIPFSDataQuerryHandler struct {
 	cryptoService CryptoServiceInterface
+	IpfsService IpfsServiceInterface
 }
 
 // -------- CONSTRUCTOR --------
@@ -44,56 +33,65 @@ func NewGetIPFSDataQuerryHandler(cryptoService CryptoServiceInterface) *GetIPFSD
 	}
 }
 
+// -------- QUERRY --------
+type GetIPFSDataQuerry struct {
+	CID       string
+	Password  string
+	AppCfg    app_config_domain.AppConfig
+	UserID    string
+	VaultName string
+}
+// -------- RESPONSE --------
+type GetIPFSDataResponse struct {
+	Data vault_domain.VaultPayload
+}
 func (h *GetIPFSDataQuerryHandler) Execute(cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
-    // 1. Get raw encrypted bytes from IPFS
-    encryptedData, err := h.GetFromIpfs(context.Background(), cmd)
-    if err != nil {
-        return nil, fmt.Errorf("❌ failed to fetch vault from IPFS: %w", err)
-    }
-    utils.LogPretty("Raw encrypted bytes", len(encryptedData))
-	utils.LogPretty("Raw encrypted bytes", hex.EncodeToString(encryptedData[:64]))
+	// 1. Get raw encrypted bytes from IPFS → this must be the base64 string as bytes
+	rawBytes, err := h.GetFromIpfs(context.Background(), cmd)
+	if err != nil {
+		return nil, err
+	}
 
-    // 2. SINGLE base64 decode (IPFS → binary)
-    decryptedBytes, err := base64.StdEncoding.DecodeString(string(encryptedData))
-    if err != nil {
-        return nil, fmt.Errorf("❌ base64 decode failed: %w", err)
-    }
-    utils.LogPretty("✅ Base64 decoded", len(decryptedBytes))
+	// 2. Must be valid Base64 string
+	if !utf8.Valid(rawBytes) {
+		return nil, fmt.Errorf("invalid UTF‑8 in base64 input")
+	}
 
-    // 3. DECRYPT binary data
-    plain, err := h.cryptoService.Decrypt(decryptedBytes, cmd.Password)
-    if err != nil {
-        return nil, fmt.Errorf("❌ decryption failed: %w", err)
-    }
+	// 3. Decode Base64 → binary (salt + nonce + ciphertext)
+	decoded, err := base64.StdEncoding.DecodeString(string(rawBytes))
+	if err != nil {
+		return nil, fmt.Errorf("❌ base64 decode failed: %w", err)
+	}
 
-    // 4. Parse vault
-    vaultPayload := vaults_domain.ParseVaultPayload(plain)
-    return &GetIPFSDataResponse{Data: vaultPayload}, nil
+	// 4. Decrypt binary data
+	plain, err := h.cryptoService.Decrypt(decoded, cmd.Password)
+	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	vaultPayload := vaults_domain.ParseVaultPayload(plain)
+	return &GetIPFSDataResponse{
+		Data:       vaultPayload,
+		// DecodedLen: len(decoded),
+		// PlainLen:   len(plain),
+	}, nil
 }
 
-
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
-	// ------------------------------------------------------------
-	// 1. LOAD TRACECORE CLIENT
-	// ------------------------------------------------------------
-	tracecoreClient := tracecore.NewTracecoreFromConfig(&req.AppCfg, "token")
-	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - tracecoreClient", tracecoreClient.BaseURL)
-	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
-	// ------------------------------------------------------------
-	// 2. LOAD STORAGE PROVIDER
-	// ------------------------------------------------------------
-	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
-		StorageConfig: req.AppCfg.Storage,
-		UserID:        req.UserID,
-		VaultName:     req.VaultName,
-	}, tracecoreClient)
-	// ------------------------------------------------------------
-	// 3. GET FROM IPFS
-	// ------------------------------------------------------------
-	response, err := storageProvider.Get(ctx, req.CID)
+	base64Text, err := h.IpfsService.Get(ctx, req.CID)
 	if err != nil {
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - failed to get ipfs: %w", err)
 	}
+	// // ✅ DECRYPT HERE
+	// decrypted, err := h.cryptoService.Decrypt(encrypted, req.Password)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("decrypt failed: %w", err)
+	// }
 
-	return response, nil
+	return base64Text, nil
+}
+
+
+func (h *GetIPFSDataQuerryHandler) SetIpfsService(ipfs IpfsServiceInterface) {
+	h.IpfsService = ipfs
 }

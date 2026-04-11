@@ -21,6 +21,7 @@ import {app_config_domain} from '../models';
 import {billing_domain} from '../models';
 import {subscription_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
+import {tracecore} from '../models';
 import {vault_dto} from '../models';
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
@@ -59,6 +60,8 @@ export function CreateShare(arg1:main.CreateShareInput):Promise<share_domain.Sha
 
 export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
 
+export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
+
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function DeleteFolder(arg1:string,arg2:string):Promise<string>;
@@ -72,6 +75,8 @@ export function EditConfig(arg1:string,arg2:app_config_dto.Settings,arg3:string)
 export function EditEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function EditUserInfos(arg1:string,arg2:identity_dtos.EditUserInfosRequest):Promise<void>;
+
+export function EncryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
 
 export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -92,6 +97,8 @@ export function GetCheckoutURL(arg1:identity_domain.IdentityChoice,arg2:boolean,
 export function GetConfig(arg1:string,arg2:string):Promise<app_config_domain.Config>;
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
+
+export function GetIPFSFile(arg1:string,arg2:string):Promise<string>;
 
 export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;
 
@@ -165,6 +172,10 @@ export function RevokeShare(arg1:string,arg2:json.RawMessage):Promise<tracecore_
 
 export function SaveSessionTest(arg1:string):Promise<void>;
 
+export function SetStorageMode(arg1:string,arg2:string):Promise<void>;
+
+export function SetupFreeAndActivate(arg1:onboarding_usecase.FreeSetupRequest):Promise<tracecore.FreeCheckoutResponse>;
+
 export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
 export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
@@ -190,6 +201,10 @@ export function UpdatePaymentMethod(arg1:string,arg2:main.UpdatePaymentMethodReq
 export function UpdateRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
 
 export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
+
+export function UploadAttachmentToIPFS(arg1:string,arg2:Array<number>):Promise<string>;
+
+export function UploadAttachmentToIPFSWithEncryption(arg1:string,arg2:Array<number>):Promise<string>;
 
 export function UploadAttachments(arg1:string,arg2:string,arg3:string,arg4:json.RawMessage,arg5:vault_dto.SelectedAttachments):Promise<vaults_domain.VaultEntry>;
 

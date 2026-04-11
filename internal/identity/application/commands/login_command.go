@@ -120,7 +120,6 @@ func (h *LoginCommandHandler) Handle(
 	}
 	
 	// 3. Identity - Load identity user
-	utils.LogPretty("LoginCommandHandler - Loading identity user by email", creds.Email)
 	if(h.userRepo == nil) {
 		utils.LogPretty("LoginCommandHandler - userRepo is not initialized", "true")
 		return nil, errors.New("LoginCommandHandler - userRepo is not initialized")

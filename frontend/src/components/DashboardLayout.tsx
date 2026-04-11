@@ -484,6 +484,8 @@ function AppSidebar() {
 	}, [jwtToken, vaultContext]);
 
 
+
+
 	return (
 		<Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
 			<SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30 scrollbar-glassmorphism thin-scrollbar">

@@ -63,6 +63,8 @@ interface VaultStoreState {
 
   addEntry: (entry: VaultEntry) => Promise<void>;
   updateEntry: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
+  updateEntryAttachements: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
+  
   deleteEntry: (entryId: string) => Promise<void>;
   restoreEntry: (entryId: string) => Promise<void>;
 
@@ -520,6 +522,39 @@ export const useVaultStore = create<VaultStoreState>()(
         });
       },
       updateEntry: async (entryId: string, updates: Partial<VaultEntry>) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const newEntries: any = {};
+          let updated = false;
+
+          for (const type of Object.keys(state.vault.Vault.entries)) {
+            const entries = state.vault.Vault.entries[type];
+            if (!entries) continue; // <-- safeguard for null/undefined
+            newEntries[type] = entries.map((e) =>
+              e.id === entryId
+                ? ((updated = true), { ...e, ...updates, updated_at: new Date().toISOString() })
+                : e
+            );
+          }
+
+          if (!updated) return state;
+
+          state.vault.Dirty = true;
+
+          return {
+            vault: {
+              ...state.vault,
+              Vault: {
+                ...state.vault.Vault,
+                entries: newEntries,
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
+      },
+      updateEntryAttachements: async (entryId: string, updates: Partial<VaultEntry>) => {
         useVaultStore.setState((state) => {
           if (!state.vault) return state;
 

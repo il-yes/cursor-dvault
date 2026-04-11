@@ -58,6 +58,8 @@ type SessionRepository interface {
 	DeleteSession(sessionID string) error
 	SaveSession(userID string, session *Session) error
 	GetLatestByUserID(userID string) (*Session, error)
+	GetEntries(session Session) (*vaults_domain.Entries, error) 
+	GetFolders(s Session) ([]vaults_domain.Folder, error)
 }
 
 

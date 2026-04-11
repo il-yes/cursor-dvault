@@ -29,6 +29,7 @@ type Vault struct {
 	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
 
 	Avatar string `json:"avatar" gorm:"column:avatar,omitempty"`
+	VaultMeta VaultMeta
 }
 
 func NewVault(userID string, name string) *Vault {
@@ -64,7 +65,7 @@ func (v *Vault) GetVaultPath() string {
 	return filepath.Join("vault", v.UserID, v.Name)
 }
 func (v *Vault) GetVaultAttachmentPath() string {
-	return filepath.Join("vault", "attachments")
+	return filepath.Join("vault")
 }
 func (v *Vault) AttachAvatar(avatar string) {
     v.Avatar = avatar
@@ -277,6 +278,7 @@ const (
 // ==============================================================================
 type BaseEntry struct {
 	ID              string    `json:"id"`
+	CID       string `json:"cid,omitempty" gorm:"column:cid"`
 	EntryName       string    `json:"entry_name"`
 	FolderID        string    `json:"folder_id"`
 	Type            EntryType `json:"type"`
@@ -284,18 +286,14 @@ type BaseEntry struct {
 	CustomFields    JSONMap   `json:"custom_fields,omitempty" gorm:"type:jsonb"`
 	Trashed         bool      `json:"trashed"`
 	IsDraft         bool      `json:"is_draft"`
+	IsDirty         bool      `json:"is_dirty"`
 	IsFavorite      bool      `json:"is_favorite"`
-	// or type:text if jsonb unsupported
 	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
 	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
+	AttachmentCIDs	[]string `json:"attachmentCIDs,omitempty"`
 }
 
-
-// func (e *BaseEntry) AddAttachment(attachment Attachment) {
-//     e.Attachments = append(e.Attachments, attachment)
-//     e.UpdatedAt = time.Now().Format(time.RFC3339)
-// }
 type LoginEntry struct {
 	BaseEntry
 	UserName string `json:"user_name"`
@@ -397,6 +395,14 @@ type Entries struct {
 	SSHKey   []SSHKeyEntry   `json:"sshkey"`
 }
 
+type EntryInterface interface {
+	GetBase() *BaseEntry
+}
+func (e *LoginEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+func (e *CardEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+func (e *IdentityEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+func (e *NoteEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+func (e *SSHKeyEntry) GetBase() *BaseEntry { return &e.BaseEntry }
 // ==============================================================================
 // VaultEntry
 // ==============================================================================	
@@ -593,12 +599,12 @@ func ParseVaultPayload(decrypted []byte) VaultPayload {
 // 	}
 // }
 
-type JSONMap map[string]string
+type JSONMap map[string]interface{}
 
 func (j *JSONMap) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
-		return fmt.Errorf("failed to unmarshal JSONMap value: %v", value)
+		return fmt.Errorf("Vault models - JSONMap scan - failed to unmarshal JSONMap value: %v", value)
 	}
 	return json.Unmarshal(bytes, j)
 }
@@ -621,3 +627,38 @@ type Attachment struct {
 }
 
 // ==============================================================================
+
+
+type VaultMeta struct {
+	Name      string `json:"name" gorm:"column:name"`
+	UserID    string `json:"user_id" gorm:"column:user_id"`
+  	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later"Dirty": true,
+   	LastSynced string `json:"last_synced" gorm:"column:updated_at"`
+}
+
+
+type VaultNode struct {
+	Type     string
+	Version  string
+	Folders  Link
+	Entries  Link
+	Index    Link
+}
+
+type Link struct {
+	CID string `json:"/"`
+}
+type EntriesRoot struct {
+	Items []Link `json:"items"`
+}
+type FoldersRoot struct {
+	Items []Link `json:"items"`
+}
+type AttachementsRoot struct {
+  Items []Link `json:"items"`
+}
+type Index struct {
+	ByType   map[string][]Link `json:"byType"`
+	ByFolder map[string][]Link `json:"byFolder"`
+}

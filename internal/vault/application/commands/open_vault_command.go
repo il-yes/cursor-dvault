@@ -5,7 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"vault-app/internal/blockchain"
 	app_config_domain "vault-app/internal/config/domain"
+	"vault-app/internal/tracecore"
 	utils "vault-app/internal/utils"
 	vault_events "vault-app/internal/vault/application/events"
 	vault_queries "vault-app/internal/vault/application/queries"
@@ -144,6 +146,23 @@ func (h *OpenVaultCommandHandler) Handle(
 		}
 	}
 	utils.LogPretty("OpenVaultCommandHandler - Handle - existing vault", vault)
+
+	// -----------------------------
+	// 1. LOAD TRACECORE CLIENT
+	// ------------------------------------------------------------
+	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&runtimeCtx.AppConfig, "token")	
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+	
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: runtimeCtx.AppConfig.Storage,
+		UserID:             vault.UserSubscriptionID,
+		VaultName:          vault.Name,
+	}, tracecoreClient)
+	h.QueryHandler.SetIpfsService(storageProvider)
 
 	// ------------------------------------------------------------
 	// 3. PARSE VAULT PAYLOAD

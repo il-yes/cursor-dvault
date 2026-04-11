@@ -76,6 +76,19 @@ export function buildEntrySnapshot(entry: VaultEntry): EntrySnapshot {
   }
 }
 
+export const Gateways = {
+  local: `http://127.0.0.1:8080/ipfs`,
+  ipfs: "https://ipfs.io/ipfs",
+  cloudflare: "https://cloudflare-ipfs.com/ipfs",
+  pinata: "https://gateway.pinata.cloud/ipfs"
+};
+export const isRenderableInBrowser = (attachment) => {
+    return (
+        attachment.mimeType?.startsWith("image/") ||
+        attachment.mimeType?.startsWith("video/") ||
+        attachment.mimeType === "application/pdf"
+    );
+};
 
 export function formatFileSize(bytes: number, decimals = 2): string {
   if (!bytes || bytes === 0) return "0 B";
@@ -90,7 +103,10 @@ export function formatFileSize(bytes: number, decimals = 2): string {
 
   return `${parseFloat(value.toFixed(dm))} ${sizes[i]}`;
 }
-
+export const openIpfsInBrowser = (cid: string) => {
+  const url = `https://ipfs.io/ipfs/${cid}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
 
 // const res = await fetch(`${API_BASE}/api/shared-entries`, { credentials: "include" });
 // const { SharedEntries } = await res.json();

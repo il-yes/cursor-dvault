@@ -75,6 +75,7 @@ const EmailLookup = () => {
     }
   };
 
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-6">
       <div className="w-full max-w-md space-y-8 animate-fadeIn">

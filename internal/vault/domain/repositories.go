@@ -8,6 +8,7 @@ type VaultRepository interface {
 
 	GetLatestByUserID(userID string) (*Vault, error)
 	GetByUserIDAndName(userID string, name string) (*Vault, error)
+	UpdateVaultCID(vaultID, cid string) error
 }
 
 type FolderRepository interface {
@@ -20,4 +21,6 @@ type FolderRepository interface {
 	GetFoldersByVault(vaultCID string) ([]Folder, error)	
 	GetFolderById(id string) (*Folder, error)
 }
+
+
 

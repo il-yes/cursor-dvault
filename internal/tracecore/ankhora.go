@@ -30,6 +30,7 @@ func (c *TracecoreClient) GetVault(ctx context.Context) ([]byte, error) {
 		Data []byte `json:"data"`
 	}
 	err := c.doRequest(ctx, "GET", "/api/vault", nil, &resp)
+
 	return resp.Data, err
 }
 
@@ -68,7 +69,7 @@ func (c *TracecoreClient) GetUserByEmail(ctx context.Context, email string) (*tr
 	// Handle HTTP status codes
 	if resp.StatusCode == http.StatusNotFound {
 		log.Printf("TracecoreClient - User not found for email: %s", email)
-		}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(b))
@@ -127,18 +128,32 @@ type PaymentSetupRequest struct {
 	StellarPublicKey      string                               `json:"stellar_public_key,omitempty"`
 }
 type PaymentSetupRequestBeta struct {
-	Rail  string `json:"rail"`
-	Tier  string `json:"tier"`
-	Email string `json:"email"`
+	Rail      string `json:"rail"`
+	Tier      string `json:"tier"`
+	Month     int64  `json:"month"`
+	UserID    string `json:"user_id"`
+	Email     string `json:"email"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 
 	Plan         string `json:"plan"`
-	PeriodMonths int    `json:"period_months"`
+	PeriodMonths string `json:"period_months"`
+	Amount       string `json:"amount"`
+	ProductID    string `json:"product_id"`
+	Currency     string `json:"currency"`
+	IsAnonymous  bool   `json:"is_anonymous"`
 	SessionID    string `json:"session_id"`
 }
 
 type PaymentSetupResponse struct {
 	Data       json.RawMessage `json:"data"`
 	Status     string          `json:"status"`
+	StatusCode int             `json:"status_code"`
+	Message    string          `json:"message"`
+}
+type FreeCheckoutResponse struct {
+	Data       json.RawMessage `json:"data"`
+	Status     int             `json:"status"`
 	StatusCode int             `json:"status_code"`
 	Message    string          `json:"message"`
 }
@@ -167,6 +182,41 @@ func (c *TracecoreClient) SetupSubscription(ctx context.Context, payload Payment
 	}
 
 	if cloudResp.Status != "ok" {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+func (c *TracecoreClient) FreeCheckout(ctx context.Context, req PaymentSetupRequestBeta) (*FreeCheckoutResponse, error) {
+	utils.LogPretty("TracecoreClient - FreeCheckout - payload", req)
+	bodyBytes, _ := json.Marshal(req)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/subscriptions/activate", bytes.NewReader(bodyBytes))
+	if err != nil {
+		utils.LogPretty("TracecoreClient - FreeCheckout - error", err)
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp FreeCheckoutResponse
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 201 {
 		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
 	}
 	utils.LogPretty("cloud response", cloudResp)
@@ -274,7 +324,7 @@ func (c *TracecoreClient) GetSubscriptionByUserID(ctx context.Context, userID st
 	return &sub, nil
 }
 func (c *TracecoreClient) GetSubscriptionByID(ctx context.Context, subscriptionID string) (*subscription_domain.Subscription, error) {
-	
+
 	utils.LogPretty("subscription id", subscriptionID)
 	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
 
@@ -434,14 +484,14 @@ func (c *TracecoreClient) HandleClientInitiatedPayment(ctx context.Context, requ
 }
 func (c *TracecoreClient) GetBillingHistory(ctx context.Context, subID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
 	url := fmt.Sprintf("%s/billing/history/%s?limit=%d", c.AnkhoraCloudUrl, subID, limit)
-    req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
-	
+
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		utils.LogPretty("GetBillingHistory - request failed", err)
@@ -1171,12 +1221,12 @@ func (c *TracecoreClient) ListLinkSharesWithMe(ctx context.Context, email string
 // ---------------------------------------------------------
 // VAULT
 // ---------------------------------------------------------
-func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error) {
+func (c *TracecoreClient) AddToIPFS0(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error) {
 	body := &bytes.Buffer{}
 	if err := json.NewEncoder(body).Encode(req); err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/vaults/"+req.UserID+"/storage/"+req.VaultName, body)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/vaults/"+req.UserID+"/storage"+req.VaultName, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1194,11 +1244,68 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("AddToIPFS - read body failed: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
+	utils.LogPretty("AddToIPFS - request body", body.String())
 	utils.LogPretty("AddToIPFS - cloud response", cloudResp)
 
+	return &cloudResp, nil
+}
+func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error) {
+	// Step 1: build JSON body
+	body := &bytes.Buffer{}
+	if err := json.NewEncoder(body).Encode(req); err != nil {
+		return nil, err
+	}
+
+	// Step 2: build URL and request
+	url := c.BaseURL + "/vaults/" + req.UserID + "/storage/" + req.VaultName
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	utils.LogPretty("AddToIPFS - URL", url)
+	utils.LogPretty("AddToIPFS - request body", body.String())
+
+	// Step 3: do the request
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("AddToIPFS - read body failed: %v", err)
+		return nil, fmt.Errorf("read body failed: %w", err)
+	}
+	utils.LogPretty("AddToIPFS - raw body (string)", string(respBytes))
+
+	// if body is empty or very short, log raw bytes
+	if len(respBytes) == 0 {
+		utils.LogPretty("AddToIPFS - raw body", "(empty)")
+	} else {
+		utils.LogPretty("AddToIPFS - raw body (hex)", fmt.Sprintf("%x", respBytes))
+	}
+
+	if len(respBytes) == 0 {
+		return nil, fmt.Errorf("AddToIPFS - empty body")
+	}
+
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		utils.LogPretty("🚫 AddToIPFS - json.Unmarshal error", err)
+		utils.LogPretty("🚫 AddToIPFS - raw body when unmarshal failed", string(respBytes))
+		return nil, fmt.Errorf("cloud response unmarshal failed: %w", err)
+	}
+
+	utils.LogPretty("✅ AddToIPFS - cloudResp", cloudResp)
 	return &cloudResp, nil
 }
 func (c *TracecoreClient) GetDataFromCloudStorage(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.IpfsCidResponse, error) {
@@ -1206,15 +1313,17 @@ func (c *TracecoreClient) GetDataFromCloudStorage(ctx context.Context, req trace
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("TracecoreClient.BaseURL is empty")
 	}
-	base := strings.TrimRight(c.BaseURL, "/")
-	path := fmt.Sprintf("/vaults/%s/storage/%s/%s",
-		url.PathEscape(req.UserID), // ← Check why this is EMPTY!
-		url.PathEscape(req.VaultName),
-		req.CID)
+	u, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, err
+	}
 
-	// path := fmt.Sprintf("/vaults/%s/storage/%s/%s", url.PathEscape(req.UserID), url.PathEscape(req.VaultName), req.CID)
+	u.Path = strings.TrimRight(u.Path, "/") + "/vaults/" +
+		url.PathEscape(req.UserID) + "/storage/" +
+		url.PathEscape(req.VaultName) + "/" +
+		url.PathEscape(req.CID)
 
-	fullURL := base + path
+	fullURL := u.String()
 	utils.LogPretty("GetDataFromCloudStorage - fullURL", fullURL)
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)

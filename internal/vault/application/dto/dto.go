@@ -27,5 +27,7 @@ type SelectedAttachment struct {
 	Name string `json:"name"`
 	Size int64 `json:"size"`
 	Data []byte `json:"data"`
+	Storage string `json:"storage"`
 }
 type SelectedAttachments []SelectedAttachment
+

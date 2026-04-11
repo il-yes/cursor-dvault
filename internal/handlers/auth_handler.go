@@ -361,7 +361,7 @@ func (ah *AuthHandler) OnboardMissingVault(user *models.User, password string) (
 		return nil, fmt.Errorf("❌ minimal vault encryption failed: %w", err)
 	}
 
-	cid, err := ah.IPFS.AddData(encrypted)
+	cid, err := ah.IPFS.Add(context.Background(), encrypted)
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to save minimal vault: %w", err)
 	}
@@ -637,7 +637,7 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 		return nil, fmt.Errorf("❌ vault encryption failed: %w", err)
 	}
 
-	cid, err := ah.IPFS.AddData(encrypted)
+	cid, err := ah.IPFS.Add(context.Background(), encrypted)
 	if err != nil {
 		return nil, fmt.Errorf("❌ failed to add vault to IPFS: %w", err)
 	}

@@ -946,6 +946,7 @@ func (a *App) EditConfig(vaultName string, s *app_config_dto.Settings, jwtToken 
 	if err != nil {
 		return err
 	}
+	a.Logger.LogPretty("App - EditConfig - settings", s)
 
 	return a.AppConfigHandler.EditSettings(claims.UserID, vaultName, s)
 }
@@ -2116,7 +2117,7 @@ func ResetAndMigrate(db *gorm.DB) error {
 		&onboarding_domain.AppState{},
 	)
 }
-func (a *App) SetStorageMode(JwtToken string) {
+func (a *App) SetStorageMode(JwtToken string, mode string) {
 	claims, err := a.Auth.RequireAuth(JwtToken)
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
@@ -2125,7 +2126,8 @@ func (a *App) SetStorageMode(JwtToken string) {
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 	}
-	appCfg.Storage.Mode = app_config.StorageLocal
+	appCfg.Storage.Mode = app_config.StorageMode(mode)
+	
 	a.AppConfigHandler.UpdateAppConfig(appCfg)
 	a.Vault.UpdateAppConfig(claims.UserID, *appCfg)
 	

@@ -298,8 +298,8 @@ export function SaveSessionTest(arg1) {
   return window['go']['main']['App']['SaveSessionTest'](arg1);
 }
 
-export function SetStorageMode(arg1) {
-  return window['go']['main']['App']['SetStorageMode'](arg1);
+export function SetStorageMode(arg1, arg2) {
+  return window['go']['main']['App']['SetStorageMode'](arg1, arg2);
 }
 
 export function SetupFreeAndActivate(arg1) {

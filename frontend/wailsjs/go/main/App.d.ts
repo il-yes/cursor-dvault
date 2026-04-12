@@ -172,7 +172,7 @@ export function RevokeShare(arg1:string,arg2:json.RawMessage):Promise<tracecore_
 
 export function SaveSessionTest(arg1:string):Promise<void>;
 
-export function SetStorageMode(arg1:string):Promise<void>;
+export function SetStorageMode(arg1:string,arg2:string):Promise<void>;
 
 export function SetupFreeAndActivate(arg1:onboarding_usecase.FreeSetupRequest):Promise<tracecore.FreeCheckoutResponse>;
 

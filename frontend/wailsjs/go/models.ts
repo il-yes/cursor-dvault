@@ -922,6 +922,7 @@ export namespace app_config_dto {
 	    subscription?: app_config_domain.SubscriptionConfig;
 	    vaults: app_config_domain.VaultConfigBeta;
 	    devices?: app_config_domain.DeviceConfig;
+	    storage?: app_config.StorageConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -933,6 +934,7 @@ export namespace app_config_dto {
 	        this.subscription = this.convertValues(source["subscription"], app_config_domain.SubscriptionConfig);
 	        this.vaults = this.convertValues(source["vaults"], app_config_domain.VaultConfigBeta);
 	        this.devices = this.convertValues(source["devices"], app_config_domain.DeviceConfig);
+	        this.storage = this.convertValues(source["storage"], app_config.StorageConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

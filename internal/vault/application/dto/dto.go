@@ -30,3 +30,4 @@ type SelectedAttachment struct {
 	Storage string `json:"storage"`
 }
 type SelectedAttachments []SelectedAttachment
+

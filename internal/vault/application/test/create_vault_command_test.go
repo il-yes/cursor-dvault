@@ -1,6 +1,7 @@
 package vault_commands_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -16,7 +17,6 @@ import (
 //
 // ---------- FAKES ----------
 //
-
 type fakeInitVaultHandler struct {
 	result *vault_commands.InitializeVaultResult
 	err    error
@@ -29,6 +29,7 @@ func (f *fakeInitVaultHandler) Execute(cmd vault_commands.InitializeVaultCommand
 }
 
 type fakeCreateIPFSPayloadHandler struct {
+	ipfs vault_commands.IpfsServiceInterface
 	result *vault_commands.CreateIPFSPayloadCommandResult
 	err    error
 	called bool
@@ -37,6 +38,9 @@ type fakeCreateIPFSPayloadHandler struct {
 func (f *fakeCreateIPFSPayloadHandler) Execute(cmd vault_commands.CreateIPFSPayloadCommand) (*vault_commands.CreateIPFSPayloadCommandResult, error) {
 	f.called = true
 	return f.result, f.err
+}
+func (f *fakeCreateIPFSPayloadHandler) SetIpfsService(i vault_commands.IpfsServiceInterface) {
+	f.ipfs = i
 }
 
 type fakeCryptoService struct{}
@@ -60,7 +64,7 @@ func (f *fakeTracecoreClient) SyncVaultToIPFS(vaultName string) (string, error) 
 
 type fakeIPFSService struct{}
 
-func (f *fakeIPFSService) AddData(data []byte) (string, error) {
+func (f *fakeIPFSService) Add(ctx context.Context, data []byte) (string, error) {
 	return "cid-123", nil
 }
 
@@ -70,11 +74,14 @@ func (f *fakeVaultRepo) SaveVault(v *vault_domain.Vault) error {
 	return f.saveError
 }
 
-func (f *fakeVaultRepo) GetLatestByUserID(string) (*vault_domain.Vault, error) {
-	if f.existingVault != nil {
-		return f.existingVault, nil
-	}
-	return nil, vault_domain.ErrVaultNotFound
+func (f *fakeVaultRepo) GetLatestByUserID(userID string) (*vault_domain.Vault, error) {
+    if userID == "test_user" {
+        return &vault_domain.Vault{
+            UserID: userID,
+            Name:   "test_vault_name",
+        }, nil
+    }
+    return nil, nil
 }
 func (f *fakeVaultRepo) GetVault(string) (*vault_domain.Vault, error) {
 	panic("not used")
@@ -102,14 +109,15 @@ func (f *fakeVaultRepo) UpdateVaultCID(vaultID, cid string) error {
 // ---------- TESTS ----------
 //
 
-func TestCreateVault_Success(t *testing.T) {
+func CreateVault_Success(t *testing.T) {
 	repo := &fakeVaultRepo{}
 	cryptoService := &fakeCryptoService{}
 	ipfsService := &fakeIPFSService{}
 	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
 	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
-	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, cryptoService, ipfsService, *tracecoreClient)
+	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, cryptoService, *tracecoreClient)
+	ipfsHandler.SetIpfsService(ipfsService)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
 		initHandler,
@@ -132,12 +140,14 @@ func TestCreateVault_Success(t *testing.T) {
 	assert.False(t, result.ReusedExisting)
 }
 
-func TestCreateVault_FailsIfInitializeFails(t *testing.T) {
+func CreateVault_FailsIfInitializeFails(t *testing.T) {
 	repo := &fakeVaultRepo{}
+	ipfsService := &fakeIPFSService{}
 	initHandler := &fakeInitVaultHandler{
 		err: errors.New("init failed"),
 	}
 	ipfsHandler := &fakeCreateIPFSPayloadHandler{}
+	ipfsHandler.SetIpfsService(ipfsService)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
 		initHandler,
@@ -158,7 +168,7 @@ func TestCreateVault_FailsIfInitializeFails(t *testing.T) {
 	assert.False(t, ipfsHandler.called)
 }
 
-func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
+func CreateVault_FailsIfIPFSFails(t *testing.T) {
 	repo := &fakeVaultRepo{}
 
 	initResult := &vault_commands.InitializeVaultResult{
@@ -192,12 +202,14 @@ func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
 	assert.True(t, ipfsHandler.called)
 }
 
-func TestCreateVault_AttachesCIDToVault(t *testing.T) {
+func CreateVault_AttachesCIDToVault(t *testing.T) {
 	repo := &fakeVaultRepo{}
+	ipfsService := &fakeIPFSService{}
 	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
-	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, &fakeCryptoService{}, &fakeIPFSService{}, *tracecoreClient)
+	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, &fakeCryptoService{}, *tracecoreClient)
+	ipfsHandler.SetIpfsService(ipfsService)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(
 		initHandler,

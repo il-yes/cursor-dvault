@@ -1,6 +1,7 @@
 package app_config_domain
 
 import (
+	"os"
 	app_config "vault-app/internal/config"
 
 	"github.com/google/uuid"
@@ -74,29 +75,7 @@ func InitConfig(userID string) (*Config, error) {
 					GatewayURL:  "https://ipfs.io/ipfs/",
 				},
 			},
-			Storage: app_config.StorageConfig{
-				Mode: app_config.StorageCloud, // ← production default
-
-				LocalIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://localhost:5001",
-					GatewayURL:  "https://ipfs.io/ipfs/",
-				},
-
-				PrivateIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://192.168.1.10:5001",
-					GatewayURL:  "http://192.168.1.10:8080/ipfs/",
-				},
-
-				Cloud: app_config.CloudConfig{
-					BaseURL: "https://ankhora.io/back",
-				},
-
-				EnterpriseS3: app_config.S3Config{
-					Region:   "us-east-1",
-					Bucket:   "ankhora-enterprise",
-					Endpoint: "https://s3.us-east-1.amazonaws.com",
-				},
-			},
+			Storage:  DefaultStorageConfig(),
 		},
 		User: &UserConfig{
 			ID:            userID,
@@ -149,29 +128,7 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 					GatewayURL:  "https://ipfs.io/ipfs/",
 				},
 			},
-			Storage: app_config.StorageConfig{
-				Mode: app_config.StorageCloud, // ← production default
-
-				LocalIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://localhost:5001",
-					GatewayURL:  "https://ipfs.io/ipfs/",
-				},
-
-				PrivateIPFS: app_config.IPFSConfig{
-					APIEndpoint: "http://192.168.1.10:5001",
-					GatewayURL:  "http://192.168.1.10:8080/ipfs/",
-				},
-
-				Cloud: app_config.CloudConfig{
-					BaseURL: "https://ankhora.io/back",
-				},
-
-				EnterpriseS3: app_config.S3Config{
-					Region:   "us-east-1",
-					Bucket:   "ankhora-enterprise",
-					Endpoint: "https://s3.us-east-1.amazonaws.com",
-				},
-			},
+			Storage: DefaultStorageConfig(),
 		},
 		User: &UserConfig{
 			ID:            userID,
@@ -286,6 +243,36 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 
 	return cfg, nil
 }
+
+func DefaultStorageConfig() app_config.StorageConfig {
+	return app_config.StorageConfig{
+		Mode: app_config.StorageCloud, // ← production default
+
+		LocalIPFS: app_config.IPFSConfig{
+			APIEndpoint: "http://localhost:5001",
+			GatewayURL:  "https://ipfs.io/ipfs/",
+		},
+
+		PrivateIPFS: app_config.IPFSConfig{
+			APIEndpoint: "http://192.168.1.10:5001",
+			GatewayURL:  "http://192.168.1.10:8080/ipfs/",
+		},
+
+		Cloud: app_config.CloudConfig{
+			BaseURL: os.Getenv("CLOUD_BACK_URL"), // "https://ankhora.io/back",
+		},
+
+		EnterpriseS3: app_config.S3Config{
+			Region:   "us-east-1",
+			Bucket:   "ankhora-enterprise",
+			Endpoint: "https://s3.us-east-1.amazonaws.com",
+		},
+	}
+}
+
+
+
+
 
 // func (c *Config) ValidateFeatures(sub SubscriptionSnapshot) {
 

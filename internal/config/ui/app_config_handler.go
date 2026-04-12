@@ -3,6 +3,7 @@ package app_config_ui
 import (
 	"context"
 	"errors"
+	app_config "vault-app/internal/config"
 	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
@@ -217,7 +218,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			Theme: settings.UI.Theme,
 			AnimationsEnabled: settings.UI.AnimationsEnabled,
 		}
-		vh.Logger.LogPretty("userCfg", userCfg)
+		// vh.Logger.LogPretty("userCfg", userCfg)
 		if err := vh.UpdateUserConfig(userCfg); err != nil {
 			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update user config: %v", err)
 			return err
@@ -239,7 +240,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to create vault config: %v", output.Error)
 			return output.Error
 		}
-		vh.Logger.LogPretty("AppConfigHandler: OnChangingSettings - vaultCfg created", output.VaultConfig)
+		// vh.Logger.LogPretty("AppConfigHandler: OnChangingSettings - vaultCfg created", output.VaultConfig)
 	} else {
 		vh.Logger.Info("AppConfigHandler: OnChangingSettings - vault config found => update")
 		if err := vh.UpdateVaultConfig(existingVaultCfg.BaseVaultConfig.ID, &settings.Vaults); err != nil {
@@ -291,6 +292,29 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 		}
 	}
 	vh.Logger.Info("settings.Subscription passed....")
+
+	if settings.Storage != nil {
+		vh.Logger.LogPretty("settings storage", settings.Storage)
+		appCfg, err := vh.GetAppConfigByUserID(context.Background(), userID)
+		if err != nil {
+			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to get app config: %v", err)
+			return err
+		}
+		appCfg.Storage.Mode = settings.Storage.Mode
+		if settings.Storage.Mode == app_config.StorageLocal {
+			appCfg.Storage.LocalIPFS.APIEndpoint = app_config_domain.DefaultStorageConfig().LocalIPFS.APIEndpoint
+			appCfg.Storage.LocalIPFS.GatewayURL = app_config_domain.DefaultStorageConfig().LocalIPFS.GatewayURL
+		}
+		if settings.Storage.Mode == app_config.StorageCloud {
+			appCfg.Storage.Cloud.BaseURL = app_config_domain.DefaultStorageConfig().Cloud.BaseURL	
+		}
+		if err := vh.UpdateAppConfig(appCfg); err != nil {
+			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update app config: %v", err)
+			return err
+		}
+		vh.Logger.LogPretty("appCfg storage", appCfg.Storage)
+	}
+	vh.Logger.Info("settings.Storage passed....")
 
 	return nil
 }

@@ -78,7 +78,7 @@ func NewVaultHandler(
 
 	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db)
 	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
-		vaultRepo, crypto, ipfs, tracecoreClient,
+		vaultRepo, crypto, tracecoreClient,
 	)
 	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
@@ -616,7 +616,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 		return "", fmt.Errorf("SyncVault - failed to get app config: %w", err)
 	}
 
-	newCID, entryUpdates, err := vh.CommitVault(appCfg, userID, input.Vault.Name, input.Password, *session)
+	newCID, entryUpdates, err := vh.CommitVault(appCfg, input.Vault.UserSubscriptionID, input.Vault.Name, input.Password, *session)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - IPFS upload failed: %w", err)
 	}
@@ -677,8 +677,18 @@ func (vh *VaultHandler) CommitVault(
 	userPassword string,
 	session vault_session.Session,
 ) (string, []vaults_service.EntryUpdate, error) {
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")	
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: appCfg.Storage,
+		UserID:             userID,
+		VaultName:          vaultName,
+	}, tracecoreClient)
+	vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
 
-	mode := vaults_service.IncrementalSync
 	service := vaults_service.NewVaultServiceReal(
 		&vaults_service.AESEncryptor{}, 
 		*vh.CreateIPFSPayloadCommandHandler, 
@@ -691,6 +701,7 @@ func (vh *VaultHandler) CommitVault(
 		VaultName: vaultName,
 	}
 	service.Password = userPassword
+	mode := vaults_service.IncrementalSync
 
 	return service.CommitVault(session, mode)
 }
@@ -755,7 +766,7 @@ func (vh *VaultHandler) UploadAvatar(userID string, vaultName string, avatar []b
 	return avatarPath, nil
 }
 func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, error) {
-	newCID, err := vh.IPFS.AddData([]byte(encrypted))
+	newCID, err := vh.IPFS.Add(context.Background(), []byte(encrypted))
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadToIPFS: failed to upload to IPFS: %w", err)
 	}
@@ -770,7 +781,7 @@ func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(userID string, enc
 		vh.logger.Error("❌ VaultHandler - UploadAttachementToIPFS: ", err)
 		return "", err
 	}
-	newCID, err := vh.IPFS.AddData(raw)
+	newCID, err := vh.IPFS.Add(context.Background(), raw)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
 	}
@@ -780,7 +791,7 @@ func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(userID string, enc
 	return newCID, nil
 }
 func (vh *VaultHandler) UploadAttachementToIPFS(userID string, encrypted []byte) (string, error) {
-	newCID, err := vh.IPFS.AddData(encrypted)
+	newCID, err := vh.IPFS.Add(context.Background(), encrypted)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
 	}

@@ -402,6 +402,16 @@ export type SettingsState = {
     installed_templates: string[],
     completed: boolean
   }
+
+  storage?: {
+    mode: string
+    localIPFS?: {
+      api_endpoint: string
+    }
+    cloud?: {
+      base_url: string
+    }
+  }
 }
 
 export type SelectedAttachment = {

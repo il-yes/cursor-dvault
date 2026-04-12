@@ -1146,6 +1146,15 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			use_cases: getConfigRes.Vaults.onboarding?.use_cases,
 			installed_templates: getConfigRes.Vaults.onboarding?.installed_templates,
 			completed: getConfigRes.Vaults.onboarding?.completed
+		},
+		storage: {
+			mode: getConfigRes?.App?.storage?.mode,
+			localIPFS: {
+				api_endpoint: getConfigRes?.App?.storage?.local_ipfs?.api_endpoint,
+			},
+			cloud: {
+				base_url: getConfigRes?.App?.storage?.cloud?.base_url,
+			}
 		}
 	}
 	console.log({ getConfigRes, settings })
@@ -1232,6 +1241,15 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 				max_users: settings.subscription.limits.maxUsers,
 				max_devices: settings.subscription.limits.maxDevices,
 				max_shares: settings.subscription.limits.maxShares
+			}
+		},
+		storage: {
+			mode: settings.storage.mode,
+			localIPFS: {
+				api_endpoint: "http://localhost:5001",
+			},
+			cloud: {
+				base_url: "http://localhost:4001/api"
 			}
 		}
 	}

@@ -178,7 +178,7 @@ func (vh *VaultHandler) SyncVault0(userID string, password string) (string, erro
 	// GetBackendPlanParamForTransaction for managing plans from remote
 
 	// 4. Upload to IPFS
-	newCID, err := vh.IPFS.AddData(encrypted)
+	newCID, err := vh.IPFS.Add(vh.Ctx, encrypted)
 	if err != nil {
 		return "", fmt.Errorf("❌ failed to upload to IPFS: %w", err)
 	}
@@ -260,7 +260,7 @@ func (vh *VaultHandler) SyncVault(userID string, password string) (string, error
 	}
 
 	runtime.EventsEmit(vh.Ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
-	newCID, err := vh.IPFS.AddData(encrypted)
+	newCID, err := vh.IPFS.Add(vh.Ctx, encrypted)
 	if err != nil {
 		return "", fmt.Errorf("IPFS upload failed: %w", err)
 	}
@@ -331,7 +331,7 @@ func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, e
 	// GetBackendPlanParamForTransaction for managing plans from remote
 
 	// Upload to IPFS
-	newCID, err := vh.IPFS.AddData([]byte(encrypted))
+	newCID, err := vh.IPFS.Add(vh.Ctx, []byte(encrypted))
 	if err != nil {
 		return "", fmt.Errorf("❌ failed to upload to IPFS: %w", err)
 	}

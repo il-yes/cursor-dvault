@@ -69,9 +69,8 @@ type SyncVaultStreamRequest struct {
 type SyncVaultResponse struct {
 	UserID    string
 	CID       string
-	Sync    VaultSync
 	CreatedAt string
-	Metadata  map[string]string `json:"metadata,omitempty"`
+	// Metadata  map[string]string `json:"metadata,omitempty"`
 }
 type VaultSync struct {
 	ID string

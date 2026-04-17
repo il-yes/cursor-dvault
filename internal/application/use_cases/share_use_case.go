@@ -13,6 +13,7 @@ import (
 	blockchain "vault-app/internal/blockchain"
 	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
+	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
@@ -37,9 +38,13 @@ type TracecoreClientInterface interface {
 
 type ClientCryptoService interface {
 	GenerateSymmetricKey() []byte
-	EncryptPayload(string, []byte) blockchain.CryptoPayload
+	EncryptPayload(string, []byte) (blockchain.CryptoPayload, error)
 	AESEncrypt(plain []byte, key []byte) blockchain.CryptoPayload
 	AESDecrypt(enc []byte, key []byte) blockchain.CryptoPayload
+}
+
+type EntrySnapshotServiceInterface interface {
+	Build(ctx context.Context, req share_infrastructure.BuildRequest) ([]byte, error)
 }
 
 // ---------------------------------------------------------
@@ -52,6 +57,7 @@ type ShareUseCase struct {
 	dispatcher share_application_events.EventDispatcher
 	tc         TracecoreClientInterface // new cloud client
 	crypto     ClientCryptoService
+	EntrySnapshotService EntrySnapshotServiceInterface
 }
 
 func NewShareUseCase(repo share_domain.Repository, tc TracecoreClientInterface, d share_application_events.EventDispatcher, crypto ClientCryptoService) *ShareUseCase {
@@ -129,6 +135,16 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 		[]byte(entrySnapshotRawJson),
 		symKey,
 	)
+	encryptedPayloadBeta, err := uc.EntrySnapshotService.Build(context.Background(), share_infrastructure.BuildRequest{
+		Share:              &share,
+		UserSubscriptionID: "usersubscriptionid",
+		VaultName:          "vaultname",
+		Password:           "vaultpassword",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build entry snapshot: %w", err)
+	}
+	utils.LogPretty("share - ShareUseCase - encryptedPayloadBeta", encryptedPayloadBeta)
 
 	// ---------------------------------------------------------
 	// 3. Encrypt keys
@@ -138,13 +154,19 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	recipients := make(map[string]tracecore.CryptoRecipient, 0)
 
 	for _, rid := range share.Recipients {
-		encKey := crypto.EncryptPayload(rid.PublicKey, symKey)
+		encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt key: %w", err)
+		}
 
 		encryptedKeys[rid.Email] = encKey.ToString()
 	}
 
 	for _, rid := range share.Recipients {
-		encKey := crypto.EncryptPayload(rid.PublicKey, symKey)
+		encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt key: %w", err)
+		}
 
 		recipients[rid.Email] = tracecore.CryptoRecipient{
 			RevokedAt:     nil,
@@ -366,7 +388,6 @@ func stringToUint(str string) uint {
 	return uint(u64)
 }
 
-
 // ---------------------------------------------------------
 // Add Recipient (Cloud)
 // ---------------------------------------------------------
@@ -410,7 +431,10 @@ func (uc *ShareUseCase) BuildAddRecipientRequest(
 	// 2. Encrypt keys
 	// ---------------------------------------------------------
 
-	encKey := crypto.EncryptPayload(in.PublicKey, symKey)
+	encKey, err := crypto.EncryptPayload(in.PublicKey, symKey)
+	if err != nil {
+		return nil, fmt.Errorf("❌ ShareUseCase - BuildAddRecipientRequest: failed to encrypt key: %w", err)
+	}
 	encryptedKey := encKey.ToString()
 
 	// ---------------------------------------------------------
@@ -451,7 +475,7 @@ func (uc *ShareUseCase) UpdateRecipient(ctx context.Context, requesterID string,
 }
 
 func (uc *ShareUseCase) RevokeShare(ctx context.Context, requesterID string, in share_application_dto.UpdateRecipientRequest, configFacade app_config_ui.AppConfigHandler) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-// ---------------------------------------------------------
+	// ---------------------------------------------------------
 	// 1. Sign share
 	// ---------------------------------------------------------
 	// fetch userr private key from db
@@ -468,8 +492,8 @@ func (uc *ShareUseCase) RevokeShare(ctx context.Context, requesterID string, in 
 
 	input := tracecore_types.RevokeShareRequest{
 		Challenge: message,
-		Email: in.Email,
-		ShareID: in.ShareID,
+		Email:     in.Email,
+		ShareID:   in.ShareID,
 		Signature: signature,
 	}
 	response, err := uc.tc.RevokeShare(ctx, input)

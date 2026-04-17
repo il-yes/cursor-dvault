@@ -18,3 +18,22 @@ type StorageProvider interface {
     // optional: Get(ctx context.Context, cid string) ([]byte, error)
 	AddData(ctx context.Context, data []byte) (string, error)
 }
+
+
+
+type VaultCrypto interface {
+	Encrypt(data []byte, key []byte) ([]byte, error)
+	Decrypt(data []byte, key []byte) ([]byte, error)
+}
+
+type KeyEncryption interface {
+	WrapKeyWithPassword(vaultKey []byte, password string) ([]byte, error)
+	UnwrapKeyWithPassword(enc []byte, password string) ([]byte, error)
+
+	WrapKeyWithStellar(vaultKey []byte, stellarSecret string) ([]byte, error)
+	UnwrapKeyWithStellar(enc []byte, stellarSecret string) ([]byte, error)
+}
+
+type AsymmetricCrypto interface {
+	EncryptForRecipient(pubKey string, data []byte) ([]byte, error)
+}

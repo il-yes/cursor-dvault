@@ -66,6 +66,8 @@ export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promis
 
 export function DeleteFolder(arg1:string,arg2:string):Promise<string>;
 
+export function DownloadAttachment(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
 export function DownloadReceipt(arg1:string,arg2:string):Promise<main.Receipt>;
 
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
@@ -98,7 +100,7 @@ export function GetConfig(arg1:string,arg2:string):Promise<app_config_domain.Con
 
 export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_domain.Folder>>;
 
-export function GetIPFSFile(arg1:string,arg2:string):Promise<string>;
+export function GetIPFSFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;
 
@@ -108,7 +110,7 @@ export function GetSession(arg1:string):Promise<main.GetSessionResponse>;
 
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_domain.ShareAcceptData>;
 
-export function GetStorageUsage(arg1:string):Promise<main.StorageUsage>;
+export function GetStorageUsage(arg1:string,arg2:subscription_domain.SubscriptionTier):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_StorageUsageResponse_>;
 
 export function GetSubscriptionDetails(arg1:string):Promise<main.Subscription>;
 
@@ -143,6 +145,8 @@ export function LoadAvatar(arg1:string,arg2:string):Promise<string>;
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
 
 export function OnPaymentConfirmation(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function OpenFileInDefaultApp(arg1:string):Promise<void>;
 
 export function OpenGoogle():Promise<void>;
 
@@ -202,9 +206,9 @@ export function UpdateRecipient(arg1:string,arg2:json.RawMessage):Promise<tracec
 
 export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
 
-export function UploadAttachmentToIPFS(arg1:string,arg2:Array<number>):Promise<string>;
+export function UploadAttachmentToIPFS(arg1:string,arg2:Array<number>,arg3:string):Promise<string>;
 
-export function UploadAttachmentToIPFSWithEncryption(arg1:string,arg2:Array<number>):Promise<string>;
+export function UploadAttachmentToIPFSWithEncryption(arg1:string,arg2:Array<number>,arg3:string):Promise<string>;
 
 export function UploadAttachments(arg1:string,arg2:string,arg3:string,arg4:json.RawMessage,arg5:vault_dto.SelectedAttachments):Promise<vaults_domain.VaultEntry>;
 

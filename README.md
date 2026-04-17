@@ -1277,3 +1277,117 @@ type BaseEntry struct {
      GA6C53Q6GNMOPJMJDBCMP7KXA3UWUJ652Z5O2H5MHLQLURZDTHTSXJLG
      SBI4J25C3F6JBOHJZ52FPP2JKDZRYSVHMRYVVUQG2DUHF46XMJQZZBNZ
      empty panel clarify section very pepper lumber birth virus pottery rally amount fame modify flat guess fox dentist either carpet pear flee position cattle
+
+
+
+
+// 2. Load storage provider and tracecore client
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
+
+	storageProvider := blockchain.NewStorageProvider(
+		blockchain.Config{
+			StorageConfig: appCfg.Storage,
+			UserID:        ur.UserSubscriptionID, // or userID
+			VaultName:     ur.VaultName,
+		},
+		tracecoreClient,
+	)
+	vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
+
+	// 3. Store ENCRYPTED bytes on IPFS
+	// (you can reuse the same StoreOnIpfs path)
+	newCID, err := vh.CreateIPFSPayloadCommandHandler.StoreOnIpfs(
+		context.Background(),
+		vault_commands.StoreIpfsParams{
+			Data: encrypted,
+		},
+	)
+
+
+
+
+
+
+type VaultContext struct {
+	SessionID     string
+	AppConfig     app_config_domain.AppConfig
+	StorageConfig app_config_domain.StorageConfig
+	UserID        string
+	VaultName     string
+}
+vaultCtx := VaultContext{
+	SessionID: cmd.SessionID,
+	StorageConfig: appCfg.Storage,
+	UserID:        ur.UserSubscriptionID, // or userID
+	VaultName:     ur.VaultName,
+}
+
+
+type CreateIPFSPayloadCommand struct {
+	Vault    *vaults_domain.Vault
+	Password string
+	Data     []byte
+}
+
+type CreateIPFSPayloadCommandHandler struct {
+	storageFactory StorageFactory
+}
+func (h *CreateIPFSPayloadCommandHandler) Execute(
+	ctx context.Context,
+	vaultCtx VaultContext,
+	cmd CreateIPFSPayloadCommand,
+) (*CreateIPFSPayloadCommandResult, error) {
+
+	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+		Password: cmd.Password,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to unlock vault key: %w", err)
+	}
+
+	vaultKey := unlockRes.VaultKey.Key
+
+	encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)
+	if err != nil {
+		return nil, fmt.Errorf("vault encryption failed: %w", err)
+	}
+
+	cidFromIpfs, err := h.StoreOnIpfs(ctx, &vaultCtx, encrypted)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add vault to IPFS: %w", err)
+	}
+
+	return &CreateIPFSPayloadCommandResult{CID: cidFromIpfs}, nil
+}
+
+func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
+	ctx context.Context,
+	vaultCtx VaultContext,
+	data []byte,
+) (string, error) {
+	storageProvider := h.storageFactory.New(vaultCtx)
+	return storageProvider.Add(ctx, data)
+}
+
+
+type StorageFactory struct {}
+
+func (f *StorageFactory) New(vaultCtx *VaultContext) blockchain.StorageProvider {
+	return blockchain.NewStorageProvider(
+		blockchain.Config{
+			StorageConfig: vaultCtx.StorageConfig,
+			UserID:        vaultCtx.UserID,
+			VaultName:     vaultCtx.VaultName,
+		},
+		tracecore.NewTracecoreFromConfig(&vaultCtx.AppConfig, "token"),
+	)
+}
+newCID, err := vh.CreateIPFSPayloadCommandHandler.Execute(
+	context.Background(),
+	vaultCtx,
+	vault_commands.CreateIPFSPayloadCommand{
+		Vault:    vault.Vault,
+		Password: "password",
+		Data:     ur.ByteData,
+	},
+)	

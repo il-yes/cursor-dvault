@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Copy, Shield, Edit, Share2, Trash2, Sparkles, Loader2, Maximize2, Cloud, HardDrive } from "lucide-react";
 import { Attachment, AttachmentStorage, ENTRY_TYPE_CARD, ENTRY_TYPE_IDENTITY, ENTRY_TYPE_LOGIN, ENTRY_TYPE_SSHKEY, Folder, SettingsState, TransferStatus, UploadStorage, VaultEntry } from "@/types/vault";
-import { decryptAttachment, decryptField, encryptAttachment, loadAttachment, logAuditEvent, updateEntry, uploadAttachementToIPFS, uploadToCloud } from "@/services/api";
+import { decryptAttachment, decryptField, encryptAttachment, loadAttachment, logAuditEvent, updateEntry, uploadAttachementToIPFS, uploadAttachementToIPFSWithEncryption, uploadToCloud } from "@/services/api";
 import { toast } from "@/hooks/use-toast";
 import { cn, formatFileSize, Gateways, isRenderableInBrowser } from "@/lib/utils";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
@@ -746,16 +746,16 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             console.log("Uploading data preview:", fileBuffer.slice(0, 20));
 
             // 2. Encrypt → MUST return Uint8Array
-            const encryptedBytes = await encryptAttachment(
-                jwtToken,
-                fileBuffer,
-                vaultPassword
-            );
+            // const encryptedBytes = await encryptAttachment(
+            //     jwtToken,
+            //     fileBuffer,
+            //     vaultPassword
+            // );
 
-            console.log("Encrypted size:", encryptedBytes.length);
+            // console.log("Encrypted size:", encryptedBytes.length);
 
             // 3. Upload 
-            const cid = await uploadAttachementToIPFS(jwtToken, encryptedBytes);
+            const cid = await uploadAttachementToIPFSWithEncryption(jwtToken, Array.from(fileBuffer), vaultPassword);
 
             console.log("🌐 IPFS CID:", cid);
 
@@ -773,6 +773,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
         }
     };
+    
     const onTransferToBlockchain = async (attachment: Attachment) => {
         const hash = attachment.hash;
         updateTransferStatus(hash, "uploading");
@@ -781,17 +782,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             // 1. Get RAW file bytes
             const fileBuffer = await fetchLocalAttachmentBuffer(hash);
 
-            // // 2. Encrypt → MUST return Uint8Array
-            // const encryptedBase64 = await encryptAttachment(
-            //     jwtToken,
-            //     fileBuffer,
-            //     vaultPassword
-            // );
-
-            // console.log("Encrypted size:", encryptedBase64.length);
-
             // 3. Upload 
-            const cid = await uploadAttachementToIPFS(jwtToken, Array.from(fileBuffer));
+            const cid = await uploadAttachementToIPFS(jwtToken, Array.from(fileBuffer), vaultPassword);
 
             console.log("🌐 IPFS CID:", cid);
 
@@ -882,12 +874,13 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 attachments={attachments}
                 transferring={transferring}
                 onTransferToCloud={onTransferToCloud}
-                onTransferToBlockchain={onTransferToBlockchain}
+                onTransferToBlockchain={onTransferToBlockchainWithEncryption}
                 onCopyCid={copyCidToClipboard}
             />
         );
     };
 
+    
     // 2. Updated RenderAttachements
     const RenderAttachements = ({
         attachments,
@@ -1184,7 +1177,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                         </code>
 
                                         {/* 👁 VIEW ON IPFS */}
-                                        <button
+                                        {/* <button
                                             onClick={() => openIpfsInBrowser(attachment)}
                                             className="
                                                 rounded-full 
@@ -1201,7 +1194,26 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                             title="View on IPFS"
                                         >
                                             👁 View
-                                        </button>
+                                        </button> */}
+
+                                        <button
+                                            onClick={() => downloadAttachment(attachment)}
+                                            className="
+                                                rounded-full 
+                                                bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
+                                                px-3 py-1.5 
+                                                text-[11px] font-semibold text-[#F3DFA6] 
+                                                backdrop-blur-md 
+                                                hover:from-[#C9A44A]/50 hover:to-amber-500/50
+                                                transition-all 
+                                                shadow-lg
+                                                border border-[#C9A44A]/30
+                                                hover:scale-105 active:scale-95
+                                            "
+                                            title="Download"
+                                        >
+                                            Download
+                                         </button>
 
                                         {/* COPY */}
                                         <button
@@ -1333,7 +1345,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 <Button
                                     size="sm"
                                     className="bg-gradient-to-r from-[#C9A44A] to-amber-500 text-black hover:from-[#B8934A]"
-                                    onClick={() => onTransferToBlockchain(attachment)}
+                                    onClick={() => onTransferToBlockchainWithEncryption(attachment)}
                                 >
                                     Pin IPFS
                                 </Button>
@@ -1352,32 +1364,58 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         </div>
     );
 
-    const openPrivateIpfsInBrowser = async (attachment: Attachment) => {
+
+    const openIpfsInBrowser = async (attachment: Attachment) => {
+        const cid = "QmRd5ewmsZcALpgfYDB3u7VUxveSPxb1QFQ6B6qJPZEoMS";
+        const localGateway = "http://127.0.0.1:5001";
+        const gateway = "https://ipfs.dweb.link";
+        try {
+            fetch(`${localGateway}/ipfs/${attachment.cid}`)
+                .then(r => r.arrayBuffer())
+                .then(buf => {
+                    console.log("Image size (public flow):", buf.byteLength);
+                });
+
+
+
+            // const url = `${gateway}/${attachment.cid}`;
+            // console.log("Opening IPFS in browser:", url);
+            // window.open(url, "_blank")
+            // AppAPI.OpenURL(url);
+            const ipfsHost = "http://127.0.0.1:8080";
+            const url = `${ipfsHost}/ipfs/${attachment.cid}`;
+
+            await AppAPI.OpenFileInDefaultApp(url);
+        } catch (err) {
+            console.error("Decrypt view failed:", err);
+        }
+    };
+    const openPrivateIpfsInBrowser0 = async (attachment: Attachment) => {
         try {
             console.log("Fetching CID from backend:", attachment.cid);
 
             // ✅ DIRECT BACKEND CALL (NO FETCH)
-            const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid);
+            const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
 
-            // decode → bytes
-            const binaryString = atob(base64);
-            const bytes = new Uint8Array(binaryString.length);
+            // // decode → bytes
+            // const binaryString = atob(base64);
+            // const bytes = new Uint8Array(binaryString.length);
 
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
+            // for (let i = 0; i < binaryString.length; i++) {
+            //     bytes[i] = binaryString.charCodeAt(i);
+            // }
 
-            const decryptedBuffer = await decryptAttachment(
-                jwtToken,
-                bytes,
-                vaultPassword
-            );
+            // const decryptedBuffer = await decryptAttachment(
+            //     jwtToken,
+            //     bytes,
+            //     vaultPassword
+            // );
 
-            if (!decryptedBuffer || decryptedBuffer.length === 0) {
-                throw new Error("Decryption returned empty buffer");
-            }
+            // if (!decryptedBuffer || decryptedBuffer.length === 0) {
+            //     throw new Error("Decryption returned empty buffer");
+            // }
 
-            const blob = new Blob([decryptedBuffer], {
+            const blob = new Blob([base64], {
                 type: "image/jpeg"
             });
 
@@ -1392,12 +1430,82 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             console.error("Decrypt view failed:", err);
         }
     };
-    const openIpfsInBrowser = async (attachment: Attachment) => {
+    // Try to open directly in wails
+    const openPrivateIpfsInBrowser1 = async (attachment: Attachment) => {
         try {
-            const url = `${Gateways.local}/${attachment.cid}`;
-            AppAPI.OpenURL(url);
+            console.log("Fetching CID from backend:", attachment.cid);
+
+            // ✅ Backend already returns base64(plain)
+            const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
+
+            // ✅ Base64 → bytes
+            const binaryString = atob(base64);
+            const decryptedBytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                decryptedBytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // ✅ Plain file bytes, no extra decryption
+            const blob = new Blob([decryptedBytes], {
+                type: attachment?.mimeType || "application/octet-stream"
+            });
+
+            console.log("Blob size:", blob.size);
+
+            const objectUrl = URL.createObjectURL(blob);
+            console.log({ objectUrl });
+
+            // AppAPI.OpenURL(objectUrl);
+            window.open(objectUrl, "_blank");
+
         } catch (err) {
             console.error("Decrypt view failed:", err);
+        }
+    };
+    // Force to download
+    const openPrivateIpfsInBrowser = async (attachment: Attachment) => {
+        // ... same base64 → decryptedBytes
+        console.log("Fetching CID from backend:", attachment.cid);
+
+        // ✅ Backend already returns base64(plain)
+        const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
+
+        // ✅ Base64 → bytes
+        const binaryString = atob(base64);
+        const decryptedBytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            decryptedBytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const blob = new Blob([decryptedBytes], {
+            type: attachment?.mimeType || "application/octet-stream"
+        });
+
+        const objectUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = attachment.name ?? "attachment";
+        link.click();
+
+        // Optional: revoke the URL after use
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+    };
+    const downloadAttachment = async (attachment: Attachment) => {
+        try {
+            const fileURL = await AppAPI.DownloadAttachment(
+                jwtToken,
+                vaultPassword,
+                attachment.cid,
+                attachment.ext
+            );
+            console.log("Download path:", fileURL);
+            // Wails will open this file
+            console.log("Download path:", fileURL);
+
+            await AppAPI.OpenFileInDefaultApp(fileURL);
+        } catch (err) {
+            console.error("DownloadAttachment failed:", err);
         }
     };
     function base64ToUint8Array(base64: string): Uint8Array {
@@ -1411,6 +1519,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
         return bytes;
     }
+
 
     // - Helpers - Custom Fields
     const RESERVED = new Set(["template_id", "record_type", "schema_version"]); // Ankhora templates identifiers
@@ -1474,8 +1583,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
     return (
         <div className="flex flex-col backdrop-blur-xl bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 border border-white/20 dark:border-zinc-700/20 shadow-2xl">
-
-
             {/* UI Tabs */}
             <Tabs
                 value={tab}

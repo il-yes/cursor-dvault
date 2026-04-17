@@ -33,6 +33,10 @@ func (h *OpenVaultHandler) OpenVault(
 	if appConfigHandler == nil {
 		return nil, errors.New("app config handler is required")
 	}
+
+	if req.UserOnboardingID == "" {
+		return nil, errors.New("user onboardong id is required")
+	}
 	return h.openVaultCommandHandler.Handle(
 		ctx,
 		req,

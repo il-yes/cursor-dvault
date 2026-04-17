@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 // Adjust import path to your generated Wails bindings
 import {
     GetSubscriptionDetails,
-    GetStorageUsage,
+    // GetStorageUsage,
     UpgradeSubscription,
     CancelSubscription,
     GetBillingHistory,
     getVaultFromCloud,
     getSubscriptionFromCloud,
+    getStorageUsage,
 } from '../../services/api';
 import { cn } from '@/lib/utils'; // Adjust import path
 import { Button } from '@/components/ui/button'; // shadcn/ui or your button component
@@ -75,6 +76,8 @@ const SubscriptionManager: React.FC = () => {
     useEffect(() => {
         GetSubscriptionFromCloud();
     }, [jwtToken, vault?.Vault?.name]);
+
+
 
     // Get GetVaultFromCloud first from cloud, then from local storage if cloud fails
     const GetVaultFromCloud = async () => {
@@ -176,12 +179,14 @@ const SubscriptionManager: React.FC = () => {
                 console.log({ sub })
                 const historyResponse = await GetBillingHistory(jwtToken, 10);
                 console.log({ historyResponse })
-                const storage = await getStorage(vault);
-                console.log({ storage })
+                // const storage = await getStorage(vault);
+                // console.log({ storage })
+                const storageCloud = await GetStorageUsageFromCloud(sub.tier);
+                console.log({ storageCloud })
 
                 setVaultCloud(vault);
                 setSubscription(sub);
-                setStorageUsage(storage);
+                setStorageUsage(storageCloud);
                 setBillingHistory(historyResponse.history as BillingHistoryItem[]);
 
 
@@ -222,9 +227,9 @@ const SubscriptionManager: React.FC = () => {
         try {
             await UpgradeSubscription({
                 user_id: userId,
-                tier: newTier,
+                new_tier: newTier,
                 payment_method: paymentMethod,
-            });
+            }, jwtToken);
             setShowUpgradeModal(false);
             await loadSubscriptionData();
             // Replace with your toast system (Sonner, shadcn toast, etc.)
@@ -264,6 +269,11 @@ const SubscriptionManager: React.FC = () => {
         return viewStorage as StorageUsage;
     }
 
+    const GetStorageUsageFromCloud = async (tier: string) => {
+        const response = await getStorageUsage(jwtToken, tier);
+        return response as StorageUsage;
+    };
+
     if (loading) {
         return (
             <DashboardLayout>
@@ -275,6 +285,7 @@ const SubscriptionManager: React.FC = () => {
         );
     }
 
+    console.log({storageUsage})
     return (
         <DashboardLayout>
             <div className="max-w-5xl mx-auto p-8 space-y-8">

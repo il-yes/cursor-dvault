@@ -862,7 +862,7 @@ export const GetTierFeatures = async (tier: string): Promise<TierFeaturesRespons
 
 type UpgradeSubscriptionPayload = {
 	user_id: string;
-	tier: string;
+	new_tier: string;
 	payment_method: string;
 }
 type CancelSubscriptionPayload = {
@@ -883,18 +883,12 @@ type BillingHistoryResponse = {
 		created_at: string;
 	}[];
 }
-export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload): Promise<AuthResponse> => {
-	const response = await fetch(`${API_BASE_URL}/upgrade-subscription`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(payload),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
-	}
-
-	return response.json();
+export const UpgradeSubscription = async (payload: UpgradeSubscriptionPayload, jwtToken: string) => {
+	const upgradeSubResponse = await AppAPI.UpgradeSubscription(jwtToken, payload);
+	console.log({ upgradeSubResponse })
+	// if (!response.ok) {
+	// 	throw new Error(`Failed to upgrade subscription: ${response.statusText}`);
+	// }
 };
 
 export const CancelSubscription = async (payload: CancelSubscriptionPayload): Promise<AuthResponse> => {
@@ -939,18 +933,6 @@ export const GetSubscriptionDetails = async (): Promise<AuthResponse> => {
 
 	if (!response.ok) {
 		throw new Error(`Failed to get subscription details: ${response.statusText}`);
-	}
-
-	return response.json();
-};
-export const GetStorageUsage = async (): Promise<AuthResponse> => {
-	const response = await fetch(`${API_BASE_URL}/get-storage-usage`, {
-		method: 'GET',
-		headers: { 'Content-Type': 'application/json' },
-	});
-
-	if (!response.ok) {
-		throw new Error(`Failed to get storage usage: ${response.statusText}`);
 	}
 
 	return response.json();
@@ -1315,12 +1297,34 @@ export const decryptAttachment = async (jwtToken: string, fileData: Uint8Array, 
 // export const decryptAttachmentBase64 = async (token: string, base64String: string, password: string) => {
 // 	return await AppAPI.DecryptAttachmentBase64(token, base64String, password);
 // }
-export const uploadAttachementToIPFS = async (jwtToken: string, fileData: number[]): Promise<string> => {
-	const response = await AppAPI.UploadAttachmentToIPFS(jwtToken, fileData);
+export const uploadAttachementToIPFS = async (jwtToken: string, fileData: number[], password: string): Promise<string> => {
+	const response = await AppAPI.UploadAttachmentToIPFS(jwtToken, fileData, password);
+	return response;
+};
+export const uploadAttachementToIPFSWithEncryption = async (jwtToken: string, fileData: number[], password: string): Promise<string> => {
+	const response = await AppAPI.UploadAttachmentToIPFSWithEncryption(jwtToken, fileData, password);
 	return response;
 };
 export const uploadToCloud = async (jwtToken: string, fileData: string): Promise<string> => {
 	// const response = await AppAPI.UploadToCloud(jwtToken, fileData);
 	// return response;
 	return "";
+};
+
+type StorageUsageResponse = {
+	used_gb: number;
+	quota_gb: number;
+	percentage: number;
+}
+
+export const getStorageUsage = async (jwtToken: string, vaultName: string): Promise<StorageUsageResponse> => {
+	const getStorageUsageResponse = await AppAPI.GetStorageUsage(jwtToken, vaultName);
+	console.log({ getStorageUsageResponse })
+	const used_gb = getStorageUsageResponse.data.bytes_used / (1024 * 1024 * 1024)
+	const quota_gb = getStorageUsageResponse.data.bytes_limit / (1024 * 1024 * 1024)
+	return {
+		used_gb: used_gb,
+		quota_gb: quota_gb,
+		percentage: used_gb / quota_gb
+	};
 };

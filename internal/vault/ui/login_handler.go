@@ -151,6 +151,7 @@ func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,
+			Ext: attachment.Ext,
 		})
 		h.logger.LogPretty("✅ LoginHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}

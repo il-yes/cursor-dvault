@@ -209,6 +209,8 @@ export interface Attachment {
   storage: AttachmentStorage;
   cid?: string;
   transferStatus?: TransferStatus;
+  ext?: string;
+  downloaded_path?: string;
 }
 
 export const UploadStorage = {
@@ -419,5 +421,6 @@ export type SelectedAttachment = {
   size: number
   data: number[]
   storage: string
+  ext: string
 }
 

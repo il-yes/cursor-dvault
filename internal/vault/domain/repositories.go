@@ -22,5 +22,7 @@ type FolderRepository interface {
 	GetFolderById(id string) (*Folder, error)
 }
 
-
+type VaultKeyringRepository interface {
+	Save(k VaultKeyring) error
+}
 

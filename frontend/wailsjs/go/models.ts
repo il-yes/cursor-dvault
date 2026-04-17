@@ -1640,22 +1640,6 @@ export namespace main {
 	        this.user_id = source["user_id"];
 	    }
 	}
-	export class StorageUsage {
-	    used: number;
-	    quota: number;
-	    user_id: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new StorageUsage(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.used = source["used"];
-	        this.quota = source["quota"];
-	        this.user_id = source["user_id"];
-	    }
-	}
 	export class Subscription {
 	    id: string;
 	    amount: number;
@@ -2420,6 +2404,7 @@ export namespace share_domain {
 	    postal_code: string;
 	    country: string;
 	    extra_fields: number[];
+	    attachements: vaults_domain.Attachment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new EntrySnapshot(source);
@@ -2459,7 +2444,26 @@ export namespace share_domain {
 	        this.postal_code = source["postal_code"];
 	        this.country = source["country"];
 	        this.extra_fields = source["extra_fields"];
+	        this.attachements = this.convertValues(source["attachements"], vaults_domain.Attachment);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Metadata {
 	    EntryType: string;
@@ -3356,6 +3360,59 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class StorageUsageResponse {
+	    bytes_used: number;
+	    bytes_limit: number;
+	    user_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StorageUsageResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bytes_used = source["bytes_used"];
+	        this.bytes_limit = source["bytes_limit"];
+	        this.user_id = source["user_id"];
+	    }
+	}
+	export class CloudResponse_vault_app_internal_tracecore_types_StorageUsageResponse_ {
+	    status: number;
+	    data: StorageUsageResponse;
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse_vault_app_internal_tracecore_types_StorageUsageResponse_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], StorageUsageResponse);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	
 	export class User {
@@ -3512,6 +3569,7 @@ export namespace vault_dto {
 	    size: number;
 	    data: number[];
 	    storage: string;
+	    ext: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SelectedAttachment(source);
@@ -3523,6 +3581,7 @@ export namespace vault_dto {
 	        this.size = source["size"];
 	        this.data = source["data"];
 	        this.storage = source["storage"];
+	        this.ext = source["ext"];
 	    }
 	}
 
@@ -3571,6 +3630,38 @@ export namespace vault_session {
 
 export namespace vaults_domain {
 	
+	export class Attachment {
+	    id: string;
+	    entry_id: string;
+	    hash: string;
+	    name: string;
+	    size: number;
+	    cid?: string;
+	    cid_shared?: string;
+	    storage?: string;
+	    ext?: string;
+	    hash_local: string;
+	    hash_share: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Attachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.entry_id = source["entry_id"];
+	        this.hash = source["hash"];
+	        this.name = source["name"];
+	        this.size = source["size"];
+	        this.cid = source["cid"];
+	        this.cid_shared = source["cid_shared"];
+	        this.storage = source["storage"];
+	        this.ext = source["ext"];
+	        this.hash_local = source["hash_local"];
+	        this.hash_share = source["hash_share"];
+	    }
+	}
 	export class Folder {
 	    id: string;
 	    name: string;
@@ -3872,30 +3963,6 @@ export namespace vaults_domain {
 		    }
 		    return a;
 		}
-	}
-	export class Attachment {
-	    id: string;
-	    entry_id: string;
-	    hash: string;
-	    name: string;
-	    size: number;
-	    cid?: string;
-	    storage?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Attachment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.entry_id = source["entry_id"];
-	        this.hash = source["hash"];
-	        this.name = source["name"];
-	        this.size = source["size"];
-	        this.cid = source["cid"];
-	        this.storage = source["storage"];
-	    }
 	}
 	export class LoginEntry {
 	    id: string;

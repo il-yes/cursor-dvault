@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ type TracecoreClt interface {
 }
 
 // ---------------------------------------------------------
-// Vault Storage Factory
+// Vault Storage
 // ---------------------------------------------------------
 
 type Config struct {
@@ -60,7 +61,7 @@ func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvi
 }
 
 // ---------------------------------------------------------
-// IPFS Client - to delete - Duplicata with localIPFS 
+// IPFS Client - to delete - Duplicata with localIPFS
 // ---------------------------------------------------------
 type IPFSClient struct {
 	shell *shell.Shell
@@ -77,7 +78,7 @@ func NewIPFSClient(endpoint string) *IPFSClient {
 	}
 }
 
-// AddData adds encrypted data to IPFS and returns the CID. 
+// AddData adds encrypted data to IPFS and returns the CID.
 func (client *IPFSClient) Add(ctx context.Context, data []byte) (string, error) {
 	fmt.Println("Adding data to IPFS...")
 	fmt.Println(len(data))
@@ -260,10 +261,19 @@ func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) 
 	}
 	resp, err := c.client.GetDataFromCloudStorage(ctx, req)
 	if err != nil {
+		utils.LogPretty("CloudIPFSStorage - Get - response", resp)
 		return nil, err
 	}
+	if !resp.Success {
+		return nil, fmt.Errorf("cloud error: %s", resp.Message)
+	}
 
-	return []byte(resp.Data), nil
+	decoded, err := base64.StdEncoding.DecodeString(resp.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64: %w", err)
+	}
+
+	return decoded, nil
 }
 
 // ---------------------------------------------------------

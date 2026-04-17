@@ -12,6 +12,7 @@ import (
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 	utils "vault-app/internal/utils"
@@ -34,7 +35,7 @@ type BillingHandlerInterface interface {
 }
 type AppConfigHandlerInterface interface {
 	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
-	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) 
+	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
 	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
 }
@@ -117,7 +118,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 		// }
 		// utils.LogPretty("Monitor - Subscription updated:", subscription)
 		// m.Logger.Info("Monitor - User subscription retrieved and updated with user ID %s: %v", userSubscription.ID, subscription)
-
+		appStateRepo := onboarding_persistence.NewAppStateRepository(m.DB)
 		// 3. ------------ II. Close Onboarding ------------
 		onboardingUC := onboarding_usecase.NewOnboardUseCase(
 			m.VaultPort,
@@ -128,7 +129,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			m.IdentityHandler,
 			m.BillingHandler,
 			m.AppConfigHandler,
-			m.DB,
+			appStateRepo,
 		)
 		if _, err := onboardingUC.Execute(ctx, onboarding_usecase.OnboardRequest{
 			Identity:             event.UserID,

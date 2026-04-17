@@ -81,7 +81,7 @@ func (a *BillingAppHandler) DownloadReceipt(userID string, paymentID string) (*b
 }
 
 // GetStorageUsage returns current storage usage vs quota
-func (a *BillingAppHandler) GetStorageUsage(userID string) (*billing_domain.StorageUsage, error) {
+func (a *BillingAppHandler) GetStorageUsage(userID string) (*tracecore_types.CloudResponse[tracecore_types.StorageUsageResponse], error) {
     return a.subscriptionService.GetStorageUsage(a.ctx, userID)
 }
 

@@ -3,10 +3,11 @@ package subscription_infrastructure
 import (
 	"context"
 	"time"
-	utils "vault-app/internal/utils"
 	billing_domain "vault-app/internal/billing/domain"
 	subscription_domain "vault-app/internal/subscription/domain"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
+	utils "vault-app/internal/utils"
 
 	"gorm.io/gorm"
 )
@@ -98,13 +99,12 @@ func (s *SubscriptionSyncService) UpdatePaymentMethod(ctx context.Context, req *
 }
 
 // Get storage usage from cloud
-func (s *SubscriptionSyncService) GetStorageUsage(ctx context.Context, userID string) (*billing_domain.StorageUsage, error) {
+func (s *SubscriptionSyncService) GetStorageUsage(ctx context.Context, userID string) (*tracecore_types.CloudResponse[tracecore_types.StorageUsageResponse], error) {
 	// call cloud get storage usage
-	response, err := s.AnkhoraClient.GetStorageUsage(ctx, userID)
+	response, err := s.AnkhoraClient.GetStorageUsage(ctx, &tracecore_types.StorageUsageRequest{UserID: userID})
 	if err != nil {
 		return nil, err
 	}
-	utils.LogPretty("GetStorageUsage - cloud response", response)
 	return response, nil
 }
 

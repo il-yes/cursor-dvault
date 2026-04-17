@@ -14,3 +14,13 @@ func NewAttachment(entryID string, hash string, name string, size int64) *Attach
 		Size:      size,
 	}
 }
+
+func NewVaultKeyring(uID string) *VaultKeyring {
+	return &VaultKeyring{
+		UserID: uID,
+		Keys:    make([]EncryptedKey, 0),
+	}
+}
+
+
+

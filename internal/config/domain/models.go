@@ -9,6 +9,16 @@ import (
 	"gorm.io/gorm"
 )
 
+
+
+type VaultContext struct {
+	SessionID     string
+	AppConfig     AppConfig
+	StorageConfig app_config.StorageConfig
+	UserID        string
+	VaultName     string
+}
+
 type CommitRule struct {
 	ID          uint     `json:"id" gorm:"primaryKey"`
 	AppConfigID string   `json:"-" gorm:"index"` // foreign key to AppConfig

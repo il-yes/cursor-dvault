@@ -69,6 +69,7 @@ type SessionMapper0 struct {
 }
 type SessionMapper struct {
     UserID      string `gorm:"uniqueIndex"`
+    VaultKey 	[]byte
     Vault       []byte `gorm:"type:bytea"` // store encrypted VaultPayload + other session info
 	LastCID     string
 	LastSynced  string
@@ -93,9 +94,6 @@ func (m *SessionMapper) ToDomain() (*vault_session.Session, error) {
     }
     return session, nil
 }
-
-
-
 func SessionDomainToMapper(session *vault_session.Session) *SessionMapper {
     // Marshal the full session domain into JSON for storage
     data, err := json.Marshal(session)
@@ -112,4 +110,35 @@ func SessionDomainToMapper(session *vault_session.Session) *SessionMapper {
 }
 
 
+type KeyringMapper struct {
+	UserID    string `json:"user_id" gorm:"primaryKey"`
+	VaultID   string `json:"vault_id"`
+	Keys      []vaults_domain.EncryptedKey `json:"keys" gorm:"serializer:json"`
+	Wrappers  []vaults_domain.WrappedKey  `json:"wrappers" gorm:"serializer:json"`
+	UpdatedAt int64  `json:"updated_at"`
+}
+
+func (m *KeyringMapper) TableName() string {
+	return "vault_keyrings"
+}
+
+func (m *KeyringMapper) ToDomain() *vaults_domain.VaultKeyring {
+	return &vaults_domain.VaultKeyring{
+		UserID:    m.UserID,
+		VaultID:   m.VaultID,
+		Keys:      m.Keys,
+		Wrappers:  m.Wrappers,
+		UpdatedAt: m.UpdatedAt,
+	}
+}
+
+func KeyringDomainToMapper(kr vaults_domain.VaultKeyring) *KeyringMapper {
+	return &KeyringMapper{
+		UserID:    kr.UserID,
+		VaultID:   kr.VaultID,
+		Keys:      kr.Keys,
+		Wrappers:  kr.Wrappers,
+		UpdatedAt: kr.UpdatedAt,
+	}
+	}
 

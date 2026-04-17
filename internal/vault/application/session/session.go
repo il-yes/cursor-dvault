@@ -16,6 +16,7 @@ const (
 
 type Session struct {
 	UserID      string `gorm:"uniqueIndex"`
+    VaultKey []byte
 	Vault       []byte `json:"vault_blob,omitempty"`
 	LastCID     string
 	LastSynced  string

@@ -17,6 +17,7 @@ import (
 	subscription_infrastructure_eventbus "vault-app/internal/subscription/infrastructure/eventbus"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	vault_commands "vault-app/internal/vault/application/commands"
 
 	"gorm.io/gorm"
@@ -154,4 +155,31 @@ func (h *SubscriptionHandler) SaveSubscription(ctx context.Context, s *subscript
 func (h *SubscriptionHandler) GetUserSubscriptionByEmail(ctx context.Context, email string) (*subscription_domain.Subscription, error) {
 	// get subscription
 	return h.SubscriptionRepository.FindByEmail(ctx, email)
+}
+
+func (h *SubscriptionHandler) GetStorageUsage(
+	ctx context.Context, 
+	userID string, 
+	tier subscription_domain.SubscriptionTier,
+	// publicKey string,
+	// signature string,
+	// challenge string,	
+) (*tracecore_types.CloudResponse[tracecore_types.StorageUsageResponse], error) {
+	res, err := h.SubscriptionSyncService.GetStorageUsage(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (h *SubscriptionHandler) HandleUpgrade(ctx context.Context, userID string, newTier string, paymentMethod string) error {
+	if err := h.SubscriptionSyncService.HandleUpgrade(
+		ctx, 
+		userID, 
+		subscription_domain.SubscriptionTier(newTier), 
+		subscription_domain.PaymentMethod(paymentMethod),
+	); err != nil {
+		return err
+	}
+	return nil
 }

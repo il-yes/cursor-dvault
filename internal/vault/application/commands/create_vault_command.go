@@ -3,11 +3,13 @@ package vault_commands
 import (
 	"context"
 	"errors"
-	"vault-app/internal/blockchain"
+	"fmt"
+	"time"
 	app_config_domain "vault-app/internal/config/domain"
-	"vault-app/internal/tracecore"
+	onboarding_domain "vault-app/internal/onboarding/domain"
 	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // -------- COMMAND query --------
@@ -17,6 +19,7 @@ type CreateVaultCommand struct {
 	Password           string
 	UserSubscriptionID string
 	AppConfig          app_config_domain.AppConfig
+	UserOnboarding     *onboarding_domain.User
 }
 
 // -------- COMMAND result --------
@@ -24,7 +27,6 @@ type CreateVaultResult struct {
 	Vault          *vault_domain.Vault
 	ReusedExisting bool
 }
-
 
 // -------- COMMAND handler interfaces --------
 type CryptoServiceInterface interface {
@@ -41,7 +43,7 @@ type InitializeVaultHandler interface {
 }
 
 type CreateIPFSPayloadHandler interface {
-	Execute(cmd CreateIPFSPayloadCommand) (*CreateIPFSPayloadCommandResult, error)
+	Execute(ctx context.Context, vc app_config_domain.VaultContext, cmd CreateIPFSPayloadCommand) (*CreateIPFSPayloadCommandResult, error)
 	SetIpfsService(i IpfsServiceInterface)
 }
 
@@ -51,6 +53,11 @@ type CreateVaultCommandHandler struct {
 	createIPFSPayloadHandler CreateIPFSPayloadHandler
 	vaultRepo                vault_domain.VaultRepository
 }
+
+type VaultInterfaceService interface {
+	CreateVault(cmd CreateVaultCommand) (*CreateVaultResult, error)
+}
+
 // -------- COMMAND handler constructor --------
 func NewCreateVaultCommandHandler(
 	initializator InitializeVaultHandler,
@@ -65,42 +72,66 @@ func NewCreateVaultCommandHandler(
 }
 
 func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*CreateVaultResult, error) {
+	utils.LogPretty("CreateVaultCommandHandler - CreateVault - cmd", cmd)
+	if h.initializeVaultHandler == nil {
+		return nil, errors.New("CreateVaultCommandHandler - CreateVault: initializeVaultHandler")
+	}
+
 	// -----------------------------
 	// 1. Initialize vault
 	// -----------------------------
 	vault, err := h.initializeVaultHandler.Execute(InitializeVaultCommand{UserID: cmd.UserID, VaultName: cmd.VaultName})
 	if err != nil {
+		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 1st err", err)
 		return nil, err
 	}
 	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
 
 	// -----------------------------
-	// 2. Create IPFS payload	
+	// 1. Vault - Get vault content
 	// -----------------------------
-	// 1. LOAD TRACECORE CLIENT
-	// ------------------------------------------------------------
-	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
-	tracecoreClient := tracecore.NewTracecoreFromConfig(&cmd.AppConfig, "token")	
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
-	
-	// ------------------------------------------------------------
-	// 2. LOAD STORAGE PROVIDER
-	// ------------------------------------------------------------
-	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
-		StorageConfig: cmd.AppConfig.Storage,
-		UserID:             cmd.UserSubscriptionID,
-		VaultName:          cmd.VaultName,
-	}, tracecoreClient)
-	h.createIPFSPayloadHandler.SetIpfsService(storageProvider)
+	const InitialVaultVersion = "1.0.0"
+	vaultPayload := vault.Vault.BuildInitialPayload(InitialVaultVersion) // true for new user only
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - vaultPayload", vaultPayload)
 
-	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(CreateIPFSPayloadCommand{
-		Vault:     vault.Vault, 
-		Password:  cmd.Password,
-		AppCfg:    cmd.AppConfig,
-		UserID:    cmd.UserSubscriptionID,
-		VaultName: cmd.VaultName,
-	})
+	// -----------------------------
+	// 2. Get vault content
+	// -----------------------------
+	vaultBytes, err := vaultPayload.GetContentBytes()
 	if err != nil {
+		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 2nd err", err)
+		return nil, fmt.Errorf("❌ vault encryption failed: %w", err)
+	}
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - vaultBytes", vaultBytes)
+
+	// -----------------------------
+	// 2. Create vault context
+	// -----------------------------
+	vc := app_config_domain.VaultContext{
+		AppConfig:     cmd.AppConfig,
+		StorageConfig: cmd.AppConfig.Storage,
+		UserID:        cmd.UserSubscriptionID,
+		VaultName:     cmd.VaultName,
+	}
+
+	if h.createIPFSPayloadHandler == nil {
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - createIPFSPayloadHandler", h.createIPFSPayloadHandler)
+	}
+
+	// -----------------------------
+	// 2. Create IPFS CID
+	// -----------------------------
+	ipfsRecord, err := h.createIPFSPayloadHandler.Execute(
+		context.Background(),
+		vc,
+		CreateIPFSPayloadCommand{
+			Vault:    vault.Vault,
+			Password: cmd.Password,
+			Data:     vaultBytes,
+			UserID: cmd.UserOnboarding.ID,
+		})
+	if err != nil {
+		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 3rd err", err)
 		return nil, err
 	}
 	utils.LogPretty("CreateVaultCommandHandler - ipfsRecord", ipfsRecord)
@@ -108,15 +139,23 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 	// 3. Update vault with IPFS CID
 	// -----------------------------
+	// vault.Vault.UserID = 
 	vault.Vault.AttachCID(ipfsRecord.CID)
 	vault.Vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)
+	vault.Vault.VaultMeta = vaults_domain.VaultMeta{
+		Name: cmd.VaultName,
+		UserID: cmd.UserID,
+		CreatedAt: time.Now().Local().GoString(),
+	}
 	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault.Vault)
 
 	if vault.Vault == nil {
+		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 4th err", err)
 		return nil, errors.New("vault is nil before UpdateVault")
 	}
 
 	if err := h.vaultRepo.UpdateVault(vault.Vault); err != nil {
+		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 5th err", err)
 		return nil, err
 	}
 
@@ -129,5 +168,3 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		ReusedExisting: false,
 	}, nil
 }
-
-

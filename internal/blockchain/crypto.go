@@ -173,7 +173,6 @@ func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, erro
 
 	// 🧪 KEEP THESE LOGS (no recursion)
 	log.Printf("🧂 Salt: %x", salt)
-	log.Printf("🔑 Key: %x", key)
 	log.Printf("🔁 Nonce: %x", nonce)
 	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
 
@@ -239,6 +238,15 @@ func (c *CryptoService) Encrypt(data []byte, password string) ([]byte, error) {
 	return final, nil
 }
 
+// GenerateSymmetricKey returns a 32‑byte AES key encoded as base64 string.
+func (c *CryptoService) GenerateSymmetricKey() []byte {
+	symKey := make([]byte, 32)
+	_, err := rand.Read(symKey)
+	Must(err)
+
+	return symKey
+}
+
 type CryptoPayload struct {
 	Encrypted []byte
 	Decrypted string
@@ -249,15 +257,6 @@ func (e *CryptoPayload) ToString() string {
 		return e.Decrypted
 	}
 	return base64.StdEncoding.EncodeToString(e.Encrypted)
-}
-
-// GenerateSymmetricKey returns a 32‑byte AES key encoded as base64 string.
-func (c *CryptoService) GenerateSymmetricKey() []byte {
-	symKey := make([]byte, 32)
-	_, err := rand.Read(symKey)
-	Must(err)
-
-	return symKey
 }
 
 // -------------------------------------
@@ -309,9 +308,11 @@ func (c *CryptoService) AESDecrypt(enc []byte, key []byte) CryptoPayload {
 // -------------------------------------
 // Box
 // -------------------------------------
-func (c *CryptoService) EncryptPayload(pub string, symKey []byte) CryptoPayload {
+func (c *CryptoService) EncryptPayload(pub string, symKey []byte) (CryptoPayload, error	) {
 	edPub, err := strkey.Decode(strkey.VersionByteAccountID, pub)
-	Must(err)
+	if err != nil {
+		return CryptoPayload{}, fmt.Errorf("failed to decode public key: %w", err)
+	}
 
 	curvePub := Ed25519PubToCurve(edPub)
 
@@ -320,7 +321,7 @@ func (c *CryptoService) EncryptPayload(pub string, symKey []byte) CryptoPayload 
 
 	return CryptoPayload{
 		Encrypted: encKey,
-	}
+	}, nil
 }
 
 // -------------------------------------
@@ -445,7 +446,6 @@ func Decrypt0(encrypted []byte, password string) ([]byte, error) {
 		return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
 	}
 	log.Printf("🧂 Salt: %x", salt)
-	log.Printf("🔑 Key: %x", key)
 	log.Printf("🔁 Nonce: %x", nonce)
 	log.Printf("📦 Ciphertext length: %d", len(ciphertext))
 

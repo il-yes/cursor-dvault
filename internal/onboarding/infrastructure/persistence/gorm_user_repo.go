@@ -71,3 +71,4 @@ func (r *GormUserRepository) FindUserByEmail(email string) (*onboarding_domain.U
 func (r *GormUserRepository) FindAll() ([]onboarding_domain.User, error) {
 	return r.List()
 }	
+

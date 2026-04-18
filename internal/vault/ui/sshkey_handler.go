@@ -137,6 +137,7 @@ func (h *SSHKeyHandler) EditWithAttachments(userID string, entry any, attachment
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,
+			Ext: attachment.Ext,
 		})
 		h.logger.LogPretty("✅ SSHKeyHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}

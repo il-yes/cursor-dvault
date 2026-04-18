@@ -10,6 +10,8 @@ import (
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_domain "vault-app/internal/subscription/domain"
 	"vault-app/internal/tracecore"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 
 	"gorm.io/gorm"
 )
@@ -21,10 +23,13 @@ type OnBoardingHandler struct {
     setupPaymentUseCase onboarding_usecase.SetupPaymentAndActivateUseCase
     freeSetupUseCase onboarding_usecase.FreeSetupUseCase
     GetRecommendedTierUseCase onboarding_usecase.GetRecommendedTierUseCase
+    FindUsersUseCase onboarding_usecase.FindUsersUseCaseInterface
+
     DB *gorm.DB
     appLogger *logger.Logger
     Bus onboarding_application_events.OnboardingEventBus
 	UserRepo onboarding_domain.UserRepository
+	KeyringService vault_infrastructure_security.KeyringService
 }
 
 func  NewOnBoardingHandler(
@@ -34,12 +39,21 @@ func  NewOnBoardingHandler(
     tcClient *tracecore.TracecoreClient,
     DB *gorm.DB,
     appLogger *logger.Logger,
-    ) *OnBoardingHandler {
+    keyringService vault_infrastructure_security.KeyringService,
+) *OnBoardingHandler {
+    keyEncryption := vault_infrastructure_crypto.NewKeyService()
 
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(DB)
 	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: DB}
 	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
-	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(stellarService, onboardingUserRepo, onboardingBus, appLogger)
+	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(
+        stellarService, 
+        onboardingUserRepo, 
+        onboardingBus, 
+        appLogger,
+        &keyringService,
+        keyEncryption,
+    )
 
 	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(
         onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
@@ -47,6 +61,10 @@ func  NewOnBoardingHandler(
 
 	onboardingFreeSetupUseCase := onboarding_usecase.NewFreeSetupUseCase(
         onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
+    )
+
+	onboardingFindUsersUseCase := onboarding_usecase.NewFindUsersUseCase(
+        onboardingUserRepo,
     )
 
 	return &OnBoardingHandler{
@@ -59,6 +77,7 @@ func  NewOnBoardingHandler(
         appLogger: appLogger,
         Bus: onboardingBus,
 		UserRepo: onboardingUserRepo,
+		FindUsersUseCase: onboardingFindUsersUseCase,
     }
 }
 

@@ -147,6 +147,7 @@ func (h *IdentityHandler) EditWithAttachments(userID string, entry any, attachme
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,
+			Ext: attachment.Ext,
 		})
 		h.logger.LogPretty("✅ IdentityHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}

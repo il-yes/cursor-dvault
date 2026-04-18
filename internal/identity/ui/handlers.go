@@ -2,16 +2,17 @@ package identity_ui
 
 import (
 	"context"
-	utils "vault-app/internal/utils"
+	"errors"
+	identity_eventbus "vault-app/internal/identity/application"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
-	identity_eventbus "vault-app/internal/identity/application"
+	utils "vault-app/internal/utils"
 )
 
 // ----------------------------------------
-// - 	LoginHandler 
+// - 	LoginHandler
 // ----------------------------------------
 type LoginHandler struct {
 	loginCommandHandler *identity_commands.LoginCommandHandler
@@ -73,7 +74,7 @@ func (h *RegistrationHandler) Registers(ctx context.Context, req OnboardRequest)
 	}
 	identity_user, err := h.RegisterIdentityUC.RegisterIdentity(ctx, registerRequest)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("identity-fail")
 	}
 	
 	return identity_user, nil

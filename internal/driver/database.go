@@ -65,5 +65,6 @@ func AutoMigrate(db *gorm.DB) error {
 		// vault
 		&vaults_persistence.VaultMapper{},
 		&vaults_persistence.SessionMapper{},
+		&vaults_persistence.KeyringMapper{},
 	)
 }	

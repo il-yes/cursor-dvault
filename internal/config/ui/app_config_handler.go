@@ -107,11 +107,11 @@ func (vh *AppConfigHandler) GetConfig(userID string, vaultName string) (*app_con
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get device configs: %v", err)
 	}
-	vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
-	vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
-	vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
-	vh.Logger.Info("AppConfigHandler: GetConfig - subscriptionConfig: %v", subscriptionConfig)
-	vh.Logger.Info("AppConfigHandler: GetConfig - deviceConfigs: %v", deviceConfigs)
+	// vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
+	// vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
+	// vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
+	// vh.Logger.Info("AppConfigHandler: GetConfig - subscriptionConfig: %v", subscriptionConfig)
+	// vh.Logger.Info("AppConfigHandler: GetConfig - deviceConfigs: %v", deviceConfigs)
 
 	return &app_config_domain.Config{
 		App:          appConfig,

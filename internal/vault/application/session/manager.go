@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	share_application_events "vault-app/internal/application/events/share"
 	"vault-app/internal/blockchain"
 	app_config_domain "vault-app/internal/config/domain"
-	share_infrastructure "vault-app/internal/infrastructure/share"
 	tracecore_models "vault-app/internal/tracecore/models"
 	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -33,7 +31,6 @@ type Manager struct {
 	logger Logger
 	NowUTC func() string
 
-	EventDispatcher share_application_events.EventDispatcher
 	IPFS            *blockchain.IPFSClient
 	Ctx             context.Context
 	IsDirty         bool
@@ -52,7 +49,6 @@ func NewManager(sessionRepository SessionRepository, vaultRepository vaults_doma
 		NowUTC:            func() string { return time.Now().Format(time.RFC3339) },
 		IsDirty:           false,
 
-		EventDispatcher: share_infrastructure.InitializeEventDispatcher(),
 		Ctx:             ctx,
 		IPFS:            ipfs,
 	}

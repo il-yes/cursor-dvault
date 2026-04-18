@@ -3,6 +3,7 @@ package onboarding_usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	billing_usecase "vault-app/internal/billing/application/usecase"
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
@@ -11,10 +12,8 @@ import (
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
-	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_domain "vault-app/internal/onboarding/domain"
-	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 
@@ -51,10 +50,11 @@ type BillingHandlerInterface interface {
 
 type AppConfigHandlerInterface interface {
 	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
-	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) 
+	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
 	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
 }
+
 // ----------- Request -----------
 type RegisterRequest struct {
 	Email            string
@@ -62,6 +62,7 @@ type RegisterRequest struct {
 	IsAnonymous      bool
 	StellarPublicKey string
 }
+
 // ----------- UseCase Request -----------
 type OnboardRequest struct {
 	Identity             string
@@ -87,7 +88,7 @@ type OnboardUseCase struct {
 	StellarService           StellarServiceInterface
 	OnBoardingUserRepository UserServiceInterface
 	Bus                      onboarding_application_events.OnboardingEventBus
-	Logger                   *logger.Logger
+	Logger                   Logger
 	IdentityHandler          IdentityHandlerInterface
 	BillingHandler           BillingHandlerInterface
 	Vault                    VaultPort
@@ -102,17 +103,13 @@ func NewOnboardUseCase(
 	stellarService StellarServiceInterface,
 	userService UserServiceInterface,
 	eventBus onboarding_application_events.OnboardingEventBus,
-	logger *logger.Logger,
+	logger Logger,
 	identityHandler IdentityHandlerInterface,
 	billingHandler BillingHandlerInterface,
 	appConfigHandler AppConfigHandlerInterface,
-	gormDb *gorm.DB,
+	appStateRepo onboarding_domain.AppStateRepository, // ✅ injected
 ) *OnboardUseCase {
 
-	appStateRepo := onboarding_persistence.NewAppStateRepository(
-		gormDb,
-	)
-	utils.LogPretty("OnboardUseCase - Constructor - appStateRepo", appStateRepo)
 	return &OnboardUseCase{
 		Vault:                    v,
 		StellarService:           stellarService,
@@ -123,7 +120,6 @@ func NewOnboardUseCase(
 		BillingHandler:           billingHandler,
 		AppConfigHandler:         appConfigHandler,
 		AppStateRepo:             appStateRepo,
-		gormDb:                   gormDb,
 	}
 }
 
@@ -196,7 +192,21 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		return nil, errors.New("user config not found")
 	}
 	utils.LogPretty("OnboardUseCase - Execute - userConfig", userConfig)
-	
+
+	if uc.Vault == nil {
+		uc.Logger.Error("OnboardUseCase - Execute - Vault is nil")
+		return nil, errors.New("vault is nil")
+	}
+	fmt.Println("uc.Vault", uc.Vault)
+	if appConfig == nil {
+		uc.Logger.Error("OnboardUseCase - Execute - App config is nil")
+		return nil, errors.New("app config is nil")
+	}
+	if userIdentity == nil {
+		uc.Logger.Error("OnboardUseCase - Execute - User identity is nil")
+		return nil, errors.New("user identity is nil")
+	}
+	utils.LogPretty("OnboardUseCase - Execute - req", req)
 	// 3. ------------- Vault creation ------------------
 	result, err := uc.Vault.CreateVault(vault_commands.CreateVaultCommand{
 		UserID:             userIdentity.ID,
@@ -204,6 +214,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		Password:           req.Password,
 		UserSubscriptionID: req.UserSubscriptionID,
 		AppConfig:          *appConfig.AppConfig,
+		UserOnboarding:  onboardUser,
 	})
 	if err != nil {
 		return nil, err
@@ -224,11 +235,13 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	// 5. ------------- (Optional event...) ------------------
 	appState := onboarding_domain.NewAppState()
 	appState.SetHasVault(true)
-	appStateRepo := onboarding_persistence.NewAppStateRepository(
-		uc.gormDb,
-	)
-	appStateRepo.Save(appState)
-		
+	if uc.AppStateRepo == nil {
+		return nil, errors.New("appStateRepo is nil")
+	}
+
+	if err := uc.AppStateRepo.Save(appState); err != nil {
+		return nil, err
+	}
 
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil
 }

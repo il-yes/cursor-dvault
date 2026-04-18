@@ -86,6 +86,10 @@ export function DeleteFolder(arg1, arg2) {
   return window['go']['main']['App']['DeleteFolder'](arg1, arg2);
 }
 
+export function DownloadAttachment(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DownloadAttachment'](arg1, arg2, arg3, arg4);
+}
+
 export function DownloadReceipt(arg1, arg2) {
   return window['go']['main']['App']['DownloadReceipt'](arg1, arg2);
 }
@@ -150,8 +154,8 @@ export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
 }
 
-export function GetIPFSFile(arg1, arg2) {
-  return window['go']['main']['App']['GetIPFSFile'](arg1, arg2);
+export function GetIPFSFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetIPFSFile'](arg1, arg2, arg3);
 }
 
 export function GetPendingPaymentRequests(arg1) {
@@ -170,8 +174,8 @@ export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }
 
-export function GetStorageUsage(arg1) {
-  return window['go']['main']['App']['GetStorageUsage'](arg1);
+export function GetStorageUsage(arg1, arg2) {
+  return window['go']['main']['App']['GetStorageUsage'](arg1, arg2);
 }
 
 export function GetSubscriptionDetails(arg1) {
@@ -240,6 +244,10 @@ export function NotifyPaymentSuccess(arg1) {
 
 export function OnPaymentConfirmation(arg1, arg2, arg3) {
   return window['go']['main']['App']['OnPaymentConfirmation'](arg1, arg2, arg3);
+}
+
+export function OpenFileInDefaultApp(arg1) {
+  return window['go']['main']['App']['OpenFileInDefaultApp'](arg1);
 }
 
 export function OpenGoogle() {
@@ -358,12 +366,12 @@ export function UpgradeSubscription(arg1, arg2) {
   return window['go']['main']['App']['UpgradeSubscription'](arg1, arg2);
 }
 
-export function UploadAttachmentToIPFS(arg1, arg2) {
-  return window['go']['main']['App']['UploadAttachmentToIPFS'](arg1, arg2);
+export function UploadAttachmentToIPFS(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadAttachmentToIPFS'](arg1, arg2, arg3);
 }
 
-export function UploadAttachmentToIPFSWithEncryption(arg1, arg2) {
-  return window['go']['main']['App']['UploadAttachmentToIPFSWithEncryption'](arg1, arg2);
+export function UploadAttachmentToIPFSWithEncryption(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UploadAttachmentToIPFSWithEncryption'](arg1, arg2, arg3);
 }
 
 export function UploadAttachments(arg1, arg2, arg3, arg4, arg5) {

@@ -6,7 +6,7 @@ import { useVault } from "@/hooks/useVault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useToast } from "@/hooks/use-toast";
 import { uploadAttachments } from "@/services/api";
-import { SelectedAttachment, UploadStorage } from "@/types/vault";
+import { UploadStorage } from "@/types/vault";
 import { useVaultStore } from "@/store/vaultStore";
 
 interface FileUploadWidgetProps {
@@ -46,7 +46,7 @@ export function FileUploadWidget({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const vaultPassword = "vaultPassword";
   const { jwtToken } = useAuthStore.getState();
-    const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
+  const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
 
   const [progressVisible, setProgressVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -106,6 +106,19 @@ export function FileUploadWidget({
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
+  const getFileExtension = (filename: string): string | null => {
+    const parts = filename.split(".");
+    if (parts.length < 2) return null; // no dot at all
+
+    const last = parts.pop();
+    return last ? last.toLowerCase() : null;
+  }
+
+  const getRealExtension = (filename: string): string => {
+    const match = filename.match(/\.(.+)$/);
+    return match ? match[1].toLowerCase() : "bin";
+  }
+
   const handleAttachments = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -117,12 +130,14 @@ export function FileUploadWidget({
       const attachments = await Promise.all(
         selectedFiles.map(async (file) => {
           const buffer = await readFileAsBuffer(file)
+          const ext = getFileExtension(file.name) ?? "bin"; // or undefined
 
           return {
             name: file.name,
             size: file.size,
             data: [...buffer],
-            storage: UploadStorage.LOCAL
+            storage: UploadStorage.LOCAL,
+            ext: ext
           }
         })
       )

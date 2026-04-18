@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net"
+	"os/exec"
 
 	// "encoding/base64"
 	"encoding/base64"
@@ -124,6 +125,8 @@ type config struct {
 	CloudURL      string
 	CloudBackURL  string
 	CloudFrontURL string
+
+	KEYRING_PATH string
 }
 
 type App struct {
@@ -311,7 +314,16 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	// Vault
 	// -------------------------------------------------------------------------------------------------
-	vaultHandler := vault_ui.NewVaultHandler(reg, *appLogger, ctx, ipfs, &cryptoService, db.DB, *tracecoreClient)
+	vaultHandler := vault_ui.NewVaultHandler(
+		reg,
+		*appLogger,
+		ctx,
+		ipfs,
+		&cryptoService,
+		db.DB,
+		*tracecoreClient,
+		cfg.KEYRING_PATH,
+	)
 
 	// -------------------------------------------------------------------------------------------------
 	// Subscription
@@ -329,6 +341,7 @@ func NewApp() *App {
 		tracecoreClient,
 		db.DB,
 		appLogger,
+		*vaultHandler.KeyringService,
 	)
 
 	// -------------------------------------------------------------------------------------------------
@@ -465,9 +478,7 @@ func NewApp() *App {
 	}
 }
 
-
 // func (a *App) TestUploadIPFS(jwtToken string) error {
-
 
 // 	vaultName := "tamboo"
 // 	entryType := "login"
@@ -719,6 +730,11 @@ func (a *App) OpenURL(rawURL string) error {
 	runtime.BrowserOpenURL(a.ctx, rawURL)
 	return nil
 }
+func (a *App) OpenFileInDefaultApp(path string) error {
+    // On macOS
+    cmd := exec.Command("open", path)
+    return cmd.Run()
+}
 
 // Poll backend for payment status
 func (a *App) PollPaymentStatus(sessionID string, email string, plainPassword string) (string, error) {
@@ -870,6 +886,14 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 
 	a.Logger.LogPretty("Session provisionned successfully - Runtime from session: ", session.Runtime)
 
+	// --------- Find user onboarding ---------
+	userOnboarding, err := a.OnBoardingHandler.FindUsersUseCase.FindByEmail(result.User.Email)
+	if err != nil {
+		a.Logger.Error("❌ App - SignIn - failed to find user onboarding for user %s: %v", result.User.ID, err)
+		return nil, err
+	}
+	a.Logger.Info("User onboarding found successfully: %v", userOnboarding)
+
 	// --------- Open vault ---------
 	vaultRes, err := a.Vault.Open(
 		context.Background(),
@@ -877,10 +901,12 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 			UserID:   result.User.ID,
 			Password: req.Password,
 			Session:  session,
+			UserOnboardingID: userOnboarding.ID,
 		},
 		a.AppConfigHandler,
 	)
 	if err != nil {
+		a.Logger.Error("❌ App - SignIn - failed to open vault for user %s: %v", result.User.ID, err)
 		return nil, err
 	}
 	a.Logger.Info(
@@ -1211,6 +1237,7 @@ func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) (
 
 	return a.Vault.DecryptAttachment(data, password)
 }
+
 // func (a *App) DecryptAttachmentBase64(jwtToken string, data string, password string) (string, error) {
 // 	_, err := a.Auth.RequireAuth(jwtToken)
 // 	if err != nil {
@@ -1222,24 +1249,35 @@ func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) (
 // 		return "", err
 // 	}
 
-	
 // 	return base64.StdEncoding.EncodeToString(data), nil
 // }
 
-func (a *App) GetIPFSFile(jwtToken string, cid string) (string, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+func (a *App) GetIPFSFile(jwtToken string, cid string, password string) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
 
 	a.Logger.Info("App - GetIPFSFile processing")
-
-	data, err := a.Vault.IPFS.GetData(cid)
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
 	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
+	
+	ipfsQuery, err := a.Vault.GetIPFSFile(vault_ui.GetIPFSFileRequest{
+		UserID: claims.UserID,
+		CID:    cid,
+		Password: password,
+		Vault: *vault,
+	})
+	if err != nil {
+		a.Logger.Error("App - GetIPFSFile - error: %v", err)
+		return "", err
+	}
+	
 
-	return base64.StdEncoding.EncodeToString(data), nil
+	return base64.StdEncoding.EncodeToString(ipfsQuery), nil
 }
 func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1264,22 +1302,81 @@ func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 	}
 	return cid, nil
 }
-func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []byte) (string, error) {
+func (a *App) DownloadAttachment(jwtToken string,  password string, cid string, ext string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
-	return a.Vault.UploadAttachementToIPFS(claims.UserID, data)
+
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+
+	return a.Vault.DownloadAttachment(context.Background() , vault_ui.DownloadAttachmentRequest{
+		UserID: claims.UserID,
+		Vault: *vault,
+		CID: cid,
+		Password: password,
+		Ext: ext,
+	})
 }
-func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8) (string, error) {
+
+func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
-	return a.Vault.UploadAttachementToIPFS(claims.UserID, data)
+	// Get Vault ==============================
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	a.Logger.LogPretty("App - UploadAttachmentToIPFS - vault", vault)
+
+	filePath, err := a.Vault.UploadAttachementToIPFS(claims.UserID, vault_ui.UploadAttachRequest{
+		Data:               data,
+		VaultName:          vault.Name,
+		UserSubscriptionID: vault.UserSubscriptionID,
+		Password:           password,
+	})
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	return filePath, nil
 }
+func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []uint8, password string) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	// Get Vault ==============================
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	a.Logger.LogPretty("App - UploadAttachmentToIPFS - vault", vault)
+
+	filePath, err := a.Vault.UploadAttachementToIPFSWithEncryption(claims.UserID, vault_ui.UploadAttachRequest{
+		Data:               data,
+		VaultName:          vault.Name,
+		UserSubscriptionID: vault.UserSubscriptionID,
+		Password:           password,
+	})
+	if err != nil {
+		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
+		return "", err
+	}
+	return filePath, nil
+}
+
 func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1359,6 +1456,7 @@ func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
 	}
 	return avatar, nil
 }
+// upload First local (then ipfs)
 func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType string, raw json.RawMessage, attachments vault_dto.SelectedAttachments) (*vaults_domain.VaultEntry, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1902,14 +2000,51 @@ type StorageUsage struct {
 }
 
 // GetStorageUsage returns current storage usage vs quota
-func (a *App) GetStorageUsage(jwtToken string) (*StorageUsage, error) {
+func (a *App) GetStorageUsage(jwtToken string, tier subscription_domain.SubscriptionTier) (*tracecore_types.CloudResponse[tracecore_types.StorageUsageResponse], error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("userID", claims.UserID)
-	// return a.subscriptionService.GetStorageUsage(a.ctx, claims.UserID)
-	return nil, nil
+
+	// -------------------------------------------------------------------------------------------------
+	// UserConfig - Get user config
+	// -------------------------------------------------------------------------------------------------
+	// userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	// if err != nil {
+	// 	a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+	// 	return nil, err
+	// }
+
+	// // -------------------------------------------------------------------------------------------------
+	// //  Build user challenge - signature
+	// // -------------------------------------------------------------------------------------------------
+	// challenge, err := a.RequestChallenge(blockchain.ChallengeRequest{PublicKey: userConfig.StellarAccount.PublicKey})
+	// if err != nil {
+	// 	a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+	// 	return nil, err
+	// }
+	// a.Logger.LogPretty("✅ App - GetVaultFromCloud - challenge: %v", challenge)
+	// signature, err := blockchain.SignActorWithStellarPrivateKey(userConfig.StellarAccount.PrivateKey, challenge.Challenge)
+	// if err != nil {
+	// 	a.Logger.Error("App - GetVaultFromCloud - error: %v", err)
+	// 	return nil, err
+	// }
+	// a.Logger.LogPretty("✅ App - GetVaultFromCloud - signature: %v", signature)
+
+	// -------------------------------------------------------------------------------------------------
+	//  Get user vault
+	// -------------------------------------------------------------------------------------------------
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - SynchronizeVault - error: %v", err)
+		return nil, err
+	}
+
+	return a.SubscriptionHandler.GetStorageUsage(
+		a.ctx,
+		vault.UserSubscriptionID,
+		tier,
+	)
 }
 
 type UpgradeRequest struct {
@@ -1924,10 +2059,8 @@ func (a *App) UpgradeSubscription(jwtToken string, req *UpgradeRequest) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("userID", claims.UserID)
 	req.UserID = claims.UserID
-	// return a.subscriptionService.HandleUpgrade(a.ctx, req.UserID, req.NewTier, req.PaymentMethod)
-	return nil
+	return a.SubscriptionHandler.HandleUpgrade(a.ctx, req.UserID, req.NewTier, req.PaymentMethod)
 }
 
 // ReactivateSubscription reactivates a cancelled subscription
@@ -2044,6 +2177,7 @@ func loadConfig() config {
 		CloudBackURL:       os.Getenv("CLOUD_BACK_URL"),
 		CloudFrontURL:      os.Getenv("CLOUD_FRONT_URL"),
 		ANCHORA_SECRET:     os.Getenv("ANCHORA_SECRET"),
+		KEYRING_PATH:        os.Getenv("KEYRING_PATH"),
 	}
 }
 
@@ -2122,20 +2256,18 @@ func (a *App) SetStorageMode(JwtToken string, mode string) {
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 	}
-	appCfg, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background() , claims.UserID)
+	appCfg, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 	}
 	appCfg.Storage.Mode = app_config.StorageMode(mode)
-	
+
 	a.AppConfigHandler.UpdateAppConfig(appCfg)
 	a.Vault.UpdateAppConfig(claims.UserID, *appCfg)
-	
 
-	appCfgUpdated, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background() , claims.UserID)
+	appCfgUpdated, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 	}
 	utils.LogPretty("appCfgUpdated", appCfgUpdated)
 }
-	

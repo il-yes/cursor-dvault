@@ -2,6 +2,9 @@ package vault_ui
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"unicode/utf8"
 
 	// "encoding/base64"
 	"encoding/base64"
@@ -12,8 +15,10 @@ import (
 	"sync"
 	"time"
 	"vault-app/internal/blockchain"
+	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/logger/logger"
+	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
@@ -24,8 +29,10 @@ import (
 	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_eventbus "vault-app/internal/vault/infrastructure/eventbus"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
 
@@ -42,6 +49,7 @@ type VaultHandler struct {
 	CreateVaultCommandHandler       *vault_commands.CreateVaultCommandHandler
 	VaultOpenedListener             *vault_commands.VaultOpenedListener
 	GetIPFSDataQuerryHandler        *vault_queries.GetIPFSDataQuerryHandler
+	UnlockVaultHandler              *vault_commands.UnlockVaultHandler
 
 	FolderRepository    vaults_domain.FolderRepository
 	VaultRepository     vaults_domain.VaultRepository
@@ -57,8 +65,12 @@ type VaultHandler struct {
 	SessionManager *vault_session.Manager
 	SessionsMu     sync.Mutex
 
-	Ctx      context.Context
-	EventBus vault_events.VaultEventBus
+	Ctx           context.Context
+	EventBus      vault_events.VaultEventBus
+	Reconstructor vaults_service.VaultReconstructor
+	KeyringPath   string
+	KeyringService *vault_infrastructure_security.KeyringService
+	UserOnboardingFinder	onboarding_usecase.FindUsersUseCaseInterface	
 }
 
 func NewVaultHandler(
@@ -69,6 +81,7 @@ func NewVaultHandler(
 	crypto *blockchain.CryptoService,
 	db *gorm.DB,
 	tracecoreClient tracecore.TracecoreClient,
+	keyringPath string,	
 ) *VaultHandler {
 	folderRepo := vaults_persistence.NewGormFolderRepository(db)
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
@@ -76,14 +89,31 @@ func NewVaultHandler(
 	sessionManager := vault_session.NewManager(sessionRepo, vaultRepo, &logger, ctx, ipfs, make(map[string]*vault_session.Session))
 	eventBus := vault_infrastructure_eventbus.NewMemoryBus()
 
+	// defer os.Remove(tmp)
+	vc := &vault_infrastructure_crypto.AESService{}
+	keyEnc := vault_infrastructure_crypto.NewKeyService()
+
+	keyringService := vault_infrastructure_security.NewKeyringService(
+		vc,
+		keyEnc,
+		keyringPath,
+		vault_infrastructure_security.OSFileSystem{},
+	)
+	unlockVaultHandler := vault_commands.UnlockVaultHandler{
+		Keyring: keyringService,
+	}
+
 	initializeVaultHandler := vault_commands.NewInitializeVaultCommandHandler(db)
 	createIpfsCommandHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
-		vaultRepo, crypto, tracecoreClient,
+		vaultRepo, tracecoreClient, &blockchain_ipfs.DefaultStorageFactory{}, &unlockVaultHandler,
 	)
 	createVaultCommand := vault_commands.NewCreateVaultCommandHandler(
 		initializeVaultHandler, createIpfsCommandHandler, vaultRepo,
 	)
-	ipfsDataQueryHandler := vault_queries.NewGetIPFSDataQuerryHandler(crypto)
+	sf := blockchain_ipfs.DefaultStorageFactory{}
+	ipfsDataQueryHandler := vault_queries.NewGetIPFSDataQuerryHandler(crypto, vc, &sf, &unlockVaultHandler)
+	reconstructor := vaults_service.NewVaultReconstructor(ipfsDataQueryHandler)
+	
 
 	return &VaultHandler{
 		DB:                              db,
@@ -101,6 +131,9 @@ func NewVaultHandler(
 		VaultRepository:                 vaultRepo,
 		TracecoreClient:                 tracecoreClient,
 		GetIPFSDataQuerryHandler:        ipfsDataQueryHandler,
+		UnlockVaultHandler:              &unlockVaultHandler,
+		Reconstructor:                   *reconstructor,
+		KeyringService: keyringService,
 	}
 }
 
@@ -218,7 +251,11 @@ func (vh *VaultHandler) UpdateAppConfig(userID string, appCfg app_config_domain.
 // -----------------------------
 // Vault - Crud
 // -----------------------------
-func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCommand, appConfigHandler vault_commands.AppConfigFacade) (*vault_commands.OpenVaultResult, error) {
+func (vh *VaultHandler) Open(
+	ctx context.Context, 
+	req vault_commands.OpenVaultCommand, 
+	appConfigHandler vault_commands.AppConfigFacade,
+) (*vault_commands.OpenVaultResult, error) {
 	utils.LogPretty("OpenVault - req", req)
 	if req.Session == nil {
 		vh.logger.Error("❌ OpenVault - session is required")
@@ -234,10 +271,11 @@ func (vh *VaultHandler) Open(ctx context.Context, req vault_commands.OpenVaultCo
 	}
 
 	openHandler := NewOpenVaultHandler(
-		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler),
+		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler, &vh.Reconstructor),
 		vh.EventBus,
 	)
 	vh.logger.Info("✅ OpenVault - opening vault for user %s", req.UserID)
+
 	res, err := openHandler.OpenVault(ctx, req, appConfigHandler)
 	if err != nil {
 		vh.logger.Error("❌ OpenVault - opening vault for user %s: %v", req.UserID, err)
@@ -616,7 +654,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 		return "", fmt.Errorf("SyncVault - failed to get app config: %w", err)
 	}
 
-	newCID, entryUpdates, err := vh.CommitVault(appCfg, input.Vault.UserSubscriptionID, input.Vault.Name, input.Password, *session)
+	newCID, entryUpdates, _, _, err := vh.CommitVault(appCfg, input.Vault.UserSubscriptionID, input.Vault.Name, input.Password, *session)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - IPFS upload failed: %w", err)
 	}
@@ -671,35 +709,39 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	return newCID, nil
 }
 func (vh *VaultHandler) CommitVault(
-	appCfg app_config_domain.AppConfig, 
-	userID string, 
+	appCfg app_config_domain.AppConfig,
+	userID string,
 	vaultName string,
 	userPassword string,
 	session vault_session.Session,
-) (string, []vaults_service.EntryUpdate, error) {
-	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")	
+) (string, []vaults_service.EntryUpdate, int, int, error) {
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
 	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+
+	vaultCtx := app_config_domain.VaultContext{
+		AppConfig:     appCfg,
+		UserID:        userID,
+		VaultName:     vaultName,
+		StorageConfig: appCfg.Storage,
+	}
 	// ------------------------------------------------------------
 	// 2. LOAD STORAGE PROVIDER
 	// ------------------------------------------------------------
 	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
 		StorageConfig: appCfg.Storage,
-		UserID:             userID,
-		VaultName:          vaultName,
+		UserID:        userID,
+		VaultName:     vaultName,
 	}, tracecoreClient)
 	vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
 
 	service := vaults_service.NewVaultServiceReal(
-		&vaults_service.AESEncryptor{}, 
-		*vh.CreateIPFSPayloadCommandHandler, 
-		vh.VaultRepository, 
+		&vaults_service.AESEncryptor{},
+		*vh.CreateIPFSPayloadCommandHandler,
+		vh.VaultRepository,
 		vh.SessionManager.SessionRepository,
+		vaultCtx,
 	)
-	service.IpfsParams = vault_commands.StoreIpfsParams{
-		AppCfg:    appCfg,
-		UserID:    userID,
-		VaultName: vaultName,
-	}
+
 	service.Password = userPassword
 	mode := vaults_service.IncrementalSync
 
@@ -775,30 +817,136 @@ func (vh *VaultHandler) UploadToIPFS(userID string, encrypted string) (string, e
 
 	return newCID, nil
 }
-func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(userID string, encrypted string) (string, error) {
-	raw, err := base64.StdEncoding.DecodeString(encrypted)
+
+func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(
+	userID string,
+	ur UploadAttachRequest,
+) (string, error) {
+	appCfg, err := vh.GetAppConfig(userID)
 	if err != nil {
-		vh.logger.Error("❌ VaultHandler - UploadAttachementToIPFS: ", err)
-		return "", err
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
 	}
-	newCID, err := vh.IPFS.Add(context.Background(), raw)
+	/*
+		// 0. Get crypto service (same one used for vault)
+		// assume vh.CryptoService is *blockchain.CryptoService
+		cryptoService := vh.CryptoService
+		if cryptoService == nil {
+			return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption - CryptoService is not initialized")
+		}
+
+		// 1. Encrypt attachment bytes
+		encrypted, err := cryptoService.Encrypt(ur.Data, ur.Password)
+		if err != nil {
+			return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption: encryption failed: %w", err)
+		}
+
+		// 2. Load storage provider and tracecore client
+		tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
+
+		storageProvider := blockchain.NewStorageProvider(
+			blockchain.Config{
+				StorageConfig: appCfg.Storage,
+				UserID:        ur.UserSubscriptionID, // or userID
+				VaultName:     ur.VaultName,
+			},
+			tracecoreClient,
+		)
+		vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
+	*/
+	vc := app_config_domain.VaultContext{
+		AppConfig:     appCfg,
+		StorageConfig: appCfg.Storage,
+		UserID:        ur.UserSubscriptionID,
+		VaultName:     ur.VaultName,
+	}
+	vault, err := vh.GetVault(userID, ur.VaultName)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get vault: %w", err)
+	}
+
+	// 3. Store ENCRYPTED bytes on IPFS
+	// (you can reuse the same StoreOnIpfs path)
+	result, err := vh.CreateIPFSPayloadCommandHandler.Execute(
+		context.Background(),
+		vc,
+		vault_commands.CreateIPFSPayloadCommand{
+			Vault:    vault,
+			Password: "password",
+			Data:     ur.Data,
+		},
+	)
+
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
 	}
-	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
-	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
 
-	return newCID, nil
+	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Attachment uploaded to IPFS (CID: %s)", result.CID)
+	return result.CID, nil
 }
-func (vh *VaultHandler) UploadAttachementToIPFS(userID string, encrypted []byte) (string, error) {
-	newCID, err := vh.IPFS.Add(context.Background(), encrypted)
+
+type UploadAttachRequest struct {
+	Data               []byte
+	UserSubscriptionID string
+	VaultName          string
+	Password           string
+}
+
+func (vh *VaultHandler) UploadAttachementToIPFS(userID string, ur UploadAttachRequest) (string, error) {
+	appCfg, err := vh.GetAppConfig(userID)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
+	}
+
+	/* -----------------------------
+	// 1. LOAD TRACECORE CLIENT
+	// ------------------------------------------------------------
+	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: appCfg.Storage,
+		UserID:        ur.UserSubscriptionID,
+		VaultName:     ur.VaultName,
+	}, tracecoreClient)
+	vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
+	*/
+	// ------------------------------------------------------------
+	// 3. GET IPFS CID
+	// ------------------------------------------------------------
+	vc := app_config_domain.VaultContext{
+		AppConfig:     appCfg,
+		StorageConfig: appCfg.Storage,
+		UserID:        ur.UserSubscriptionID,
+		VaultName:     ur.VaultName,
+	}
+	vault, err := vh.GetVault(userID, ur.VaultName)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get vault: %w", err)
+	}
+
+	// 3. Store ENCRYPTED bytes on IPFS
+	// (you can reuse the same StoreOnIpfs path)
+	result, err := vh.CreateIPFSPayloadCommandHandler.Execute(
+		context.Background(),
+		vc,
+		vault_commands.CreateIPFSPayloadCommand{
+			Vault:    vault,
+			Password: "password",
+			Data:     ur.Data,
+		},
+	)
+	// newCID, err := vh.IPFS.Add(context.Background(), encrypted)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
 	}
-	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Vault uploaded to IPFS (CID: %s)", newCID)
+	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFS: Vault uploaded to IPFS (CID: %s)", result.CID)
 	// 3. ----------------- Fires vault stores UploadToIPFS event -----------------
 
-	return newCID, nil
+	return result.CID, nil
 }
 func (vh *VaultHandler) EncryptVault(userID string, password string) (string, error) {
 	vh.logger.Info("🔄 VaultHandler - EncryptVault: Starting vault encryption for UserID: %s", userID)
@@ -985,3 +1133,148 @@ func (vh *VaultHandler) GetVaultFromCloud(subID string) (*tracecore_types.CloudR
 
 }
 
+type GetIPFSFileRequest struct {
+	Vault    vaults_domain.Vault
+	UserID   string
+	CID      string
+	Password string
+}
+
+func (vh *VaultHandler) GetIPFSFile(req GetIPFSFileRequest) ([]byte, error) {
+	appCfg, err := vh.GetAppConfig(req.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
+	}
+
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: appCfg.Storage,
+		UserID:        req.Vault.UserSubscriptionID,
+		VaultName:     req.Vault.Name,
+	}, tracecoreClient)
+	vh.GetIPFSDataQuerryHandler.SetIpfsService(storageProvider)
+
+	// ------------------------------------------------------------
+	// 3. GET FROM IPFS
+	// ------------------------------------------------------------
+	rawBytes, err := vh.GetIPFSDataQuerryHandler.GetFromIpfs(context.Background(), vault_queries.GetIPFSDataQuerry{
+		CID: req.Vault.CID,
+	})
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - GetFromIpfs - rawBytes", rawBytes)
+
+	// ------------------------------------------------------------
+	// 4. DECRYPT
+	// ------------------------------------------------------------
+	// Must be valid Base64 string
+	if !utf8.Valid(rawBytes) {
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - GetFromIpfs - invalid UTF‑8 in base64 input")
+	}
+
+	// 3. Decode Base64 → binary (salt + nonce + ciphertext)
+	decoded, err := base64.StdEncoding.DecodeString(string(rawBytes))
+	if err != nil {
+		return nil, fmt.Errorf("❌ CreateIPFSPayloadCommandHandler - GetFromIpfs - base64 decode failed: %w", err)
+	}
+	 if vh.CryptoService == nil {
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - GetFromIpfs - CryptoService is nil")
+	 }
+
+	// 4. Decrypt binary data
+	plain, err := vh.CryptoService.Decrypt(decoded, req.Password)
+	if err != nil {
+		return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	return plain, nil
+}
+
+type DownloadAttachmentRequest struct {
+	UserID   string
+	Vault    vaults_domain.Vault
+	CID      string
+	Ext      string
+	Password string
+}
+
+func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAttachmentRequest) (string, error) {
+	appCfg, err := vh.GetAppConfig(req.UserID)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
+	}
+
+	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
+
+	// ------------------------------------------------------------
+	// 2. LOAD STORAGE PROVIDER
+	// ------------------------------------------------------------
+	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
+		StorageConfig: appCfg.Storage,
+		UserID:        req.Vault.UserSubscriptionID,
+		VaultName:     req.Vault.Name,
+	}, tracecoreClient)
+	vh.GetIPFSDataQuerryHandler.SetIpfsService(storageProvider)
+
+	// ------------------------------------------------------------
+	// 3. GET FROM IPFS
+	// ------------------------------------------------------------
+	rawBytes, err := vh.GetIPFSDataQuerryHandler.GetFromIpfs(context.Background(), vault_queries.GetIPFSDataQuerry{
+		CID: req.CID,
+	})
+
+	// ------------------------------------------------------------
+	// // 4. Decode ipfs data to base64
+	// // ------------------------------------------------------------
+	// Must be valid Base64 string
+	if !utf8.Valid(rawBytes) {
+		return "", fmt.Errorf("invalid UTF‑8 in base64 input")
+	}
+
+	// ------------------------------------------------------------
+	// 4. DECRYPT
+	// ------------------------------------------------------------
+	// Must be valid Base64 string
+	if !utf8.Valid(rawBytes) {
+		return "", fmt.Errorf("invalid UTF‑8 in base64 input")
+	}
+
+	// 3. Decode Base64 → binary (salt + nonce + ciphertext)
+	decoded, err := base64.StdEncoding.DecodeString(string(rawBytes))
+	if err != nil {
+		return "", fmt.Errorf("❌ base64 decode failed: %w", err)
+	}
+
+	// 4. Decrypt binary data
+	plain, err := vh.CryptoService.Decrypt(decoded, req.Password)
+	if err != nil {
+		return "", fmt.Errorf("❌ decryption failed: %w", err)
+	}
+
+	// 2. Write to Downloads (or other safe dir)
+	// Use something like: ~/Downloads/VaultCore/attachments/
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	destDir := filepath.Join(home, "Downloads", "VaultCore", "attachments")
+	if err := os.MkdirAll(destDir, 0o700); err != nil {
+		return "", err
+	}
+
+	filename := fmt.Sprintf("attachment_%s.%s", req.CID, req.Ext)
+	vh.logger.LogPretty("VaultHandler - DownloadAttachment - filename", filename)
+	path := filepath.Join(destDir, filename)
+
+	if err := os.WriteFile(path, plain, 0o600); err != nil {
+		return "", err
+	}
+
+	//4. Return path; Wails will open it
+	return path, nil
+
+}

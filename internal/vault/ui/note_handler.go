@@ -139,6 +139,7 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,
+			Ext: attachment.Ext,
 		})
 		h.logger.LogPretty("✅ NoteHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}

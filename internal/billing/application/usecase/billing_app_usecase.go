@@ -15,7 +15,7 @@ type SubscriptionServiceInterface interface {
 	SyncLocal(ctx context.Context, subscription *subscription_domain.Subscription) error
 	CancelSubscription(ctx context.Context, userID string, reason string) error
 	UpdatePaymentMethod(ctx context.Context, req *billing_domain.UpdatePaymentMethodRequest) error
-	GetStorageUsage(ctx context.Context, userID string) (*billing_domain.StorageUsage, error)
+	GetStorageUsage(ctx context.Context, userID string) (*tracecore_types.CloudResponse[tracecore_types.StorageUsageResponse], error)
 	HandleUpgrade(ctx context.Context, userID string, newTier subscription_domain.SubscriptionTier, paymentMethod subscription_domain.PaymentMethod) error
 	ReactivateSubscription(ctx context.Context, userID string, tier subscription_domain.SubscriptionTier, paymentMethod subscription_domain.PaymentMethod) error		
 }

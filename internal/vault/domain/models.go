@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
+
 	// "vault-app/internal/models"
 	"vault-app/internal/utils"
 
@@ -18,18 +19,24 @@ const DefaultVaultName = "Default Vault"
 // Vault
 // ==============================================================================
 type Vault struct {
-	ID        string `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name" gorm:"column:name"`
-	Type      string `json:"type" gorm:"column:type"`
-	UserID    string `json:"user_id" gorm:"column:user_id"`
+	ID      string `json:"id" gorm:"primaryKey"`
+	Version string `json:"version" gorm:"column:version"`
+
+	Name               string `json:"name" gorm:"column:name"`
+	Type               string `json:"type" gorm:"column:type"`
+	UserID             string `json:"user_id" gorm:"column:user_id"`
 	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
-	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
-	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
-	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
+	CID                string `json:"cid" gorm:"column:cid"`               // ✅ Explicitly map this!
+	CreatedAt          string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt          string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
+	VaultMeta          VaultMeta
+
+	// new
+	KeyVersion int
+	Keyring    []WrappedKey
 
 	Avatar string `json:"avatar" gorm:"column:avatar,omitempty"`
-	VaultMeta VaultMeta
+	TxHash string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
 }
 
 func NewVault(userID string, name string) *Vault {
@@ -47,16 +54,16 @@ func NewVault(userID string, name string) *Vault {
 	}
 }
 func (v *Vault) AttachCID(cid string) {
-    v.CID = cid
-    v.UpdatedAt = time.Now().Format(time.RFC3339)
+	v.CID = cid
+	v.UpdatedAt = time.Now().Format(time.RFC3339)
 }
 func (v *Vault) AttachTxHash(txHash string) {
-    v.TxHash = txHash
-    v.UpdatedAt = time.Now().Format(time.RFC3339)
-}	
+	v.TxHash = txHash
+	v.UpdatedAt = time.Now().Format(time.RFC3339)
+}
 func (v *Vault) AttachUserSubscriptionID(userSubscriptionID string) {
-    v.UserSubscriptionID = userSubscriptionID
-    v.UpdatedAt = time.Now().Format(time.RFC3339)
+	v.UserSubscriptionID = userSubscriptionID
+	v.UpdatedAt = time.Now().Format(time.RFC3339)
 }
 func (v *Vault) BuildInitialPayload(version string) *VaultPayload {
 	return InitEmptyVaultPayload(v.Name, version)
@@ -68,8 +75,8 @@ func (v *Vault) GetVaultAttachmentPath() string {
 	return filepath.Join("vault")
 }
 func (v *Vault) AttachAvatar(avatar string) {
-    v.Avatar = avatar
-    v.UpdatedAt = time.Now().Format(time.RFC3339)
+	v.Avatar = avatar
+	v.UpdatedAt = time.Now().Format(time.RFC3339)
 }
 
 type VaultContentInterface interface {
@@ -80,7 +87,7 @@ type VaultContentInterface interface {
 
 // ==============================================================================
 // Folder
-// ==============================================================================	
+// ==============================================================================
 type Folder struct {
 	ID        string `json:"id" gorm:"primaryKey"`
 	Name      string `json:"name" gorm:"varchar(100)"`
@@ -108,19 +115,20 @@ type VaultPayload struct {
 	Name    string `json:"name"`
 	BaseVaultContent
 }
+
 func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 	var vp VaultPayload
 	if version != "" {
 		vp.Version = version
 	} else {
-		vp.Version = "1.0"
+		vp.Version = "1.0.0"
 	}
 	if name != "" {
 		vp.Name = name
 	} else {
 		vp.Name = "New Vault"
 	}
-	vp.InitBaseVaultContent()	
+	vp.InitBaseVaultContent()
 
 	return &vp
 }
@@ -206,11 +214,17 @@ func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 
 	return moved
 }
-func (v *VaultPayload) InitFolders() {	
+func (v *VaultPayload) InitFolders() {
 	v.Folders = []Folder{}
 }
 func (v *VaultPayload) InitEntries() {
-	v.Entries = Entries{}
+	v.Entries = Entries{
+		Login: []LoginEntry{},
+		Card: []CardEntry{},
+		Identity: []IdentityEntry{},
+		Note: []NoteEntry{},
+		SSHKey: []SSHKeyEntry{},
+	}
 }
 
 func (v *VaultPayload) InitBaseVaultContent() {
@@ -259,6 +273,7 @@ type VaultEntry interface {
 	GetTypeName() string
 	GetName() string
 }
+
 // ==============================================================================
 // EntryType
 // ==============================================================================
@@ -277,21 +292,21 @@ const (
 // BaseEntry
 // ==============================================================================
 type BaseEntry struct {
-	ID              string    `json:"id"`
-	CID       string `json:"cid,omitempty" gorm:"column:cid"`
-	EntryName       string    `json:"entry_name"`
-	FolderID        string    `json:"folder_id"`
-	Type            EntryType `json:"type"`
-	AdditionnalNote string    `json:"additionnal_note,omitempty"`
-	CustomFields    JSONMap   `json:"custom_fields,omitempty" gorm:"type:jsonb"`
-	Trashed         bool      `json:"trashed"`
-	IsDraft         bool      `json:"is_draft"`
-	IsDirty         bool      `json:"is_dirty"`
-	IsFavorite      bool      `json:"is_favorite"`
-	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
-	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
-	AttachmentCIDs	[]string `json:"attachmentCIDs,omitempty"`
+	ID              string       `json:"id"`
+	CID             string       `json:"cid,omitempty" gorm:"column:cid"`
+	EntryName       string       `json:"entry_name"`
+	FolderID        string       `json:"folder_id"`
+	Type            EntryType    `json:"type"`
+	AdditionnalNote string       `json:"additionnal_note,omitempty"`
+	CustomFields    JSONMap      `json:"custom_fields,omitempty" gorm:"type:jsonb"`
+	Trashed         bool         `json:"trashed"`
+	IsDraft         bool         `json:"is_draft"`
+	IsDirty         bool         `json:"is_dirty"`
+	IsFavorite      bool         `json:"is_favorite"`
+	CreatedAt       string       `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       string       `json:"updated_at" gorm:"autoUpdateTime"`
+	Attachments     []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
+	AttachmentCIDs  []string     `json:"attachmentCIDs,omitempty"`
 }
 
 type LoginEntry struct {
@@ -300,11 +315,13 @@ type LoginEntry struct {
 	Password string `json:"password"`
 	Website  string `json:"web_site,omitempty"`
 }
+
 func (e *LoginEntry) AddAttachments(attachments []Attachment) *LoginEntry {
-    e.Attachments = append(e.Attachments, attachments...)
-    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	e.Attachments = append(e.Attachments, attachments...)
+	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
+
 type CardEntry struct {
 	BaseEntry
 	Owner      string `json:"owner"`
@@ -314,8 +331,8 @@ type CardEntry struct {
 }
 
 func (e *CardEntry) AddAttachments(attachments []Attachment) *CardEntry {
-    e.Attachments = append(e.Attachments, attachments...)
-    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	e.Attachments = append(e.Attachments, attachments...)
+	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
 
@@ -342,8 +359,8 @@ type IdentityEntry struct {
 }
 
 func (e *IdentityEntry) AddAttachments(attachments []Attachment) *IdentityEntry {
-    e.Attachments = append(e.Attachments, attachments...)
-    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	e.Attachments = append(e.Attachments, attachments...)
+	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
 
@@ -352,8 +369,8 @@ type NoteEntry struct {
 }
 
 func (e *NoteEntry) AddAttachments(attachments []Attachment) *NoteEntry {
-    e.Attachments = append(e.Attachments, attachments...)
-    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	e.Attachments = append(e.Attachments, attachments...)
+	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
 
@@ -365,11 +382,10 @@ type SSHKeyEntry struct {
 }
 
 func (e *SSHKeyEntry) AddAttachments(attachments []Attachment) *SSHKeyEntry {
-    e.Attachments = append(e.Attachments, attachments...)
-    e.UpdatedAt = time.Now().Format(time.RFC3339)
+	e.Attachments = append(e.Attachments, attachments...)
+	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
-
 
 func (e LoginEntry) GetId() string          { return e.ID }
 func (e LoginEntry) GetTypeName() string    { return "login" }
@@ -398,14 +414,16 @@ type Entries struct {
 type EntryInterface interface {
 	GetBase() *BaseEntry
 }
-func (e *LoginEntry) GetBase() *BaseEntry { return &e.BaseEntry }
-func (e *CardEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+
+func (e *LoginEntry) GetBase() *BaseEntry    { return &e.BaseEntry }
+func (e *CardEntry) GetBase() *BaseEntry     { return &e.BaseEntry }
 func (e *IdentityEntry) GetBase() *BaseEntry { return &e.BaseEntry }
-func (e *NoteEntry) GetBase() *BaseEntry { return &e.BaseEntry }
-func (e *SSHKeyEntry) GetBase() *BaseEntry { return &e.BaseEntry }
+func (e *NoteEntry) GetBase() *BaseEntry     { return &e.BaseEntry }
+func (e *SSHKeyEntry) GetBase() *BaseEntry   { return &e.BaseEntry }
+
 // ==============================================================================
 // VaultEntry
-// ==============================================================================	
+// ==============================================================================
 // type VaultEntry struct {
 // 	ID        string    `json:"id"`
 // 	EntryName string    `json:"entry_name"`
@@ -426,178 +444,9 @@ func ParseVaultPayload(decrypted []byte) VaultPayload {
 		// Fallback: return empty vault
 		vault = VaultPayload{}
 	}
-	utils.LogPretty("vault_domain - ParseVaultPayload - Vault Payload", vault)
+	// utils.LogPretty("vault_domain - ParseVaultPayload - Vault Payload", vault)
 	return vault
 }
-
-// func (f *Folder) ToFormerFolder() models.Folder {
-// 	return models.Folder{
-// 		ID:        f.ID,
-// 		Name:      f.Name,
-// 		CreatedAt: f.CreatedAt,
-// 		UpdatedAt: f.UpdatedAt,
-// 		IsDraft:   f.IsDraft,
-// 	}
-// }
-// func (e *Entries) ToFormerEntries() models.Entries {
-// 	login := make([]models.LoginEntry, len(e.Login))
-// 	for i, v := range e.Login {
-// 		login[i] = v.ToFormerLoginEntry()
-// 	}
-// 	card := make([]models.CardEntry, len(e.Card))
-// 	for i, v := range e.Card {
-// 		card[i] = v.ToFormerCardEntry()
-// 	}
-// 	identity := make([]models.IdentityEntry, len(e.Identity))
-// 	for i, v := range e.Identity {
-// 		identity[i] = v.ToFormerIdentityEntry()
-// 	}
-// 	note := make([]models.NoteEntry, len(e.Note))
-// 	for i, v := range e.Note {
-// 		note[i] = v.ToFormerNoteEntry()
-// 	}
-// 	sshKey := make([]models.SSHKeyEntry, len(e.SSHKey))
-// 	for i, v := range e.SSHKey {
-// 		sshKey[i] = v.ToFormerSSHKeyEntry()
-// 	}
-
-// 	return models.Entries{
-// 		Login:    login,
-// 		Card:     card,
-// 		Identity: identity,
-// 		Note:     note,
-// 		SSHKey:   sshKey,
-// 	}
-// }
-// func (e *LoginEntry) ToFormerLoginEntry() models.LoginEntry {
-
-// 	return models.LoginEntry{
-// 		BaseEntry: models.BaseEntry{
-// 			ID:              e.ID,
-// 			EntryName:       e.EntryName,
-// 			FolderID:        e.FolderID,
-// 			Type:            models.EntryType(e.Type),
-// 			AdditionnalNote: e.AdditionnalNote,
-// 			CustomFields:    models.JSONMap(e.CustomFields),
-// 			Trashed:         e.Trashed,
-// 			IsDraft:         e.IsDraft,
-// 			IsFavorite:      e.IsFavorite,
-// 			CreatedAt:       e.CreatedAt,
-// 			UpdatedAt:       e.UpdatedAt,
-// 		},
-// 		UserName: e.UserName,
-// 		Password: e.Password,
-// 		Website:  e.Website,
-// 	}
-// }
-// func (v *VaultPayload) ToFormerVaultPayload() *models.VaultPayload {
-// 	folders := make([]models.Folder, len(v.Folders))
-// 	for i, f := range v.Folders {
-// 		folders[i] = f.ToFormerFolder()
-// 	}
-
-// 	return &models.VaultPayload{
-// 		Version: v.Version,
-// 		Name:    v.Name,
-// 		BaseVaultContent: models.BaseVaultContent{
-// 			Folders: folders,
-// 			Entries: v.Entries.ToFormerEntries(),
-// 		},
-// 	}
-// }
-// func (e *CardEntry) ToFormerCardEntry() models.CardEntry {
-// 	return models.CardEntry{
-// 		BaseEntry: models.BaseEntry{
-// 			ID:              e.ID,
-// 			EntryName:       e.EntryName,
-// 			FolderID:        e.FolderID,
-// 			Type:            models.EntryType(e.Type),
-// 			AdditionnalNote: e.AdditionnalNote,
-// 			CustomFields:    models.JSONMap(e.CustomFields),
-// 			Trashed:         e.Trashed,
-// 			IsDraft:         e.IsDraft,
-// 			IsFavorite:      e.IsFavorite,
-// 			CreatedAt:       e.CreatedAt,
-// 			UpdatedAt:       e.UpdatedAt,
-// 		},
-// 		Owner:      e.Owner,
-// 		Number:     e.Number,
-// 		Expiration: e.Expiration,
-// 		CVC:        e.CVC,
-// 	}
-// }
-// func (e *IdentityEntry) ToFormerIdentityEntry() models.IdentityEntry {
-// 	return models.IdentityEntry{
-// 		BaseEntry: models.BaseEntry{
-// 			ID:              e.ID,
-// 			EntryName:       e.EntryName,
-// 			FolderID:        e.FolderID,
-// 			Type:            models.EntryType(e.Type),
-// 			AdditionnalNote: e.AdditionnalNote,
-// 			CustomFields:    models.JSONMap(e.CustomFields),
-// 			Trashed:         e.Trashed,
-// 			IsDraft:         e.IsDraft,
-// 			IsFavorite:      e.IsFavorite,
-// 			CreatedAt:       e.CreatedAt,
-// 			UpdatedAt:       e.UpdatedAt,
-// 		},
-// 		Genre:                e.Genre,
-// 		FirstName:            e.FirstName,
-// 		SecondFirstName:      e.SecondFirstName,
-// 		LastName:             e.LastName,
-// 		Username:             e.Username,
-// 		Company:              e.Company,
-// 		SocialSecurityNumber: e.SocialSecurityNumber,
-// 		IDNumber:             e.IDNumber,
-// 		DriverLicense:        e.DriverLicense,
-// 		Mail:                 e.Mail,
-// 		Telephone:            e.Telephone,
-// 		AddressOne:           e.AddressOne,
-// 		AddressTwo:           e.AddressTwo,
-// 		AddressThree:         e.AddressThree,
-// 		City:                 e.City,
-// 		State:                e.State,
-// 		PostalCode:           e.PostalCode,
-// 		Country:              e.Country,
-// 	}
-// }
-// func (e *NoteEntry) ToFormerNoteEntry() models.NoteEntry {
-// 	return models.NoteEntry{
-// 		BaseEntry: models.BaseEntry{
-// 			ID:              e.ID,
-// 			EntryName:       e.EntryName,
-// 			FolderID:        e.FolderID,
-// 			Type:            models.EntryType(e.Type),
-// 			AdditionnalNote: e.AdditionnalNote,
-// 			CustomFields:    models.JSONMap(e.CustomFields),
-// 			Trashed:         e.Trashed,
-// 			IsDraft:         e.IsDraft,
-// 			IsFavorite:      e.IsFavorite,
-// 			CreatedAt:       e.CreatedAt,
-// 			UpdatedAt:       e.UpdatedAt,
-// 		},
-// 	}
-// }
-// func (e *SSHKeyEntry) ToFormerSSHKeyEntry() models.SSHKeyEntry {
-// 	return models.SSHKeyEntry{
-// 		BaseEntry: models.BaseEntry{
-// 			ID:              e.ID,
-// 			EntryName:       e.EntryName,
-// 			FolderID:        e.FolderID,
-// 			Type:            models.EntryType(e.Type),
-// 			AdditionnalNote: e.AdditionnalNote,
-// 			CustomFields:    models.JSONMap(e.CustomFields),
-// 			Trashed:         e.Trashed,
-// 			IsDraft:         e.IsDraft,
-// 			IsFavorite:      e.IsFavorite,
-// 			CreatedAt:       e.CreatedAt,
-// 			UpdatedAt:       e.UpdatedAt,
-// 		},
-// 		PrivateKey:   e.PrivateKey,
-// 		PublicKey:    e.PublicKey,
-// 		EFingerprint: e.EFingerprint,
-// 	}
-// }
 
 type JSONMap map[string]interface{}
 
@@ -617,33 +466,85 @@ func (j JSONMap) Value() (driver.Value, error) {
 // Attachments
 // ==============================================================================
 type Attachment struct {
-	ID      string `json:"id" gorm:"primaryKey"`
-	EntryID string `json:"entry_id"`
-	Hash string `json:"hash"`
-	Name string `json:"name"`
-	Size int64 `json:"size"`
+	ID        string `json:"id" gorm:"primaryKey"`
+	EntryID   string `json:"entry_id"`
+	Hash      string `json:"hash"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
 	CID       string `json:"cid,omitempty" gorm:"column:cid"`
-	Storage string `json:"storage,omitempty"`	// "local" | "cloud" | "ipfs";
+	CIDShared string `json:"cid_shared,omitempty" gorm:"column:cid_shared"`
+	Storage   string `json:"storage,omitempty"` // "local" | "cloud" | "ipfs";
+	Ext       string `json:"ext,omitempty" gorm:"column:ext" `
+	HashLocal string `json:"hash_local" gorm:"column:"hash_local"`
+	HashShare string `json:"hash_share" gorm:"column:"hash_share"`
 }
 
 // ==============================================================================
-
-
+// VaultMeta
+// ==============================================================================
 type VaultMeta struct {
-	Name      string `json:"name" gorm:"column:name"`
-	UserID    string `json:"user_id" gorm:"column:user_id"`
-  	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later"Dirty": true,
-   	LastSynced string `json:"last_synced" gorm:"column:updated_at"`
+	Name       string `json:"name" gorm:"column:name"`
+	UserID     string `json:"user_id" gorm:"column:user_id"`
+	CreatedAt  string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
+	UpdatedAt  string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later"Dirty": true,
+	LastSynced string `json:"last_synced" gorm:"column:updated_at"`
 }
 
-
+// ==============================================================================
+// VaultNode
+// ==============================================================================
 type VaultNode struct {
-	Type     string
-	Version  string
-	Folders  Link
-	Entries  Link
-	Index    Link
+	Type    string
+	Version string
+	Folders Link
+	Entries Link
+	Index   Link
+	Attachments Link   `json:"attachments"`
+}
+
+func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {
+	var vault VaultNode
+	utils.LogPretty("vault_domain - ParseVaultPayload - decrypted", decrypted)
+
+	err := json.Unmarshal(decrypted, &vault)
+	if err != nil {
+		utils.LogPretty("vault_domain - ParseVaultPayload - Failed to parse vault JSON:", err)
+		// Fallback: return empty vault
+		vault = VaultNode{}
+	}
+	utils.LogPretty("", vault)
+	return vault
+}
+
+// func (v *VaultNode) Normalize() {
+// 	if v.Folders == nil {
+// 		v.Folders = []Folder{}
+// 	}
+
+// 	// Entries struct itself always exists, but slices may not
+// 	if v.Entries.Login == nil {
+// 		v.Entries.Login = []LoginEntry{}
+// 	}
+// 	if v.Entries.Card == nil {
+// 		v.Entries.Card = []CardEntry{}
+// 	}
+// 	if v.Entries.Identity == nil {
+// 		v.Entries.Identity = []IdentityEntry{}
+// 	}
+// 	if v.Entries.Note == nil {
+// 		v.Entries.Note = []NoteEntry{}
+// 	}
+// 	if v.Entries.SSHKey == nil {
+// 		v.Entries.SSHKey = []SSHKeyEntry{}
+// 	}
+// }
+
+func (s *VaultNode) ToBytes() []byte {
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 type Link struct {
@@ -656,9 +557,332 @@ type FoldersRoot struct {
 	Items []Link `json:"items"`
 }
 type AttachementsRoot struct {
-  Items []Link `json:"items"`
+	Items []Link `json:"items"`
 }
 type Index struct {
 	ByType   map[string][]Link `json:"byType"`
 	ByFolder map[string][]Link `json:"byFolder"`
 }
+type WrappedKey struct {
+	ID        string // uuid
+	Type      string // "password", "stellar", "device"
+	Data      []byte // encrypted vault key
+	CreatedAt string
+}
+
+// ==============================================================================
+// Keyring
+// ==============================================================================
+type KeyType string
+
+const (
+	KeyTypeEntry      KeyType = "entry"
+	KeyTypeAttachment KeyType = "attachment"
+	KeyTypeIndex      KeyType = "index"
+	KeyTypeVault      KeyType = "vault"
+)
+const (
+	KeyWrapperPassword string = "password"
+)
+
+type VaultKey struct {
+	Key       []byte
+	Version   int
+	CreatedAt time.Time
+}
+
+type EncryptedKey struct {
+	ID      string
+	Type    KeyType
+	Version int
+
+	// encrypted DEK
+	Ciphertext []byte
+	Nonce      []byte
+
+	CreatedAt int64
+}
+
+type VaultKeyring struct {
+	UserID    string
+	VaultID   string
+	Keys      []EncryptedKey
+	Wrappers  []WrappedKey
+	UpdatedAt int64
+}
+
+func (kr *VaultKeyring) AddWrapper(w WrappedKey) {
+	kr.Wrappers = append(kr.Wrappers, w)
+}
+func (kr *VaultKeyring) GetLatestKey(t KeyType) *EncryptedKey {
+	var latest *EncryptedKey
+
+	for i := range kr.Keys {
+		k := &kr.Keys[i]
+
+		if k.Type == t {
+			if latest == nil || k.Version > latest.Version {
+				latest = k
+			}
+		}
+	}
+
+	return latest
+}
+
+/*
+Yes — you are **100% moving in the right direction**, but you’re now at the point where you must clearly separate **3 encryption layers** or your architecture will become inconsistent.
+
+I’ll clarify everything and then answer your direct question precisely.
+
+---
+
+# 🧠 1. You now have 3 different cryptographic responsibilities
+
+## 🔐 (A) Vault Keyring (master unlock layer)
+
+> “How do I unlock the vault?”
+
+✔ password / stellar / hybrid
+✔ handled by `KeyringService`
+✔ outputs: **Vault Master Key (DEK or KEK)**
+
+---
+
+## 🔐 (B) Vault Crypto (data encryption layer)
+
+> “How do I encrypt vault content?”
+
+✔ entries
+✔ folders
+✔ attachments
+✔ index
+✔ IPFS payload
+
+👉 This uses the **Vault Key (DEK)**
+
+---
+
+## 🔐 (C) Key Encryption (wrapping layer)
+
+> “How do I protect the vault key itself?”
+
+✔ password wraps vault key
+✔ stellar wraps vault key
+✔ hybrid storage
+
+👉 This is your `KeyEncryption`
+
+---
+
+# ⚠️ 2. Your confusion (very normal here)
+
+You wrote:
+
+> “should I use VaultCrypto instead of CryptoService?”
+
+👉 YES — BUT ONLY for **vault data encryption**
+
+---
+
+# ✅ 3. Correct mapping (VERY IMPORTANT)
+
+## ✔ WRONG (your current issue)
+
+```go
+h.CryptoService.Encrypt(vaultBytes, cmd.Password)
+```
+
+❌ wrong because:
+
+* password ≠ vault encryption key
+* this bypasses keyring model
+* breaks rotation + hybrid unlock
+
+---
+
+## ✔ CORRECT (DDD design)
+
+### Step 1 — unlock vault key
+
+```go
+vaultKeyring, _ := keyringService.LoadHybrid(password, stellarSecret)
+vaultKey := vaultKeyring.GetLatestKey(KeyTypeEntry)
+```
+
+---
+
+### Step 2 — use vault key for encryption
+
+```go
+cipher := h.vaultCrypto.AESEncrypt(vaultBytes, vaultKey.Ciphertext)
+```
+
+---
+
+# 🚀 4. Answer to your direct question
+
+> “should I use cipher := h.crypto.AESEncrypt(entryData, dek)?”
+
+## ✔ YES — BUT WITH ONE CONDITION:
+
+### 👉 ONLY if `dek` = Vault Key (from keyring)
+
+NOT:
+
+* password ❌
+* stellar secret ❌
+* derived key ❌
+
+BUT:
+
+* VaultKeyring key ✔
+
+---
+
+# 🧱 5. Correct architecture flow (BOOTSTRAP + OPEN)
+
+## 🟢 A. Vault creation (onboarding)
+
+```text
+password / stellar
+        ↓
+KeyringService generates VaultKey
+        ↓
+Wrap VaultKey (password + stellar)
+        ↓
+store keyring (file / db / ipfs)
+```
+
+---
+
+## 🟡 B. Vault initialization (IPFS upload)
+
+```text
+unlock keyring
+   ↓
+get VaultKey (DEK)
+   ↓
+encrypt vault payload (entries, folders, index)
+   ↓
+upload to IPFS
+   ↓
+store CID in Vault model
+```
+
+---
+
+## 🔵 C. Vault open
+
+```text
+unlock keyring
+   ↓
+get VaultKey
+   ↓
+fetch IPFS CID
+   ↓
+decrypt vault payload using VaultKey
+   ↓
+hydrate entries/folders/index
+```
+
+---
+
+## 🔴 D. Vault close
+
+```text
+wipe VaultKey from memory
+clear decrypted state
+```
+
+---
+
+# ⚠️ 6. Your real correction in `CreateIPFSPayload`
+
+## ❌ WRONG
+
+```go
+h.CryptoService.Encrypt(vaultBytes, cmd.Password)
+```
+
+---
+
+## ✅ CORRECT (DDD version)
+
+You must inject:
+
+```go
+KeyringService
+VaultCrypto
+```
+
+---
+
+## ✔ FINAL VERSION
+
+```go
+keyring, err := h.KeyringService.LoadHybrid(cmd.Password, cmd.StellarSecret)
+if err != nil {
+	return nil, err
+}
+
+vaultKey := keyring.GetLatestKey(vaults_domain.KeyTypeEntry)
+
+encrypted, err := h.VaultCrypto.AESEncrypt(vaultBytes, vaultKey.Ciphertext)
+if err != nil {
+	return nil, err
+}
+```
+
+---
+
+# 🧠 7. Key insight (VERY IMPORTANT)
+
+## Password is NEVER used for vault encryption
+
+Password is ONLY for:
+
+✔ unlocking keyring
+✔ deriving/unwrapping vault key
+
+---
+
+## Vault key is ALWAYS used for:
+
+✔ entries encryption
+✔ folders encryption
+✔ attachments encryption
+✔ IPFS payload encryption
+✔ index encryption
+
+---
+
+# 🚀 8. What you just built (this is big)
+
+You now have the exact architecture used by:
+
+* 🔐 Bitwarden (vault DEK model)
+* 🔐 1Password (key hierarchy model)
+* 🔐 Proton Pass (similar hybrid model)
+
+---
+
+# If you want next step (high value)
+
+I can now help you implement:
+
+## 🔥 “Vault Session Key Cache”
+
+This gives you:
+
+* instant unlock (no re-derivation)
+* memory-only DEK
+* auto-lock timer
+* secure wipe on close
+* multi-device sync ready
+
+This is the final missing piece before your system feels “enterprise-grade”.
+
+Just say **next**.
+
+*/

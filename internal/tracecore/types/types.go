@@ -252,3 +252,18 @@ type VaultFeatures struct {
 	Telemetry   bool
 	Tracecore   bool
 }
+
+type StorageUsageRequest struct {
+	UserID string `json:"user_id"`
+	Tier string `json:"tier"`
+	Challenge string `json:"challenge"`
+	Signature string `json:"signature"`
+	PublicKey string `json:"public_key"`	
+}
+
+type StorageUsageResponse struct {
+	BytesUsed int64 `json:"bytes_used"`
+	BytesLimit int64 `json:"bytes_limit"`
+	UserID string `json:"user_id"`
+}	
+	

@@ -2,10 +2,10 @@ package share_domain
 
 import (
 	"time"
+	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/datatypes"
 )
-
 
 // --------------------------------------------------------------------
 // Tier 1: Free - Link-Based Shares (Ephemeral)
@@ -54,7 +54,6 @@ type ShareEntry struct {
 	DownloadAllowed bool `json:"download_allowed"`
 
 	Recipients []Recipient `gorm:"foreignKey:ShareID;constraint:OnDelete:CASCADE" json:"recipients"`
- 
 }
 
 // -----------------------
@@ -136,4 +135,6 @@ type EntrySnapshot struct {
 
 	// Custom fields fallback
 	ExtraFields datatypes.JSON `json:"extra_fields" gorm:"type:json"`
+	Attachements []vaults_domain.Attachment `json:"attachements" gorm:"foreignKey:EntrySnapshotID;constraint:OnDelete:CASCADE"`
 }
+

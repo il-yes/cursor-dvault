@@ -6,6 +6,7 @@ import (
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
+	"vault-app/internal/utils"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
@@ -171,9 +172,10 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(
 	// ==============================================
 	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
 		Password: cmd.Password,
-		UserID: cmd.UserID,
+		UserID: vaultCtx.AppConfig.Branch,		// userOnboarding required
 	})
 	if err != nil {
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - - error", cmd)
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - failed to unlock vault key: %w", err)
 	}
 

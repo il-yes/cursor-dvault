@@ -3590,6 +3590,7 @@ export namespace vault_dto {
 export namespace vault_session {
 	
 	export class RuntimeContext {
+	    VaultID: string;
 	    AppConfig: app_config_domain.AppConfig;
 	    UserConfig: app_config_domain.UserConfig;
 	    SessionSecrets: Record<string, string>;
@@ -3601,6 +3602,7 @@ export namespace vault_session {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.VaultID = source["VaultID"];
 	        this.AppConfig = this.convertValues(source["AppConfig"], app_config_domain.AppConfig);
 	        this.UserConfig = this.convertValues(source["UserConfig"], app_config_domain.UserConfig);
 	        this.SessionSecrets = source["SessionSecrets"];

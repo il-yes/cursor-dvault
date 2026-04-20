@@ -84,6 +84,53 @@ func (vh *AppConfigHandler) InitUserConfig(input *app_config_commands.CreateUser
 	return vh.CreateUserConfigCommand.Execute(input)
 }
 
+func (vh *AppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error) {
+	// Save AppCfg
+	appConfigOutput, err := vh.CreateAppConfigCommand.Execute(&app_config_commands.CreateAppConfigCommandInput{
+		AppConfig: input.Configs.App,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Save UserCfg
+	userConfigOutput, err := vh.CreateUserConfigCommand.Execute(&app_config_commands.CreateUserConfigCommandInput{
+		UserConfig: input.Configs.User,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Save VaultCfg
+	vaultConfigOutput := vh.CreateVaultConfigCommand.Execute(app_config_commands.CreateVaultConfigInput{
+		VaultConfig: input.Configs.Vaults,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Save DeviceCfg
+	_ = vh.CreateDeviceConfigCommand.Execute(app_config_commands.CreateDeviceConfigInput{
+		Device: input.Configs.Devices[0],
+	})
+	if err != nil {
+		return nil, err
+	}
+	// Save SubscriptionCfg
+	subscriptionConfigOutput := vh.CreateSubscriptionConfigCommand.Execute(app_config_commands.CreateSubscriptionConfigInput{
+		SubscriptionConfig: input.Configs.Subscription,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &app_config_dto.CreateConfigCommandOutput{
+		Configs: app_config_domain.Config{
+			App:          appConfigOutput.AppConfig,
+			User:         userConfigOutput.UserConfig,
+			Vaults:       vaultConfigOutput.VaultConfig,
+			Subscription: subscriptionConfigOutput.SubscriptionConfig,
+			Devices:      input.Configs.Devices,
+		},
+	}, nil
+}
+
 // -------- GETTERS --------
 func (vh *AppConfigHandler) GetConfig(userID string, vaultName string) (*app_config_domain.Config, error) {
 	vh.Logger.Info("AppConfigHandler: GetConfig - userID: %s, vaultName: %s", userID, vaultName)

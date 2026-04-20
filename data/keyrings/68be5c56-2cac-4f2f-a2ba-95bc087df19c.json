@@ -1,0 +1,12 @@
+{
+    "vault_id": "",
+    "ciphertext": null,
+    "wrappers": [
+        {
+            "type": "password",
+            "ciphertext": "qi9DKRiN9f3NSDZYfZidycYrOOR0kBZXnQj/af7zt1LirjzzFvxJ1Fs5kQLBiYrqbNW10houKgca4w0Wkmi63tm/VWwGq9Y16vPFWFmBeBFQJvr7vFLjlgEGwGDDvTzzK3Y/VXHLQJUjMaVPfySfCCxdVl4sA/ZSrLK4BtnDpJWL3jfND4E2+xDqzvv7LaW6owxpqAH7PK7ommwUINzU8F30A4OdzLUvblcxIawoN0xMhnXbFmfLdxdzwXYhvJWmPtfI9KVsnNdNpD2XDpPLU0KEFlW8h2+y4mJyerI3G3Tk08fWHR1FktoRSLUuVbZiAuFJu3iNr002MQS54eECNksHZtySaNmgHw+ARFpyKAOzZakIxTmwI1TzSN/Xq7rtzCxDUtvRrNtQUCl/1klz+hxPMEr6CWURruGRVJQRPeVN"
+        }
+    ],
+    "kdf": "",
+    "version": 1
+}

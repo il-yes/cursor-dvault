@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 	app_config_domain "vault-app/internal/config/domain"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	utils "vault-app/internal/utils"
 	vault_domain "vault-app/internal/vault/domain"
-	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // -------- COMMAND query --------
@@ -80,19 +78,21 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 	// 1. Initialize vault
 	// -----------------------------
-	vault, err := h.initializeVaultHandler.Execute(InitializeVaultCommand{UserID: cmd.UserID, VaultName: cmd.VaultName})
+	initRes, err := h.initializeVaultHandler.Execute(InitializeVaultCommand{UserID: cmd.UserID, VaultName: cmd.VaultName})
 	if err != nil {
 		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 1st err", err)
 		return nil, err
 	}
+	vault := initRes.Vault
+	vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)
 	utils.LogPretty("CreateVaultCommandHandler - vault", vault)
 
 	// -----------------------------
 	// 1. Vault - Get vault content
 	// -----------------------------
 	const InitialVaultVersion = "1.0.0"
-	vaultPayload := vault.Vault.BuildInitialPayload(InitialVaultVersion) // true for new user only
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - vaultPayload", vaultPayload)
+	vaultPayload := vault.BuildInitialPayload(InitialVaultVersion) // true for new user only
+	utils.LogPretty("CreateVaultCommandHandler - Execute - vaultPayload", vaultPayload)
 
 	// -----------------------------
 	// 2. Get vault content
@@ -102,7 +102,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 2nd err", err)
 		return nil, fmt.Errorf("❌ vault encryption failed: %w", err)
 	}
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - vaultBytes", vaultBytes)
+	utils.LogPretty("CreateVaultCommandHandler - Execute - vaultBytes", vaultBytes)
 
 	// -----------------------------
 	// 2. Create vault context
@@ -115,7 +115,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	}
 
 	if h.createIPFSPayloadHandler == nil {
-		utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - createIPFSPayloadHandler", h.createIPFSPayloadHandler)
+		utils.LogPretty("CreateVaultCommandHandler - Execute - createIPFSPayloadHandler", h.createIPFSPayloadHandler)
 	}
 
 	// -----------------------------
@@ -125,7 +125,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		context.Background(),
 		vc,
 		CreateIPFSPayloadCommand{
-			Vault:    vault.Vault,
+			Vault:    vault,
 			Password: cmd.Password,
 			Data:     vaultBytes,
 			UserID: cmd.UserOnboarding.ID,
@@ -140,21 +140,15 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// 3. Update vault with IPFS CID
 	// -----------------------------
 	// vault.Vault.UserID = 
-	vault.Vault.AttachCID(ipfsRecord.CID)
-	vault.Vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)
-	vault.Vault.VaultMeta = vaults_domain.VaultMeta{
-		Name: cmd.VaultName,
-		UserID: cmd.UserID,
-		CreatedAt: time.Now().Local().GoString(),
-	}
-	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault.Vault)
+	vault.AttachCID(ipfsRecord.CID)
+	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault)
 
-	if vault.Vault == nil {
+	if vault == nil {
 		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 4th err", err)
 		return nil, errors.New("vault is nil before UpdateVault")
 	}
 
-	if err := h.vaultRepo.UpdateVault(vault.Vault); err != nil {
+	if err := h.vaultRepo.UpdateVault(vault); err != nil {
 		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 5th err", err)
 		return nil, err
 	}
@@ -164,7 +158,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 
 	return &CreateVaultResult{
-		Vault:          vault.Vault,
+		Vault:          vault,
 		ReusedExisting: false,
 	}, nil
 }

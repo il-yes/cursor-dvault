@@ -18,7 +18,7 @@ type NoteHandler struct {
 	db     models.DBModel
 	logger *logger.Logger
 	NowUTC func() string
-	Vault  vaults_domain.VaultPayload
+	Vault  vaults_domain.VaultPayload // just for return
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
 	SyncMode bool	
@@ -170,9 +170,9 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 }
 func (h *NoteHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
-	vault, err := h.VaultRepository.GetByUserIDAndName(userID, h.Vault.Name)
+	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
 	if err != nil {
-		return "", fmt.Errorf("❌ NoteHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
+		return "", fmt.Errorf("❌ NoteHandler - SaveAttachment: failed to get vault %s for user %s: %w", h.Vault.Name, userID, err)
 	}
 	h.logger.Info("✅ NoteHandler - SaveAttachment: vault retrieved for user %s", userID)
 

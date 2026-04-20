@@ -998,7 +998,6 @@ func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	utils.LogPretty("claims", claims)
 	return claims.ToFormerModel(), nil
 }
 func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
@@ -1238,20 +1237,6 @@ func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) (
 	return a.Vault.DecryptAttachment(data, password)
 }
 
-// func (a *App) DecryptAttachmentBase64(jwtToken string, data string, password string) (string, error) {
-// 	_, err := a.Auth.RequireAuth(jwtToken)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	data, errR 	:= a.Vault.DecryptAttachmentBase64(data, password)
-// 	if errR != nil {
-// 		return "", err
-// 	}
-
-// 	return base64.StdEncoding.EncodeToString(data), nil
-// }
-
 func (a *App) GetIPFSFile(jwtToken string, cid string, password string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -1356,6 +1341,7 @@ func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []uint8
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
+
 	// Get Vault ==============================
 	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
 	if err != nil {

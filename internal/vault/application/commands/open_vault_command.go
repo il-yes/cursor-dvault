@@ -27,17 +27,17 @@ type AppConfigFacade interface {
 }
 type VaultReconstructorInterface interface {
 	BuildFromRoot(
-	ctx context.Context,
-	cmd vault_queries.GetIPFSDataQuerry,
-) (vaults_domain.VaultPayload, error)
+		ctx context.Context,
+		cmd vault_queries.GetIPFSDataQuerry,
+	) (vaults_domain.VaultPayload, error)
 }
 
 // -------- COMMAND --------
 
 type OpenVaultCommand struct {
-	UserID   string
-	Password string
-	Session  *vault_session.Session
+	UserID           string
+	Password         string
+	Session          *vault_session.Session
 	UserOnboardingID string
 }
 
@@ -55,10 +55,10 @@ type OpenVaultResult struct {
 // -------- HANDLER --------
 
 type OpenVaultCommandHandler struct {
-	VaultRepo    vault_domain.VaultRepository
-	Now          func() string
-	QueryHandler vault_queries.GetIPFSDataQuerryHandler
-	VaultReconstructor 	VaultReconstructorInterface
+	VaultRepo          vault_domain.VaultRepository
+	Now                func() string
+	QueryHandler       vault_queries.GetIPFSDataQuerryHandler
+	VaultReconstructor VaultReconstructorInterface
 }
 
 // -------- CONSTRUCTOR --------
@@ -71,15 +71,14 @@ func NewOpenVaultCommandHandler(
 	vaultRepo := vaults_persistence.NewGormVaultRepository(db)
 
 	return &OpenVaultCommandHandler{
-		VaultRepo:    vaultRepo,
-		Now:          func() string { return time.Now().UTC().Format(time.RFC3339) },
-		QueryHandler: queryHandler,
+		VaultRepo:          vaultRepo,
+		Now:                func() string { return time.Now().UTC().Format(time.RFC3339) },
+		QueryHandler:       queryHandler,
 		VaultReconstructor: vr,
 	}
 }
 
 // -------- EXECUTION --------
-
 
 func (h *OpenVaultCommandHandler) Handle(
 	ctx context.Context,
@@ -111,6 +110,22 @@ func (h *OpenVaultCommandHandler) Handle(
 		utils.LogPretty("OpenVaultCommandHandler - something is nil", cmd)
 		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
 
+		vault, err := h.VaultRepo.GetLatestByUserID(cmd.UserID)
+		if err != nil {
+			utils.LogPretty("OpenVaultCommandHandler - session is nil", cmd.Session)
+		}
+
+		// ------------------------------------------------------------
+		// 1.a UPDATE SESSION
+		// ------------------------------------------------------------
+		cmd.Session.LastCID = vault.CID
+		runtimeCtx.VaultID = vault.ID
+		runtimeCtx.AppConfig.RepoID = vault.ID
+		runtimeCtx.AppConfig.Branch = cmd.UserOnboardingID
+		runtimeCtx.VaultID = vault.ID
+		payload.Name = vault.Name
+		cmd.Session.Runtime = runtimeCtx
+
 		eventBus.PublishVaultOpened(ctx, vault_events.VaultOpened{
 			UserID:       cmd.UserID,
 			VaultPayload: &payload,
@@ -135,7 +150,7 @@ func (h *OpenVaultCommandHandler) Handle(
 	if err != nil {
 		fmt.Println("OpenVaultCommandHandler - Handle - 1st error")
 		if errors.Is(err, vault_domain.ErrVaultNotFound) {
-		fmt.Println("OpenVaultCommandHandler - Handle - 2nd error")
+			fmt.Println("OpenVaultCommandHandler - Handle - 2nd error")
 			vault = vault_domain.NewVault(cmd.UserID, "")
 			utils.LogPretty("OpenVaultCommandHandler - Handle - newvault", vault)
 			if err := h.VaultRepo.SaveVault(vault); err != nil {
@@ -157,11 +172,11 @@ func (h *OpenVaultCommandHandler) Handle(
 	legacyPayload, err := h.VaultReconstructor.BuildFromRoot(
 		ctx,
 		vault_queries.GetIPFSDataQuerry{
-			CID:       vault.CID,
-			Password:  cmd.Password,
-			AppCfg:    runtimeCtx.AppConfig,
-			UserID:    cmd.UserID,
-			VaultName: vault.Name,
+			CID:              vault.CID,
+			Password:         cmd.Password,
+			AppCfg:           runtimeCtx.AppConfig,
+			UserID:           cmd.UserID,
+			VaultName:        vault.Name,
 			UserOnboardingID: cmd.UserOnboardingID,
 		},
 	)
@@ -174,6 +189,10 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	cmd.Session.Vault = legacyPayload.ToBytes()
 	cmd.Session.LastCID = vault.CID
+	runtimeCtx.VaultID = vault.ID
+	runtimeCtx.AppConfig.RepoID = cmd.UserOnboardingID
+	legacyPayload.Name = vault.Name
+	cmd.Session.Runtime = runtimeCtx
 
 	if eventBus == nil {
 		return nil, errors.New("VaultReconstructor is nil")
@@ -251,23 +270,6 @@ type AttachRuntimeRequest struct {
 	Runtime *vault_session.RuntimeContext
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 func (h *OpenVaultCommandHandler) Handle2(
 	ctx context.Context,
 	cmd OpenVaultCommand,
@@ -342,43 +344,15 @@ func (h *OpenVaultCommandHandler) Handle2(
 			return nil, err
 		}
 	}
-
-	/* 🌐 3.2 Load encrypted IPFS payload (NO DECRYPT YET)
-		ipfsDataQuery, err := h.QueryHandler.Execute(ctx, vault_queries.GetIPFSDataQuerry{
-			UserID:    vault.UserSubscriptionID,
-			CID:       vault.CID,
-			Password:  cmd.Password,
-			AppCfg:    runtimeCtx.AppConfig,
-			VaultName: vault.Name,
-		})
-		if err != nil {
-			return nil, err
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt vault payload: %w", err)
-		}
-
-		utils.LogPretty("OpenVaultCommandHandler - Handle - ipfsDataQuery", ipfsDataQuery)
-
-		payload := ipfsDataQuery.Node
-		// payload.Normalize()
-
-		// ------------------------------------------------------------
-		// 4. UPDATE SESSION (IN-MEMORY)
-		// ------------------------------------------------------------
-		cmd.Session.Vault = payload.ToBytes()
-		cmd.Session.LastCID = vault.CID
-	*/
 	// ------------------------------------------------------------
 	// 5. EMIT EVENT
 	// ------------------------------------------------------------
 	legacyPayload, err := h.VaultReconstructor.BuildFromRoot(ctx, vault_queries.GetIPFSDataQuerry{
-		CID: vault.CID,
-		Password: cmd.Password,
-		AppCfg: cmd.Session.Runtime.AppConfig,
-		UserID: cmd.UserID,
+		CID:       vault.CID,
+		Password:  cmd.Password,
+		AppCfg:    cmd.Session.Runtime.AppConfig,
+		UserID:    cmd.UserID,
 		VaultName: vault.Name,
-
 	})
 	if err != nil {
 		return nil, err

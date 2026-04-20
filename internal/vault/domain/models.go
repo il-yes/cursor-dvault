@@ -29,7 +29,7 @@ type Vault struct {
 	CID                string `json:"cid" gorm:"column:cid"`               // ✅ Explicitly map this!
 	CreatedAt          string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
 	UpdatedAt          string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
-	VaultMeta          VaultMeta
+	VaultMeta          VaultMeta 
 
 	// new
 	KeyVersion int

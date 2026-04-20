@@ -178,7 +178,7 @@ func (h *IdentityHandler) EditWithAttachments(userID string, entry any, attachme
 }
 func (h *IdentityHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
-	vault, err := h.VaultRepository.GetByUserIDAndName(userID, h.Vault.Name)
+	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
 	if err != nil {
 		return "", fmt.Errorf("❌ IdentityHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
 	}

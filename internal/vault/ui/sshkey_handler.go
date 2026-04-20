@@ -168,7 +168,7 @@ func (h *SSHKeyHandler) EditWithAttachments(userID string, entry any, attachment
 }
 func (h *SSHKeyHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
-	vault, err := h.VaultRepository.GetByUserIDAndName(userID, h.Vault.Name)
+	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
 	if err != nil {
 		return "", fmt.Errorf("❌ SSHKeyHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
 	}

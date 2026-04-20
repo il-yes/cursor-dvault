@@ -21,7 +21,7 @@ func (r *GormVaultRepository) SaveVault(vault *vaults_domain.Vault) error {
 
 func (r *GormVaultRepository) GetVault(vaultID string) (*vaults_domain.Vault, error) {
 	var vault VaultMapper
-	if err := r.db.First(&vault, vaultID).Error; err != nil {
+	if err := r.db.First(&vault, "id = ?", vaultID).Error; err != nil {
 		return nil, err
 	}
 	return vault.ToDomain(), nil

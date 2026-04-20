@@ -7,6 +7,7 @@ import (
 )
 
 type RuntimeContext struct {
+    VaultID string
     AppConfig      app_config_domain.AppConfig
     UserConfig     app_config_domain.UserConfig
     SessionSecrets map[string]string
@@ -66,6 +67,11 @@ func (rc *RuntimeContext) IsMultiActorMode() bool {
 func (rc *RuntimeContext) CurrentUserID() string {
 	return rc.UserConfig.ID
 }
+
+func (rc *RuntimeContext) SetVaultID(vaultID string) {
+    rc.VaultID = vaultID
+}
+
 
 // func (rc *RuntimeContext) ToFormerRuntimeContext() *models.VaultRuntimeContext {
 // 	return &models.VaultRuntimeContext{

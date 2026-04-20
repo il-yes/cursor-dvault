@@ -68,6 +68,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		return nil, fmt.Errorf("CID is empty (invalid DAG state)")
 	}
 	// 1. Fetch raw data from IPFS
+	// ==============================================
 	rawBytes, err := h.GetFromIpfs(ctx, cmd)
 	if err != nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes", err)
@@ -79,6 +80,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	}
 
 	// 2. Unlock vault key
+	// ==============================================
 	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
 		Password: cmd.Password,
 		UserID:   cmd.UserOnboardingID,
@@ -93,12 +95,14 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	}
 
 	// 3. Decrypt
+	// ==============================================
 	plain, err := h.CryptoService.Decrypt(rawBytes, unlockRes.VaultKey.Key)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt failed: %w", err)
 	}
 
 	// try to parse as VaultNode (optional)
+	// ==============================================
 	var node vaults_domain.VaultNode
 	if err := json.Unmarshal(plain, &node); err == nil {
 		return &GetIPFSDataResponse{

@@ -9,6 +9,8 @@ import (
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
 	"vault-app/internal/logger/logger"
+	"vault-app/internal/utils"
+	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/gorm"
 )
@@ -132,28 +134,32 @@ func (vh *AppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigComman
 }
 
 // -------- GETTERS --------
-func (vh *AppConfigHandler) GetConfig(userID string, vaultName string) (*app_config_domain.Config, error) {
-	vh.Logger.Info("AppConfigHandler: GetConfig - userID: %s, vaultName: %s", userID, vaultName)
+func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault) (*app_config_domain.Config, error) {
+	vh.Logger.Info("AppConfigHandler: GetConfig - userID: %s, vaultName: %s", userID, vault.Name)
 	appConfig, err := vh.GetAppConfigByUserID(context.Background(), userID)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get app config: %v", err)
 	}
+	utils.LogPretty("AppConfigHandler: GetConfig - appConfig", appConfig)
 	userConfig, err := vh.GetUserConfigByUserID(userID)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get user config: %v", err)
 	}
-	vaultConfig, err := vh.GetVaultConfigByUserID(userID, vaultName)
+	utils.LogPretty("AppConfigHandler: GetConfig - userConfig", userConfig)
+	vaultConfig, err := vh.GetVaultConfigByUserID(userID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get vault config: %v", err)
 	}
-	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(userID, vaultName)
+	utils.LogPretty("AppConfigHandler: GetConfig - vaultConfig", vaultConfig)
+	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(userID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get subscription config: %v", err)
 	}
-	deviceConfigs, err := vh.GetDeviceConfigsByUserID(userID, vaultName)
+	deviceConfigs, err := vh.GetDeviceConfigsByUserID(userID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get device configs: %v", err)
 	}
+	utils.LogPretty("AppConfigHandler: GetConfig - deviceConfigs", deviceConfigs)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
@@ -227,7 +233,7 @@ func (vh *AppConfigHandler) GetVaultConfigByUserID(userID string, vaultName stri
 	}
 	vaultConfig, err := vh.VaultConfigRepository.FindByUserIDAndVaultName(userID, vaultName)
 	if err != nil {
-		return app_config_domain.VaultConfigBeta{}, err
+		return app_config_domain.VaultConfigBeta{}, nil
 	}
 	// utils.LogPretty("AppConfigHandler - GetVaultConfigByUserID - vaultConfig", vaultConfig)
 	return vaultConfig, nil

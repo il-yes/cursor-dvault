@@ -171,17 +171,6 @@ export interface SSHKeyEntry extends BaseEntry {
   public_key: string;
   e_fingerprint: string;
 }
-
-// Union type for all entries
-export type VaultEntry = LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry;
-
-export interface Folder {
-  id: string;
-  name: string;
-  icon?: string;
-  parent_id?: string;
-}
-
 export interface Vault {
   version: string;
   name: string;
@@ -198,6 +187,17 @@ export interface Vault {
 
 }
 
+// Union type for all entries
+export type VaultEntry = LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry;
+
+export interface Folder {
+  id: string;
+  name: string;
+  icon?: string;
+  parent_id?: string;
+}
+
+
 export type AttachmentStorage = "local" | "cloud" | "ipfs";
 export type TransferStatus = "idle" | "uploading" | "success" | "error";
 export interface Attachment {
@@ -210,7 +210,11 @@ export interface Attachment {
   cid?: string;
   transferStatus?: TransferStatus;
   ext?: string;
-  downloaded_path?: string;
+  downloaded_at?: string;
+  downloaded_to?: string;
+hash_local?: string;
+  hash_share?: string;
+
 }
 
 export const UploadStorage = {

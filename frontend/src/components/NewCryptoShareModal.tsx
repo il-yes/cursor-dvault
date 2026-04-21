@@ -18,6 +18,8 @@ import { createSharedEntry } from "@/services/api";
 import { CreateShareEntryPayload, SharedEntry } from "@/types/sharing";
 import { VaultEntry } from "@/types/vault";
 import { getSharedEntry, listSharedEntries } from "@/services/api";
+import * as AppAPI from "../../wailsjs/go/main/App";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface NewShareModalProps {
 	open: boolean;
@@ -38,6 +40,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 	const [customMessage, setCustomMessage] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [allowDownload, setAllowDownload] = useState(false);
+	const { jwtToken } = useAuthStore.getState();
 
 	// Get vault entries from store
 	const vaultEntries: VaultEntry[] = vault?.Vault ? [
@@ -100,15 +103,12 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			const tempId = addSharedEntry(optimisticPayload);
 
 			const getPublicKey = async (email: string) => {
-				const response = await fetch(`http://localhost:4001/api/customers/email/${email}`, {
-					method: "GET",
-					headers: {
-						"Content-Type": "application/json",
-					},
-				});
-				const data = await response.json();
-				console.log({ data });
-				return data.data.public_key;
+				const response = await AppAPI.CheckUserEmail(jwtToken, email);
+				console.log('getPublicKey response', response);
+				if (!response) {
+					console.log('User not found with this email: ', email)
+				}
+				return response?.public_key;
 			};
 			// Get public key for recipients
 			const publicKeys = await Promise.all(recipients.map(email => getPublicKey(email)));

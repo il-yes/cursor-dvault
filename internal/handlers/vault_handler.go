@@ -28,6 +28,7 @@ import (
 	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_ui "vault-app/internal/vault/ui"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -409,8 +410,6 @@ func (vh *VaultHandler) EncryptVault(userID string, password string) (string, er
 	return string(encrypted), nil
 }
 
-
-
 // -----------------------------
 // Vault - Crud
 // -----------------------------
@@ -713,21 +712,31 @@ func (vh *VaultHandler) GetShareForAccept(
 	ctx context.Context,
 	userID string,
 	shareID string,
+	vaultHandler *vault_ui.VaultHandler,
 ) (*share_domain.ShareAcceptData, error) {
 
 	_, err := vh.DB.FindUserById(userID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	uc := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 
 	return uc.GetShareForAccept(ctx, shareID, userID)
 }
-func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.AcceptShareResult, error) {
+func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID string, vaultHandler *vault_ui.VaultHandler) (*share_application_use_cases.AcceptShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.AcceptShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
@@ -735,9 +744,14 @@ func (vh *VaultHandler) AcceptShare(ctx context.Context, userID string, shareID 
 
 	return result, nil
 }
-func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID string) (*share_application_use_cases.RejectShareResult, error) {
+func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID string, vaultHandler *vault_ui.VaultHandler) (*share_application_use_cases.RejectShareResult, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.RejectShare(ctx, shareID, userID)
 	if err != nil {
 		return nil, err
@@ -745,10 +759,15 @@ func (vh *VaultHandler) RejectShare(ctx context.Context, userID string, shareID 
 
 	return result, nil
 }
-func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share_application_use_cases.AddReceiverInput) (*share_application_use_cases.AddReceiverResult, error) {
+func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share_application_use_cases.AddReceiverInput, vaultHandler *vault_ui.VaultHandler) (*share_application_use_cases.AddReceiverResult, error) {
 
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.AddReceiver(ctx, userID, in)
 	if err != nil {
 		return nil, err
@@ -757,12 +776,10 @@ func (vh *VaultHandler) AddReceiver(ctx context.Context, userID string, in share
 	return result, nil
 }
 
-
-
 type RecipientPayload struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
 	PublicKey string `json:"public_key"`
 }
 
@@ -776,19 +793,30 @@ type CreateShareEntryPayload struct {
 	// Snapshot as JSON string from frontend
 	EntrySnapshot string `json:"entry_snapshot"`
 
-	ExpiresAt  string             `json:"expires_at"`
-	Recipients []RecipientPayload `json:"recipients"`
-	DownloadAllowed bool `json:"download_allowed"`
+	ExpiresAt       string             `json:"expires_at"`
+	Recipients      []RecipientPayload `json:"recipients"`
+	DownloadAllowed bool               `json:"download_allowed"`
+	Attachments     []vaults_domain.Attachment       `json:"attachments"`
 }
+
 // ---------------------------------------------------------
 // Crypto share
 // ---------------------------------------------------------
-func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShareEntryPayload, ownerID string, ownerEmail string, configFacade app_config_ui.AppConfigHandler, secret string) (*share_domain.ShareEntry, error) {
+func (vh *VaultHandler) CreateShareEntry(
+	ctx context.Context,
+	payload CreateShareEntryPayload,
+	ownerID string,
+	ownerEmail string,
+	configFacade app_config_ui.AppConfigHandler,
+	secret string,
+	vaultHandler *vault_ui.VaultHandler,
+) (*share_domain.ShareEntry, error) {
 	// Convert JSON string -> domain struct
 	var snapshot share_domain.EntrySnapshot
 	if err := json.Unmarshal([]byte(payload.EntrySnapshot), &snapshot); err != nil {
 		return nil, fmt.Errorf("invalid entry_snapshot: %w", err)
 	}
+	snapshot.Attachements = payload.Attachments
 
 	// map payload -> domain.ShareEntry
 	var s share_domain.ShareEntry
@@ -817,9 +845,9 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 	recips := make([]share_domain.Recipient, 0, len(payload.Recipients))
 	for _, r := range payload.Recipients {
 		recips = append(recips, share_domain.Recipient{
-			Name:  r.Name,
-			Email: r.Email,
-			Role:  r.Role,
+			Name:      r.Name,
+			Email:     r.Email,
+			Role:      r.Role,
 			PublicKey: r.PublicKey,
 			// IDs are assigned by DB
 		})
@@ -832,9 +860,26 @@ func (vh *VaultHandler) CreateShareEntry(ctx context.Context, payload CreateShar
 	dispatcher := vh.EventDispatcher
 	crypto := &blockchain.CryptoService{}
 
-	uc := share_application_use_cases.NewShareUseCase(repo, tcClient, dispatcher, crypto)
+	vault, err := vaultHandler.VaultRepository.GetLatestByUserID(ownerID)
+	if err != nil {
+		return nil, err
+	}
+	
+
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	uc := share_application_use_cases.NewShareUseCase(
+		repo, 
+		tcClient, 
+		dispatcher, 
+		crypto, 
+		entrySnapshotService,
+	)
 	// call usecase
-	created, err := uc.CreateProdShareMode(ctx, ownerID, ownerEmail, s, configFacade, secret)
+	created, err := uc.CreateProdShareMode(ctx, ownerID, ownerEmail, s, configFacade, secret, vault)
 	if err != nil {
 		return nil, err
 	}
@@ -857,16 +902,22 @@ func (vh *VaultHandler) ListReceivedShares(ctx context.Context, email string) ([
 
 	return res, nil
 }
-func (	vh *VaultHandler) AddRecipient(
-	ctx context.Context, 
-	userID string, 
-	in share_application_dto.AddRecipientRequest, 
-	configFacade app_config_ui.AppConfigHandler, 
+func (vh *VaultHandler) AddRecipient(
+	ctx context.Context,
+	userID string,
+	in share_application_dto.AddRecipientRequest,
+	configFacade app_config_ui.AppConfigHandler,
 	secret string,
+	vaultHandler *vault_ui.VaultHandler,
 ) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
-	
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
+
 	result, err := usecase.AddRecipient(ctx, userID, in, configFacade, secret)
 	if err != nil {
 		vh.logger.Error("❌ VaultHandler - AddRecipient: Failed to add recipient: %v\n", err)
@@ -876,9 +927,14 @@ func (	vh *VaultHandler) AddRecipient(
 	vh.logger.Info("✅ VaultHandler - AddRecipient: Successfully added recipient: %v\n", result)
 	return result, nil
 }
-func (vh *VaultHandler) UpdateRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+func (vh *VaultHandler) UpdateRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest, vaultHandler *vault_ui.VaultHandler) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.UpdateRecipient(ctx, userID, in)
 	if err != nil {
 		vh.logger.Error("❌ VaultHandler - UpdateRecipient: Failed to update recipient: %v\n", err)
@@ -888,19 +944,35 @@ func (vh *VaultHandler) UpdateRecipient(ctx context.Context, userID string, in s
 	vh.logger.Info("✅ VaultHandler - UpdateRecipient: Successfully updated recipient: %v\n", result)
 	return result, nil
 }
-func (vh *VaultHandler) RevokeRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+func (vh *VaultHandler) RevokeRecipient(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest, vaultHandler *vault_ui.VaultHandler) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.UpdateRecipient(ctx, userID, in)
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
-}	
-func (vh *VaultHandler) RevokeShare(ctx context.Context, userID string, in share_application_dto.UpdateRecipientRequest, configFacade app_config_ui.AppConfigHandler) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+}
+func (vh *VaultHandler) RevokeShare(
+	ctx context.Context,
+	userID string,
+	in share_application_dto.UpdateRecipientRequest,
+	configFacade app_config_ui.AppConfigHandler,
+	vaultHandler *vault_ui.VaultHandler,
+) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
+	entrySnapshotService := share_infrastructure.NewEntrySnapshotService(
+		vh.logger,
+		vaultHandler,
+	)
+
+	usecase := share_application_use_cases.NewShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{}, entrySnapshotService)
 	result, err := usecase.RevokeShare(ctx, userID, in, configFacade)
 	if err != nil {
 		vh.logger.Error("❌ VaultHandler - RevokeShare: Failed to revoke share: %v\n", err)
@@ -909,8 +981,7 @@ func (vh *VaultHandler) RevokeShare(ctx context.Context, userID string, in share
 
 	vh.logger.Info("✅ VaultHandler - RevokeShare: Successfully revoked share: %v\n", result)
 	return result, nil
-}			
-
+}
 
 // ---------------------------------------------------------
 // Link share
@@ -918,8 +989,8 @@ func (vh *VaultHandler) RevokeShare(ctx context.Context, userID string, in share
 func (vh *VaultHandler) CreateLinkShare(email string, payload share_application_dto.LinkShareCreateRequest) (*share_domain.LinkShare, error) {
 	payload.CreatorEmail = email
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
-	tcClient := vh.TracecoreClient   
-	dispatcher := vh.EventDispatcher 
+	tcClient := vh.TracecoreClient
+	dispatcher := vh.EventDispatcher
 	crypto := &blockchain.CryptoService{}
 	linkShareUseCase := share_application_use_cases.NewLinkShareUseCase(repo, tcClient, dispatcher, crypto)
 	created, err := linkShareUseCase.CreateLinkShare(context.Background(), email, payload)
@@ -933,7 +1004,7 @@ func (vh *VaultHandler) CreateLinkShare(email string, payload share_application_
 func (vh *VaultHandler) ListLinkSharesByMe(email string) (*[]tracecore.WailsLinkShare, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	linkShareUseCase := share_application_use_cases.NewLinkShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
-	
+
 	result, err := linkShareUseCase.ListLinkSharesByMe(context.Background(), email)
 	if err != nil {
 		return nil, err
@@ -943,7 +1014,7 @@ func (vh *VaultHandler) ListLinkSharesByMe(email string) (*[]tracecore.WailsLink
 func (vh *VaultHandler) ListLinkSharesWithMe(email string) (*[]tracecore.WailsLinkShare, error) {
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	linkShareUseCase := share_application_use_cases.NewLinkShareUseCase(repo, vh.TracecoreClient, vh.EventDispatcher, &blockchain.CryptoService{})
-	
+
 	result, err := linkShareUseCase.ListLinkSharesWithMe(context.Background(), email)
 	if err != nil {
 		return nil, err

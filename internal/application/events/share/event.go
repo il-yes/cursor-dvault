@@ -1,6 +1,8 @@
-package share_application_events    
+package share_application_events
 
-import share_domain "vault-app/internal/domain/shared"
+import (
+	share_domain "vault-app/internal/domain/shared"
+)
 
 
 

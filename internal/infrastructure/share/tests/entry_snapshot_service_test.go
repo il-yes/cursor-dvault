@@ -105,13 +105,13 @@ func TestEntrySnapshotService_Build_CIDShared(t *testing.T) {
 
     // 5. Unmarshal and verify
     var snapshot share_domain.EntrySnapshot
-    err = json.Unmarshal(res, &snapshot)
+    err = json.Unmarshal(res.Raw, &snapshot)
     require.NoError(t, err)
 
     require.Len(t, snapshot.Attachements, 1)
     attach := snapshot.Attachements[0]
     require.Equal(t, "hash1", attach.Hash)
-    require.Equal(t, "QmCID123", attach.CIDShared) // ← CIDShared set and marshaled
+    require.Equal(t, "QmCID123", attach.HashShare) // ← CIDShared set and marshaled
 }
 
 func TestRecipientDecryptsSharedAttachment(t *testing.T) {

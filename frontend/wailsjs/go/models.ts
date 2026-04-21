@@ -1172,6 +1172,7 @@ export namespace handlers {
 	    expires_at: string;
 	    recipients: RecipientPayload[];
 	    download_allowed: boolean;
+	    attachments: vaults_domain.Attachment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateShareEntryPayload(source);
@@ -1189,6 +1190,7 @@ export namespace handlers {
 	        this.expires_at = source["expires_at"];
 	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
 	        this.download_allowed = source["download_allowed"];
+	        this.attachments = this.convertValues(source["attachments"], vaults_domain.Attachment);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3639,9 +3641,11 @@ export namespace vaults_domain {
 	    name: string;
 	    size: number;
 	    cid?: string;
-	    cid_shared?: string;
 	    storage?: string;
 	    ext?: string;
+	    // Go type: time
+	    downloaded_at?: any;
+	    downloaded_to?: string;
 	    hash_local: string;
 	    hash_share: string;
 	
@@ -3657,12 +3661,31 @@ export namespace vaults_domain {
 	        this.name = source["name"];
 	        this.size = source["size"];
 	        this.cid = source["cid"];
-	        this.cid_shared = source["cid_shared"];
 	        this.storage = source["storage"];
 	        this.ext = source["ext"];
+	        this.downloaded_at = this.convertValues(source["downloaded_at"], null);
+	        this.downloaded_to = source["downloaded_to"];
 	        this.hash_local = source["hash_local"];
 	        this.hash_share = source["hash_share"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Folder {
 	    id: string;

@@ -309,15 +309,24 @@ func (c *CryptoService) AESDecrypt(enc []byte, key []byte) CryptoPayload {
 // Box
 // -------------------------------------
 func (c *CryptoService) EncryptPayload(pub string, symKey []byte) (CryptoPayload, error	) {
+	if pub == "" {
+		return CryptoPayload{}, fmt.Errorf("public key is empty")
+	}	
+	if symKey == nil {
+		return CryptoPayload{}, fmt.Errorf("symmetric key is empty")
+	}
 	edPub, err := strkey.Decode(strkey.VersionByteAccountID, pub)
 	if err != nil {
 		return CryptoPayload{}, fmt.Errorf("failed to decode public key: %w", err)
 	}
+	utils.LogPretty("CryptoService - EncryptPayload - edPub", edPub)
 
 	curvePub := Ed25519PubToCurve(edPub)
+	utils.LogPretty("CryptoService - EncryptPayload - curvePub", curvePub)
 
 	encKey, err := box.SealAnonymous(nil, symKey, curvePub, rand.Reader)
 	Must(err)
+	utils.LogPretty("CryptoService - EncryptPayload - encKey", encKey)
 
 	return CryptoPayload{
 		Encrypted: encKey,

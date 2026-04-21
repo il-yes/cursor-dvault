@@ -444,6 +444,12 @@ func NewApp() *App {
 	go vaultHandler.VaultOpenedListener.Listen(ctx)
 	appLogger.Info("✅ Vault opened listener started")
 
+
+	// ===== New: vault share created =====
+	// vaultOnShareCreatedHandler := vault_use_cases.NewVaultOnShareCreatedHandler(vaultHandler)
+	// go vaultOnShareCreatedHandler.Listen(ctx)
+	// appLogger.Info("✅ Vault share created listener started")
+
 	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
 
@@ -817,7 +823,7 @@ func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
 	}
 	return tokenPair.ToFormerModel(), nil
 	// return a.Auth.RefreshToken(userID) // same logic you already wrote
-}
+} 
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
 }
@@ -964,7 +970,16 @@ func (a *App) GetConfig(vaultName string, jwtToken string) (*app_config_domain.C
 		return nil, err
 	}
 	a.Logger.Info("App - GetConfig - vaultName", vaultName)
-	return a.AppConfigHandler.GetConfig(claims.UserID, vaultName)
+
+
+	vault, err := a.Vault.GetVault(claims.UserID, vaultName)
+	if err != nil {
+		a.Logger.Error("App - GetVaultAvatar - error: %v", err)
+		return nil, err
+	}
+
+
+	return a.AppConfigHandler.GetConfig(claims.UserID, *vault)
 }
 
 func (a *App) EditConfig(vaultName string, s *app_config_dto.Settings, jwtToken string) error {
@@ -1360,7 +1375,29 @@ func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []uint8
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
+
 	return filePath, nil
+}
+
+func (a *App) AddAttachement(jwtToken string, data []uint8, password string, entryType string, entryName string) (string, error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - AddAttachement - error: %v", err)
+		return "", err
+	}
+	
+	upload, err := a.Vault.AddAttachement(context.Background(), vault_dto.AddAttachementRequest{
+		UserID: claims.UserID,
+		Data: data,
+		Password: password,
+		EntryType: entryType,
+		EntryName: entryName,
+	})
+	if err != nil {
+		a.Logger.Error("App - AddAttachement - error: %v", err)
+		return "", err
+	}
+	return upload, nil
 }
 
 func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
@@ -1626,7 +1663,15 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 		a.Logger.Error("App - CreateShare - error: %v", err)
 		return nil, err
 	}
-	return a.Vaults.CreateShareEntry(context.Background(), input.Payload, claims.UserID, claims.Email, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
+	return a.Vaults.CreateShareEntry(
+		context.Background(), 
+		input.Payload, 
+		claims.UserID, 
+		claims.Email, 
+		*a.AppConfigHandler, 
+		a.config.ANCHORA_SECRET,
+		a.Vault,
+	)
 }
 
 // Cryptographic share by me
@@ -1642,7 +1687,6 @@ func (a *App) ListSharedEntries(jwtToken string) (*[]share_domain.ShareEntry, er
 		a.Logger.Error("App - ListSharedEntries - error: %v", err)
 		return nil, err
 	}
-	a.Logger.LogPretty("App - ListSharedEntries - Cryptographic entries: %v", entries)
 
 	return &entries, nil
 }
@@ -1674,6 +1718,7 @@ func (a *App) GetShareForAccept(jwt, shareID string) (*share_domain.ShareAcceptD
 		context.Background(),
 		claims.UserID,
 		shareID,
+		a.Vault,
 	)
 }
 func (a *App) RejectShare(jwtToken string, shareID string) (*share_application.RejectShareResult, error) {
@@ -1683,7 +1728,7 @@ func (a *App) RejectShare(jwtToken string, shareID string) (*share_application.R
 		return nil, err
 	}
 
-	return a.Vaults.RejectShare(context.Background(), claims.UserID, shareID)
+	return a.Vaults.RejectShare(context.Background(), claims.UserID, shareID, a.Vault)
 }
 func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiverInput) (*share_application.AddReceiverResult, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1692,7 +1737,7 @@ func (a *App) AddReceiver(jwtToken string, payload share_application.AddReceiver
 		return nil, err
 	}
 
-	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload)
+	return a.Vaults.AddReceiver(context.Background(), claims.UserID, payload, a.Vault)
 }
 
 func (a *App) AddRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
@@ -1707,7 +1752,7 @@ func (a *App) AddRecipient(jwtToken string, raw json.RawMessage) (*tracecore_typ
 		a.Logger.Error("App - AddRecipient - error: %v", err)
 		return nil, err
 	}
-	return a.Vaults.AddRecipient(context.Background(), claims.UserID, addRecipRequest, *a.AppConfigHandler, a.config.ANCHORA_SECRET)
+	return a.Vaults.AddRecipient(context.Background(), claims.UserID, addRecipRequest, *a.AppConfigHandler, a.config.ANCHORA_SECRET, a.Vault)
 }
 
 func (a *App) UpdateRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
@@ -1722,7 +1767,7 @@ func (a *App) UpdateRecipient(jwtToken string, raw json.RawMessage) (*tracecore_
 		a.Logger.Error("App - UpdateRecipient - error: %v", err)
 		return nil, err
 	}
-	return a.Vaults.UpdateRecipient(context.Background(), claims.UserID, updateRecipRequest)
+	return a.Vaults.UpdateRecipient(context.Background(), claims.UserID, updateRecipRequest, a.Vault)
 }
 
 func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
@@ -1738,7 +1783,7 @@ func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_
 		return nil, err
 	}
 	a.Logger.LogPretty("App - RevokeRecipient - request: %v", revokeRecipRequest)
-	return a.Vaults.RevokeRecipient(context.Background(), claims.UserID, revokeRecipRequest)
+	return a.Vaults.RevokeRecipient(context.Background(), claims.UserID, revokeRecipRequest, a.Vault)
 }
 
 func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
@@ -1754,7 +1799,7 @@ func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_type
 		return nil, err
 	}
 	a.Logger.LogPretty("App - RevokeShare - request: %v", revokeShareRequest)
-	return a.Vaults.RevokeShare(context.Background(), claims.UserID, revokeShareRequest, *a.AppConfigHandler)
+	return a.Vaults.RevokeShare(context.Background(), claims.UserID, revokeShareRequest, *a.AppConfigHandler, a.Vault)
 }
 
 // -----------------------------

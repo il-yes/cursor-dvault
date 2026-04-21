@@ -15,13 +15,13 @@ import (
 )
 
 type LoginHandler struct {
-	db     models.DBModel
-	logger *logger.Logger
-	NowUTC func() string
-	Vault  *vaults_domain.VaultPayload
-	Session *vault_session.Session
+	db              models.DBModel
+	logger          *logger.Logger
+	NowUTC          func() string
+	Vault           *vaults_domain.VaultPayload
+	Session         *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
-	SyncMode bool
+	SyncMode        bool
 }
 
 func NewLoginHandler(db models.DBModel, log *logger.Logger) *LoginHandler {
@@ -32,6 +32,15 @@ func NewLoginHandler(db models.DBModel, log *logger.Logger) *LoginHandler {
 	}
 }
 
+func (h *LoginHandler) Find(userID string, entryName string) (vaults_domain.VaultEntry, error) {
+	for i := range h.Vault.Entries.Login {
+		if h.Vault.Entries.Login[i].EntryName == entryName {
+			h.logger.Info("🗑️ login entry %s for user %s found", entryName, userID)
+			return &h.Vault.Entries.Login[i], nil
+		}
+	}
+	return nil, nil
+}
 func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	utils.LogPretty("LoginHandler - Add - anEntry request", anEntry)
 	// 1. ---------- Unmarshal entry ----------
@@ -51,7 +60,7 @@ func (h *LoginHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayl
 	return h.Vault, nil
 }
 func (h *LoginHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayload, error) {
-	
+
 	// 1. ---------- Unmarshal entry ----------
 	updatedEntry, ok := entry.(*vaults_domain.LoginEntry)
 	if !ok {
@@ -104,7 +113,7 @@ func (h *LoginHandler) TrashLoginEntryAction(userID string, entryID string, tras
 			}
 			h.logger.Info("🗑️ %s login entry %s for user %s", state, entryID, userID)
 
-			return 	h.Vault, nil	
+			return h.Vault, nil
 		}
 	}
 
@@ -119,7 +128,7 @@ func (h *LoginHandler) SetSession(session *vault_session.Session) {
 		return
 	}
 	h.Vault = payload
-	
+
 }
 
 func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultPayload, error) {
@@ -129,7 +138,7 @@ func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments
 		h.logger.Error("LoginHandler - invalid type: expected LoginEntry: %v", entry)
 		return nil, fmt.Errorf("invalid type: expected LoginEntry")
 	}
-	
+
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
 	updatedEntry.IsDirty = true
@@ -146,12 +155,12 @@ func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments
 			return nil, err
 		}
 		entryAttachments = append(entryAttachments, vaults_domain.Attachment{
-			ID:   uuid.New().String(),
+			ID:      uuid.New().String(),
 			EntryID: updatedEntry.ID,
-			Hash: hash,
-			Name: attachment.Name,
-			Size: attachment.Size,
-			Ext: attachment.Ext,
+			Hash:    hash,
+			Name:    attachment.Name,
+			Size:    attachment.Size,
+			Ext:     attachment.Ext,
 		})
 		h.logger.LogPretty("✅ LoginHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}
@@ -184,7 +193,7 @@ func (h *LoginHandler) EditWithAttachments(userID string, entry any, attachments
 func (h *LoginHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
 	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
-	if err != nil {	
+	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
 	}
 	h.logger.Info("✅ VaultHandler - SaveAttachment: vault retrieved for user %s", userID)
@@ -197,7 +206,7 @@ func (h *LoginHandler) SaveAttachment(userID string, data []byte) (string, error
 	attachmentStore := vaults_storage.NewAttachmentStore(vaultPath)
 	h.logger.Info("✅ VaultHandler - SaveAttachment: attachment store created")
 
-	// Save attachment
+	// Save attachment on disk
 	hash, err := attachmentStore.Save(data)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - SaveAttachment: failed to save attachment: %w", err)

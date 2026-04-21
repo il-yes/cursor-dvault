@@ -743,16 +743,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         try {
             // 1. Get RAW file bytes
             const fileBuffer = await fetchLocalAttachmentBuffer(hash);
-            console.log("Uploading data preview:", fileBuffer.slice(0, 20));
-
-            // 2. Encrypt → MUST return Uint8Array
-            // const encryptedBytes = await encryptAttachment(
-            //     jwtToken,
-            //     fileBuffer,
-            //     vaultPassword
-            // );
-
-            // console.log("Encrypted size:", encryptedBytes.length);
+            console.log("Uploading data preview:", fileBuffer.slice(0, 20))
 
             // 3. Upload 
             const cid = await uploadAttachementToIPFSWithEncryption(jwtToken, Array.from(fileBuffer), vaultPassword);

@@ -1,4 +1,4 @@
-import { VaultEntry } from "./vault";
+import { Attachment, VaultEntry } from "./vault";
 
 export interface AuditEvent {
   Event: string;
@@ -93,6 +93,7 @@ export interface EntrySnapshot {
   country?: string;
 
   extra_fields?: Record<string, unknown>;
+  attachments?: Attachment[];
 }
 export interface Recipient {
   id: string;        // backend-generated

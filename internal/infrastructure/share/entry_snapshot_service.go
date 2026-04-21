@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/logger/logger"
+	vaults_domain "vault-app/internal/vault/domain"
 	vault_ui "vault-app/internal/vault/ui"
 )
 
@@ -17,94 +18,119 @@ type Vaulthandler interface {
 }
 
 type EntrySnapshotService struct {
-    Logger       logger.Logger
-    VaultHandler Vaulthandler
+	Logger       logger.Logger
+	VaultHandler Vaulthandler
 }
 
 func NewEntrySnapshotService(
-    logger logger.Logger,
-    vaultHandler Vaulthandler,
+	logger logger.Logger,
+	vaultHandler Vaulthandler,
 ) *EntrySnapshotService {
-    return &EntrySnapshotService{
-        Logger:       logger,
-        VaultHandler: vaultHandler,
-    }
+	return &EntrySnapshotService{
+		Logger:       logger,
+		VaultHandler: vaultHandler,
+	}
 }
 
 type BuildRequest struct {
-    // Required for the share
-    Share              *share_domain.ShareEntry
-    Recipient          share_domain.Recipient
+	// Required for the share
+	Share     *share_domain.ShareEntry
+	Recipient share_domain.Recipient
 
-    // Per‑user context (vault context)
-    UserID             string
-    UserSubscriptionID string
-    VaultName          string
-    Password           string
+	// Per‑user context (vault context)
+	UserID             string
+	UserSubscriptionID string
+	VaultName          string
+	Password           string
+}
+type BuildResponse struct {
+	Raw            []byte
+	Snapshot       share_domain.EntrySnapshot
+	CIDs           []string
+	AttachementIDs []string
 }
 
 func (s *EntrySnapshotService) Build(
-    ctx context.Context,
-    req BuildRequest,
-) ([]byte, error) {
-    // 1. Process attachments under the given context
-    updatedSnapshot, err := s.Process(ctx, req)
-    if err != nil {
-        return nil, err
-    }
+	ctx context.Context,
+	req BuildRequest,
+) (BuildResponse, error) {
+	// 1. Process attachments under the given context
+	updatedSnapshot, cids, attachementIDs, err := s.Process(ctx, req)
+	if err != nil {
+		return BuildResponse{}, err
+	}
 
-    // 2. Marshal the final, CID‑aware snapshot
-    return json.Marshal(updatedSnapshot)
+	// 2. Marshal the final, CID‑aware snapshot
+	raw, err := json.Marshal(updatedSnapshot)
+	if err != nil {
+		return BuildResponse{}, err
+	}
+
+	return BuildResponse{
+		Snapshot:       *updatedSnapshot,
+		Raw:            raw,
+		CIDs:           cids,
+		AttachementIDs: attachementIDs,
+	}, nil
 }
+
+
+
 
 // Extract attachements from entry snapshot
 func (s *EntrySnapshotService) Process(
     ctx context.Context,
     req BuildRequest,
-) (*share_domain.EntrySnapshot, error) {
+) (*share_domain.EntrySnapshot, []string, []string, error) {
     entrySnapshot := req.Share.EntrySnapshot
 
-    // range over attachments by index so we can mutate them
-    for i := range entrySnapshot.Attachements {
-        attachment := &entrySnapshot.Attachements[i]
-
-        // Use request context:
-        // - req.UserID, req.VaultName, req.Password
-        buffer, err := s.VaultHandler.LoadAttachment(
-            req.UserID,
-            req.VaultName,
-            attachment.Hash,
-        )
-        if err != nil {
-            s.Logger.Error(
-                "❌ Failed to load attachment for user %s: %v",
-                req.UserID,
-                err,
-            )
-            return nil, err
-        }
-
-        cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
-            req.UserID,
-            vault_ui.UploadAttachRequest{
-                Data:               []byte(buffer),
-                UserSubscriptionID: req.UserSubscriptionID,
-                VaultName:          req.VaultName,
-                Password:           req.Password,
-            },
-        )
-        if err != nil {
-            s.Logger.Error(
-                "❌ Failed to upload attachment for user %s: %v",
-                req.UserID,
-                err,
-            )
-            return nil, err
-        }
-
-        attachment.CIDShared = cid
+    if entrySnapshot.Attachements == nil {
+        entrySnapshot.Attachements = make([]vaults_domain.Attachment, 0, len(entrySnapshot.Attachements))
     }
 
-    return &entrySnapshot, nil
-}
+    cids := []string{}
+    attachementIDs := []string{}
 
+    for i := range entrySnapshot.Attachements {
+        attachment := &entrySnapshot.Attachements[i]
+        if attachment.HashShare == "" {
+            buffer, err := s.VaultHandler.LoadAttachment(
+                req.UserID,
+                req.VaultName,
+                attachment.Hash,
+            )
+            if err != nil {
+                s.Logger.Error(
+                    "❌ Failed to load attachment for user %s: %v",
+                    req.UserID,
+                    err,
+                )
+                return nil, nil, nil, err
+            }
+
+            cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
+                req.UserID,
+                vault_ui.UploadAttachRequest{
+                    Data:               []byte(buffer),
+                    UserSubscriptionID: req.UserSubscriptionID,
+                    VaultName:          req.VaultName,
+                    Password:           req.Password,
+                },
+            )
+            if err != nil {
+                s.Logger.Error(
+                    "❌ Failed to upload attachment for user %s: %v",
+                    req.UserID,
+                    err,
+                )
+                return nil, nil, nil, err
+            }
+
+            attachment.HashShare = cid
+            cids = append(cids, cid)
+            attachementIDs = append(attachementIDs, attachment.ID)
+        }
+    }
+
+    return &entrySnapshot, cids, attachementIDs, nil
+}

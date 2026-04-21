@@ -523,6 +523,9 @@ func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
 
 func (ah *AuthHandler) CheckUserEmail(email string, token string) (*tracecore_types.User, error) {
 	// tracecoreClient := tracecore.NewTracecoreFromConfig(appCfg, token)
+	if ah.TracecoreClient == nil {
+		return nil, fmt.Errorf("❌ Tracecore client is not initialized")
+	}
 	user, err := ah.TracecoreClient.GetUserByEmail(context.Background(), email)
 	if err != nil {
 		ah.logger.Error("❌ AuthHandler - CheckUserEmail Failed to get user by email: %v", err)

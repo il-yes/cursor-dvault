@@ -2,7 +2,6 @@ package share_application_use_cases
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	// "log"
@@ -17,6 +16,7 @@ import (
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // ---------------------------------------------------------
@@ -44,7 +44,7 @@ type ClientCryptoService interface {
 }
 
 type EntrySnapshotServiceInterface interface {
-	Build(ctx context.Context, req share_infrastructure.BuildRequest) ([]byte, error)
+	Build(ctx context.Context, req share_infrastructure.BuildRequest) (share_infrastructure.BuildResponse, error)
 }
 
 // ---------------------------------------------------------
@@ -53,19 +53,26 @@ type EntrySnapshotServiceInterface interface {
 //
 // ---------------------------------------------------------
 type ShareUseCase struct {
-	repo       share_domain.Repository
-	dispatcher share_application_events.EventDispatcher
-	tc         TracecoreClientInterface // new cloud client
-	crypto     ClientCryptoService
+	repo                 share_domain.Repository
+	dispatcher           share_application_events.EventDispatcher
+	tc                   TracecoreClientInterface // new cloud client
+	crypto               ClientCryptoService
 	EntrySnapshotService EntrySnapshotServiceInterface
 }
 
-func NewShareUseCase(repo share_domain.Repository, tc TracecoreClientInterface, d share_application_events.EventDispatcher, crypto ClientCryptoService) *ShareUseCase {
+func NewShareUseCase(
+	repo share_domain.Repository,
+	tc TracecoreClientInterface,
+	d share_application_events.EventDispatcher,
+	crypto ClientCryptoService,
+	entrySnapshotService EntrySnapshotServiceInterface,
+) *ShareUseCase {
 	return &ShareUseCase{
-		repo:       repo,
-		tc:         tc,
-		dispatcher: d,
-		crypto:     crypto,
+		repo:                 repo,
+		tc:                   tc,
+		dispatcher:           d,
+		crypto:               crypto,
+		EntrySnapshotService: entrySnapshotService,
 	}
 }
 
@@ -79,11 +86,20 @@ func (uc *ShareUseCase) CreateProdShareMode(
 	share share_domain.ShareEntry,
 	configFacade app_config_ui.AppConfigHandler,
 	secret string,
+	vault *vaults_domain.Vault,
 ) (*share_domain.ShareEntry, error) {
 	// ---------------------------------------------------------
 	// 1. Create share Request
 	// ---------------------------------------------------------
-	pcr, err := uc.BuildProdShareRequest(uc.crypto, userID, ownerEmail, share, configFacade, secret)
+	pcr, attachementsAdded, err := uc.BuildProdShareRequest(
+		uc.crypto,
+		userID,
+		ownerEmail,
+		share,
+		configFacade,
+		secret,
+		vault,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -101,11 +117,18 @@ func (uc *ShareUseCase) CreateProdShareMode(
 	// ---------------------------------------------------------
 	// 3. Publish event after commit
 	// ---------------------------------------------------------
-	// _ = uc.bus.PublishShareCreated(ctx, share_entries_domain.ShareCreated{
-	// 	ShareID:    share.ID,
-	// 	CreatorID:  share.SenderUserID,
-	// 	OccurredAt: time.Now().Unix(),
-	// })
+	uc.dispatcher.Dispatch(share_domain.ShareCreated{
+		BaseEvent: share_domain.BaseEvent{
+			Name: "ShareCreated",
+			Time: time.Now(),
+		},
+		ShareID:        share.ID,
+		EntryName:      share.EntryName,
+		EntryType:      share.EntryType,
+		OwnerID:        userID,
+		CIDs:           attachementsAdded.CIDs,
+		AttachementIDs: attachementsAdded.AttachementIDs,
+	})
 
 	return &share, nil
 }
@@ -117,34 +140,42 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	share share_domain.ShareEntry,
 	configFacade app_config_ui.AppConfigHandler,
 	secret string,
-) (*tracecore.ProdCreateCryptoShareRequest, error) {
+	vault *vaults_domain.Vault,
+) (*tracecore.ProdCreateCryptoShareRequest, *share_application_dto.AttachementCIDsAdded, error) {
 	// ---------------------------------------------------------
 	// 1. Generate symmetric key
 	// ---------------------------------------------------------
 	symKey := crypto.GenerateSymmetricKey()
 
 	// ---------------------------------------------------------
+	// 2. Build entry snapshot
+	// ---------------------------------------------------------
+	buildResponse, err := uc.EntrySnapshotService.Build(
+		context.Background(),
+		share_infrastructure.BuildRequest{
+			Share:     &share,
+			UserID:    userID,
+			UserSubscriptionID: vault.UserSubscriptionID,
+			VaultName: vault.Name,
+			Password:  "password",
+		})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build entry snapshot: %w", err)
+	}
+	utils.LogPretty("share - ShareUseCase - encryptedPayloadBeta", buildResponse)
+	share.EntrySnapshot = buildResponse.Snapshot
+
+	// ---------------------------------------------------------
 	// 2. Encrypt payload
 	// ---------------------------------------------------------
-	entrySnapshotRawJson, err := json.Marshal(share.EntrySnapshot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal entry snapshot: %w", err)
+	// entrySnapshotRawJson, err := json.Marshal(buildResponse.Snapshot)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to marshal entry snapshot: %w", err)
+	// }
+	encryptedPayload := crypto.AESEncrypt(buildResponse.Raw, symKey)
+	if encryptedPayload.Encrypted == nil {
+		return nil, nil, fmt.Errorf("failed to encrypt payload")
 	}
-	utils.LogPretty("share - ShareUseCase - entrySnapshotRawJson", entrySnapshotRawJson)
-	encryptedPayload := crypto.AESEncrypt(
-		[]byte(entrySnapshotRawJson),
-		symKey,
-	)
-	encryptedPayloadBeta, err := uc.EntrySnapshotService.Build(context.Background(), share_infrastructure.BuildRequest{
-		Share:              &share,
-		UserSubscriptionID: "usersubscriptionid",
-		VaultName:          "vaultname",
-		Password:           "vaultpassword",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build entry snapshot: %w", err)
-	}
-	utils.LogPretty("share - ShareUseCase - encryptedPayloadBeta", encryptedPayloadBeta)
 
 	// ---------------------------------------------------------
 	// 3. Encrypt keys
@@ -156,7 +187,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	for _, rid := range share.Recipients {
 		encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt key: %w", err)
+			return nil, nil, fmt.Errorf("failed to encrypt key: %w", err)
 		}
 
 		encryptedKeys[rid.Email] = encKey.ToString()
@@ -165,7 +196,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	for _, rid := range share.Recipients {
 		encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt key: %w", err)
+			return nil, nil, fmt.Errorf("failed to encrypt key: %w", err)
 		}
 
 		recipients[rid.Email] = tracecore.CryptoRecipient{
@@ -180,34 +211,38 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// fetch userr private key from db
 	userCfg, err := configFacade.GetUserConfigByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user config: %w", err)
+		return nil, nil, fmt.Errorf("failed to get user config: %w", err)
 	}
 
 	message := "share.Message" // TODO: improve
 	signature, err := blockchain.SignActorWithStellarPrivateKey(string(userCfg.StellarAccount.PrivateKey), message)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign share: %w", err)
+		return nil, nil, fmt.Errorf("failed to sign share: %w", err)
 	}
 
 	// ---------------------------------------------------------
 	// 5. Return request
 	// ---------------------------------------------------------
 	return &tracecore.ProdCreateCryptoShareRequest{
-		SenderID:      share.OwnerID,
-		SenderEmail:   email,
-		Recipients:    recipients,
-		VaultPayload:  encryptedPayload.ToString(),
-		EncryptedKeys: encryptedKeys,
-		Title:         share.EntryName,
-		EntryType:     share.EntryType,
-		AccessMode:    share.AccessMode,
-		ExpiresAt:     share.ExpiresAt,
-		// Metadata:      share.Metadata,
-		PublicKey:       userCfg.StellarAccount.PublicKey,
-		Signature:       signature,
-		Message:         message,
-		DownloadAllowed: share.DownloadAllowed,
-	}, nil
+			SenderID:      share.OwnerID,
+			SenderEmail:   email,
+			Recipients:    recipients,
+			VaultPayload:  encryptedPayload.ToString(),
+			EncryptedKeys: encryptedKeys,
+			Title:         share.EntryName,
+			EntryType:     share.EntryType,
+			AccessMode:    share.AccessMode,
+			ExpiresAt:     share.ExpiresAt,
+			// Metadata:      share.Metadata,
+			PublicKey:       userCfg.StellarAccount.PublicKey,
+			Signature:       signature,
+			Message:         message,
+			DownloadAllowed: share.DownloadAllowed,
+		},
+		&share_application_dto.AttachementCIDsAdded{
+			CIDs:           buildResponse.CIDs,
+			AttachementIDs: buildResponse.AttachementIDs,
+		}, nil
 }
 
 // ------------------------------------------------

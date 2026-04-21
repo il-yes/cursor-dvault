@@ -26,6 +26,8 @@ import {vault_dto} from '../models';
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
 
+export function AddAttachement(arg1:string,arg2:Array<number>,arg3:string,arg4:string,arg5:string):Promise<string>;
+
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function AddReceiver(arg1:string,arg2:share_application_use_cases.AddReceiverInput):Promise<share_application_use_cases.AddReceiverResult>;

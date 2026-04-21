@@ -6,6 +6,10 @@ export function AccessDecryptVaultEntry(arg1, arg2) {
   return window['go']['main']['App']['AccessDecryptVaultEntry'](arg1, arg2);
 }
 
+export function AddAttachement(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['AddAttachement'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function AddEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddEntry'](arg1, arg2, arg3);
 }

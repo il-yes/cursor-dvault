@@ -5,6 +5,7 @@ import (
 	"sync"
 	share_application "vault-app/internal/application/events/share"
 	share_domain "vault-app/internal/domain/shared"
+	"vault-app/internal/utils"
 )
 
 type InMemoryEventDispatcher struct {
@@ -63,6 +64,7 @@ func InitializeEventDispatcher() share_application.EventDispatcher {
 	dispatcher.Register("ShareCreated", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.ShareCreated)
 		log.Printf("🎉 Share created: ShareID=%d, OwnerID=%d\n", e.ShareID, e.OwnerID)
+		utils.LogPretty("InMemoryEventDispatcher - InitializeEventDispatcher - ShareCreated", e)
 	})
 	return dispatcher
 }

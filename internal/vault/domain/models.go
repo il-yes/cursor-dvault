@@ -3,6 +3,7 @@ package vaults_domain
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -29,7 +30,7 @@ type Vault struct {
 	CID                string `json:"cid" gorm:"column:cid"`               // ✅ Explicitly map this!
 	CreatedAt          string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
 	UpdatedAt          string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
-	VaultMeta          VaultMeta 
+	VaultMeta          VaultMeta
 
 	// new
 	KeyVersion int
@@ -132,6 +133,23 @@ func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 
 	return &vp
 }
+func (v *VaultPayload) InitFolders() {
+	v.Folders = []Folder{}
+}
+func (v *VaultPayload) InitEntries() {
+	v.Entries = Entries{
+		Login:    []LoginEntry{},
+		Card:     []CardEntry{},
+		Identity: []IdentityEntry{},
+		Note:     []NoteEntry{},
+		SSHKey:   []SSHKeyEntry{},
+	}
+}
+func (v *VaultPayload) InitBaseVaultContent() {
+	v.InitFolders()
+	v.InitEntries()
+}
+
 func (v *VaultPayload) GetFolder(folderID string) (Folder, Entries) {
 	var folder Folder
 	for _, f := range v.Folders {
@@ -173,6 +191,44 @@ func (v *VaultPayload) GetEntriesByFolder(folderID string) Entries {
 
 	return filtered
 }
+func (v *VaultPayload) GetEntriesByType(entryType string) []VaultEntry {
+	var results []VaultEntry
+	switch entryType {
+	case "login":
+		for _, e := range v.Entries.Login {
+			results = append(results, e)
+		}
+	case "identity":
+		for _, e := range v.Entries.Identity {
+			results = append(results, e)
+		}
+	case "note":
+		for _, e := range v.Entries.Note {
+			results = append(results, e)
+		}
+	case "card":
+		for _, e := range v.Entries.Card {
+			results = append(results, e)
+		}
+	case "sshkey":
+		for _, e := range v.Entries.SSHKey {
+			results = append(results, e)
+		}
+	}
+	return results
+}
+func (v *VaultPayload) GetEntry(entryType string, entryName string) VaultEntry {
+	entries := v.GetEntriesByType(entryType)
+
+	for _, entry := range entries {
+		if entry.GetName() == entryName {
+			return entry
+		}
+	}
+	return nil
+}
+
+
 func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 	moved := Entries{}
 
@@ -214,23 +270,6 @@ func (v *VaultPayload) MoveEntriesToUnsorted(folderID string) Entries {
 
 	return moved
 }
-func (v *VaultPayload) InitFolders() {
-	v.Folders = []Folder{}
-}
-func (v *VaultPayload) InitEntries() {
-	v.Entries = Entries{
-		Login: []LoginEntry{},
-		Card: []CardEntry{},
-		Identity: []IdentityEntry{},
-		Note: []NoteEntry{},
-		SSHKey: []SSHKeyEntry{},
-	}
-}
-
-func (v *VaultPayload) InitBaseVaultContent() {
-	v.InitFolders()
-	v.InitEntries()
-}
 func (v *VaultPayload) GetContentBytes() ([]byte, error) {
 	return json.MarshalIndent(v, "", "  ")
 }
@@ -265,6 +304,324 @@ func (s *VaultPayload) ToBytes() []byte {
 	return raw
 }
 
+
+// AddEntryAttachment adds a new attachment to the entry with entryID.
+// If the entry is not found, returns an error.
+func (v *VaultPayload) AddEntryAttachment(
+    entryID string,
+    att Attachment,
+) error {
+    find := func(entries interface{}) bool {
+        switch xs := entries.(type) {
+        case []LoginEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    xs[i].BaseEntry.Attachments = append(xs[i].BaseEntry.Attachments, att)
+                    return true
+                }
+            }
+        case []CardEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    xs[i].BaseEntry.Attachments = append(xs[i].BaseEntry.Attachments, att)
+                    return true
+                }
+            }
+        case []IdentityEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    xs[i].BaseEntry.Attachments = append(xs[i].BaseEntry.Attachments, att)
+                    return true
+                }
+            }
+        case []NoteEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    xs[i].BaseEntry.Attachments = append(xs[i].BaseEntry.Attachments, att)
+                    return true
+                }
+            }
+        case []SSHKeyEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    xs[i].BaseEntry.Attachments = append(xs[i].BaseEntry.Attachments, att)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    found := false
+    found = find(v.Entries.Login)
+    if !found {
+        found = find(v.Entries.Card)
+    }
+    if !found {
+        found = find(v.Entries.Identity)
+    }
+    if !found {
+        found = find(v.Entries.Note)
+    }
+    if !found {
+        found = find(v.Entries.SSHKey)
+    }
+
+    if !found {
+        return errors.New("entry not found")
+    }
+
+    return nil
+}
+func (v *VaultPayload) GetEntryAttachments(entryID string) []Attachment {
+    find := func(es interface{}) []Attachment {
+        switch xs := es.(type) {
+        case []LoginEntry:
+            for _, e := range xs {
+                if e.ID == entryID {
+                    return e.Attachments
+                }
+            }
+        case []CardEntry:
+            for _, e := range xs {
+                if e.ID == entryID {
+                    return e.Attachments
+                }
+            }
+        case []IdentityEntry:
+            for _, e := range xs {
+                if e.ID == entryID {
+                    return e.Attachments
+                }
+            }
+        case []NoteEntry:
+            for _, e := range xs {
+                if e.ID == entryID {
+                    return e.Attachments
+                }
+            }
+        case []SSHKeyEntry:
+            for _, e := range xs {
+                if e.ID == entryID {
+                    return e.Attachments
+                }
+            }
+        }
+        return nil
+    }
+
+    if a := find(v.Entries.Login); a != nil {
+        return a
+    }
+    if a := find(v.Entries.Card); a != nil {
+        return a
+    }
+    if a := find(v.Entries.Identity); a != nil {
+        return a
+    }
+    if a := find(v.Entries.Note); a != nil {
+        return a
+    }
+    if a := find(v.Entries.SSHKey); a != nil {
+        return a
+    }
+
+    return nil
+}
+
+// UpdateEntryAttachment applies the given update function to the attachment
+// inside the entry with entryID whose Attachment.ID == attachmentID.
+// If the entry or attachment is not found, it returns ErrNotFound.
+func (v *VaultPayload) UpdateEntryAttachment(
+    entryID string,
+    attachmentID string,
+    updateFn func(*Attachment) error,
+) error {
+    findAndUpdate := func(entries interface{}) error {
+        switch xs := entries.(type) {
+        case []LoginEntry:
+            for i := range xs {
+                if xs[i].ID == entryID {
+                    for j := range xs[i].Attachments {
+                        if xs[i].Attachments[j].ID == attachmentID {
+                            return updateFn(&xs[i].Attachments[j])
+                        }
+                    }
+                }
+            }
+        case []CardEntry:
+            for i := range xs {
+                if xs[i].ID == entryID {
+                    for j := range xs[i].Attachments {
+                        if xs[i].Attachments[j].ID == attachmentID {
+                            return updateFn(&xs[i].Attachments[j])
+                        }
+                    }
+                }
+            }
+        case []IdentityEntry:
+            for i := range xs {
+                if xs[i].ID == entryID {
+                    for j := range xs[i].Attachments {
+                        if xs[i].Attachments[j].ID == attachmentID {
+                            return updateFn(&xs[i].Attachments[j])
+                        }
+                    }
+                }
+            }
+        case []NoteEntry:
+            for i := range xs {
+                if xs[i].ID == entryID {
+                    for j := range xs[i].Attachments {
+                        if xs[i].Attachments[j].ID == attachmentID {
+                            return updateFn(&xs[i].Attachments[j])
+                        }
+                    }
+                }
+            }
+        case []SSHKeyEntry:
+            for i := range xs {
+                if xs[i].ID == entryID {
+                    for j := range xs[i].Attachments {
+                        if xs[i].Attachments[j].ID == attachmentID {
+                            return updateFn(&xs[i].Attachments[j])
+                        }
+                    }
+                }
+            }
+        }
+        return errors.New("entry not found")
+    }
+
+    err := findAndUpdate(v.Entries.Login)
+    if err == nil {
+        return nil
+    }
+    err = findAndUpdate(v.Entries.Card)
+    if err == nil {
+        return nil
+    }
+    err = findAndUpdate(v.Entries.Identity)
+    if err == nil {
+        return nil
+    }
+    err = findAndUpdate(v.Entries.Note)
+    if err == nil {
+        return nil
+    }
+    err = findAndUpdate(v.Entries.SSHKey)
+    if err == nil {
+        return nil
+    }
+
+    // reuse a sentinel error
+    return errors.New("entry or attachment not found")
+}
+
+// DeleteEntryAttachment removes the attachment with attachmentID from the entry
+// with entryID.
+// If entry or attachment is not found, returns nil (no error).
+func (v *VaultPayload) DeleteEntryAttachment(
+    entryID string,
+    attachmentID string,
+) error {
+    findAndDelete := func(entries interface{}) bool {
+        switch xs := entries.(type) {
+        case []LoginEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    for j, att := range xs[i].BaseEntry.Attachments {
+                        if att.ID == attachmentID {
+                            xs[i].BaseEntry.Attachments = append(
+                                xs[i].BaseEntry.Attachments[:j],
+                                xs[i].BaseEntry.Attachments[j+1:]...,
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+        case []CardEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    for j, att := range xs[i].BaseEntry.Attachments {
+                        if att.ID == attachmentID {
+                            xs[i].BaseEntry.Attachments = append(
+                                xs[i].BaseEntry.Attachments[:j],
+                                xs[i].BaseEntry.Attachments[j+1:]...,
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+        case []IdentityEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    for j, att := range xs[i].BaseEntry.Attachments {
+                        if att.ID == attachmentID {
+                            xs[i].BaseEntry.Attachments = append(
+                                xs[i].BaseEntry.Attachments[:j],
+                                xs[i].BaseEntry.Attachments[j+1:]...,
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+        case []NoteEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    for j, att := range xs[i].BaseEntry.Attachments {
+                        if att.ID == attachmentID {
+                            xs[i].BaseEntry.Attachments = append(
+                                xs[i].BaseEntry.Attachments[:j],
+                                xs[i].BaseEntry.Attachments[j+1:]...,
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+        case []SSHKeyEntry:
+            for i := range xs {
+                if xs[i].BaseEntry.ID == entryID {
+                    for j, att := range xs[i].BaseEntry.Attachments {
+                        if att.ID == attachmentID {
+                            xs[i].BaseEntry.Attachments = append(
+                                xs[i].BaseEntry.Attachments[:j],
+                                xs[i].BaseEntry.Attachments[j+1:]...,
+                            )
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    found := false
+    found = findAndDelete(v.Entries.Login)
+    if !found {
+        found = findAndDelete(v.Entries.Card)
+    }
+    if !found {
+        found = findAndDelete(v.Entries.Identity)
+    }
+    if !found {
+        found = findAndDelete(v.Entries.Note)
+    }
+    if !found {
+        found = findAndDelete(v.Entries.SSHKey)
+    }
+
+    if !found {
+        return errors.New("entry or attachment not found")
+    }
+
+    return nil
+}
 // ==============================================================================
 // VaultEntry Interface
 // ==============================================================================
@@ -308,6 +665,18 @@ type BaseEntry struct {
 	Attachments     []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
 	AttachmentCIDs  []string     `json:"attachmentCIDs,omitempty"`
 }
+func ParseAndUpdateCIDs(attachments []Attachment, cids []string, atts[]string) bool {
+	modified := false
+	for i := range attachments {
+		for j, newAttID := range atts {
+			if attachments[i].ID == newAttID {
+				attachments[i].HashShare = cids[j]
+				modified = true
+			}
+		}
+	}
+	return modified
+}
 
 type LoginEntry struct {
 	BaseEntry
@@ -320,6 +689,9 @@ func (e *LoginEntry) AddAttachments(attachments []Attachment) *LoginEntry {
 	e.Attachments = append(e.Attachments, attachments...)
 	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
+}
+func (e *LoginEntry) OnShareCreated(cids []string, atts []string) bool {
+	return	ParseAndUpdateCIDs(e.BaseEntry.Attachments, cids, atts)
 }
 
 type CardEntry struct {
@@ -336,6 +708,9 @@ func (e *CardEntry) AddAttachments(attachments []Attachment) *CardEntry {
 	return e
 }
 
+func (e *CardEntry) OnShareCreated(cids []string, atts []string) bool {
+	return	ParseAndUpdateCIDs(e.BaseEntry.Attachments, cids, atts)
+}
 type IdentityEntry struct {
 	BaseEntry
 	Genre                string `json:"genre,omitempty"`
@@ -363,6 +738,9 @@ func (e *IdentityEntry) AddAttachments(attachments []Attachment) *IdentityEntry 
 	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
 }
+func (e *IdentityEntry) OnShareCreated(cids []string, atts []string) bool {
+	return	ParseAndUpdateCIDs(e.BaseEntry.Attachments, cids, atts)
+}
 
 type NoteEntry struct {
 	BaseEntry
@@ -372,6 +750,9 @@ func (e *NoteEntry) AddAttachments(attachments []Attachment) *NoteEntry {
 	e.Attachments = append(e.Attachments, attachments...)
 	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
+}
+func (e *NoteEntry) OnShareCreated(cids []string, atts []string) bool {
+	return	ParseAndUpdateCIDs(e.BaseEntry.Attachments, cids, atts)
 }
 
 type SSHKeyEntry struct {
@@ -385,6 +766,9 @@ func (e *SSHKeyEntry) AddAttachments(attachments []Attachment) *SSHKeyEntry {
 	e.Attachments = append(e.Attachments, attachments...)
 	e.UpdatedAt = time.Now().Format(time.RFC3339)
 	return e
+}
+func (e *SSHKeyEntry) OnShareCreated(cids []string, atts []string) bool {
+	return	ParseAndUpdateCIDs(e.BaseEntry.Attachments, cids, atts)
 }
 
 func (e LoginEntry) GetId() string          { return e.ID }
@@ -422,16 +806,6 @@ func (e *NoteEntry) GetBase() *BaseEntry     { return &e.BaseEntry }
 func (e *SSHKeyEntry) GetBase() *BaseEntry   { return &e.BaseEntry }
 
 // ==============================================================================
-// VaultEntry
-// ==============================================================================
-// type VaultEntry struct {
-// 	ID        string    `json:"id"`
-// 	EntryName string    `json:"entry_name"`
-// 	Type      string    `json:"type"`
-// 	UpdatedAt time.Time `json:"updated_at"`
-// }
-
-// ==============================================================================
 // Utilities
 // ==============================================================================
 func ParseVaultPayload(decrypted []byte) VaultPayload {
@@ -466,17 +840,18 @@ func (j JSONMap) Value() (driver.Value, error) {
 // Attachments
 // ==============================================================================
 type Attachment struct {
-	ID        string `json:"id" gorm:"primaryKey"`
-	EntryID   string `json:"entry_id"`
-	Hash      string `json:"hash"`
-	Name      string `json:"name"`
-	Size      int64  `json:"size"`
-	CID       string `json:"cid,omitempty" gorm:"column:cid"`
-	CIDShared string `json:"cid_shared,omitempty" gorm:"column:cid_shared"`
-	Storage   string `json:"storage,omitempty"` // "local" | "cloud" | "ipfs";
-	Ext       string `json:"ext,omitempty" gorm:"column:ext" `
-	HashLocal string `json:"hash_local" gorm:"column:"hash_local"`
-	HashShare string `json:"hash_share" gorm:"column:"hash_share"`
+	ID           string    `json:"id" gorm:"primaryKey"`
+	EntryID      string    `json:"entry_id"`
+	Hash         string    `json:"hash"`
+	Name         string    `json:"name"`
+	Size         int64     `json:"size"`
+	CID          string    `json:"cid,omitempty" gorm:"column:cid"`
+	Storage      string    `json:"storage,omitempty"` // "local" | "cloud" | "ipfs";
+	Ext          string    `json:"ext,omitempty" gorm:"column:ext"`
+	DownloadedAt time.Time `json:"downloaded_at,omitempty" gorm:"column:downloaded_at"`
+	DownloadedTo string    `json:"downloaded_to,omitempty" gorm:"column:downloaded_to"`
+	HashLocal    string    `json:"hash_local" gorm:"column:hash_local"`
+	HashShare    string    `json:"hash_share" gorm:"column:hash_share"`
 }
 
 // ==============================================================================
@@ -494,12 +869,12 @@ type VaultMeta struct {
 // VaultNode
 // ==============================================================================
 type VaultNode struct {
-	Type    string
-	Version string
-	Folders Link
-	Entries Link
-	Index   Link
-	Attachments Link   `json:"attachments"`
+	Type        string
+	Version     string
+	Folders     Link
+	Entries     Link
+	Index       Link
+	Attachments Link `json:"attachments"`
 }
 
 func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {

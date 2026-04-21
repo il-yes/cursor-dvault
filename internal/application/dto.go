@@ -43,3 +43,8 @@ type UpdateRecipientRequest struct {
 	Role    string `json:"role"`
 	RevokedAt    *time.Time `json:"revoked_at"`
 }
+
+type AttachementCIDsAdded struct {
+	CIDs []string `json:"cids"`
+	AttachementIDs []string `json:"attachement_ids"`
+}

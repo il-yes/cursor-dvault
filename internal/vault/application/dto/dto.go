@@ -45,3 +45,13 @@ type UnlockVaultCommand struct {
 type UnlockVaultResult struct {
 	VaultKey vaults_domain.VaultKey
 }
+
+type AddAttachementRequest struct {
+	UserID string
+	Data	 []uint8
+	Password string
+	EntryType string
+	EntryName string
+	VaultName string
+	UserSubscriptionID string
+}

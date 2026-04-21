@@ -31,6 +31,16 @@ func NewCardHandler(db models.DBModel, log *logger.Logger) *CardHandler {
 	}
 }
 
+func (h *CardHandler) Find(userID string, entryName string) (vaults_domain.VaultEntry, error) {
+	for i := range h.Vault.Entries.Card {
+		if h.Vault.Entries.Card[i].EntryName == entryName {
+			h.logger.Info("🗑️ card entry %s for user %s found", entryName, userID)
+			return &h.Vault.Entries.Card[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (h *CardHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	entry, err := anEntry.(*vaults_domain.CardEntry)
 	if !err {

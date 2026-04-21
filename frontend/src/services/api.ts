@@ -502,6 +502,8 @@ export async function createSharedEntry(payload: {
 		if (!selectedEntry) {
 			throw new Error(`Entry with id ${payload.entry_id} not found in vault`);
 		}
+		console.log({ selectedEntry })
+		// convert the vaultEntry in an entryType
 
 		// Build the proper CreateShareEntryPayload
 		const createSharePayload = new handlers.CreateShareEntryPayload({
@@ -519,6 +521,7 @@ export async function createSharedEntry(payload: {
 				public_key: r.publicKey,
 			})),
 			download_allowed: payload.download_allowed || false,
+			attachments: selectedEntry.attachments,
 		});
 
 		// Wails backend is exposed via the global App object

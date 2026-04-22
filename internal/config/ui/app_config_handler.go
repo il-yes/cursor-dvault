@@ -151,7 +151,7 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault) 
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get vault config: %v", err)
 	}
 	utils.LogPretty("AppConfigHandler: GetConfig - vaultConfig", vaultConfig)
-	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(userID, vault.Name)
+	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(appConfig.Branch, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get subscription config: %v", err)
 	}

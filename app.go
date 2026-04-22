@@ -59,6 +59,7 @@ import (
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vault_session "vault-app/internal/vault/application/session"
+	vault_use_cases "vault-app/internal/vault/application/usecases"
 	vaults_domain "vault-app/internal/vault/domain"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 	vault_ui "vault-app/internal/vault/ui"
@@ -444,11 +445,15 @@ func NewApp() *App {
 	go vaultHandler.VaultOpenedListener.Listen(ctx)
 	appLogger.Info("✅ Vault opened listener started")
 
-
 	// ===== New: vault share created =====
-	// vaultOnShareCreatedHandler := vault_use_cases.NewVaultOnShareCreatedHandler(vaultHandler)
-	// go vaultOnShareCreatedHandler.Listen(ctx)
-	// appLogger.Info("✅ Vault share created listener started")
+	vaultListener := vault_use_cases.NewVaultOnShareCreatedListener(
+		vaultHandler,
+		appLogger,
+		vaults.EventDispatcher,
+	)
+
+	go vaultListener.Listen(ctx)
+	appLogger.Info("✅ Vault share created listener started")
 
 	// Start pending commit worker
 	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
@@ -737,9 +742,9 @@ func (a *App) OpenURL(rawURL string) error {
 	return nil
 }
 func (a *App) OpenFileInDefaultApp(path string) error {
-    // On macOS
-    cmd := exec.Command("open", path)
-    return cmd.Run()
+	// On macOS
+	cmd := exec.Command("open", path)
+	return cmd.Run()
 }
 
 // Poll backend for payment status
@@ -823,7 +828,7 @@ func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
 	}
 	return tokenPair.ToFormerModel(), nil
 	// return a.Auth.RefreshToken(userID) // same logic you already wrote
-} 
+}
 func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
 	return a.Auth.CheckEmail(email)
 }
@@ -904,9 +909,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	vaultRes, err := a.Vault.Open(
 		context.Background(),
 		vault_commands.OpenVaultCommand{
-			UserID:   result.User.ID,
-			Password: req.Password,
-			Session:  session,
+			UserID:           result.User.ID,
+			Password:         req.Password,
+			Session:          session,
 			UserOnboardingID: userOnboarding.ID,
 		},
 		a.AppConfigHandler,
@@ -971,13 +976,11 @@ func (a *App) GetConfig(vaultName string, jwtToken string) (*app_config_domain.C
 	}
 	a.Logger.Info("App - GetConfig - vaultName", vaultName)
 
-
 	vault, err := a.Vault.GetVault(claims.UserID, vaultName)
 	if err != nil {
 		a.Logger.Error("App - GetVaultAvatar - error: %v", err)
 		return nil, err
 	}
-
 
 	return a.AppConfigHandler.GetConfig(claims.UserID, *vault)
 }
@@ -1054,6 +1057,8 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 		return nil, err
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - response", response)
+	// TODO decrypt attachement from the response
+	
 	// 3. Apply access policy from AppConfig ==============================
 	appConfig, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
 	if err != nil {
@@ -1264,18 +1269,17 @@ func (a *App) GetIPFSFile(jwtToken string, cid string, password string) (string,
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
 	}
-	
+
 	ipfsQuery, err := a.Vault.GetIPFSFile(vault_ui.GetIPFSFileRequest{
-		UserID: claims.UserID,
-		CID:    cid,
+		UserID:   claims.UserID,
+		CID:      cid,
 		Password: password,
-		Vault: *vault,
+		Vault:    *vault,
 	})
 	if err != nil {
 		a.Logger.Error("App - GetIPFSFile - error: %v", err)
 		return "", err
 	}
-	
 
 	return base64.StdEncoding.EncodeToString(ipfsQuery), nil
 }
@@ -1302,7 +1306,7 @@ func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 	}
 	return cid, nil
 }
-func (a *App) DownloadAttachment(jwtToken string,  password string, cid string, ext string) (string, error) {
+func (a *App) DownloadAttachment(jwtToken string, password string, cid string, ext string) (string, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
@@ -1315,12 +1319,12 @@ func (a *App) DownloadAttachment(jwtToken string,  password string, cid string, 
 		return "", err
 	}
 
-	return a.Vault.DownloadAttachment(context.Background() , vault_ui.DownloadAttachmentRequest{
-		UserID: claims.UserID,
-		Vault: *vault,
-		CID: cid,
+	return a.Vault.DownloadAttachment(context.Background(), vault_ui.DownloadAttachmentRequest{
+		UserID:   claims.UserID,
+		Vault:    *vault,
+		CID:      cid,
 		Password: password,
-		Ext: ext,
+		Ext:      ext,
 	})
 }
 
@@ -1385,11 +1389,11 @@ func (a *App) AddAttachement(jwtToken string, data []uint8, password string, ent
 		a.Logger.Error("App - AddAttachement - error: %v", err)
 		return "", err
 	}
-	
+
 	upload, err := a.Vault.AddAttachement(context.Background(), vault_dto.AddAttachementRequest{
-		UserID: claims.UserID,
-		Data: data,
-		Password: password,
+		UserID:    claims.UserID,
+		Data:      data,
+		Password:  password,
 		EntryType: entryType,
 		EntryName: entryName,
 	})
@@ -1479,6 +1483,7 @@ func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
 	}
 	return avatar, nil
 }
+
 // upload First local (then ipfs)
 func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType string, raw json.RawMessage, attachments vault_dto.SelectedAttachments) (*vaults_domain.VaultEntry, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -1664,11 +1669,11 @@ func (a *App) CreateShare(input CreateShareInput) (*share_domain.ShareEntry, err
 		return nil, err
 	}
 	return a.Vaults.CreateShareEntry(
-		context.Background(), 
-		input.Payload, 
-		claims.UserID, 
-		claims.Email, 
-		*a.AppConfigHandler, 
+		context.Background(),
+		input.Payload,
+		claims.UserID,
+		claims.Email,
+		*a.AppConfigHandler,
 		a.config.ANCHORA_SECRET,
 		a.Vault,
 	)
@@ -2208,7 +2213,7 @@ func loadConfig() config {
 		CloudBackURL:       os.Getenv("CLOUD_BACK_URL"),
 		CloudFrontURL:      os.Getenv("CLOUD_FRONT_URL"),
 		ANCHORA_SECRET:     os.Getenv("ANCHORA_SECRET"),
-		KEYRING_PATH:        os.Getenv("KEYRING_PATH"),
+		KEYRING_PATH:       os.Getenv("KEYRING_PATH"),
 	}
 }
 

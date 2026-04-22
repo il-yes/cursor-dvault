@@ -1,6 +1,8 @@
 package vaults_domain
 
-import "context"
+import (
+	"context"
+)
 
 
 type VaultStorage interface {

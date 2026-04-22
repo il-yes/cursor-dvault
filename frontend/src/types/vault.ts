@@ -214,7 +214,7 @@ export interface Attachment {
   downloaded_to?: string;
 hash_local?: string;
   hash_share?: string;
-
+  recipient_cids?: Record<string, string>;
 }
 
 export const UploadStorage = {
@@ -370,6 +370,7 @@ export type SettingsState = {
   privacy: {
     telemetryEnabled?: boolean,
     anonymousMode?: boolean,
+    remaskDelay?: number,
   },
 
   device: {

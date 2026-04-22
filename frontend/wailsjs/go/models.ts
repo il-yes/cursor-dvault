@@ -594,6 +594,7 @@ export namespace app_config_domain {
 	    vault_name: string;
 	    telemetry_enabled: boolean;
 	    anonymous_mode: boolean;
+	    remask_delay: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new PrivacyConfig(source);
@@ -606,6 +607,7 @@ export namespace app_config_domain {
 	        this.vault_name = source["vault_name"];
 	        this.telemetry_enabled = source["telemetry_enabled"];
 	        this.anonymous_mode = source["anonymous_mode"];
+	        this.remask_delay = source["remask_delay"];
 	    }
 	}
 	export class SyncConfig {

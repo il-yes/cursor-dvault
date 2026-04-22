@@ -852,6 +852,7 @@ type Attachment struct {
 	DownloadedTo string    `json:"downloaded_to,omitempty" gorm:"column:downloaded_to"`
 	HashLocal    string    `json:"hash_local" gorm:"column:hash_local"`
 	HashShare    string    `json:"hash_share" gorm:"column:hash_share"`
+	RecipientCIDs map[string]string	`json:"recipient_cids" gorm:"column:recipient_cids"`
 }
 
 // ==============================================================================

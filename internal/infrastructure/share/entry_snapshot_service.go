@@ -42,6 +42,7 @@ type BuildRequest struct {
 	UserSubscriptionID string
 	VaultName          string
 	Password           string
+    SymKey             []byte
 }
 type BuildResponse struct {
 	Raw            []byte
@@ -108,27 +109,40 @@ func (s *EntrySnapshotService) Process(
                 return nil, nil, nil, err
             }
 
-            cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
-                req.UserID,
-                vault_ui.UploadAttachRequest{
-                    Data:               []byte(buffer),
-                    UserSubscriptionID: req.UserSubscriptionID,
-                    VaultName:          req.VaultName,
-                    Password:           req.Password,
-                },
-            )
-            if err != nil {
-                s.Logger.Error(
-                    "❌ Failed to upload attachment for user %s: %v",
-                    req.UserID,
-                    err,
-                )
-                return nil, nil, nil, err
+            if attachment.RecipientCIDs == nil {
+                attachment.RecipientCIDs = make(map[string]string)
             }
 
-            attachment.HashShare = cid
-            cids = append(cids, cid)
-            attachementIDs = append(attachementIDs, attachment.ID)
+            for _, recipUser := range req.Share.Recipients {
+                if attachment.RecipientCIDs[recipUser.ID] != "" {
+                    continue
+                }
+
+                cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
+                    req.UserID,
+                    vault_ui.UploadAttachRequest{
+                        Data:               []byte(buffer),
+                        UserSubscriptionID: req.UserSubscriptionID,
+                        VaultName:          req.VaultName,
+                        Password:           req.Password,
+                        EncryptionMode: "public",
+                        SymKey:             req.SymKey,
+                    },
+                )
+                if err != nil {
+                    s.Logger.Error(
+                        "❌ Failed to upload attachment for user %s: %v",
+                        req.UserID,
+                        err,
+                    )
+                    return nil, nil, nil, err
+                }
+
+                attachment.RecipientCIDs[recipUser.ID] = cid
+                cids = append(cids, cid)
+                attachementIDs = append(attachementIDs, attachment.ID)
+
+            }
         }
     }
 

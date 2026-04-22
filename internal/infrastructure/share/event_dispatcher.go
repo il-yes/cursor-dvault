@@ -8,6 +8,9 @@ import (
 	"vault-app/internal/utils"
 )
 
+
+
+
 type InMemoryEventDispatcher struct {
 	handlers map[string][]share_application.EventHandler
 	mu       sync.RWMutex

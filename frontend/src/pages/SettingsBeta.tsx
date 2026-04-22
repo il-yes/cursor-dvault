@@ -91,6 +91,7 @@ const SettingsBeta = () => {
 		privacy: {
 			telemetryEnabled: false,
 			anonymousMode: false,
+			remaskDelay: 350,
 		},
 		onboarding: {
 			packs: [],

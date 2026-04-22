@@ -124,12 +124,17 @@ func (h *CreateIPFSPayloadCommandHandler) SetIpfsService(ipfs IpfsServiceInterfa
 
 
 
+var (
+	PRIVATE_MODE = "private"
+	PUBLIC_MODE = "public"
+)
 
 type CreateIPFSPayloadCommand struct {
 	Vault    *vaults_domain.Vault
 	Password string
 	Data     []byte
 	UserID	string // User app
+	ShareKey []byte
 }
 
 // -------- COMMAND response --------
@@ -145,6 +150,7 @@ type CreateIPFSPayloadCommandHandler struct {
 	TracecoreClient    tracecore.TracecoreClient
 	UnlockVaultHandler UnlockVaultHandlerInterface
 	StorageFactory blockchain_ipfs.StorageFactory
+	EncryptionMode	string 
 }
 
 // -------- constructor --------
@@ -161,6 +167,7 @@ func NewCreateIPFSPayloadCommandHandler(
 		TracecoreClient: tracecoreClient,
 		StorageFactory: sf,
 		UnlockVaultHandler: uh,
+		EncryptionMode: PRIVATE_MODE,
 	}
 }
 func (h *CreateIPFSPayloadCommandHandler) Execute(
@@ -170,7 +177,7 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(
 ) (*CreateIPFSPayloadCommandResult, error) {
 	// 1. Unlock vault key 
 	// ==============================================
-	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+	/* unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
 		Password: cmd.Password,
 		UserID: vaultCtx.AppConfig.Branch,		// userOnboarding required
 	})
@@ -179,11 +186,13 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - failed to unlock vault key: %w", err)
 	}
 
-	vaultKey := unlockRes.VaultKey.Key
+	vaultKey := unlockRes.VaultKey.Key */
 
 	// 2. Encryption 
 	// ==============================================
-	encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)
+	// encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)
+
+	encrypted, err := h.HandleEcryption(cmd, vaultCtx)
 	if err != nil {
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - vault encryption failed: %w", err)
 	}
@@ -205,4 +214,40 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 ) (string, error) {
 	storageProvider := h.StorageFactory.New(&vaultCtx)
 	return storageProvider.Add(ctx, data)
+}
+
+func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
+	// 1. Unlock vault key 
+	// ==============================================
+	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+		Password: cmd.Password,
+		UserID: vaultCtx.AppConfig.Branch,		// userOnboarding required
+	})
+	if err != nil {
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - - error", cmd)
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - failed to unlock vault key: %w", err)
+	}
+	vaultKey := unlockRes.VaultKey.Key
+
+	encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)
+	if err != nil {
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - vault encryption failed: %w", err)
+	}
+	return encrypted, nil
+}
+
+func (h *CreateIPFSPayloadCommandHandler) ShareEncryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
+	encryptedPayload, err := h.CryptoService.Encrypt(cmd.Data, cmd.ShareKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt payload")
+	}
+
+	return encryptedPayload, nil
+}
+
+func (h *CreateIPFSPayloadCommandHandler) HandleEcryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
+	if h.EncryptionMode == PUBLIC_MODE {
+		return h.ShareEncryption(cmd, vaultCtx)
+	}
+	return h.PrivateEncryption(cmd, vaultCtx)
 }

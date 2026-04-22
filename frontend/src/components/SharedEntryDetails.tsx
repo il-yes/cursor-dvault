@@ -308,9 +308,10 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 					</div>
 
 					{/* Show full screen button */}
-					<button
-						onClick={() => openIpfsInBrowser(attachment)}
-						className="
+					{attachment.hash_share &&
+						<button
+							onClick={() => downloadAttachment(attachment.recipient_cids[authUser?.id])}
+							className="
 								rounded-full 
 								bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
 								px-3 py-1.5 
@@ -320,22 +321,39 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 								transition-all 
 								shadow-lg
 								border border-[#C9A44A]/30
-								hover:scale-105 active:scale-95
-							"
-						title="View on IPFS"
-					>
-						👁 View
-					</button>
+								hover:scale-105 active:scale-95"
+							title="Download"
+						>
+							Download
+						</button>}
 				</div>
 			))}
 		</div>
 	)
 	const openIpfsInBrowser = async (attachment: Attachment) => {
 		try {
-			const url = `${Gateways.local}/${attachment.cid}`;
+			const url = `${Gateways.local}/${attachment.hash_share}`;
 			AppAPI.OpenURL(url);
 		} catch (err) {
 			console.error("Decrypt view failed:", err);
+		}
+	};
+
+	const downloadAttachment = async (attachment: Attachment) => {
+		try {
+			const fileURL = await AppAPI.DownloadAttachment(
+				jwtToken,
+				"password",
+				attachment.hash_share,
+				attachment.ext
+			);
+			console.log("Download path:", fileURL);
+			// Wails will open this file
+			console.log("Download path:", fileURL);
+
+			await AppAPI.OpenFileInDefaultApp(fileURL);
+		} catch (err) {
+			console.error("DownloadAttachment failed:", err);
 		}
 	};
 
@@ -362,7 +380,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 		const effectiveEntry = (decryptedEntry as any) || entry;
 
 		const renderEntryContent = () => {
-			console.log({effectiveEntry})
+			console.log({ effectiveEntry })
 			switch (effectiveEntry.type) {
 				case "login": {
 					const login = effectiveEntry as LoginEntry;
@@ -461,8 +479,11 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 					const note = effectiveEntry as NoteEntry;
 					const text = (note as any).note ?? (note as any).content;
 					return (
-						<div className="text-sm">
-							{isRevealed ? text || "No content" : "••••••••••••"}
+						<div className="space-y-3">
+							<div className="text-sm">
+								{isRevealed ? text || "No content" : "••••••••••••"}
+							</div>
+							{effectiveEntry?.attachements?.length > 0 && <RenderAttachements selectedFiles={effectiveEntry.attachements} />}
 						</div>
 					);
 				}
@@ -549,7 +570,6 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 			</div>
 		);
 	};
-
 
 	const fetchConfig = async (vaultName, jwtToken) => {
 		try {

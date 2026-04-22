@@ -1125,6 +1125,7 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 		privacy: {
 			telemetryEnabled: getConfigRes.Vaults.privacy.telemetry_enabled,
 			anonymousMode: getConfigRes.Vaults.privacy.anonymous_mode,
+			remaskDelay: getConfigRes.Vaults.privacy.remask_delay,
 		},
 		onboarding: {
 			packs: getConfigRes.Vaults.onboarding?.packs,
@@ -1190,7 +1191,8 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 			},
 			privacy: {
 				telemetry_enabled: settings.privacy.telemetryEnabled,
-				anonymous_mode: settings.privacy.anonymousMode
+				anonymous_mode: settings.privacy.anonymousMode,
+				remask_delay: settings.privacy.remaskDelay,
 			},
 			sharing: {
 				AllowExternalSharing: settings.sharing.allowExternalSharing,

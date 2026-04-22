@@ -292,6 +292,7 @@ type PrivacyConfig struct {
 	BaseVaultConfig
 	TelemetryEnabled bool `json:"telemetry_enabled" gorm:"column:telemetry_enabled"`
 	AnonymousMode    bool `json:"anonymous_mode" gorm:"column:anonymous_mode"`
+	RemaskDelay      int  `json:"remask_delay" gorm:"column:remask_delay"`
 }
 
 func (p *PrivacyConfig) BeforeCreate(tx *gorm.DB) (err error) {

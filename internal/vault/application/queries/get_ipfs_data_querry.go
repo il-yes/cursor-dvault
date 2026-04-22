@@ -2,6 +2,7 @@ package vault_queries
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
@@ -12,6 +13,7 @@ import (
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 )
+
 
 // -------- INTERFACES --------
 type CryptoServiceInterface interface {
@@ -64,6 +66,10 @@ func NewGetIPFSDataQuerryHandler(
 }
 
 func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", cmd)
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - UnlockVaultHandler", h.UnlockVaultHandler)
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute -CryptoService ", h.CryptoService)
+
 	if cmd.CID == "" {
 		return nil, fmt.Errorf("CID is empty (invalid DAG state)")
 	}
@@ -74,21 +80,30 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes", err)
 		return nil, err
 	}
+	if rawBytes == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes is nil", err)
+
+	}
+
+	// Immediately after h.GetFromIpfs
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes len", len(rawBytes))
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes hex", hex.EncodeToString(rawBytes[:min(20, len(rawBytes))]))
 
 	if h.UnlockVaultHandler == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler", h.UnlockVaultHandler)
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler is nil", err)
 	}
 
 	// 2. Unlock vault key
 	// ==============================================
 	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
 		Password: cmd.Password,
-		UserID:   cmd.UserOnboardingID,
+		UserID:   cmd.AppCfg.Branch,
 	})
 	if err != nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", err)
 		return nil, fmt.Errorf("unlock failed: %w", err)
 	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", unlockRes)
 
 	if h.CryptoService == nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - fail CryptoService is nil", err)
@@ -100,6 +115,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	if err != nil {
 		return nil, fmt.Errorf("decrypt failed: %w", err)
 	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - plain", plain)
 
 	// try to parse as VaultNode (optional)
 	// ==============================================
@@ -132,10 +148,28 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 	}
 
 	storageProvider := h.StorageFactory.New(&vc)
+	if storageProvider == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - fail h.StorageFactory is nil", h.StorageFactory)
+	}
 
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - storageProvider", storageProvider)
 
-	return storageProvider.Get(ctx, req.CID)
+	data, err := storageProvider.Get(ctx, req.CID)
+	if err != nil {
+		// Log clearly
+		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - Get failed", err)
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: %w", err)
+	}
+
+	if data == nil {
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned nil data")
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned empty data")
+	}
+
+	return data, nil
 }
 
 func (h *GetIPFSDataQuerryHandler) HydrateVaultNode(

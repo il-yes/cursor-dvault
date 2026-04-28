@@ -12,3 +12,11 @@ type Settings struct {
     Device      *app_config_domain.DeviceConfig `json:"devices"`
 	Storage     *app_config.StorageConfig `json:"storage"`
 }
+
+type CreateConfigCommandInput struct {
+	Configs app_config_domain.Config `json:"configs"`
+}
+
+type CreateConfigCommandOutput struct {
+	Configs app_config_domain.Config `json:"configs"`
+}

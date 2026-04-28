@@ -594,6 +594,7 @@ export namespace app_config_domain {
 	    vault_name: string;
 	    telemetry_enabled: boolean;
 	    anonymous_mode: boolean;
+	    remask_delay: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new PrivacyConfig(source);
@@ -606,6 +607,7 @@ export namespace app_config_domain {
 	        this.vault_name = source["vault_name"];
 	        this.telemetry_enabled = source["telemetry_enabled"];
 	        this.anonymous_mode = source["anonymous_mode"];
+	        this.remask_delay = source["remask_delay"];
 	    }
 	}
 	export class SyncConfig {
@@ -1172,6 +1174,7 @@ export namespace handlers {
 	    expires_at: string;
 	    recipients: RecipientPayload[];
 	    download_allowed: boolean;
+	    attachments: vaults_domain.Attachment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CreateShareEntryPayload(source);
@@ -1189,6 +1192,7 @@ export namespace handlers {
 	        this.expires_at = source["expires_at"];
 	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
 	        this.download_allowed = source["download_allowed"];
+	        this.attachments = this.convertValues(source["attachments"], vaults_domain.Attachment);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1345,6 +1349,7 @@ export namespace identity_domain {
 	    Email: string;
 	    PasswordHash: string;
 	    IsAnonymous: boolean;
+	    Identity: string;
 	    StellarPublicKey: string;
 	    // Go type: time
 	    CreatedAt: any;
@@ -1361,6 +1366,7 @@ export namespace identity_domain {
 	        this.Email = source["Email"];
 	        this.PasswordHash = source["PasswordHash"];
 	        this.IsAnonymous = source["IsAnonymous"];
+	        this.Identity = source["Identity"];
 	        this.StellarPublicKey = source["StellarPublicKey"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.LastConnectedAt = this.convertValues(source["LastConnectedAt"], null);
@@ -1430,6 +1436,32 @@ export namespace main {
 	        this.storage_used_gb = source["storage_used_gb"];
 	        this.last_synced_at = source["last_synced_at"];
 	        this.ok = source["ok"];
+	    }
+	}
+	export class CheckoutContext {
+	    identity: string;
+	    isAnonymous: boolean;
+	    rail: string;
+	    email: string;
+	    tier: string;
+	    plan: string;
+	    periodMonths: string;
+	    mode: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckoutContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identity = source["identity"];
+	        this.isAnonymous = source["isAnonymous"];
+	        this.rail = source["rail"];
+	        this.email = source["email"];
+	        this.tier = source["tier"];
+	        this.plan = source["plan"];
+	        this.periodMonths = source["periodMonths"];
+	        this.mode = source["mode"];
 	    }
 	}
 	export class ClientPaymentRequest {
@@ -3313,6 +3345,7 @@ export namespace tracecore_types {
 	export class DecryptCryptoShareResponse {
 	    payload: string;
 	    expires_in?: number;
+	    attachments: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new DecryptCryptoShareResponse(source);
@@ -3322,6 +3355,7 @@ export namespace tracecore_types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.payload = source["payload"];
 	        this.expires_in = source["expires_in"];
+	        this.attachments = source["attachments"];
 	    }
 	}
 	export class CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_ {
@@ -3522,6 +3556,22 @@ export namespace tracecore_types {
 
 export namespace vault_dto {
 	
+	export class DownloadShareAttachmentRequest {
+	    EncryptedKey: string;
+	    AttachmentCID: string;
+	    FileExtension: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadShareAttachmentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.EncryptedKey = source["EncryptedKey"];
+	        this.AttachmentCID = source["AttachmentCID"];
+	        this.FileExtension = source["FileExtension"];
+	    }
+	}
 	export class LoginResponse {
 	    User: identity_domain.User;
 	    Tokens: auth_domain.TokenPairs;
@@ -3590,6 +3640,7 @@ export namespace vault_dto {
 export namespace vault_session {
 	
 	export class RuntimeContext {
+	    VaultID: string;
 	    AppConfig: app_config_domain.AppConfig;
 	    UserConfig: app_config_domain.UserConfig;
 	    SessionSecrets: Record<string, string>;
@@ -3601,6 +3652,7 @@ export namespace vault_session {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.VaultID = source["VaultID"];
 	        this.AppConfig = this.convertValues(source["AppConfig"], app_config_domain.AppConfig);
 	        this.UserConfig = this.convertValues(source["UserConfig"], app_config_domain.UserConfig);
 	        this.SessionSecrets = source["SessionSecrets"];
@@ -3637,11 +3689,14 @@ export namespace vaults_domain {
 	    name: string;
 	    size: number;
 	    cid?: string;
-	    cid_shared?: string;
 	    storage?: string;
 	    ext?: string;
+	    // Go type: time
+	    downloaded_at?: any;
+	    downloaded_to?: string;
 	    hash_local: string;
 	    hash_share: string;
+	    recipient_cids: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attachment(source);
@@ -3655,12 +3710,32 @@ export namespace vaults_domain {
 	        this.name = source["name"];
 	        this.size = source["size"];
 	        this.cid = source["cid"];
-	        this.cid_shared = source["cid_shared"];
 	        this.storage = source["storage"];
 	        this.ext = source["ext"];
+	        this.downloaded_at = this.convertValues(source["downloaded_at"], null);
+	        this.downloaded_to = source["downloaded_to"];
 	        this.hash_local = source["hash_local"];
 	        this.hash_share = source["hash_share"];
+	        this.recipient_cids = source["recipient_cids"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Folder {
 	    id: string;

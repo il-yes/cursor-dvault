@@ -31,7 +31,7 @@ type Manager struct {
 	logger Logger
 	NowUTC func() string
 
-	IPFS            *blockchain.IPFSClient
+	IPFS            blockchain.IPFSClientInterface
 	Ctx             context.Context
 	IsDirty         bool
 
@@ -40,7 +40,7 @@ type Manager struct {
 }
 
 
-func NewManager(sessionRepository SessionRepository, vaultRepository vaults_domain.VaultRepository, logger Logger, ctx context.Context, ipfs *blockchain.IPFSClient, sessions map[string]*Session) *Manager {
+func NewManager(sessionRepository SessionRepository, vaultRepository vaults_domain.VaultRepository, logger Logger, ctx context.Context, ipfs blockchain.IPFSClientInterface, sessions map[string]*Session) *Manager {
 	return &Manager{
 		sessions:          sessions,
 		SessionRepository: sessionRepository,

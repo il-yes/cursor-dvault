@@ -12,19 +12,21 @@ import {onboarding_ui_wails} from '../models';
 import {vaults_domain} from '../models';
 import {share_application_dto} from '../models';
 import {share_domain} from '../models';
+import {vault_dto} from '../models';
 import {models} from '../models';
 import {app_config_dto} from '../models';
 import {identity_dtos} from '../models';
 import {onboarding_domain} from '../models';
-import {identity_domain} from '../models';
 import {app_config_domain} from '../models';
 import {billing_domain} from '../models';
+import {identity_domain} from '../models';
 import {subscription_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {tracecore} from '../models';
-import {vault_dto} from '../models';
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
+
+export function AddAttachement(arg1:string,arg2:Array<number>,arg3:string,arg4:string,arg5:string):Promise<string>;
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -70,6 +72,8 @@ export function DownloadAttachment(arg1:string,arg2:string,arg3:string,arg4:stri
 
 export function DownloadReceipt(arg1:string,arg2:string):Promise<main.Receipt>;
 
+export function DownloadShareAttachement(arg1:vault_dto.DownloadShareAttachmentRequest,arg2:string):Promise<string>;
+
 export function DummyExposeEntries(arg1:models.Entries):Promise<models.Entries>;
 
 export function EditConfig(arg1:string,arg2:app_config_dto.Settings,arg3:string):Promise<void>;
@@ -94,7 +98,7 @@ export function GetAppState():Promise<onboarding_domain.AppState>;
 
 export function GetBillingHistory(arg1:string,arg2:number):Promise<tracecore_types.CloudResponse___vault_app_internal_tracecore_types_PaymentHistory_>;
 
-export function GetCheckoutURL(arg1:identity_domain.IdentityChoice,arg2:boolean,arg3:string,arg4:string,arg5:string,arg6:string):Promise<main.CreateCheckoutResponse>;
+export function GetCheckoutURL(arg1:main.CheckoutContext):Promise<main.CreateCheckoutResponse>;
 
 export function GetConfig(arg1:string,arg2:string):Promise<app_config_domain.Config>;
 

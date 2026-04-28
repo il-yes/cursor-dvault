@@ -12,6 +12,7 @@ import (
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
 )
@@ -153,13 +154,12 @@ func main() {
 	basePath := "./tmp-keyrings"
 
 	// real crypto (or mock if you want speed)
-	crypto := &mockCrypto{}
-	keyEnc := &mockKeyEnc{crypto: crypto}
-
+	enc := &vault_infrastructure_crypto.AESService{}
+	keyEnc := &vault_infrastructure_crypto.KeyService{}
 	fs := vault_infrastructure_security.OSFileSystem{}
 
 	keyringService := vault_infrastructure_security.NewKeyringService(
-		crypto,
+		enc,
 		keyEnc,
 		basePath,
 		fs,

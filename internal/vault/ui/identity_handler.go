@@ -31,6 +31,16 @@ func NewIdentityHandler(db models.DBModel, log *logger.Logger) *IdentityHandler 
 	}
 }
 
+func (h *IdentityHandler) Find(userID string, entryName string) (vaults_domain.VaultEntry, error) {
+	for i := range h.Vault.Entries.Identity {
+		if h.Vault.Entries.Identity[i].EntryName == entryName {
+			h.logger.Info("🗑️ identity entry %s for user %s found", entryName, userID)
+			return &h.Vault.Entries.Identity[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func (h *IdentityHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
 	if h.Vault == nil {
 		return nil, fmt.Errorf("no active session for user %s", userID)
@@ -178,7 +188,7 @@ func (h *IdentityHandler) EditWithAttachments(userID string, entry any, attachme
 }
 func (h *IdentityHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
-	vault, err := h.VaultRepository.GetByUserIDAndName(userID, h.Vault.Name)
+	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
 	if err != nil {
 		return "", fmt.Errorf("❌ IdentityHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
 	}

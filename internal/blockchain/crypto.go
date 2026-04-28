@@ -33,12 +33,22 @@ const (
 	scryptP   = 1
 )
 
-// type CryptoService interface {
-// 	EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error)
-// 	EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error)
-// 	DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error)
-// 	DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error)
-// }
+
+
+type CryptoServiceInterface interface {
+	EncryptPasswordWithStellar(password, stellarSecret string) (nonce, ciphertext []byte, err error)
+	EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error)
+	DecryptPasswordWithStellar(nonce, ciphertext []byte, stellarSecret string) (string, error)
+	DecryptPasswordWithStellarByte(nonce, ciphertext []byte, stellarSecret string) ([]byte, error)
+	DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error)
+	Decrypt(encrypted []byte, password string) ([]byte, error)
+	Encrypt(data []byte, password string) ([]byte, error)
+	GenerateSymmetricKey() []byte
+	AESEncrypt(plain []byte, key []byte) CryptoPayload
+	AESDecrypt(enc []byte, key []byte) CryptoPayload
+	EncryptPayload(pub string, symKey []byte) (CryptoPayload, error)
+	DecryptSymKey(encrypted []byte, key []byte) ([]byte, error)
+}
 
 // -----------------------------
 // V2 Crypto
@@ -68,7 +78,7 @@ func (c *CryptoService) EncryptPasswordWithStellar(password, stellarSecret strin
 }
 func (c *CryptoService) EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error) {
 	// Generate random salt (16 bytes recommended)
-	salt = make([]byte, 16)
+	salt = make([]byte, saltSize)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate salt: %w", err)
 	}
@@ -119,6 +129,25 @@ func (c *CryptoService) DecryptPasswordWithStellar(nonce, ciphertext []byte, ste
 		return "", err
 	}
 	return string(plaintext), nil
+}
+func (c *CryptoService) DecryptPasswordWithStellarByte(nonce, ciphertext []byte, stellarSecret string) ([]byte, error) {
+	key, err := deriveKeyFromStellar(stellarSecret)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+	return plaintext, nil
 }
 func (c *CryptoService) DecryptPasswordWithStellarSecure(salt, nonce, ciphertext []byte, stellarSecret string) (string, error) {
 	key, err := deriveKeyFromStellarSecure(stellarSecret, salt)
@@ -247,18 +276,6 @@ func (c *CryptoService) GenerateSymmetricKey() []byte {
 	return symKey
 }
 
-type CryptoPayload struct {
-	Encrypted []byte
-	Decrypted string
-}
-
-func (e *CryptoPayload) ToString() string {
-	if e.Decrypted != "" {
-		return e.Decrypted
-	}
-	return base64.StdEncoding.EncodeToString(e.Encrypted)
-}
-
 // -------------------------------------
 // Helper functions
 // -------------------------------------
@@ -309,21 +326,77 @@ func (c *CryptoService) AESDecrypt(enc []byte, key []byte) CryptoPayload {
 // Box
 // -------------------------------------
 func (c *CryptoService) EncryptPayload(pub string, symKey []byte) (CryptoPayload, error	) {
+	if pub == "" {
+		return CryptoPayload{}, fmt.Errorf("public key is empty")
+	}	
+	if symKey == nil {
+		return CryptoPayload{}, fmt.Errorf("symmetric key is empty")
+	}
 	edPub, err := strkey.Decode(strkey.VersionByteAccountID, pub)
 	if err != nil {
 		return CryptoPayload{}, fmt.Errorf("failed to decode public key: %w", err)
 	}
+	utils.LogPretty("CryptoService - EncryptPayload - edPub", edPub)
 
 	curvePub := Ed25519PubToCurve(edPub)
+	utils.LogPretty("CryptoService - EncryptPayload - curvePub", curvePub)
 
 	encKey, err := box.SealAnonymous(nil, symKey, curvePub, rand.Reader)
 	Must(err)
+	utils.LogPretty("CryptoService - EncryptPayload - encKey", encKey)
 
 	return CryptoPayload{
 		Encrypted: encKey,
 	}, nil
 }
+func (c *CryptoService) DecryptSymKey(encrypted []byte, key []byte) ([]byte, error) {
+    if len(encrypted) < saltSize+nonceSize {
+        return nil, fmt.Errorf("❌ invalid data length")
+    }
+    if key == nil || len(key) == 0 {
+        return nil, fmt.Errorf("❌ key is empty")
+    }
 
+    // salt := encrypted[:saltSize]
+    nonce := encrypted[saltSize : saltSize+nonceSize]
+    ciphertext := encrypted[saltSize+nonceSize:]
+
+    // Since you’re not doing PBKDF here, `salt` is just overhead;
+    // if you want to be truly “key‑only”, you can drop salt entirely later.
+    // For now, use `key` directly.
+
+    block, err := aes.NewCipher(key)
+    if err != nil {
+        return nil, fmt.Errorf("❌ cipher creation failed: %w", err)
+    }
+
+    gcm, err := cipher.NewGCM(block)
+    if err != nil {
+        return nil, fmt.Errorf("❌ GCM creation failed: %w", err)
+    }
+
+    // Check lengths
+    if len(nonce) != gcm.NonceSize() {
+        return nil, fmt.Errorf("❌ nonce size mismatch: got %d, want %d", len(nonce), gcm.NonceSize())
+    }
+
+    // Test round‑trip (optional, for debugging)
+    testPlain := []byte("test")
+    testCipher := gcm.Seal(nil, nonce, testPlain, nil)
+    _, testErr := gcm.Open(nil, nonce, testCipher, nil)
+    if testErr != nil {
+        return nil, fmt.Errorf("❌ GCM self‑test failed: %w", testErr)
+    }
+
+    // Decrypt the real payload
+    plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+    if err != nil {
+        utils.LogPretty("CryptoService - DecryptSymKey - decryption failed", err)
+        return nil, fmt.Errorf("❌ decryption failed: %w", err)
+    }
+
+    return plain, nil
+}
 // -------------------------------------
 // ED25519 → CURVE25519
 // -------------------------------------
@@ -335,6 +408,24 @@ func Ed25519PubToCurve(pub []byte) *[32]byte {
 	copy(out[:], p.BytesMontgomery())
 	return &out
 }
+
+
+
+
+type CryptoPayload struct {
+	Encrypted []byte
+	Decrypted string
+}
+
+func (e *CryptoPayload) ToString() string {
+	if e.Decrypted != "" {
+		return e.Decrypted
+	}
+	return base64.StdEncoding.EncodeToString(e.Encrypted)
+}
+
+
+
 
 // -----------------------------
 // V1 Crypto
@@ -590,7 +681,7 @@ func EncryptPasswordWithStellar(password, stellarSecret string) (nonce, cipherte
 }
 func EncryptPasswordWithStellarSecure(password, stellarSecret string) (salt, nonce, ciphertext []byte, err error) {
 	// Generate random salt (16 bytes recommended)
-	salt = make([]byte, 16)
+	salt = make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to generate salt: %w", err)
 	}

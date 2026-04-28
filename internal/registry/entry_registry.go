@@ -12,6 +12,7 @@ import (
 // Catalog
 type EntryHandler interface {
 	Add(userID string, entry any) (*vaults_domain.VaultPayload, error)
+	Find(userID string, entryName string) (vaults_domain.VaultEntry, error)
 	Edit(userID string, entry any) (*vaults_domain.VaultPayload, error)
 	Trash(userID string, entryID string) (*vaults_domain.VaultPayload, error)
 	Restore(userID string, entryID string) (*vaults_domain.VaultPayload, error)

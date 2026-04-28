@@ -25,3 +25,5 @@ type VaultEventBus interface {
 	PublishVaultOpened(ctx context.Context, event VaultOpened) error
 	SubscribeToVaultOpened(handler func(ctx context.Context, event VaultOpened)) error
 }	
+
+

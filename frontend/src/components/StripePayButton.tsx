@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as AppAPI from "../../wailsjs/go/main/App";
 
-export default function StripePayButton({ 
-  onComplete, 
-  plainPassword, 
-  email,  
-  tier, 
-  isAnonymous, 
-  identity 
-}: { 
-  onComplete: () => void, 
-  plainPassword: string, 
-  email: string, 
-  tier: string, 
-  isAnonymous: boolean, 
-  identity: string 
+export default function StripePayButton({
+  onComplete,
+  plainPassword,
+  email,
+  tier,
+  isAnonymous,
+  identity,
+  isUpgrade,
+}: {
+  onComplete: () => void,
+  plainPassword: string,
+  email: string,
+  tier: string,
+  isAnonymous: boolean,
+  identity: string,
+  isUpgrade: boolean,
 }) {
   const [loading, setLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -26,9 +28,19 @@ export default function StripePayButton({
 
     setLoading(true);
     const bronzePlan = "bronze"
-    const url = await AppAPI.GetCheckoutURL(identity, isAnonymous, rail, email, tier, bronzePlan);
+    const req = {
+      identity,
+      isAnonymous,
+      rail,
+      email,
+      tier,
+      plan: bronzePlan,
+      periodMonths: "1",
+      isUpgrade: false,
+    }
+    const url = await AppAPI.GetCheckoutURL(req);
     console.log("URL:", url);
-    console.log({identity, rail, isAnonymous, email, tier, bronzePlan})
+    console.log({ identity, rail, isAnonymous, email, tier, bronzePlan })
     await AppAPI.OpenURL(url.url);
 
     intervalRef.current = window.setInterval(async () => {
@@ -61,20 +73,20 @@ export default function StripePayButton({
   }, []);
 
   return (
-  <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-white/80 p-5">
-    {!showConfirmation && (
-      <div className="space-y-3 text-center">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Complete your payment
-        </h2>
-        <p className="text-xs text-slate-500">
-          You’ll be redirected to a secure Stripe page to finalize your payment.
-        </p>
+    <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-white/80 p-5">
+      {!showConfirmation && (
+        <div className="space-y-3 text-center">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Complete your payment
+          </h2>
+          <p className="text-xs text-slate-500">
+            You’ll be redirected to a secure Stripe page to finalize your payment.
+          </p>
 
-        <button
-          onClick={pay}
-          disabled={loading}
-          className="
+          <button
+            onClick={pay}
+            disabled={loading}
+            className="
             mt-2 inline-flex items-center justify-center w-full h-11
             rounded-xl bg-gradient-to-r from-indigo-500 to-blue-500
             text-sm font-semibold text-white
@@ -83,28 +95,28 @@ export default function StripePayButton({
             disabled:opacity-60 disabled:cursor-not-allowed
             transition-all
           "
-        >
-          {loading ? "Opening Stripe…" : "Continue with Stripe"}
-        </button>
+          >
+            {loading ? "Opening Stripe…" : "Continue with Stripe"}
+          </button>
 
-        <p className="mt-1 text-[11px] text-slate-400">
-          Powered by Stripe. You’ll return here automatically once it’s done.
-        </p>
-      </div>
-    )}
+          <p className="mt-1 text-[11px] text-slate-400">
+            Powered by Stripe. You’ll return here automatically once it’s done.
+          </p>
+        </div>
+      )}
 
-    {showConfirmation && (
-      <div className="space-y-2 text-center">
-        <h1 className="text-lg font-semibold text-emerald-600">
-          Payment confirmed
-        </h1>
-        <p className="text-xs text-slate-500">
-          Thank you for your payment. Your subscription is now active.
-        </p>
-      </div>
-    )}
-  </div>
-);
+      {showConfirmation && (
+        <div className="space-y-2 text-center">
+          <h1 className="text-lg font-semibold text-emerald-600">
+            Payment confirmed
+          </h1>
+          <p className="text-xs text-slate-500">
+            Thank you for your payment. Your subscription is now active.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 
 }
 

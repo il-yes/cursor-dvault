@@ -18,7 +18,7 @@ type NoteHandler struct {
 	db     models.DBModel
 	logger *logger.Logger
 	NowUTC func() string
-	Vault  vaults_domain.VaultPayload
+	Vault  vaults_domain.VaultPayload // just for return
 	Session *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
 	SyncMode bool	
@@ -30,6 +30,16 @@ func NewNoteHandler(db models.DBModel, log *logger.Logger) *NoteHandler {
 		logger: log,
 		NowUTC: func() string { return time.Now().Format(time.RFC3339) },
 	}
+}
+
+func (h *NoteHandler) Find(userID string, entryName string) (vaults_domain.VaultEntry, error) {
+	for i := range h.Vault.Entries.Note {
+		if h.Vault.Entries.Note[i].EntryName == entryName {
+			h.logger.Info("🗑️ note entry %s for user %s found", entryName, userID)
+			return &h.Vault.Entries.Note[i], nil
+		}
+	}
+	return nil, nil
 }
 
 func (h *NoteHandler) Add(userID string, anEntry any) (*vaults_domain.VaultPayload, error) {
@@ -170,9 +180,9 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 }
 func (h *NoteHandler) SaveAttachment(userID string, data []byte) (string, error) {
 	// Get vault
-	vault, err := h.VaultRepository.GetByUserIDAndName(userID, h.Vault.Name)
+	vault, err := h.VaultRepository.GetVault(h.Session.Runtime.VaultID)
 	if err != nil {
-		return "", fmt.Errorf("❌ NoteHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
+		return "", fmt.Errorf("❌ NoteHandler - SaveAttachment: failed to get vault %s for user %s: %w", h.Vault.Name, userID, err)
 	}
 	h.logger.Info("✅ NoteHandler - SaveAttachment: vault retrieved for user %s", userID)
 

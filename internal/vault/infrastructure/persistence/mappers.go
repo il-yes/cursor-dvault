@@ -11,51 +11,72 @@ import (
 )
 
 
+
 type VaultMapper struct {
-	ID        string    `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name" gorm:"column:name"`
-	Type      string `json:"type" gorm:"column:type"`
-	UserID    string    `json:"user_id" gorm:"column:user_id"`
-	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
-	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
-	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
-	CreatedAt string `json:"created_at" gorm:"column:created_at"`
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"`
-	Avatar string `json:"avatar" gorm:"column:avatar,omitempty"`
+    ID                 string `json:"id" gorm:"primaryKey;column:id"`
+    Version            string `json:"version" gorm:"column:version"`
+    Name               string `json:"name" gorm:"column:name"`
+    Type               string `json:"type" gorm:"column:type"`
+    UserID             string `json:"user_id" gorm:"column:user_id"`
+    UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
+    CID                string `json:"cid" gorm:"column:cid"`
+    CreatedAt          string `json:"created_at" gorm:"column:created_at"`
+    UpdatedAt          string `json:"updated_at" gorm:"column:updated_at"`
+    Avatar             string `json:"avatar" gorm:"column:avatar,omitempty"`
+    TxHash             string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
+
+    KeyVersion int                    `json:"key_version" gorm:"-"`
+    Keyring    []vaults_domain.WrappedKey `json:"keyring" gorm:"-"`
+
+    VaultMeta vaults_domain.VaultMeta `gorm:"-"`
 }
 
 func (vm *VaultMapper) TableName() string {
 	return "vault_vaults"
 }
 func (vm *VaultMapper) ToDomain() *vaults_domain.Vault {
-	return &vaults_domain.Vault{
-		ID:        vm.ID,
-		Name:      vm.Name,
-		Type:      vm.Type,
-		UserID:    vm.UserID,
-		UserSubscriptionID: vm.UserSubscriptionID,
-		CID:       vm.CID,
-		TxHash:    vm.TxHash,
-		CreatedAt: vm.CreatedAt,
-		UpdatedAt: vm.UpdatedAt,
-		Avatar: vm.Avatar,
-	}
+    return &vaults_domain.Vault{
+        ID:                 vm.ID,
+        Version:            vm.Version,
+        Name:               vm.Name,
+        Type:               vm.Type,
+        UserID:             vm.UserID,
+        UserSubscriptionID: vm.UserSubscriptionID,
+        CID:                vm.CID,
+        CreatedAt:          vm.CreatedAt,
+        UpdatedAt:          vm.UpdatedAt,
+        Avatar:             vm.Avatar,
+        TxHash:             vm.TxHash,
+        KeyVersion:         vm.KeyVersion,
+        Keyring:            vm.Keyring,
+        VaultMeta: vaults_domain.VaultMeta{
+            Name:       vm.Name,
+            UserID:     vm.UserID,
+            CreatedAt:  vm.CreatedAt,
+            UpdatedAt:  vm.UpdatedAt,
+            LastSynced: vm.UpdatedAt,
+        },
+    }
 }
 func VaultDomainToMapper(vault *vaults_domain.Vault) *VaultMapper {
-	utils.LogPretty("VaultDomainToMapper input", vault)
+    utils.LogPretty("VaultDomainToMapper input", vault)
 
-	return &VaultMapper{
-		ID:        vault.ID,
-		Name:      vault.Name,
-		Type:      vault.Type,
-		UserID:    vault.UserID,
-		UserSubscriptionID: vault.UserSubscriptionID,
-		CID:       vault.CID,
-		TxHash:    vault.TxHash,
-		CreatedAt: vault.CreatedAt,
-		UpdatedAt: vault.UpdatedAt,
-		Avatar: vault.Avatar,
-	}
+    return &VaultMapper{
+        ID:                 vault.ID,
+        Version:            vault.Version,
+        Name:               vault.Name,
+        Type:               vault.Type,
+        UserID:             vault.UserID,
+        UserSubscriptionID: vault.UserSubscriptionID,
+        CID:                vault.CID,
+        CreatedAt:          vault.CreatedAt,
+        UpdatedAt:          vault.UpdatedAt,
+        Avatar:             vault.Avatar,
+        TxHash:             vault.TxHash,
+        KeyVersion:         vault.KeyVersion,
+        Keyring:            vault.Keyring,
+        VaultMeta:          vault.VaultMeta,
+    }
 }
 
 type SessionMapper0 struct {

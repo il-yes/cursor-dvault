@@ -22,6 +22,8 @@ import { useVaultStore } from '@/store/vaultStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Vault } from '@/types/vault';
 import { tracecore_types, vaults_domain } from '@/wailsjs/go/models';
+import * as AppAPI from "../../../wailsjs/go/main/App";
+import { useAppStore } from '@/store/appStore';
 
 interface Subscription {
     tier: string;
@@ -67,7 +69,10 @@ const SubscriptionManager: React.FC = () => {
     const { jwtToken } = useAuthStore.getState();
     const { vault, loadVault, clearVault: clearVaultStore } = useVaultStore();
     const [vaultCloud, setVaultCloud] = useState(null);
-
+    const session = useAppStore.getState().session;
+    const user = session?.user
+    user && console.log("user", user)
+    session && console.log("session", session)
 
     useEffect(() => {
         GetVaultFromCloud();
@@ -225,13 +230,30 @@ const SubscriptionManager: React.FC = () => {
 
     const handleUpgrade = useCallback(async (newTier: string, paymentMethod: string) => {
         try {
-            await UpgradeSubscription({
-                user_id: userId,
-                new_tier: newTier,
-                payment_method: paymentMethod,
-            }, jwtToken);
-            setShowUpgradeModal(false);
-            await loadSubscriptionData();
+            const bronzePlan = "bronze"
+            const req = {
+                identity: "personal",
+                isAnonymous: user.IsAnonymous,
+                rail: "stripe",
+                email: user?.Email,
+                tier: newTier,
+                plan: bronzePlan,
+                periodMonths: "1",
+                mode: "upgrade",
+            }
+            const url = await AppAPI.GetCheckoutURL(req);
+            console.log("URL:", url);
+
+            await AppAPI.OpenURL(url.url);
+
+
+            // await UpgradeSubscription({
+            //     user_id: userId,
+            //     new_tier: newTier,
+            //     payment_method: paymentMethod,
+            // }, jwtToken);
+            // setShowUpgradeModal(false);
+            // await loadSubscriptionData();
             // Replace with your toast system (Sonner, shadcn toast, etc.)
             console.log('✅ Subscription upgraded successfully!');
         } catch (err: any) {
@@ -285,7 +307,6 @@ const SubscriptionManager: React.FC = () => {
         );
     }
 
-    console.log({storageUsage})
     return (
         <DashboardLayout>
             <div className="max-w-5xl mx-auto p-8 space-y-8">
@@ -513,6 +534,7 @@ const SubscriptionManager: React.FC = () => {
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {subscription?.tier === 'free' && (
                                         <>
+
                                             <div className="upgrade-card border border-blue-300 hover:border-blue-400 p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer"
                                                 onClick={() => handleUpgrade('pro', 'standard')}>
                                                 <h3 className="text-xl font-bold mb-2">Pro</h3>

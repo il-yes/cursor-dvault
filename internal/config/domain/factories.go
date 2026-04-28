@@ -186,6 +186,7 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 			Privacy: PrivacyConfig{
 				TelemetryEnabled: true,
 				AnonymousMode:    false,
+				RemaskDelay:      DefaultRemaskDelay,
 			},
 			Security: SecurityConfig{
 				AutoLockSeconds:     DefaultAutoLockTimeout,

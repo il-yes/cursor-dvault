@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	billing_usecase "vault-app/internal/billing/application/usecase"
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
@@ -17,6 +20,7 @@ import (
 	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -49,6 +53,7 @@ type BillingHandlerInterface interface {
 }
 
 type AppConfigHandlerInterface interface {
+	SaveConfigs(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error) 
 	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
 	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
@@ -145,6 +150,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		Email:            req.Email,
 		Password:         onboardUser.Password,
 		IsAnonymous:      req.IsAnonymous,
+		Identity: req.Identity,
 		StellarPublicKey: onboardUser.StellarPublicKey,
 	})
 	if err != nil {
@@ -153,35 +159,67 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	utils.LogPretty("OnboardUseCase - Execute - userIdentity", userIdentity)
 
 	// 3. ------------- App Configs creation ------------------
-	configs, err := app_config_domain.InitConfig(userIdentity.ID)
+	configs, err := app_config_domain.InitConfigFromVault(userIdentity.ID, req.VaultName)
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
 		return nil, err
 	}
-	appConfig, err := uc.AppConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
-		AppConfig: configs.App,
-	})
+	utils.LogPretty("OnboardUseCase - Execute - configs", configs)
+	// appConfig, err := uc.AppConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
+	// 	AppConfig: configs.App,
+	// })
+	// if err != nil {
+	// 	uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
+	// 	return nil, err
+	// }
+	// userConfig, err := uc.AppConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
+	// 	UserConfig: configs.User,
+	// })
+	// if err != nil {
+	// 	uc.Logger.Error("OnboardUseCase - Execute - Failed to create user config: %v", err)
+	// 	return nil, err
+	// }
+	
+	configs.Subscription.ID = req.SubscriptionID
+	configs.Subscription.UserID = req.UserSubscriptionID
+	configs.Subscription.BaseVaultConfig = app_config_domain.BaseVaultConfig{
+			ID:        req.SubscriptionID,
+			UserID:    req.UserSubscriptionID,
+			VaultName: req.VaultName,
+	}
+	configs.Subscription.Plan = req.Tier
+
+	deviceName, err := uc.GetDeviceName()
 	if err != nil {
-		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
+		uc.Logger.Error("OnboardUseCase - Execute - Failed to get device name: %v", err)
 		return nil, err
 	}
-	userConfig, err := uc.AppConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
-		UserConfig: configs.User,
-	})
-	if err != nil {
-		uc.Logger.Error("OnboardUseCase - Execute - Failed to create user config: %v", err)
-		return nil, err
+
+	configs.Devices = []app_config_domain.DeviceConfig{
+		{
+			BaseVaultConfig: app_config_domain.BaseVaultConfig{
+				ID:        uuid.NewString(),
+				UserID:    onboardUser.ID,
+				VaultName: req.VaultName,
+			},
+			DeviceID:   uuid.NewString(),
+			DeviceName: deviceName,
+		},
 	}
-	appConfigSaved, err := uc.AppConfigHandler.GetAppConfigByUserID(ctx, userIdentity.ID)
+	
+
+	configsSaved, err := uc.AppConfigHandler.SaveConfigs(&app_config_dto.CreateConfigCommandInput{
+		Configs: *configs,
+	})
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to get app config: %v", err)
 		return nil, err
 	}
-	if appConfigSaved == nil {
+	if configsSaved == nil {
 		uc.Logger.Error("OnboardUseCase - Execute - App config not found")
 		return nil, errors.New("app config not found")
 	}
-	utils.LogPretty("OnboardUseCase - Execute - appConfig", appConfigSaved)
+	utils.LogPretty("OnboardUseCase - Execute - configsSaved", configsSaved.Configs)
 	userConfigSaved, err := uc.AppConfigHandler.GetUserConfigByUserID(userIdentity.ID)
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to get user config: %v", err)
@@ -191,17 +229,15 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		uc.Logger.Error("OnboardUseCase - Execute - User config not found")
 		return nil, errors.New("user config not found")
 	}
-	utils.LogPretty("OnboardUseCase - Execute - userConfig", userConfig)
+	utils.LogPretty("OnboardUseCase - Execute - userConfig", userConfigSaved)
+	
+
 
 	if uc.Vault == nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Vault is nil")
 		return nil, errors.New("vault is nil")
 	}
 	fmt.Println("uc.Vault", uc.Vault)
-	if appConfig == nil {
-		uc.Logger.Error("OnboardUseCase - Execute - App config is nil")
-		return nil, errors.New("app config is nil")
-	}
 	if userIdentity == nil {
 		uc.Logger.Error("OnboardUseCase - Execute - User identity is nil")
 		return nil, errors.New("user identity is nil")
@@ -213,7 +249,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		VaultName:          req.VaultName,
 		Password:           req.Password,
 		UserSubscriptionID: req.UserSubscriptionID,
-		AppConfig:          *appConfig.AppConfig,
+		AppConfig:          *configsSaved.Configs.App,
 		UserOnboarding:  onboardUser,
 	})
 	if err != nil {
@@ -244,4 +280,19 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 
 	return &OnboardResult{UserID: userIdentity.ID, StellarKey: secretKey, SubscriptionID: req.SubscriptionID}, nil
+}
+
+
+func (uc *OnboardUseCase) GetDeviceName() (string, error) {
+	deviceName, err := os.Hostname()
+	if err != nil || deviceName == "" {
+		deviceName = "unknown"
+	}
+
+	// Trim and sanitize if you want shorter names
+	deviceName = strings.ReplaceAll(deviceName, ".", "-")
+	if len(deviceName) > 64 {
+		deviceName = deviceName[:64]
+	}
+	return deviceName, nil
 }

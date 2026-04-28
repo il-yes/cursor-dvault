@@ -23,6 +23,11 @@ type ShareCreated struct {
     BaseEvent
     ShareID   string
     OwnerID   string
+    EntryID   string
+    EntryName string
+	EntryType string
+    CIDs        []string
+    AttachementIDs []string
 }
 
 type RecipientAdded struct {

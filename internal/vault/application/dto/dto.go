@@ -22,6 +22,7 @@ type SynchronizeVaultRequest struct {
 	UserID string `json:"user_id"`
 	Password string `json:"password"`
 	Vault vault_domain.Vault `json:"vault"`
+	UserIdentity identity_domain.User `json:"user_identity"`
 }
 type SelectedAttachment struct {
 	Name string `json:"name"`
@@ -44,3 +45,21 @@ type UnlockVaultCommand struct {
 type UnlockVaultResult struct {
 	VaultKey vaults_domain.VaultKey
 }
+
+type AddAttachementRequest struct {
+	UserID string
+	Data	 []uint8
+	Password string
+	EntryType string
+	EntryName string
+	VaultName string
+	UserSubscriptionID string
+}
+
+
+type DownloadShareAttachmentRequest struct {
+    EncryptedKey string
+	AttachmentCID string
+	FileExtension string
+}
+

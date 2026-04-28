@@ -1,9 +1,9 @@
 package app_config_domain
 
 import (
-	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	utils "vault-app/internal/utils"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -138,7 +138,7 @@ type StellarConfig struct {
 	SyncFrequency string `json:"sync_frequency" yaml:"sync_frequency" gorm:"column:sync_frequency"`
 }
 
-func NewStellarAccountConfigOnGeneratedApiKey(account *blockchain.CreateAccountRes) *StellarAccountConfig {
+func NewStellarAccountConfigOnGeneratedApiKey(account *vault_infrastructure_crypto.CreateAccountRes) *StellarAccountConfig {
 	return &StellarAccountConfig{
 		PublicKey:   account.PublicKey,
 		PrivateKey:  account.PrivateKey,
@@ -292,6 +292,7 @@ type PrivacyConfig struct {
 	BaseVaultConfig
 	TelemetryEnabled bool `json:"telemetry_enabled" gorm:"column:telemetry_enabled"`
 	AnonymousMode    bool `json:"anonymous_mode" gorm:"column:anonymous_mode"`
+	RemaskDelay      int  `json:"remask_delay" gorm:"column:remask_delay"`
 }
 
 func (p *PrivacyConfig) BeforeCreate(tx *gorm.DB) (err error) {

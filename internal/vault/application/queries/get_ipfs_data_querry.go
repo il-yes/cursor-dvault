@@ -2,6 +2,7 @@ package vault_queries
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
@@ -11,6 +12,11 @@ import (
 	vault_domain "vault-app/internal/vault/domain"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
+)
+
+var (
+	PRIVATE_MODE = "private"
+	PUBLIC_MODE  = "public"
 )
 
 // -------- INTERFACES --------
@@ -29,6 +35,9 @@ type GetIPFSDataQuerry struct {
 	UserID           string
 	VaultName        string
 	UserOnboardingID string
+	PrivateKey       string
+	EncryptedKey	string
+	SymKey	[]byte
 }
 
 // -------- RESPONSE --------
@@ -45,6 +54,7 @@ type GetIPFSDataQuerryHandler struct {
 	UnlockVaultHandler vault_dto.UnlockVaultCommandInterface
 	CryptoService      vaults_domain.VaultCrypto
 	StorageFactory     blockchain_ipfs.StorageFactory
+	EncryptionMode     string
 }
 
 // -------- CONSTRUCTOR --------
@@ -60,45 +70,46 @@ func NewGetIPFSDataQuerryHandler(
 		CryptoService:      vc,
 		StorageFactory:     sf,
 		UnlockVaultHandler: unlockHandler,
+		EncryptionMode:     PRIVATE_MODE,
 	}
 }
 
 func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
+	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", cmd)
+
 	if cmd.CID == "" {
 		return nil, fmt.Errorf("CID is empty (invalid DAG state)")
 	}
 	// 1. Fetch raw data from IPFS
+	// ==============================================
 	rawBytes, err := h.GetFromIpfs(ctx, cmd)
 	if err != nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes", err)
 		return nil, err
 	}
+	if rawBytes == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes is nil", err)
+	}
+
+	// Immediately after h.GetFromIpfs
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes len", len(rawBytes))
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes hex", hex.EncodeToString(rawBytes[:min(20, len(rawBytes))]))
 
 	if h.UnlockVaultHandler == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler", h.UnlockVaultHandler)
-	}
-
-	// 2. Unlock vault key
-	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
-		Password: cmd.Password,
-		UserID:   cmd.UserOnboardingID,
-	})
-	if err != nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", err)
-		return nil, fmt.Errorf("unlock failed: %w", err)
-	}
-
-	if h.CryptoService == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - fail CryptoService is nil", err)
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler is nil", err)
 	}
 
 	// 3. Decrypt
-	plain, err := h.CryptoService.Decrypt(rawBytes, unlockRes.VaultKey.Key)
+	// ==============================================
+	// plain, err := h.CryptoService.Decrypt(rawBytes, unlockRes.VaultKey.Key)
+
+	plain, err := h.HandleDecryption(cmd, rawBytes)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt failed: %w", err)
 	}
 
 	// try to parse as VaultNode (optional)
+	// ==============================================
 	var node vaults_domain.VaultNode
 	if err := json.Unmarshal(plain, &node); err == nil {
 		return &GetIPFSDataResponse{
@@ -114,6 +125,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 }
 
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
+	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
 	vc := app_config_domain.VaultContext{
 		AppConfig:     req.AppCfg,
 		StorageConfig: req.AppCfg.Storage,
@@ -121,18 +133,85 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 		VaultName:     req.VaultName,
 	}
 
-	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
 
 	if h.StorageFactory == nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - fail h.StorageFactory is nil", h.StorageFactory)
 	}
 
 	storageProvider := h.StorageFactory.New(&vc)
+	if storageProvider == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - fail h.StorageFactory is nil", h.StorageFactory)
+	}
 
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - storageProvider", storageProvider)
 
-	return storageProvider.Get(ctx, req.CID)
+	data, err := storageProvider.Get(ctx, req.CID)
+	if err != nil {
+		// Log clearly
+		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - Get failed", err)
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: %w", err)
+	}
+
+	if data == nil {
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned nil data")
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned empty data")
+	}
+
+	return data, nil
 }
+
+func (h GetIPFSDataQuerryHandler) PrivateDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
+	utils.LogPretty("GetIPFSDataQuerryHandler - ShareDecryption - ", "PrivateDecryption path")
+	// 2. Unlock vault key
+	// ==============================================
+	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+		Password: cmd.Password,
+		UserID:   cmd.UserOnboardingID,
+	})
+	if err != nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", err)
+		return nil, fmt.Errorf("unlock failed: %w", err)
+	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", unlockRes)
+
+	if h.CryptoService == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - fail CryptoService is nil", err)
+	}
+
+	// 3. Decrypt
+	// ==============================================
+	plain, err := h.CryptoService.Decrypt(rawBytes, unlockRes.VaultKey.Key)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt failed: %w", err)
+	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - plain", plain)
+	return plain, nil
+}
+func (h GetIPFSDataQuerryHandler) ShareDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
+	utils.LogPretty("GetIPFSDataQuerryHandler - ShareDecryption - ", "ShareDecryption path")
+
+	// 3. Decrypt
+	// ==============================================
+	plain, err := h.CryptoService.DecryptSymKey(rawBytes, cmd.SymKey)
+	if err != nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - ShareDecryption - failed to decrypt", err)
+		return nil, fmt.Errorf("decrypt failed: %w", err)
+	}
+
+	return plain, nil
+}
+func (h GetIPFSDataQuerryHandler) HandleDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
+	if h.EncryptionMode == PUBLIC_MODE {
+		utils.LogPretty("GetIPFSDataQuerryHandler - HandleDecryption - EncryptionMode", PUBLIC_MODE)
+		return h.ShareDecryption(cmd, rawBytes)
+	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - HandleDecryption - EncryptionMode", PUBLIC_MODE)
+	return h.PrivateDecryption(cmd, rawBytes)
+}
+
 
 func (h *GetIPFSDataQuerryHandler) HydrateVaultNode(
 	plainData []byte,

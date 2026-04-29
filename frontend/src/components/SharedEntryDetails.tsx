@@ -285,7 +285,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 	};
 	const RenderAttachements = ({ selectedFiles }) => (
 
-		<div className="space-y-3 max-h-48 overflow-y-auto glass-scrollbar">
+		<div className="px-3 py-5 space-y-3 max-h-48 overflow-y-auto glass-scrollbar">
 			{selectedFiles.map((attachment, index) => (
 				<div
 					key={index}
@@ -308,9 +308,9 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 					</div>
 
 					{/* Show full screen button */}
-					{attachment.hash_share &&
+					{attachment.recipient_cids[stellar.public_key] &&
 						<button
-							onClick={() => downloadAttachment(attachment.recipient_cids[authUser?.id])}
+							onClick={() => downloadAttachment(attachment.recipient_cids[stellar.public_key])}
 							className="
 								rounded-full 
 								bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
@@ -345,7 +345,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 				jwtToken,
 				"password",
 				attachment.hash_share,
-				attachment.ext
+				attachment.ext,
 			);
 			console.log("Download path:", fileURL);
 			// Wails will open this file
@@ -848,7 +848,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 							<Separator />
 
 							<div className="space-y-3">
-								{entry.access_log.length > 0 && entry.access_log.map((event: AuditEvent) => (
+								{entry?.access_log && entry?.access_log?.length > 0 && entry?.access_log?.map((event: AuditEvent) => (
 									<div
 										key={event.EventID}
 										className="p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"

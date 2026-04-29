@@ -185,6 +185,12 @@ func (m *mockCrypto) Decrypt(data []byte, key []byte) ([]byte, error) {
 	return data[len(key):], nil
 }
 
+func (m *mockCrypto) DecryptSymKey(data []byte, key []byte) ([]byte, error) {
+	return data[len(key):], nil
+}
+
+
+
 // ============= MockKeyEnc =======================================================
 type MockKeyEnc struct {
 	crypto vaults_domain.VaultCrypto

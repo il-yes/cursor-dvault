@@ -73,7 +73,6 @@ func NewLoginCommandHandler(
 func (h *LoginCommandHandler) Handle(
 	cmd LoginCommand, tokenService TokenServiceInterface, eventBus identity_eventbus.EventBus,
 ) (*LoginResult, error) {
-	utils.LogPretty("Login command - cmd", cmd)
 
 	// 1. Resolve credentials
 	creds := auth_domain.Credentials{
@@ -84,7 +83,6 @@ func (h *LoginCommandHandler) Handle(
 		Signature: cmd.Signature,
 	}
 
-	utils.LogPretty("LoginCommandHandler - Credentials", creds)
 
 	// 2. Identity - Authenticate
 	if cmd.PublicKey != "" {
@@ -143,13 +141,11 @@ func (h *LoginCommandHandler) Handle(
 		utils.LogPretty("Failed to generate tokens", user)
 		return nil, err
 	}
-	utils.LogPretty("LoginCommandHandler - Generated tokens", tokens)
 
 	if _, err := tokenService.SaveJwtToken(tokens); err != nil {
 		utils.LogPretty("Failed to persist tokens", tokens)
 		return nil, err
 	}
-	utils.LogPretty("LoginCommandHandler - Persisted tokens", tokens)
 
 	// 5. Publish event
 	if eventBus != nil {

@@ -10,6 +10,7 @@ import (
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
@@ -52,6 +53,7 @@ type BillingHandlerInterface interface {
 }
 
 type AppConfigHandlerInterface interface {
+	SaveConfigs(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error) 
 	GetAppConfigByUserID(ctx context.Context, userID string) (*app_config_domain.AppConfig, error)
 	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
@@ -148,6 +150,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		Email:            req.Email,
 		Password:         onboardUser.Password,
 		IsAnonymous:      req.IsAnonymous,
+		Identity: req.Identity,
 		StellarPublicKey: onboardUser.StellarPublicKey,
 	})
 	if err != nil {
@@ -161,6 +164,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to create app config: %v", err)
 		return nil, err
 	}
+	utils.LogPretty("OnboardUseCase - Execute - configs", configs)
 	// appConfig, err := uc.AppConfigHandler.InitAppConfig(&app_config_commands.CreateAppConfigCommandInput{
 	// 	AppConfig: configs.App,
 	// })
@@ -204,16 +208,18 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	}
 	
 
-	appConfigSaved, err := uc.AppConfigHandler.GetAppConfigByUserID(ctx, userIdentity.ID)
+	configsSaved, err := uc.AppConfigHandler.SaveConfigs(&app_config_dto.CreateConfigCommandInput{
+		Configs: *configs,
+	})
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to get app config: %v", err)
 		return nil, err
 	}
-	if appConfigSaved == nil {
+	if configsSaved == nil {
 		uc.Logger.Error("OnboardUseCase - Execute - App config not found")
 		return nil, errors.New("app config not found")
 	}
-	utils.LogPretty("OnboardUseCase - Execute - appConfig", appConfigSaved)
+	utils.LogPretty("OnboardUseCase - Execute - configsSaved", configsSaved.Configs)
 	userConfigSaved, err := uc.AppConfigHandler.GetUserConfigByUserID(userIdentity.ID)
 	if err != nil {
 		uc.Logger.Error("OnboardUseCase - Execute - Failed to get user config: %v", err)
@@ -232,10 +238,6 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		return nil, errors.New("vault is nil")
 	}
 	fmt.Println("uc.Vault", uc.Vault)
-	if appConfigSaved == nil {
-		uc.Logger.Error("OnboardUseCase - Execute - App config is nil")
-		return nil, errors.New("app config is nil")
-	}
 	if userIdentity == nil {
 		uc.Logger.Error("OnboardUseCase - Execute - User identity is nil")
 		return nil, errors.New("user identity is nil")
@@ -247,7 +249,7 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 		VaultName:          req.VaultName,
 		Password:           req.Password,
 		UserSubscriptionID: req.UserSubscriptionID,
-		AppConfig:          *appConfigSaved,
+		AppConfig:          *configsSaved.Configs.App,
 		UserOnboarding:  onboardUser,
 	})
 	if err != nil {

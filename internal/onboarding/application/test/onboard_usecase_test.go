@@ -10,6 +10,7 @@ import (
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
 	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
@@ -255,6 +256,7 @@ type fakeAppConfigHandler struct {
 	InitUserConfigFunc        func(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
 	GetAppConfigByUserIDFunc  func(ctx context.Context, userID string) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	GetUserConfigByUserIDFunc func(userID string) (*app_config_domain.UserConfig, error)
+	SaveConfigsFunc           func(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error)
 }
 
 func (f *fakeAppConfigHandler) InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error) {
@@ -274,7 +276,12 @@ func (f *fakeAppConfigHandler) GetAppConfigByUserID(ctx context.Context, userID 
 }
 
 func (f *fakeAppConfigHandler) GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error) {
+	
 	return &app_config_domain.UserConfig{}, nil
+}
+
+func (f *fakeAppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error) {
+	return &app_config_dto.CreateConfigCommandOutput{}, nil
 }
 
 // ============= fakeAppStateRepo =======================================================

@@ -25,7 +25,9 @@ type StorageProvider interface {
 
 type VaultCrypto interface {
 	Encrypt(data []byte, key []byte) ([]byte, error)
+	// Encrypt(data []byte, key []byte) (*vault_infrastructure_crypto.AESPayload, error)
 	Decrypt(data []byte, key []byte) ([]byte, error)
+	DecryptSymKey(encrypted []byte, key []byte) ([]byte, error) 
 }
 
 type KeyEncryption interface {

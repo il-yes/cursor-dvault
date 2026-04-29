@@ -55,3 +55,11 @@ type AddAttachementRequest struct {
 	VaultName string
 	UserSubscriptionID string
 }
+
+
+type DownloadShareAttachmentRequest struct {
+    EncryptedKey string
+	AttachmentCID string
+	FileExtension string
+}
+

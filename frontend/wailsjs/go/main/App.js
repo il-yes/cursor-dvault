@@ -98,6 +98,10 @@ export function DownloadReceipt(arg1, arg2) {
   return window['go']['main']['App']['DownloadReceipt'](arg1, arg2);
 }
 
+export function DownloadShareAttachement(arg1, arg2) {
+  return window['go']['main']['App']['DownloadShareAttachement'](arg1, arg2);
+}
+
 export function DummyExposeEntries(arg1) {
   return window['go']['main']['App']['DummyExposeEntries'](arg1);
 }
@@ -146,8 +150,8 @@ export function GetBillingHistory(arg1, arg2) {
   return window['go']['main']['App']['GetBillingHistory'](arg1, arg2);
 }
 
-export function GetCheckoutURL(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['GetCheckoutURL'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function GetCheckoutURL(arg1) {
+  return window['go']['main']['App']['GetCheckoutURL'](arg1);
 }
 
 export function GetConfig(arg1, arg2) {

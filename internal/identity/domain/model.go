@@ -24,6 +24,7 @@ type User struct {
 	Email            string    `gorm:"uniqueIndex;not null"`
 	PasswordHash     string    `gorm:"not null"`
 	IsAnonymous      bool
+	Identity         IdentityChoice    `gorm:"not null,default:personal"`
 	StellarPublicKey string
 	CreatedAt        time.Time
 	LastConnectedAt  time.Time

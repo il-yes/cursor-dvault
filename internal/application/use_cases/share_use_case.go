@@ -2,6 +2,7 @@ package share_application_use_cases
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	// "log"
@@ -17,6 +18,7 @@ import (
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 )
 
 // ---------------------------------------------------------
@@ -57,6 +59,7 @@ type ShareUseCase struct {
 	dispatcher           share_application_events.EventDispatcher
 	tc                   TracecoreClientInterface // new cloud client
 	crypto               ClientCryptoService
+	aesService           *vault_infrastructure_crypto.AESService
 	EntrySnapshotService EntrySnapshotServiceInterface
 }
 
@@ -75,7 +78,21 @@ func NewShareUseCase(
 		EntrySnapshotService: entrySnapshotService,
 	}
 }
-
+func NewShareUseCaseAES(
+	repo share_domain.Repository,
+	tc TracecoreClientInterface,
+	d share_application_events.EventDispatcher,
+	crypto *vault_infrastructure_crypto.AESService,
+	entrySnapshotService EntrySnapshotServiceInterface,
+) *ShareUseCase {
+	return &ShareUseCase{
+		repo:                 repo,
+		tc:                   tc,
+		dispatcher:           d,
+		aesService:           crypto,
+		EntrySnapshotService: entrySnapshotService,
+	}
+}
 // ---------------------------------------------------------
 // Create Share
 // ---------------------------------------------------------
@@ -92,7 +109,7 @@ func (uc *ShareUseCase) CreateProdShareMode(
 	// 1. Create share Request
 	// ---------------------------------------------------------
 	pcr, attachementsAdded, err := uc.BuildProdShareRequest(
-		uc.crypto,
+		uc.aesService,
 		userID,
 		ownerEmail,
 		share,
@@ -134,7 +151,7 @@ func (uc *ShareUseCase) CreateProdShareMode(
 }
 
 func (uc *ShareUseCase) BuildProdShareRequest(
-	crypto ClientCryptoService,
+	crypto *vault_infrastructure_crypto.AESService,
 	userID string,
 	email string,
 	share share_domain.ShareEntry,
@@ -145,7 +162,8 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// ---------------------------------------------------------
 	// 1. Generate symmetric key
 	// ---------------------------------------------------------
-	symKey := crypto.GenerateSymmetricKey()
+	as := vault_infrastructure_crypto.AsymmetricService{}
+	symKey := as.GenerateSymmetricKey()
 
 	// ---------------------------------------------------------
 	// 2. Build entry snapshot
@@ -158,6 +176,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			UserSubscriptionID: vault.UserSubscriptionID,
 			VaultName: vault.Name,
 			Password:  "password",
+			SymKey:    symKey,
 		})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build entry snapshot: %w", err)
@@ -172,8 +191,8 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// if err != nil {
 	// 	return nil, fmt.Errorf("failed to marshal entry snapshot: %w", err)
 	// }
-	encryptedPayload := crypto.AESEncrypt(buildResponse.Raw, symKey)
-	if encryptedPayload.Encrypted == nil {
+	encryptedPayload, err := crypto.Encrypt(buildResponse.Raw, symKey)
+	if err != nil {
 		return nil, nil, fmt.Errorf("failed to encrypt payload")
 	}
 
@@ -227,7 +246,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			SenderID:      share.OwnerID,
 			SenderEmail:   email,
 			Recipients:    recipients,
-			VaultPayload:  encryptedPayload.ToString(),
+			VaultPayload:  base64.StdEncoding.EncodeToString(encryptedPayload),
 			EncryptedKeys: encryptedKeys,
 			Title:         share.EntryName,
 			EntryType:     share.EntryType,

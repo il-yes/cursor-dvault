@@ -28,6 +28,7 @@ import (
 	utils "vault-app/internal/utils"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_ui "vault-app/internal/vault/ui"
 
 	"github.com/google/uuid"
@@ -858,7 +859,8 @@ func (vh *VaultHandler) CreateShareEntry(
 	repo := share_infrastructure.NewGormShareRepository(vh.DB.DB)
 	tcClient := vh.TracecoreClient
 	dispatcher := vh.EventDispatcher
-	crypto := &blockchain.CryptoService{}
+	// crypto := &blockchain.CryptoService{}	// TODO: replace with aes_service from vault
+	aesService := vault_infrastructure_crypto.AESService{}
 
 	vault, err := vaultHandler.VaultRepository.GetLatestByUserID(ownerID)
 	if err != nil {
@@ -871,11 +873,11 @@ func (vh *VaultHandler) CreateShareEntry(
 		vaultHandler,
 	)
 
-	uc := share_application_use_cases.NewShareUseCase(
+	uc := share_application_use_cases.NewShareUseCaseAES(
 		repo, 
-		tcClient, 
+		tcClient, 	
 		dispatcher, 
-		crypto, 
+		&aesService, 
 		entrySnapshotService,
 	)
 	// call usecase

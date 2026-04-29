@@ -129,6 +129,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 			Password: cmd.Password,
 			Data:     vaultBytes,
 			UserID: cmd.UserOnboarding.ID,
+			UserOnboardingID: cmd.UserOnboarding.ID,
 		})
 	if err != nil {
 		utils.LogPretty("CreateVaultCommandHandler - InitializeVaultHandler - Execute - 3rd err", err)

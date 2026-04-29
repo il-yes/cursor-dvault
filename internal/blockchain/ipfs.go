@@ -61,6 +61,11 @@ func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvi
 }
 
 // ---------------------------------------------------------
+type IPFSClientInterface interface {
+	Add(ctx context.Context, data []byte) (string, error)
+	GetData(cid string) ([]byte, error)
+}
+
 // IPFS Client - to delete - Duplicata with localIPFS
 // ---------------------------------------------------------
 type IPFSClient struct {
@@ -259,17 +264,24 @@ func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) 
 		VaultName: c.vault,
 		CID:       cid,
 	}
+	// Add a 15‑second timeout (even if outer ctx is Background)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	resp, err := c.client.GetDataFromCloudStorage(ctx, req)
 	if err != nil {
-		utils.LogPretty("CloudIPFSStorage - Get - response", resp)
+		utils.LogPretty("CloudIPFSStorage - Get - GetDataFromCloudStorage error", err)
 		return nil, err
 	}
 	if !resp.Success {
+		utils.LogPretty("CloudIPFSStorage - Get - GetDataFromCloudStorage error", err)
+
 		return nil, fmt.Errorf("cloud error: %s", resp.Message)
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(resp.Data)
 	if err != nil {
+		utils.LogPretty("CloudIPFSStorage - Get - GetDataFromCloudStorage error", err)
 		return nil, fmt.Errorf("failed to decode base64: %w", err)
 	}
 

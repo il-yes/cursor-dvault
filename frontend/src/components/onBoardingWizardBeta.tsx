@@ -722,6 +722,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                                     tier={selectedTier}
                                     isAnonymous={isAnonymous}
                                     identity={identity}
+                                    isUpgrade={false}
                                 />
                             </div>
 

@@ -1349,6 +1349,7 @@ export namespace identity_domain {
 	    Email: string;
 	    PasswordHash: string;
 	    IsAnonymous: boolean;
+	    Identity: string;
 	    StellarPublicKey: string;
 	    // Go type: time
 	    CreatedAt: any;
@@ -1365,6 +1366,7 @@ export namespace identity_domain {
 	        this.Email = source["Email"];
 	        this.PasswordHash = source["PasswordHash"];
 	        this.IsAnonymous = source["IsAnonymous"];
+	        this.Identity = source["Identity"];
 	        this.StellarPublicKey = source["StellarPublicKey"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.LastConnectedAt = this.convertValues(source["LastConnectedAt"], null);
@@ -1434,6 +1436,32 @@ export namespace main {
 	        this.storage_used_gb = source["storage_used_gb"];
 	        this.last_synced_at = source["last_synced_at"];
 	        this.ok = source["ok"];
+	    }
+	}
+	export class CheckoutContext {
+	    identity: string;
+	    isAnonymous: boolean;
+	    rail: string;
+	    email: string;
+	    tier: string;
+	    plan: string;
+	    periodMonths: string;
+	    mode: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckoutContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.identity = source["identity"];
+	        this.isAnonymous = source["isAnonymous"];
+	        this.rail = source["rail"];
+	        this.email = source["email"];
+	        this.tier = source["tier"];
+	        this.plan = source["plan"];
+	        this.periodMonths = source["periodMonths"];
+	        this.mode = source["mode"];
 	    }
 	}
 	export class ClientPaymentRequest {
@@ -3317,6 +3345,7 @@ export namespace tracecore_types {
 	export class DecryptCryptoShareResponse {
 	    payload: string;
 	    expires_in?: number;
+	    attachments: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new DecryptCryptoShareResponse(source);
@@ -3326,6 +3355,7 @@ export namespace tracecore_types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.payload = source["payload"];
 	        this.expires_in = source["expires_in"];
+	        this.attachments = source["attachments"];
 	    }
 	}
 	export class CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_ {
@@ -3526,6 +3556,22 @@ export namespace tracecore_types {
 
 export namespace vault_dto {
 	
+	export class DownloadShareAttachmentRequest {
+	    EncryptedKey: string;
+	    AttachmentCID: string;
+	    FileExtension: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadShareAttachmentRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.EncryptedKey = source["EncryptedKey"];
+	        this.AttachmentCID = source["AttachmentCID"];
+	        this.FileExtension = source["FileExtension"];
+	    }
+	}
 	export class LoginResponse {
 	    User: identity_domain.User;
 	    Tokens: auth_domain.TokenPairs;
@@ -3650,6 +3696,7 @@ export namespace vaults_domain {
 	    downloaded_to?: string;
 	    hash_local: string;
 	    hash_share: string;
+	    recipient_cids: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attachment(source);
@@ -3669,6 +3716,7 @@ export namespace vaults_domain {
 	        this.downloaded_to = source["downloaded_to"];
 	        this.hash_local = source["hash_local"];
 	        this.hash_share = source["hash_share"];
+	        this.recipient_cids = source["recipient_cids"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

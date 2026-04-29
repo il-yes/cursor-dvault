@@ -273,8 +273,8 @@ const SettingsBeta = () => {
 											type="number"
 											min="1"
 											max="60"
-											value={settings?.security?.clearClipboardAfter}
-											onChange={e => updateSettings("security.clearClipboardAfter", Number(e.target.value))}
+											value={settings?.privacy?.remaskDelay}
+											onChange={e => updateSettings("privacy.remaskDelay", Number(e.target.value))}
 											className="w-20 text-center bg-white/60 dark:bg-zinc-900/60 border border-primary/30 rounded-xl shadow" />
 										<span className="text-sm text-muted-foreground">sec</span>
 									</div>

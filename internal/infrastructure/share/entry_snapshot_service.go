@@ -114,9 +114,10 @@ func (s *EntrySnapshotService) Process(
             }
 
             for _, recipUser := range req.Share.Recipients {
-                if attachment.RecipientCIDs[recipUser.ID] != "" {
+                if attachment.RecipientCIDs[recipUser.PublicKey] != "" {
                     continue
                 }
+                // recipUser.
 
                 cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
                     req.UserID,
@@ -138,7 +139,7 @@ func (s *EntrySnapshotService) Process(
                     return nil, nil, nil, err
                 }
 
-                attachment.RecipientCIDs[recipUser.ID] = cid
+                attachment.RecipientCIDs[recipUser.PublicKey] = cid
                 cids = append(cids, cid)
                 attachementIDs = append(attachementIDs, attachment.ID)
 

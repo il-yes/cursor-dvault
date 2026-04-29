@@ -11,6 +11,7 @@ import (
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	"vault-app/internal/blockchain"
 	app_config_commands "vault-app/internal/config/application/commands"
+	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_domain "vault-app/internal/config/domain"
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
@@ -176,6 +177,10 @@ func (f *fakeAppConfigHandler) InitAppConfig(input *app_config_commands.CreateAp
 func (f *fakeAppConfigHandler) InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error) {
 	f.called = true
 	return &app_config_commands.CreateUserConfigCommandOutput{}, nil
+}
+func (f *fakeAppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigCommandInput) (*app_config_dto.CreateConfigCommandOutput, error) {
+	f.called = true
+	return &app_config_dto.CreateConfigCommandOutput{}, nil
 }
 
 type fakeStellarService struct{}

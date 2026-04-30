@@ -284,8 +284,8 @@ func (c *TracecoreClient) GetSubscriptionBySessionID(
 }
 
 // after onboarding, we have user id, so we use user id to get the subscription
-func (c *TracecoreClient) GetSubscriptionByUserID(ctx context.Context, userID string) (*subscription_domain.Subscription, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AnkhoraCloudUrl+"/subscriptions?user_id="+userID, nil)
+func (c *TracecoreClient) GetSubscriptionByUserID(ctx context.Context, userID string) (*tracecore_types.CloudResponse[subscription_domain.Subscription], error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AnkhoraCloudUrl+"/subscriptions/activate-by-user-id/"+userID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -300,28 +300,17 @@ func (c *TracecoreClient) GetSubscriptionByUserID(ctx context.Context, userID st
 	defer resp.Body.Close()
 
 	respBytes, _ := io.ReadAll(resp.Body)
-
-	var cloudResp struct {
-		Data       json.RawMessage `json:"data"`
-		Status     string          `json:"status"`
-		StatusCode int             `json:"status_code"`
-		Message    string          `json:"message"`
-	}
-
+	var cloudResp tracecore_types.CloudResponse[subscription_domain.Subscription]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 
-	if cloudResp.Status != "ok" {
+	if cloudResp.Status != 200 {
 		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
 	}
+	utils.LogPretty("TracecoreClient - GetSubscriptionByUserID - cloud response", cloudResp)
 
-	var sub subscription_domain.Subscription
-	if err := json.Unmarshal(cloudResp.Data, &sub); err != nil {
-		return nil, fmt.Errorf("invalid cloud data: %w", err)
-	}
-
-	return &sub, nil
+	return &cloudResp, nil
 }
 func (c *TracecoreClient) GetSubscriptionByID(ctx context.Context, subscriptionID string) (*subscription_domain.Subscription, error) {
 
@@ -482,8 +471,8 @@ func (c *TracecoreClient) HandleClientInitiatedPayment(ctx context.Context, requ
 	}
 	return &pr, nil
 }
-func (c *TracecoreClient) GetBillingHistory(ctx context.Context, subID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
-	url := fmt.Sprintf("%s/billing/history/%s?limit=%d", c.AnkhoraCloudUrl, subID, limit)
+func (c *TracecoreClient) GetBillingHistoryByUserID(ctx context.Context, userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+	url := fmt.Sprintf("%s/billing/history/user/%s?limit=%d", c.AnkhoraCloudUrl, userID, limit)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -491,28 +480,29 @@ func (c *TracecoreClient) GetBillingHistory(ctx context.Context, subID string, l
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
+	log.Println("TracecoreClient - GetBillingHistoryByUserID - url: ", url)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		utils.LogPretty("GetBillingHistory - request failed", err)
+		utils.LogPretty("TracecoreClient - GetBillingHistoryByUserID - request failed", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		utils.LogPretty("GetBillingHistory - failed to read response body", err)
+		utils.LogPretty("TracecoreClient - GetBillingHistoryByUserID - failed to read response body", err)
 		return nil, err
 	}
 
 	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory]
 	if err := json.Unmarshal(body, &cloudResp); err != nil {
-		utils.LogPretty("GetBillingHistory - invalid cloud response", err)
-		return nil, fmt.Errorf("invalid cloud response: %w", err)
+		utils.LogPretty("TracecoreClient - GetBillingHistoryByUserID - invalid cloud response", err)
+		return nil, fmt.Errorf("TracecoreClient - GetBillingHistoryByUserID - invalid cloud response: %w", err)
 	}
 
 	if !cloudResp.Success {
-		utils.LogPretty("GetBillingHistory - cloud returned error", cloudResp.Message)
-		return nil, fmt.Errorf("GetBillingHistory - cloud returned error: %s", cloudResp.Message)
+		utils.LogPretty("TracecoreClient - GetBillingHistoryByUserID - cloud returned error", cloudResp.Message)
+		return nil, fmt.Errorf("TracecoreClient - GetBillingHistoryByUserID - cloud returned error: %s", cloudResp.Message)
 	}
 
 	return &cloudResp, nil

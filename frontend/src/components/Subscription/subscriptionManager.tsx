@@ -12,7 +12,7 @@ import {
     getSubscriptionFromCloud,
     getStorageUsage,
 } from '../../services/api';
-import { cn } from '@/lib/utils'; // Adjust import path
+import { cn, getTierPrice } from '@/lib/utils'; // Adjust import path
 import { Button } from '@/components/ui/button'; // shadcn/ui or your button component
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,9 +24,11 @@ import { Vault } from '@/types/vault';
 import { tracecore_types, vaults_domain } from '@/wailsjs/go/models';
 import * as AppAPI from "../../../wailsjs/go/main/App";
 import { useAppStore } from '@/store/appStore';
+import { GlassProgressBar } from '../GlassProgressBar';
 
 interface Subscription {
     tier: string;
+    user_id: string;
     price: number;
     status: string;
     payment_method: string;
@@ -69,10 +71,15 @@ const SubscriptionManager: React.FC = () => {
     const { jwtToken } = useAuthStore.getState();
     const { vault, loadVault, clearVault: clearVaultStore } = useVaultStore();
     const [vaultCloud, setVaultCloud] = useState(null);
+    const [upgrading, setUpgrading] = useState(false);
     const session = useAppStore.getState().session;
     const user = session?.user
     user && console.log("user", user)
     session && console.log("session", session)
+
+    const [progressVisible, setProgressVisible] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
 
     useEffect(() => {
         GetVaultFromCloud();
@@ -113,6 +120,7 @@ const SubscriptionManager: React.FC = () => {
 
             // RICH MOCK DATA - Shows ALL features
             setSubscription({
+                user_id: user?.id || '',
                 tier: 'pro_plus', // Change to 'free', 'pro', 'business' to test different states
                 price: 25.00,
                 status: 'active',
@@ -246,6 +254,7 @@ const SubscriptionManager: React.FC = () => {
 
             await AppAPI.OpenURL(url.url);
 
+            setShowUpgradeModal(false);
 
             // await UpgradeSubscription({
             //     user_id: userId,
@@ -296,6 +305,130 @@ const SubscriptionManager: React.FC = () => {
         return response as StorageUsage;
     };
 
+    const formatDate = (dateValue: string | number) => {
+        const date = new Date(dateValue);
+        return date.toLocaleDateString();
+    };
+
+
+    const calculateProration = (oldPrice: number, newPrice: number, daysLeft: number) => {
+        const monthlyDays = 30;
+        const oldProrated = (oldPrice / monthlyDays) * daysLeft;
+        const newProrated = (newPrice / monthlyDays) * daysLeft;
+        return newProrated - oldProrated;
+    };
+
+    const ProrationView_ALPHA = (subscription: Subscription, next_tier: string) => {
+        const day_left = Date.now() > new Date(subscription.trial_ends_at).getTime() ? 30 : (new Date(subscription.trial_ends_at).getTime() - Date.now()) / 1000 / 60 / 60 / 24;
+        const current_price = getTierPrice(subscription.tier);
+        const next_price = getTierPrice(next_tier);
+        // Calculate proration client-side using current date vs billing cycle end
+        const proration = calculateProration(current_price, next_price, day_left);
+
+
+        return (
+            <div className="upgrade-card featured border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-2xl hover:shadow-2xl transition-all cursor-pointer relative"
+                onClick={() => handleUpgrade('pro_plus', 'encrypted')}>
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-4 py-1 rounded-full border border-yellow-400">
+                    <span className="text-yellow-600 font-semibold">⭐ Featured</span>
+                </div>
+                <h3 className="text-xl font-bold mb-2">Pro Plus</h3>
+                <div className="text-2xl font-bold text-yellow-600 mb-4">$25/month</div>
+                <div className="glass-card p-6">
+                    <h3>Upgrade to Pro+ (${proration.toFixed(2)} prorated)</h3>
+                    <p className="text-sm text-gray-500">
+                        Full $25/mo from {formatDate(subscription.next_billing_date)}
+                    </p>
+                    <button
+                        onClick={() => window.open(`/checkout?mode=upgrade&tier=pro_plus&prorate=${proration}`, '_blank')}
+                        className="glass-btn w-full mt-4"
+                    >
+                        Upgrade Now →
+                    </button>
+                </div>
+                <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
+                    <li>200GB storage</li>
+                    <li>Encrypted payments</li>
+                    <li>Zero telemetry</li>
+                    <li>Anonymous account</li>
+                </ul>
+                <Button className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg">Upgrade to Pro Plus</Button>
+            </div>
+        )
+    }
+    interface ProrationResponse {
+        proration: number;
+        full_price: number;
+        next_billing: string;
+        days_left: number;
+    }
+
+    const ProrationView = ({ subscription, next_tier }: { subscription: Subscription; next_tier: string }) => {
+        const [prorationData, setProrationData] = useState<ProrationResponse | null>(null);
+        const [loading, setLoading] = useState(true);
+        
+
+        useEffect(() => {
+            fetch(`/api/proration?user_id=${subscription.user_id}&tier=${next_tier}`)
+                .then(res => res.json())
+                .then(setProrationData)
+                .finally(() => setLoading(false));
+        }, [subscription.user_id, next_tier]);
+
+        if (loading) {
+            return <div className="animate-pulse">Calculating upgrade price...</div>;
+        }
+
+        if (!prorationData) return null;
+
+        const openCheckout = async() => {
+            const bronzePlan = "bronze"
+            const req = {
+                identity: "personal",
+                isAnonymous: user.IsAnonymous,
+                rail: "stripe",
+                email: user?.Email,
+                tier: next_tier,
+                plan: bronzePlan,
+                periodMonths: "1",
+                mode: "upgrade",
+                prorate: prorationData.proration,
+
+            }
+
+            const url = await AppAPI.GetCheckoutURL(req);
+            console.log("URL:", url);
+
+            window.open(
+                `/checkout?mode=upgrade&tier=${next_tier}&prorate=${prorationData.proration}`,
+                '_blank'
+            );
+        };
+
+        return (
+            <div className="glass-card p-6 space-y-3">
+                <div className="text-center">
+                    <div className="text-2xl font-bold text-emerald-600">
+                        ${prorationData.proration.toFixed(2)} <span className="text-sm">prorated</span>
+                    </div>
+                    <p className="text-xs text-gray-500">Full ${prorationData.full_price}/mo from {prorationData.next_billing}</p>
+                </div>
+
+                <Button
+                    onClick={openCheckout}
+                    className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                    size="lg"
+                >
+                    Upgrade Now → Secure Checkout
+                </Button>
+
+                <div className="text-xs text-center text-gray-500 p-2 bg-gray-50 rounded-lg">
+                    Secure payment in new tab (Stripe)
+                </div>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <DashboardLayout>
@@ -325,6 +458,11 @@ const SubscriptionManager: React.FC = () => {
 
                 <div className="max-w-5xl mx-auto p-8 space-y-8">
 
+                    {upgrading && (
+                        <GlassProgressBar value={progress} label={`${stage} (${Math.round(progress)}%)`} visible={progressVisible} />
+
+                    )}
+
                     {/* Current Plan Card */}
                     {subscription && (
                         <div
@@ -337,7 +475,7 @@ const SubscriptionManager: React.FC = () => {
                                         {getTierName(subscription.tier)}
                                     </h2>
                                     <div className="text-2xl font-bold text-yellow-600">
-                                        ${subscription.price.toFixed(2)}<span className="text-lg font-normal text-muted-foreground ml-1">/month</span>
+                                        ${getTierPrice(subscription.tier).toFixed(2)}<span className="text-lg font-normal text-muted-foreground ml-1">/month</span>
                                     </div>
                                 </div>
                                 <div
@@ -479,7 +617,7 @@ const SubscriptionManager: React.FC = () => {
                                             <tr key={payment.id} className="border-b border-white/10 hover:bg-white/20 transition">
                                                 <td className="py-4 font-medium">{new Date(payment.created_at).toLocaleDateString()}</td>
                                                 <td className="py-4">{payment.description}</td>
-                                                <td className="py-4 font-semibold text-yellow-600">${payment.amount.toFixed(2)}</td>
+                                                <td className="py-4 font-semibold text-yellow-600">${(payment.amount / 100).toFixed(2)}</td>
                                                 <td>
                                                     <span className={cn(
                                                         'px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide',
@@ -534,32 +672,18 @@ const SubscriptionManager: React.FC = () => {
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {subscription?.tier === 'free' && (
                                         <>
-
                                             <div className="upgrade-card border border-blue-300 hover:border-blue-400 p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer"
                                                 onClick={() => handleUpgrade('pro', 'standard')}>
                                                 <h3 className="text-xl font-bold mb-2">Pro</h3>
                                                 <div className="text-2xl font-bold text-blue-600 mb-4">$15/month</div>
+                                                {/** PRORATION VIEW */}
+                                                <ProrationView subscription={subscription} next_tier={'pro'} />
                                                 <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
                                                     <li>100GB storage</li>
                                                     <li>Cloud backup</li>
                                                     <li>Mobile apps</li>
                                                 </ul>
                                                 <Button className="w-full bg-blue-500 hover:bg-blue-600">Upgrade to Pro</Button>
-                                            </div>
-                                            <div className="upgrade-card featured border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-2xl hover:shadow-2xl transition-all cursor-pointer relative"
-                                                onClick={() => handleUpgrade('pro_plus', 'encrypted')}>
-                                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-4 py-1 rounded-full border border-yellow-400">
-                                                    <span className="text-yellow-600 font-semibold">⭐ Featured</span>
-                                                </div>
-                                                <h3 className="text-xl font-bold mb-2">Pro Plus</h3>
-                                                <div className="text-2xl font-bold text-yellow-600 mb-4">$25/month</div>
-                                                <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
-                                                    <li>200GB storage</li>
-                                                    <li>Encrypted payments</li>
-                                                    <li>Zero telemetry</li>
-                                                    <li>Anonymous account</li>
-                                                </ul>
-                                                <Button className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-black shadow-lg">Upgrade to Pro Plus</Button>
                                             </div>
                                         </>
                                     )}
@@ -571,6 +695,8 @@ const SubscriptionManager: React.FC = () => {
                                             </div>
                                             <h3 className="text-xl font-bold mb-2">Pro Plus</h3>
                                             <div className="text-2xl font-bold text-yellow-600 mb-4">$25/month (+$10)</div>
+                                            {/** PRORATION VIEW */}
+                                            <ProrationView subscription={subscription} next_tier={'pro_plus'} />
                                             <ul className="space-y-2 mb-6 text-sm text-muted-foreground">
                                                 <li>2x storage (200GB)</li>
                                                 <li>Encrypted payments</li>

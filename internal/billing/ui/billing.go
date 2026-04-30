@@ -65,4 +65,7 @@ func (h *BillingHandler) GetPaymentHistory(ctx context.Context, subID string, li
 	return  billingAppH.GetBillingHistory(subID, limit)
 
 }
-
+func (h *BillingHandler) GetBillingHistoryByUserID(ctx context.Context, userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+	billingAppH := billing_ui_handlers.NewBillingAppHandler(ctx, h.SubscriptionService, h.AnkhoraService)
+	return  billingAppH.GetBillingHistoryByUserID(userID, limit)
+}		

@@ -75,6 +75,10 @@ func (a *BillingAppHandler) GetBillingHistory(subID string, limit int) (*traceco
     return a.BillingAppUC.GetBillingHistory(subID, limit)
 }
 
+func (a *BillingAppHandler) GetBillingHistoryByUserID(userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+    return a.BillingAppUC.GetBillingHistoryByUserID(userID, limit)
+}
+
 // DownloadReceipt downloads blockchain-verified receipt
 func (a *BillingAppHandler) DownloadReceipt(userID string, paymentID string) (*billing_domain.Receipt, error) {
     return a.BillingAppUC.GenerateReceipt(userID, paymentID)

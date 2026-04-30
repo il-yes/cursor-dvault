@@ -369,7 +369,7 @@ const filterFilledProps = (obj: Record<string, any>): Record<string, any> => {
 /**
  * Decrypt a sensitive field
  */
-export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string; expires_in: number }> {
+export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string; expires_in: number, encrypted_key: string }> {
 	const user = useAuthStore.getState().user;
 	console.log({ user })
 
@@ -394,6 +394,7 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 		return {
 			plaintext: JSON.stringify(filledOnly),
 			expires_in: result.data.expires_in,
+			encrypted_key: result.data.encrypted_key,
 		};
 	} catch (err) {
 		console.error("Failed to decrypt vault entry:", err);

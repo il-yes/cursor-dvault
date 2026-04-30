@@ -699,7 +699,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 		return "", fmt.Errorf("SyncVault - failed to get app config: %w", err)
 	}
 
-	newCID, entryUpdates, _, _, err := vh.CommitVault(appCfg, input.Vault.UserSubscriptionID, input.Vault.Name, input.Password, *session)
+	newCID, entryUpdates, _, _, err := vh.CommitVault(appCfg, input, *session)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - IPFS upload failed: %w", err)
 	}
@@ -755,9 +755,7 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 }
 func (vh *VaultHandler) CommitVault(
 	appCfg app_config_domain.AppConfig,
-	userID string,
-	vaultName string,
-	userPassword string,
+	input vault_dto.SynchronizeVaultRequest,
 	session vault_session.Session,
 ) (string, []vaults_service.EntryUpdate, int, int, error) {
 	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
@@ -765,9 +763,10 @@ func (vh *VaultHandler) CommitVault(
 
 	vaultCtx := app_config_domain.VaultContext{
 		AppConfig:     appCfg,
-		UserID:        userID,
-		VaultName:     vaultName,
+		UserID:        input.UserID,
+		VaultName:     input.Vault.Name,
 		StorageConfig: appCfg.Storage,
+		UserOnboarding: input.UserOnboarding,
 	}
 
 	service := vaults_service.NewVaultServiceReal(
@@ -777,7 +776,7 @@ func (vh *VaultHandler) CommitVault(
 		vh.SessionManager.SessionRepository,
 		vaultCtx,
 	)
-	service.Password = userPassword
+	service.Password = input.Password
 
 	mode := vaults_service.IncrementalSync
 
@@ -1246,26 +1245,14 @@ type DownloadAttachmentRequest struct {
 	EncryptedKey string
 	SymKey       []byte
 	AppCfg       *app_config_domain.AppConfig
+	IsShared	bool
 }
 type SymKeyDecryptor interface {
 	DecryptPasswordWithStellarByte(encNonce, encPassword, privateKey string) ([]byte, error)
 }
 
 func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAttachmentRequest) (string, error) {
-
-	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - STARTED", req.CID)
-	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", req)
-	// var appCfg app_config_domain.AppConfig
-	// if req.AppCfg == nil {
-	// 	appCfg, errr  = vh.GetAppConfig(req.UserID)
-	// 	if errr != nil {
-	// 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
-	// 	}
-	// }
-
-	// var kr *vaults_domain.VaultKeyring
-
-	if req.SymKey == nil {
+	if !req.IsShared {
 		kr, err := vh.KeyringService.LoadHybrid(req.AppCfg.Branch, req.Password, "")
 	
 		if kr == nil || err != nil {
@@ -1279,7 +1266,7 @@ func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAtta
 	// do not continue to os.WriteFile with nil Raw.
 
 	// Sharing case
-	if req.SymKey != nil {
+	if req.IsShared {
 		utils.LogPretty("DownloadAttachment: detecting sharing scenario running", req.PrivateKey)
 		vh.GetIPFSDataQuerryHandler.EncryptionMode = vault_commands.PUBLIC_MODE // for sharing encryption
 	}

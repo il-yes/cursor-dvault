@@ -4,7 +4,6 @@ import (
 	"context"
 )
 
-
 type VaultStorage interface {
 	GetData(cid string) ([]byte, error)
 }
@@ -16,18 +15,17 @@ type CryptoService interface {
 // In your vault_commands package or beneath it:
 
 type StorageProvider interface {
-    Add(data []byte) (string, error)
-    // optional: Get(ctx context.Context, cid string) ([]byte, error)
+	Add(data []byte) (string, error)
+	// optional: Get(ctx context.Context, cid string) ([]byte, error)
 	AddData(ctx context.Context, data []byte) (string, error)
 }
-
-
 
 type VaultCrypto interface {
 	Encrypt(data []byte, key []byte) ([]byte, error)
 	// Encrypt(data []byte, key []byte) (*vault_infrastructure_crypto.AESPayload, error)
 	Decrypt(data []byte, key []byte) ([]byte, error)
-	DecryptSymKey(encrypted []byte, key []byte) ([]byte, error) 
+	DecryptSymKey(encrypted []byte, key []byte) ([]byte, error)
+	AsymetricDecrypt(privateKey string, encryptedKey string) ([]byte, error)
 }
 
 type KeyEncryption interface {

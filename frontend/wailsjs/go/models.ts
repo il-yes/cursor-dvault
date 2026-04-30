@@ -1447,6 +1447,7 @@ export namespace main {
 	    plan: string;
 	    periodMonths: string;
 	    mode: string;
+	    prorate?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CheckoutContext(source);
@@ -1462,6 +1463,7 @@ export namespace main {
 	        this.plan = source["plan"];
 	        this.periodMonths = source["periodMonths"];
 	        this.mode = source["mode"];
+	        this.prorate = source["prorate"];
 	    }
 	}
 	export class ClientPaymentRequest {
@@ -3346,6 +3348,7 @@ export namespace tracecore_types {
 	    payload: string;
 	    expires_in?: number;
 	    attachments: Record<string, string>;
+	    encrypted_key?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DecryptCryptoShareResponse(source);
@@ -3356,6 +3359,7 @@ export namespace tracecore_types {
 	        this.payload = source["payload"];
 	        this.expires_in = source["expires_in"];
 	        this.attachments = source["attachments"];
+	        this.encrypted_key = source["encrypted_key"];
 	    }
 	}
 	export class CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_ {

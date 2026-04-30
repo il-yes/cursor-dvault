@@ -1,6 +1,7 @@
 import { EntrySnapshot } from "@/types/sharing";
 import { VaultEntry } from "@/types/vault";
 import { clsx, type ClassValue } from "clsx";
+import { useCallback } from "react";
 import { Keypair } from "stellar-sdk";
 import { twMerge } from "tailwind-merge";
 
@@ -113,6 +114,23 @@ export const openIpfsInBrowser = (cid: string) => {
   const url = `https://ipfs.io/ipfs/${cid}`;
   window.open(url, "_blank", "noopener,noreferrer");
 };
+
+
+export const getTierPrice = (tier: string): number => {
+        const prices: Record<string, number> = {
+            free: 0,
+            pro: 15,
+            pro_plus: 25,
+            business: 59,
+        };
+        return prices[tier] ?? 0;
+    };
+
+
+
+
+
+
 
 // const res = await fetch(`${API_BASE}/api/shared-entries`, { credentials: "include" });
 // const { SharedEntries } = await res.json();

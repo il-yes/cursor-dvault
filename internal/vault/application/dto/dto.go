@@ -23,6 +23,7 @@ type SynchronizeVaultRequest struct {
 	Password string `json:"password"`
 	Vault vault_domain.Vault `json:"vault"`
 	UserIdentity identity_domain.User `json:"user_identity"`
+	UserOnboarding string	`json:"user_onboarding"`
 }
 type SelectedAttachment struct {
 	Name string `json:"name"`

@@ -17,6 +17,7 @@ type VaultContext struct {
 	StorageConfig app_config.StorageConfig
 	UserID        string
 	VaultName     string
+	UserOnboarding string
 }
 
 type CommitRule struct {

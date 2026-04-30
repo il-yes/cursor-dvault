@@ -28,7 +28,7 @@ func (s *SubscriptionSyncService) FetchFromCloud(ctx context.Context, userID str
 	if err != nil {
 		return nil, err
 	}
-	return response, nil
+	return &response.Data, nil
 }
 // Fetch subscription from local cache Database
 func (s *SubscriptionSyncService) GetCachedSubscription(ctx context.Context, userID string) (*subscription_domain.Subscription, error) {

@@ -36,7 +36,7 @@ export default function StripePayButton({
       tier,
       plan: bronzePlan,
       periodMonths: "1",
-      isUpgrade: false,
+      mode: isUpgrade ? "upgrade" : "activate",
     }
     const url = await AppAPI.GetCheckoutURL(req);
     console.log("URL:", url);

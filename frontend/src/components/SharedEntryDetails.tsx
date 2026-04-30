@@ -52,6 +52,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 	const [revealedFields, setRevealedFields] = useState<Map<string, RevealedField>>(new Map());
 	const [isRevealing, setIsRevealing] = useState<string | null>(null);
 	const [decryptingField, setDecryptingField] = useState<string | null>(null);
+	const [shareKey, setShareKey] = useState<string | null>(null);
 	const { vault, clearVault: clearVaultStore } = useVaultStore();
 	const stellar = vault?.vault_runtime_context?.UserConfig?.stellar_account
 
@@ -174,14 +175,15 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 
 			console.log({ entry_id: entry.id, field_name: fieldName }); // ← DEBUG
 
-			const { plaintext, expires_in } = await decryptField({
+			const { plaintext, expires_in, encrypted_key } = await decryptField({
 				entry_id: entry.id,
 				field_name: fieldName,
 				challenge,
 				signature,
 			});
+			setShareKey(encrypted_key);
 
-			// ← ADD AWAIT HERE
+
 			await logAuditEvent({
 				event_type: 'decrypt',
 				entry_id: entry.id,
@@ -310,7 +312,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 					{/* Show full screen button */}
 					{attachment.recipient_cids[stellar.public_key] &&
 						<button
-							onClick={() => downloadAttachment(attachment.recipient_cids[stellar.public_key])}
+							onClick={() => downloadAttachment(attachment)}
 							className="
 								rounded-full 
 								bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
@@ -340,12 +342,18 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 	};
 
 	const downloadAttachment = async (attachment: Attachment) => {
+		console.log({attachment})
+		console.log(attachment.recipient_cids[stellar.public_key])
+		console.log({shareKey})
+		const payload = {
+			EncryptedKey: shareKey,
+			AttachmentCID: attachment.recipient_cids[stellar.public_key],
+			FileExtension: attachment.ext,
+		}
 		try {
-			const fileURL = await AppAPI.DownloadAttachment(
+			const fileURL = await AppAPI.DownloadShareAttachement(
+				payload,
 				jwtToken,
-				"password",
-				attachment.hash_share,
-				attachment.ext,
 			);
 			console.log("Download path:", fileURL);
 			// Wails will open this file

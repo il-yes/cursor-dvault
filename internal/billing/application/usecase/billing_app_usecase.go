@@ -24,7 +24,7 @@ type AnkhoraCloudServiceInterface interface {
 	GetPendingPaymentRequests(ctx context.Context, userID string) ([]*billing_domain.PaymentRequest, error)
 	ProcessEncryptedPayment(ctx context.Context, req *billing_domain.ClientPaymentRequest) (*tracecore.ClientPaymentResponse, error)
 	HandleClientInitiatedPayment(ctx context.Context, req *billing_domain.ClientPaymentRequest) (*tracecore.ClientPaymentResponse, error)
-	GetBillingHistory(ctx context.Context, userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error)
+	GetBillingHistoryByUserID(ctx context.Context, userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error)
 	GenerateReceipt(ctx context.Context, userID string, paymentID string) (*billing_domain.Receipt, error)		
 }
 
@@ -89,12 +89,12 @@ func (a *BillingApp) HandleClientInitiatedPayment(req *billing_domain.ClientPaym
 }
 
 func (a *BillingApp) GetBillingHistory(subID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
-	response, err := a.AnkhoraCloudService.GetBillingHistory(a.ctx, subID, limit)
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
+	// TODO: to implement
+	return nil, nil
 }
+func (a *BillingApp) GetBillingHistoryByUserID(userID string, limit int) (*tracecore_types.CloudResponse[[]tracecore_types.PaymentHistory], error) {
+	return a.AnkhoraCloudService.GetBillingHistoryByUserID(a.ctx, userID, limit)
+}	
 func (a *BillingApp) GenerateReceipt(userID string, paymentID string) (*billing_domain.Receipt, error) {
 	return a.AnkhoraCloudService.GenerateReceipt(a.ctx, userID, paymentID)
 }

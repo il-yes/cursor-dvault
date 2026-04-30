@@ -491,7 +491,6 @@ func NewApp() *App {
 	}
 }
 
-
 // -----------------------------
 // AppState
 // -----------------------------
@@ -624,8 +623,10 @@ type CheckoutContext struct {
 	Tier         string                         `json:"tier"`
 	Plan         string                         `json:"plan"`
 	PeriodMonths string                         `json:"periodMonths"`
-	Mode         string                           `json:"mode"`
+	Mode         string                         `json:"mode"`
+	Prorate      float64                        `json:"prorate,omitempty"`
 }
+
 // GetCheckoutURL returns the cloud backend checkout page URL
 func (a *App) GetCheckoutURL(ctx CheckoutContext) (CreateCheckoutResponse, error) {
 	// -----------------------------
@@ -642,6 +643,9 @@ func (a *App) GetCheckoutURL(ctx CheckoutContext) (CreateCheckoutResponse, error
 		"%s?session-id=%s&identity=%s&rail=%s&email=%s&tier=%s&plan=%s&period-months=%s&is-anonymous=%t&mode=%s",
 		baseURL, sessionID, ctx.Identity, ctx.Rail, ctx.Email, ctx.Tier, ctx.Plan, periodMonths, ctx.IsAnonymous, ctx.Mode,
 	)
+	if ctx.Prorate > 0 {
+		url += fmt.Sprintf("&prorate=%f", ctx.Prorate)
+	}
 
 	res := CreateCheckoutResponse{
 		SessionID: sessionID,
@@ -936,216 +940,6 @@ func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 	return a.Auth.AuthVerify(&req)
 }
 
-type DecryptCryptoShareResponse struct {
-	Payload     string            `json:"payload"` // decrypted VaultNode (JSON)
-	ExpiresIn   int64             `json:"expires_in,omitempty"`
-	Attachments map[string]string `json:"attachments"` // map[attachmentID]CID (cloud‑only)
-}
-
-func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
-	claims, err := a.RequireAuth(jwtToken)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println("userID", claims.UserID)
-
-	// 0. Get user vault ==============================
-	// vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 1. Access encrypted entry ==============================
-	entry.IPAddress = GetLocalIP()
-	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *a.Auth.TracecoreClient)
-	if err != nil {
-		return nil, err
-	}
-	a.Logger.LogPretty("App - AccessEncryptedEntry - res", res)
-
-	// UserConfig - Get stellar private key from user config
-	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-	// 2. Decrypt ==============================
-	stellarAccount := userConfig.StellarAccount
-	req := tracecore_types.DecryptCryptoShareRequest{
-		EncryptedKey:        res.Data.EncryptedKey,
-		EncryptedPayload:    res.Data.EncryptedPayload,
-		RecipientPrivateKey: stellarAccount.PrivateKey,
-	}
-	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
-
-	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *a.Auth.TracecoreClient)
-	if err != nil {
-		return nil, err
-	}
-	a.Logger.LogPretty("App - DecryptVaultEntry - Entry Snapshot decrypted response", response)
-	// TODO decrypt attachement from the response
-	a.Logger.Info("payload hex (first 32):", hex.EncodeToString([]byte(response.Data.Payload)[:32]))
-
-	utils.LogPretty("AccessDecryptVaultEntry - BEFORE DownloadAttachment loop", "start")
-	time.Sleep(100 * time.Millisecond) // give goroutines a chance to settle
-	utils.LogPretty("AccessDecryptVaultEntry - BEGINNING DownloadAttachment loop", "entered")
-
-	// 2. Parse JSON payload into VaultNode / EntrySnapshot
-	var snapshot share_domain.EntrySnapshot
-	if err := json.Unmarshal([]byte(response.Data.Payload), &snapshot); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Payload: %w", err)
-	}
-
-	// 👇 add this
-	a.Logger.LogPretty("AccessDecryptVaultEntry - snapshot.Attachements len", len(snapshot.Attachements))
-	a.Logger.LogPretty("AccessDecryptVaultEntry - snapshot.Attachements nil?", snapshot.Attachements == nil)
-	/*
-	if len(snapshot.Attachements) == 0 {
-		snapshot.Attachements = []vaults_domain.Attachment{
-			{
-				ID:   "fake_id",
-				Hash: "QmTestCID",
-				RecipientCIDs: map[string]string{
-					stellarAccount.PublicKey: "QmTestCID",
-				},
-				Ext: "jpg",
-			},
-		}
-	}
-	
-	aesService := vault_infrastructure_crypto.AESService{}
-	a.Logger.LogPretty("AccessDecryptVaultEntry - stellarAccount", stellarAccount)
-
-	// crypto := &blockchain.CryptoService{}
-	symKey, err := aesService.DecryptPasswordWithStellarByte(
-		stellarAccount.EncNonce,
-		stellarAccount.EncPassword,
-		stellarAccount.PrivateKey,
-	)
-	if err != nil {
-		utils.LogPretty("App - DecryptVaultEntry - EncryptPasswordWithStellar failed", err)
-		return nil, err
-	}
-
-	a.Logger.LogPretty("App - DecryptVaultEntry - Entry attachments decrypting starts", len(snapshot.Attachements))
-
-	// 3. For each attachment, decrypt via its CID
-	attachments := map[string]string{} // map[attachmentID]plaintext
-	for _, att := range snapshot.Attachements {
-		a.Logger.LogPretty("App - DecryptVaultEntry - Processing attachment", att.ID)
-		cid := att.RecipientCIDs[stellarAccount.PublicKey] // the CID encrypted for this user
-		if cid == "" {
-			continue // no attachment for this user
-		}
-		a.Logger.LogPretty("App - DecryptVaultEntry - CID", cid)
-
-		// Use existing Vault.Handler path:
-		//   DownloadAttachment -> GetIPFSDataQuerryHandler.Execute -> CloudIPFSStorage.Get
-		data, err := a.Vault.DownloadAttachment(
-			context.Background(),
-			vault_ui.DownloadAttachmentRequest{
-				UserID:       claims.UserID,
-				Vault:        *vault, // or just userID+vaultName
-				CID:          cid,
-				Ext:          att.Ext,
-				Password:     "password",
-				PrivateKey:   stellarAccount.PrivateKey,
-				EncryptedKey: res.Data.EncryptedKey,
-				SymKey:       symKey,
-			},
-		)
-		if err != nil {
-			// log or continue; maybe return partial
-			continue
-		}
-		utils.LogPretty("App - DecryptVaultEntry - DownloadAttachment returned", data)
-		utils.LogPretty("App - DecryptVaultEntry - DownloadAttachment returned error", err)
-
-		attachments[att.ID] = data // Return path; Wails will open it
-	}
-	*/
-	// 3. Apply access policy from AppConfig ==============================
-	appConfig, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-	response.Data.ExpiresIn = appConfig.AccessPolicyDuration
-	utils.LogPretty("App - DecryptVaultEntry - Config", appConfig)
-	// utils.LogPretty("App - DecryptVaultEntry - Final response", response.Data)
-
-	var finalResponse tracecore_types.DecryptCryptoShareResponse
-
-	finalResponse.Payload = response.Data.Payload
-	finalResponse.ExpiresIn = response.Data.ExpiresIn + 300 // 5 minutes
-	// finalResponse.Attachments = attachments
-
-	// utils.LogPretty("AccessDecryptVaultEntry - FINAL Attachments", attachments) // <- this is your map
-
-	return &tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse]{
-		Data: finalResponse,
-	}, nil
-	// return response, nil
-}
-
-
-func (a *App) DownloadShareAttachement(req vault_dto.DownloadShareAttachmentRequest, jwtToken string) (string, error) {
-	claims, err := a.RequireAuth(jwtToken)
-	if err != nil {
-		a.Logger.Error("App - DownloadShareAttachement - error: %v", err)
-		return "", err
-	}
-	// 0. Get user config - Get stellar private key from user config ==============================
-	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
-	if err != nil {
-		return "", err
-	}
-
-	// 1. Decrypt symKey ==============================
-	stellarAccount := userConfig.StellarAccount	
-	a.Logger.LogPretty("AccessDecryptVaultEntry - stellarAccount", stellarAccount)
-
-	aesService := vault_infrastructure_crypto.AESService{}
-	symKey, err := aesService.DecryptPasswordWithStellarByte(
-		stellarAccount.EncNonce,
-		stellarAccount.EncPassword,
-		stellarAccount.PrivateKey,
-	)
-	if err != nil {
-		utils.LogPretty("App - DecryptVaultEntry - EncryptPasswordWithStellar failed", err)
-		return "", err
-	}
-
-	// 2. Get user vault ==============================
-	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
-	if err != nil {
-		utils.LogPretty("App - DownloadShareAttachement - GetVaultByName failed", err)
-		return "", err
-	}
-
-	// 3. Get app config ==============================
-	appCfg, err := a.Vault.GetAppConfig(claims.UserID)
-	if err != nil {
-		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
-	}
-
-	// 4. Download attachment ==============================
-	res, err := a.Vault.DownloadAttachment(context.Background(), vault_ui.DownloadAttachmentRequest{
-		UserID: claims.UserID,
-		Vault: *vault,
-		CID: req.AttachmentCID,
-		Ext: req.FileExtension,
-		Password: "password",
-		PrivateKey: stellarAccount.PrivateKey,
-		EncryptedKey: req.EncryptedKey,
-		SymKey: symKey,
-		AppCfg: &appCfg,
-	})
-	if err != nil {
-		a.Logger.Error("App - DownloadShareAttachement - error: %v", err)
-		return "", err
-	}
-	utils.LogPretty("App - DownloadShareAttachement - res", res)
-	return res, nil
-}
 // -----------------------------
 // Vault Crud
 // -----------------------------
@@ -1277,11 +1071,19 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 	}
 	a.Logger.LogPretty("App - SynchronizeVault - vault", vault)
 
+	// Get User onboarding ==============================
+	userOnboarding, err := a.OnBoardingHandler.UserRepo.FindByEmail(claims.Email)
+	if err != nil {
+		a.Logger.Error("App - GetConfigByUserID - error: %v", err)
+		return "", err
+	}
+
 	// Sync Vault ==============================
 	input := vault_dto.SynchronizeVaultRequest{
 		UserID:   claims.UserID,
 		Password: password,
 		Vault:    *vault,
+		UserOnboarding: userOnboarding.ID,
 	}
 	a.Vaults.Ctx = a.ctx
 
@@ -1402,6 +1204,136 @@ func (a *App) DownloadAttachment(jwtToken string, password string, cid string, e
 		Password: password,
 		Ext:      ext,
 	})
+}
+
+type DecryptCryptoShareResponse struct {
+	Payload      string            `json:"payload"`
+	ExpiresIn    int64             `json:"expires_in,omitempty"`
+	Attachments  map[string]string `json:"attachments"`
+	EncryptedKey string            `json:"encrypted_key"`
+}
+
+func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.AccessCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("userID", claims.UserID)
+
+	// 0. Get user vault ==============================
+	// vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Access encrypted entry ==============================
+	entry.IPAddress = GetLocalIP()
+	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *a.Auth.TracecoreClient)
+	if err != nil {
+		return nil, err
+	}
+	a.Logger.LogPretty("App - AccessEncryptedEntry - res", res)
+
+	// UserConfig - Get stellar private key from user config
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	// 2. Decrypt ==============================
+	stellarAccount := userConfig.StellarAccount
+	req := tracecore_types.DecryptCryptoShareRequest{
+		EncryptedKey:        res.Data.EncryptedKey,
+		EncryptedPayload:    res.Data.EncryptedPayload,
+		RecipientPrivateKey: stellarAccount.PrivateKey,
+	}
+	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
+
+	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *a.Auth.TracecoreClient)
+	if err != nil {
+		return nil, err
+	}
+	a.Logger.LogPretty("App - DecryptVaultEntry - Entry Snapshot decrypted response", response)
+	// TODO decrypt attachement from the response
+	a.Logger.Info("payload hex (first 32):", hex.EncodeToString([]byte(response.Data.Payload)[:32]))
+
+	utils.LogPretty("AccessDecryptVaultEntry - BEFORE DownloadAttachment loop", "start")
+	time.Sleep(100 * time.Millisecond) // give goroutines a chance to settle
+	utils.LogPretty("AccessDecryptVaultEntry - BEGINNING DownloadAttachment loop", "entered")
+
+	// 2. Parse JSON payload into VaultNode / EntrySnapshot
+	var snapshot share_domain.EntrySnapshot
+	if err := json.Unmarshal([]byte(response.Data.Payload), &snapshot); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal Payload: %w", err)
+	}
+
+	// 👇 add this
+	appConfig, err := a.AppConfigHandler.GetAppConfigByUserID(context.Background(), claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	response.Data.ExpiresIn = appConfig.AccessPolicyDuration
+	utils.LogPretty("App - DecryptVaultEntry - Config", appConfig)
+	// utils.LogPretty("App - DecryptVaultEntry - Final response", response.Data)
+
+	var finalResponse tracecore_types.DecryptCryptoShareResponse
+
+	finalResponse.Payload = response.Data.Payload
+	finalResponse.ExpiresIn = response.Data.ExpiresIn + 300 // 5 minutes
+	finalResponse.EncryptedKey = res.Data.EncryptedKey
+
+	return &tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse]{
+		Data: finalResponse,
+	}, nil
+}
+
+func (a *App) DownloadShareAttachement(req vault_dto.DownloadShareAttachmentRequest, jwtToken string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - DownloadShareAttachement - error: %v", err)
+		return "", err
+	}
+	// 0. Get user config - Get stellar private key from user config ==============================
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return "", err
+	}
+
+	// 1. Decrypt symKey ==============================
+	stellarAccount := userConfig.StellarAccount
+
+	
+	// 2. Get user vault ==============================
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		utils.LogPretty("App - DownloadShareAttachement - GetVaultByName failed", err)
+		return "", err
+	}
+
+	// 3. Get app config ==============================
+	appCfg, err := a.Vault.GetAppConfig(claims.UserID)
+	if err != nil {
+		return "", fmt.Errorf("❌ DownloadShareAttachement: failed to get app config %w", err)
+	}
+
+	// 4. Download attachment ==============================
+	res, err := a.Vault.DownloadAttachment(context.Background(), vault_ui.DownloadAttachmentRequest{
+		UserID:       claims.UserID,
+		Vault:        *vault,
+		CID:          req.AttachmentCID,
+		Ext:          req.FileExtension,
+		Password:     "password",
+		PrivateKey:   stellarAccount.PrivateKey,
+		EncryptedKey: req.EncryptedKey,
+		AppCfg:       &appCfg,
+		IsShared: true,
+
+	})
+	if err != nil {
+		a.Logger.Error("App - DownloadShareAttachement - error: %v", err)
+		return "", err
+	}
+	utils.LogPretty("App - DownloadShareAttachement - res", res)
+	return res, nil
 }
 
 func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8, password string) (string, error) {
@@ -1647,13 +1579,13 @@ func (a *App) GetSubscriptionFromCloud(jwtToken string, vaultName string) (*subs
 	}
 	a.Logger.LogPretty("App - GetVaultFromCloud - sub cloud", sub)
 
-	subCloud, err := a.Vault.TracecoreClient.GetSubscriptionByID(context.Background(), sub.ID)
+	res, err := a.Vault.TracecoreClient.GetSubscriptionByUserID(context.Background(), sub.UserID)
 	if err != nil {
 		a.Logger.Error("App - GetSubscriptionFromCloud - error: %v", err)
 		return nil, err
 	}
-	utils.LogPretty("App - GetSubscriptionFromCloud - response", subCloud)
-	return subCloud, nil
+	utils.LogPretty("App - GetSubscriptionFromCloud - response", res.Data)
+	return &res.Data, nil
 }
 
 // -----------------------------
@@ -2071,7 +2003,6 @@ func (a *App) GetBillingHistory(jwtToken string, limit int) (*tracecore_types.Cl
 		return nil, err
 	}
 	fmt.Println("userID", claims.UserID)
-
 	// FETCH SUBSCRIPTION
 	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
 	if err != nil {
@@ -2079,7 +2010,7 @@ func (a *App) GetBillingHistory(jwtToken string, limit int) (*tracecore_types.Cl
 		return nil, err
 	}
 
-	response, err := a.BillingHandler.GetPaymentHistory(a.ctx, sub.ID, limit)
+	response, err := a.BillingHandler.GetBillingHistoryByUserID(a.ctx, sub.UserID, limit)
 	if err != nil {
 		return nil, err
 	}

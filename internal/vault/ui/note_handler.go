@@ -2,26 +2,27 @@ package vault_ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
+
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
-	utils "vault-app/internal/utils"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
-
-	"github.com/google/uuid"
 )
 
 type NoteHandler struct {
-	db     models.DBModel
-	logger *logger.Logger
-	NowUTC func() string
-	Vault  vaults_domain.VaultPayload // just for return
-	Session *vault_session.Session
+	db              models.DBModel
+	logger          *logger.Logger
+	NowUTC          func() string
+	Vault           vaults_domain.VaultPayload // just for return
+	Session         *vault_session.Session
 	VaultRepository vaults_domain.VaultRepository
-	SyncMode bool	
+	SyncMode        bool
 }
 
 func NewNoteHandler(db models.DBModel, log *logger.Logger) *NoteHandler {
@@ -63,10 +64,10 @@ func (h *NoteHandler) Edit(userID string, entry any) (*vaults_domain.VaultPayloa
 
 	entries := h.Vault.Entries.Note
 	updated := false
-	utils.LogPretty("NoteHandler - Edit - Vault Before", h.Vault)
 	for i, entry := range entries {
 		if entry.ID == updatedEntry.ID {
 			entries[i] = *updatedEntry
+			updatedEntry.Type = vaults_domain.EntryType(strings.ToLower(string(updatedEntry.Type)))
 			updatedEntry.IsDraft = true
 			updatedEntry.IsDirty = true
 			updatedEntry.UpdatedAt = h.NowUTC()
@@ -127,7 +128,7 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 		h.logger.Error("NoteHandler - invalid type: expected NoteEntry: %v", entry)
 		return nil, fmt.Errorf("invalid type: expected NoteEntry")
 	}
-	
+
 	// 2. ---------- Update entry ----------
 	updatedEntry.IsDraft = true
 	updatedEntry.IsDirty = true
@@ -144,12 +145,12 @@ func (h *NoteHandler) EditWithAttachments(userID string, entry any, attachments 
 			return nil, err
 		}
 		entryAttachments = append(entryAttachments, vaults_domain.Attachment{
-			ID:   uuid.New().String(),
-			EntryID: updatedEntry.ID,
-			Hash: hash,
-			Name: attachment.Name,
-			Size: attachment.Size,
-			Ext: attachment.Ext,
+			ID:      uuid.New().String(),
+			FileCID: updatedEntry.ID,
+			Hash:    hash,
+			Name:    attachment.Name,
+			Size:    attachment.Size,
+			Ext:     attachment.Ext,
 		})
 		h.logger.LogPretty("✅ NoteHandler - EditWithAttachment - Attachment saved ", updatedEntry)
 	}

@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	shell "github.com/ipfs/go-ipfs-api"
+
 	app_config "vault-app/internal/config"
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
-
-	shell "github.com/ipfs/go-ipfs-api"
 )
 
 type TracecoreClt interface {
@@ -33,8 +35,8 @@ type Config struct {
 }
 
 func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvider {
+		utils.LogPretty("StorageCloud - Cloud.APIEndpoint - cfg", cfg)
 	switch cfg.StorageConfig.Mode {
-
 	case app_config.StorageCloud:
 		utils.LogPretty("StorageCloud - Cloud.APIEndpoint", cfg.StorageConfig.Cloud.BaseURL)
 		return NewCloudIPFSStorage(client, cfg.UserID, cfg.VaultName)
@@ -256,9 +258,6 @@ func (c *CloudIPFSStorage) Add(ctx context.Context, data []byte) (string, error)
 }
 
 func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) {
-	utils.LogPretty("CloudIPFSStorage - Get - userID", c.userID)
-	utils.LogPretty("CloudIPFSStorage - Get - vault", c.vault)
-	utils.LogPretty("CloudIPFSStorage - Get - cid", cid)
 	req := tracecore_types.IpfsCidRequest{
 		UserID:    c.userID,
 		VaultName: c.vault,
@@ -275,8 +274,13 @@ func (c *CloudIPFSStorage) Get(ctx context.Context, cid string) ([]byte, error) 
 	}
 	if !resp.Success {
 		utils.LogPretty("CloudIPFSStorage - Get - GetDataFromCloudStorage error", err)
-
 		return nil, fmt.Errorf("cloud error: %s", resp.Message)
+	}
+
+	// Share attachement handler fix:
+	const prefix = "data:application/octet-stream;base64,"
+	if strings.HasPrefix(resp.Data, prefix) {
+		resp.Data = resp.Data[len(prefix):]
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(resp.Data)

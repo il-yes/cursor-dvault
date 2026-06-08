@@ -11,6 +11,7 @@ import (
 	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_domain "vault-app/internal/vault/domain"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // --------------------------------------------------------------------------------------------------
@@ -51,6 +52,9 @@ func (m *fakeVaultRepoMock) SaveVault(v *vault_domain.Vault) error {
 	return nil
 }
 
+func (f *fakeVaultRepoMock) GetVaultByCID(vaultID string) (*vaults_domain.Vault, error) {
+	return f.Vault, nil
+}
 func (f *fakeVaultRepoMock) DeleteVault(string) error {
 	f.deleteCalled = true
 	return f.deleteError

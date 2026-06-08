@@ -3,6 +3,8 @@ package driver
 import (
 	"vault-app/internal/auth"
 	app_config_domain "vault-app/internal/config/domain"
+	share_entry_domain "vault-app/internal/share_entry/domain"
+	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
 
 	// auth_domain "vault-app/internal/auth/domain"
 	// auth_persistence "vault-app/internal/auth/infrastructure/persistence"
@@ -41,15 +43,21 @@ func AutoMigrate(db *gorm.DB) error {
 		&app_config_domain.DeviceConfig{},
 		&app_config_domain.VaultConfigBeta{},
 		&app_config_domain.SubscriptionConfig{},
+		&app_config_persistence.OnboardingConfigSqlDB{},
 		// &model.UserSession{},
 
 		// Auth
 		&auth.TokenPairs{},
 
-		// Sharing
+		// Sharing legacy to delete...
 		&share_infrastructure.ShareEntryModel{},
 		&share_infrastructure.RecipientModel{},
 		&share_domain.AuditLog{},
+
+		// Sharing Beta
+		&share_entry_infrastructure.ShareEntryModel{},
+		&share_entry_infrastructure.RecipientModel{},
+		&share_entry_domain.AuditLog{},
 
 		// Onboarding
 		&onboarding_persistence.UserDB{},

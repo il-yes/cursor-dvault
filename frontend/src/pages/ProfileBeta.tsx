@@ -176,7 +176,7 @@ const Profile = () => {
 
 			const buffer = await readFileAsBuffer(file);
 
-			const avatarPath = await uploadAvatar(jwtToken, vaultContext.Vault.name, buffer);
+			const avatarPath = await uploadAvatar(jwtToken, vaultContext?.Vault?.name || "", buffer);
 			console.log({ avatarPath });
 
 			// reload vaultContext

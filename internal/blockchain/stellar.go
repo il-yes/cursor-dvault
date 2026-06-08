@@ -218,6 +218,7 @@ func SubmitCID(secretKey, ipfsCID string) (string, error) {
 	utils.LogPretty("SubmitCID - acctReq", acctReq)
 	sourceAccount, err := client.AccountDetail(acctReq)
 	if err != nil {
+		utils.LogPretty("SubmitCID - err", err)
 		return "", fmt.Errorf("failed to load account: %w", err)
 	}
 

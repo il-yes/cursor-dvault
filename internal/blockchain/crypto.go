@@ -336,14 +336,11 @@ func (c *CryptoService) EncryptPayload(pub string, symKey []byte) (CryptoPayload
 	if err != nil {
 		return CryptoPayload{}, fmt.Errorf("failed to decode public key: %w", err)
 	}
-	utils.LogPretty("CryptoService - EncryptPayload - edPub", edPub)
 
 	curvePub := Ed25519PubToCurve(edPub)
-	utils.LogPretty("CryptoService - EncryptPayload - curvePub", curvePub)
 
 	encKey, err := box.SealAnonymous(nil, symKey, curvePub, rand.Reader)
 	Must(err)
-	utils.LogPretty("CryptoService - EncryptPayload - encKey", encKey)
 
 	return CryptoPayload{
 		Encrypted: encKey,

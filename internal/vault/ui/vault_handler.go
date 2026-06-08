@@ -2,26 +2,29 @@ package vault_ui
 
 import (
 	"context"
-	"log"
 	"os"
 	"path/filepath"
-	"unicode/utf8"
-
+	"strings"
 	// "encoding/base64"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gorm.io/gorm"
+
 	"vault-app/internal/blockchain"
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
-	share_domain "vault-app/internal/domain/shared"
+	identity_domain "vault-app/internal/identity/domain"
 	"vault-app/internal/logger/logger"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	"vault-app/internal/registry"
+	share_entry_domain "vault-app/internal/share_entry/domain"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
 	utils "vault-app/internal/utils"
@@ -37,10 +40,6 @@ import (
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
-
-	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"gorm.io/gorm"
 )
 
 type VaultHandler struct {
@@ -141,9 +140,9 @@ func NewVaultHandler(
 	}
 }
 
-func (vh *VaultHandler) InitializeVaultOpenedListener() {
+func (vh *VaultHandler) InitializeVaultOpenedListener(configHandler vault_commands.ApplyOnboardingPacksWorkerInterface) {
 	vh.logger.Info("Initializing vault opened listener")
-	vh.VaultOpenedListener = vault_commands.NewVaultOpenedListener(&vh.logger, vh.EventBus, vh)
+	vh.VaultOpenedListener = vault_commands.NewVaultOpenedListener(&vh.logger, vh.EventBus, vh, configHandler)
 }
 
 // -----------------------------
@@ -253,6 +252,9 @@ func (vh *VaultHandler) GetUserConfig(userID string) (app_config_domain.UserConf
 func (vh *VaultHandler) UpdateAppConfig(userID string, appCfg app_config_domain.AppConfig) (app_config_domain.AppConfig, error) {
 	return vh.SessionManager.UpdateAppConfig(userID, appCfg)
 }
+func (vh *VaultHandler) GetLatestByUserID(userID string) (*vaults_domain.Vault, error) {
+	return vh.VaultRepository.GetLatestByUserID(userID)
+}
 
 // -----------------------------
 // Vault - Crud
@@ -262,7 +264,6 @@ func (vh *VaultHandler) Open(
 	req vault_commands.OpenVaultCommand,
 	appConfigHandler vault_commands.AppConfigFacade,
 ) (*vault_commands.OpenVaultResult, error) {
-	utils.LogPretty("OpenVault - req", req)
 	if req.Session == nil {
 		vh.logger.Error("❌ OpenVault - session is required")
 		return nil, errors.New("session is required")
@@ -377,6 +378,23 @@ func (vh *VaultHandler) GetEntriesByType(userID string, entryType string) ([]vau
 
 	return vps.GetEntriesByType(entryType), nil
 }
+func (vh *VaultHandler) VaultPayloadAddEntry(req vault_dto.VaultPayloadAddEntryRequest) error {
+	// Get vault payload
+	vp, err := vh.GetVaultSession(req.UserID)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - VaultPayloadAddEntry - failed to get vault paymlad: %v", err)
+		return err
+	}
+	// Add entry
+	if err := vp.AddEntry(req.EntryType, req.Entry); err != nil {
+		vh.logger.Error("❌ VaultHandler - VaultPayloadAddEntry - failed to add entry to vp: %v", err)
+		return err
+	}
+	// Update vault payload
+	vh.SessionManager.SetVault(req.UserID, vp)
+
+	return nil
+}
 
 func (vh *VaultHandler) UpdateEntryFor(userID string, entry any, isSyncMode bool) (*vaults_domain.VaultEntry, error) {
 	if vh.UpdateEntryForFunc != nil {
@@ -388,7 +406,7 @@ func (vh *VaultHandler) UpdateEntryFor(userID string, entry any, isSyncMode bool
 		return nil, fmt.Errorf("VaultHandler - UpdateEntryFor - entry does not implement VaultEntry interface %v", entry)
 	}
 	// 1.1 ---------- Validate entry type ----------
-	entryType := ve.GetTypeName()
+	entryType := strings.ToLower(ve.GetTypeName())
 	vh.logger.Info("✅ VaultHandler - UpdateEntryFor - Updating %s entry for user %s", entryType, userID)
 	// 1.2 ---------- Get handler for entry type ----------
 	handler, err := vh.EntryRegistry.HandlerFor(entryType)
@@ -421,11 +439,78 @@ func (vh *VaultHandler) UpdateEntryFor(userID string, entry any, isSyncMode bool
 }
 func (vh *VaultHandler) UpdateEntry(userID string, entryType string, raw json.RawMessage, isSyncMode bool) (any, error) {
 	// utils.LogPretty("VaultHandler - UpdateEntry - raw", raw)
-	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
+	vh.logger.LogPretty("VaultHandler - UpdateEntryFor - entryType", []string{entryType, strings.ToLower(entryType)})
+	parsed, err := vh.EntryRegistry.UnmarshalEntry(strings.ToLower(entryType), raw)
 	if err != nil {
 		return nil, fmt.Errorf("VaultHandler - UpdateEntryFor - failed to parse entry: %w", err)
 	}
 	return vh.UpdateEntryFor(userID, parsed, isSyncMode)
+}
+
+// TODO: replaced by AddAttachments()
+func (vh *VaultHandler) UpdateEntryWithAttachments(userID string, entryType string, raw json.RawMessage, vaultName string, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
+	parsed, err := vh.EntryRegistry.UnmarshalEntry(strings.ToLower(entryType), raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse entry: %w", err)
+	}
+	return vh.UpdateEntryWithAttachmentsFor(userID, parsed, attachments)
+}
+func (vh *VaultHandler) UpdateEntryWithAttachmentsFor(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
+	vh.logger.Info("✅ Updating entry for user %s", userID)
+	ve, ok := entry.(vaults_domain.VaultEntry)
+	if !ok {
+		return nil, fmt.Errorf("entry does not implement VaultEntry interface %v", entry)
+	}
+	// 1.1 ---------- Validate entry type ----------
+	entryType := ve.GetTypeName()
+	vh.logger.Info("✅ Updating %s entry for user %s", entryType, userID)
+	// 1.2 ---------- Get handler for entry type ----------
+	handler, err := vh.EntryRegistry.HandlerFor(entryType)
+	if err != nil {
+		return nil, err
+	}
+	// 1.3 ---------- Get session ----------
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return nil, err
+	}
+	handler.SetSession(session)
+	handler.SetVaultRepository(vh.VaultRepository)
+	vh.logger.Info("VaultHandler - UpdateEntryWithAttachmentFor - session Before", session.Dirty)
+	// 1.4 ---------- Update entry ----------
+	vaultSessionWithUpdatedEntry, err := handler.EditWithAttachments(userID, entry, attachments)
+	if err != nil {
+		return nil, err
+	}
+	// 1.5 ---------- Update session ----------
+	vh.SessionManager.SetVault(userID, vaultSessionWithUpdatedEntry)
+	vh.logger.Info("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
+	// 1.6 ---------- Mark session as dirty ----------
+	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
+	// Fires vault stores Edit entry event
+	vh.SessionManager.MarkDirty(userID)
+
+	v, _ := vh.VaultRepository.GetVault(session.Runtime.VaultID)
+	utils.LogPretty("VaultHandler - UpdateEntryFor - vault", v)
+
+	return &ve, nil
+}
+
+func (vh *VaultHandler) UpdateAttachment(ctx context.Context, userID string, attachment vaults_domain.Attachment) (*vaults_domain.Attachment, error) {
+	session, err := vh.GetSession(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	vp, err := vault_session.DecodeSessionVault(session.Vault)
+	if err != nil {
+		return nil, err
+	}
+
+	vpUpdated := vp.UpdateAttachment(attachment)
+	vh.SessionManager.SetVault(session.UserID, &vpUpdated)
+
+	return &attachment, nil
 }
 func (vh *VaultHandler) TrashEntryFor(userID string, entry any) error {
 	// 1. ---------- Validate entry type ----------
@@ -515,6 +600,7 @@ func (vh *VaultHandler) CreateFolder(userID string, name string) (*vaults_domain
 		CreatedAt: time.Now().Format(time.RFC3339),
 		UpdatedAt: time.Now().Format(time.RFC3339),
 		IsDraft:   false,
+		IsDirty: true,
 	}
 	// 1.2 ---------- Save folder ----------
 	if err := vh.FolderRepository.SaveFolder(folder); err != nil {
@@ -660,6 +746,8 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 }
 
 func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.SynchronizeVaultRequest, tc tracecore.TracecoreClient) (string, error) {
+	// 0. Initialisation - Guard
+	// ========================================================================================================
 	vh.logger.Info("🔄 Starting vault sync for UserID: %s", input.UserID)
 	if ctx == nil {
 		vh.logger.Error("❌ SyncVault aborted: ctx is nil")
@@ -668,8 +756,10 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	userID := input.UserID
 	password := input.Password
 
-	// 1. ---------- Get session ----------
+	// 1. Get session
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 10, "stage": "retrieving session"})
+
 	vh.logger.Info("🔄 SyncVault - Retrieving session for UserID: %s", userID)
 	session, err := vh.GetSession(userID)
 	if err != nil {
@@ -677,53 +767,58 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 	}
 	vh.logger.Info("🔄 SyncVault - Session retrieved for UserID: %s", userID)
 
-	// 2. ---------- Marshal vault ----------
+	// 2. Marshal vault
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 20, "stage": "marshalling vault"})
+
 	vaultBytes, err := json.Marshal(session.Vault)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - marshal failed: %w", err)
 	}
 
-	// 3. ---------- Encrypt vault ----------
+	// 3. Encrypt vault
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 40, "stage": "encrypting vault"})
+
 	encrypted, err := blockchain.Encrypt(vaultBytes, password)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - encryption failed: %w", err)
 	}
 	fmt.Print(encrypted)
 
-	// 4. ---------- Upload to IPFS ----------
+	// 4. Upload to IPFS
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 70, "stage": "uploading to IPFS"})
-	appCfg, err := vh.GetAppConfig(input.UserID)
-	if err != nil {
-		return "", fmt.Errorf("SyncVault - failed to get app config: %w", err)
-	}
 
-	newCID, entryUpdates, _, _, err := vh.CommitVault(appCfg, input.Vault.UserSubscriptionID, input.Vault.Name, input.Password, *session)
+	newCID, entryUpdates, _, _, err := vh.CommitVault(input, *session)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - IPFS upload failed: %w", err)
 	}
 	vh.logger.LogPretty("SyncVault - CommitVault - newCid", newCID)
 	vh.logger.LogPretty("SyncVault - CommitVault - entryUpdates", entryUpdates)
 
-	// 5. ---------- Submit to Stellar ----------
+	// 5. Submit to Stellar
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 90, "stage": "submitting to Stellar"})
-	userCfg := session.Runtime.UserConfig
 
+	userCfg := session.Runtime.UserConfig
 	txHash, err := blockchain.SubmitCID(userCfg.StellarAccount.PrivateKey, newCID)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - stellar submission failed: %w", err)
 	}
 	vh.logger.Info("🔄 SyncVault - Vault submitted to Stellar - txHash: %s", txHash)
 
-	// 6. ---------- Create new vault ----------
+	// 6. Create new vault
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 95, "stage": "saving metadata"})
+
 	currentMeta, err := vh.VaultRepository.GetLatestByUserID(userID)
 	if err != nil {
 		return "", fmt.Errorf("SyncVault - failed to get vault meta: %w", err)
 	}
 
 	newVault := vaults_domain.Vault{
+		ID:        currentMeta.ID,
 		Name:      currentMeta.Name,
 		Type:      currentMeta.Type,
 		UserID:    userID,
@@ -732,58 +827,183 @@ func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.Synchroni
 		CreatedAt: vh.NowUTC(),
 		UpdatedAt: vh.NowUTC(),
 	}
-	saved := vh.VaultRepository.UpdateVault(&newVault)
-	vh.logger.Info("💾 Vault saved for user %s: %v", userID, saved)
+	errUpdate := vh.VaultRepository.UpdateVault(&newVault)
+	if errUpdate != nil {
+		return "", fmt.Errorf("SyncVault - vault update failed: %w", err)
+	}
+	vh.logger.Info("💾 Vault saved for user %s", userID)
 
-	// 7. ---------- Update session ----------
+	// 7. Update session
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "progress-update", map[string]interface{}{"percent": 100, "stage": "complete"})
 
 	vh.SessionManager.Sync(userID, newCID)
-	vaultPayload, err := vault_session.DecodeSessionVault(vaultBytes)
+	vaultPayload, err := vh.GetVaultPayload(session)
 	if err != nil {
-		return "", fmt.Errorf("SyncVault - failed to decode session vault: %w", err)
+		return "", fmt.Errorf("SyncVault - failed to decode vault payload: %w", err)
 	}
 	vh.SessionManager.SetVault(userID, vaultPayload)
 	vh.logger.Info("✅ Vault sync complete for user %s", userID)
 
-	// 8. ---------- Emit event ----------
+	// 8. Emit event
+	// ========================================================================================================
 	runtime.EventsEmit(ctx, "vault-synced", map[string]interface{}{"userID": userID, "newCID": newCID})
-
-	// 9. ---------- Fires vault stores Sync event ----------
 
 	return newCID, nil
 }
 func (vh *VaultHandler) CommitVault(
-	appCfg app_config_domain.AppConfig,
-	userID string,
-	vaultName string,
-	userPassword string,
+	input vault_dto.SynchronizeVaultRequest,
 	session vault_session.Session,
 ) (string, []vaults_service.EntryUpdate, int, int, error) {
-	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+	// 0. Initialisation - Guard
+	// ========================================================================================================
+	// vaultCtx := app_config_domain.VaultContext{
+	// 	Configs:            input.Configs,
+	// 	UserID:             input.UserID,
+	// 	VaultName:          input.Vault.Name,
+	// 	StorageConfig:      input.Configs.App.Storage,
+	// 	UserOnboarding:     input.UserOnboarding,
+	// 	UserSubscriptionID: input.Configs.Subscription.UserID,
+	// }
+	// utils.LogPretty("VaultHandler - CommitVault - vaultCtx", vaultCtx)
 
-	vaultCtx := app_config_domain.VaultContext{
-		AppConfig:     appCfg,
-		UserID:        userID,
-		VaultName:     vaultName,
-		StorageConfig: appCfg.Storage,
+	// service := vaults_service.NewVaultServiceReal(
+	// 	vh,
+	// 	&vaults_service.AESEncryptor{},
+	// 	*vh.CreateIPFSPayloadCommandHandler,
+	// 	vh.VaultRepository,
+	// 	vh.SessionManager.SessionRepository,
+	// 	vaultCtx,
+	// )
+	// service.Password = input.Password
+
+	service, err := vh.PrepareCommit(vault_dto.PrepareCommitRequest{
+		UserID:         input.UserID,
+		Password:       input.Password,
+		Vault:          input.Vault,
+		UserIdentity:   input.UserIdentity,
+		UserOnboarding: input.UserOnboarding,
+		Configs:        input.Configs,
+		PrivateKey:     input.PrivateKey,
+	}, session)
+	if err != nil {
+
 	}
 
+	mode := vaults_service.IncrementalSync
+
+	// 1. Commit
+	// ========================================================================================================
+	return service.CommitVault(session, mode)
+}
+func (vh *VaultHandler) CommitAttachments(
+	input vault_dto.SynchronizeAttachmentRequest,
+) (string, error) {
+	// Get Vault
+	session, err := vh.GetSession(input.UserID)
+	if err != nil {
+		return "", err
+	}
+	vault := input.Vault
+	vp, err := vault_session.DecodeSessionVault(session.Vault)
+	if err != nil {
+		return "", err
+	}
+
+	// Get vault node from ipfs
+	// 1. IPFS READ Operation
+	// ========================================================================================================
+	ipfsOperation, err := vh.GetIPFSDataQuerryHandler.Execute(
+		context.Background(),
+		vault_queries.GetIPFSDataQuerry{
+			CID:              vault.CID,
+			Password:         input.Password,
+			Configs:          input.Configs,
+			UserID:           input.UserID,
+			VaultName:        vault.Name,
+			UserOnboardingID: input.Configs.Onboarding.UserID, // TODO: use real userID instead of eq.Configs.App.Branch
+			PrivateKey:       input.PrivateKey,
+		},
+	)
+	// vh.logger.LogPretty("VaultHandler - DownloadAttachment - GetIPFSDataQuerryHandler result", ipfsOperation)
+	if err != nil {
+		vh.logger.LogPretty("❌ VaultHandler - DownloadAttachment - GetIPFSDataQuerryHandler error", err)
+		return "", fmt.Errorf("DownloadAttachment: failed to get IPFS data: %w", err)
+	}
+
+	if ipfsOperation == nil {
+		return "", fmt.Errorf("DownloadAttachment: query result is nil")
+	}
+
+	if ipfsOperation.Node.Version == "" {
+		return "", fmt.Errorf("DownloadAttachment: empty Raw data from IPFS query")
+	}
+	vaultNode := ipfsOperation.Node
+
+	// 1. Commit & Save
+	// ========================================================================================================
+	service, err := vh.PrepareCommit(vault_dto.PrepareCommitRequest{
+		UserID:         input.UserID,
+		Password:       input.Password,
+		Vault:          input.Vault,
+		UserIdentity:   input.UserIdentity,
+		UserOnboarding: input.UserOnboarding,
+		Configs:        input.Configs,
+		PrivateKey:     input.PrivateKey,
+	}, *session)
+	if err != nil {
+		return "", fmt.Errorf("DownloadAttachment: query result is nil")
+	}
+	mode := vaults_service.IncrementalSync
+
+	vaultRootCID, _, _, _, err := service.CommitAttachments(
+		*session,
+		*vp,
+		mode,
+		vaultNode.Folders.CID,
+		vaultNode.Entries.CID,
+		vaultNode.Index.CID,
+		[]vaults_service.EntryUpdate{},
+	)
+
+	// Update vault session
+	vh.SessionManager.Sync(input.UserID, vaultRootCID)
+	vh.SessionManager.SetVault(input.UserID, vp)
+	vh.logger.Info("✅ Vault sync complete for user %s", input.UserID)
+
+	return "", nil
+
+}
+func (vh *VaultHandler) PrepareCommit(
+	input vault_dto.PrepareCommitRequest,
+	session vault_session.Session,
+) (*vaults_service.VaultService, error) {
+	vaultCtx := app_config_domain.VaultContext{
+		Configs:            input.Configs,
+		UserID:             input.UserID,
+		VaultName:          input.Vault.Name,
+		StorageConfig:      input.Configs.App.Storage,
+		UserOnboarding:     input.UserOnboarding,
+		UserSubscriptionID: input.Configs.Subscription.UserID,
+	}
+	utils.LogPretty("VaultHandler - CommitVault - vaultCtx", vaultCtx)
+
 	service := vaults_service.NewVaultServiceReal(
+		vh,
 		&vaults_service.AESEncryptor{},
 		*vh.CreateIPFSPayloadCommandHandler,
 		vh.VaultRepository,
 		vh.SessionManager.SessionRepository,
 		vaultCtx,
 	)
-	service.Password = userPassword
+	service.Password = input.Password
 
-	mode := vaults_service.IncrementalSync
-
-	return service.CommitVault(session, mode)
+	return service, nil
 }
 
+func (vh *VaultHandler) GetVaultPayload(session *vault_session.Session) (*vaults_domain.VaultPayload, error) {
+	return vault_session.DecodeSessionVault([]byte(session.Vault))
+}
 func (vh *VaultHandler) GetVault(userID string, vaultName string) (*vaults_domain.Vault, error) {
 	// Get vault
 	vault, err := vh.VaultRepository.GetByUserIDAndName(userID, vaultName)
@@ -866,51 +1086,68 @@ type UploadAttachRequest struct {
 	Password           string
 	EncryptionMode     string
 	SymKey             []byte
+	Configs            app_config_domain.Config
+	UserOnboarding     string
 }
 
 func (vh *VaultHandler) UploadAttachementToIPFSWithEncryption(
 	userID string,
 	ur UploadAttachRequest,
 ) (string, error) {
-	appCfg, err := vh.GetAppConfig(userID)
-	if err != nil {
-		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption: failed to get app config %w", err)
+	// 0. Initialisation - Guard
+	// ========================================================================================================
+	if ur.UserOnboarding == "" {
+		vh.logger.LogPretty("VaultHandler - UploadAttachementToIPFSWithEncryption - error", "UserOnboarding is nil")
 	}
 
-	vc := app_config_domain.VaultContext{
-		AppConfig:     appCfg,
-		StorageConfig: appCfg.Storage,
-		UserID:        ur.UserSubscriptionID, // Should not be the userSubscription but the userIdentity for UploadAttachementToIPFSWithEncryption
-		VaultName:     ur.VaultName,
-	}
-	vault, err := vh.GetVault(appCfg.UserID, ur.VaultName)
+	vault, err := vh.GetVault(ur.Configs.App.UserID, ur.VaultName)
 	if err != nil {
 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption: failed to get vault: %w", err)
+	}
+	if vault == nil {
+		vh.logger.LogPretty("VaultHandler - UploadAttachementToIPFSWithEncryption - error", "vault is nil")
 	}
 	if ur.EncryptionMode != "" {
 		vh.CreateIPFSPayloadCommandHandler.EncryptionMode = ur.EncryptionMode // for sharing encryption
 	}
+	if ur.UserSubscriptionID == "" {
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption: UserSubscriptionID is empty: ", ur.UserSubscriptionID)
+	}
+	vh.logger.Info("VaultHandler - UploadAttachementToIPFSWithEncryption - vault ok")
 
-	// 3. Store ENCRYPTED bytes on IPFS
+	vc := app_config_domain.VaultContext{
+		Configs:            ur.Configs,
+		StorageConfig:      ur.Configs.App.Storage,
+		UserID:             userID, // Should not be the userSubscription but the userIdentity for UploadAttachementToIPFSWithEncryption
+		VaultName:          ur.VaultName,
+		UserSubscriptionID: ur.UserSubscriptionID,
+		UserOnboarding:     ur.UserOnboarding,
+	}
+
+	// 1. Store on IPFS ENCRYPTED bytes
+	// ========================================================================================================
 	result, err := vh.CreateIPFSPayloadCommandHandler.Execute(
 		context.Background(),
 		vc,
 		vault_commands.CreateIPFSPayloadCommand{
-			Vault:    vault,
-			Password: "password",
-			Data:     ur.Data,
-			ShareKey: ur.SymKey,
+			Vault:            vault,
+			Password:         "password",
+			Data:             ur.Data,
+			ShareKey:         ur.SymKey,
+			UserOnboardingID: ur.UserOnboarding,
+			UserID: userID,
+
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to upload to IPFS: %w", err)
+		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFSWithEncryption: failed to upload to IPFS: %w", err)
 	}
 
 	vh.logger.Info("📤 VaultHandler - UploadAttachementToIPFSWithEncryption: Attachment uploaded to IPFS (CID: %s)", result.CID)
 	return result.CID, nil
 }
 
-func (vh *VaultHandler) AddAttachement(ctx context.Context, req vault_dto.AddAttachementRequest) (string, error) {
+func (vh *VaultHandler) AddAttachement_ALPHA(ctx context.Context, req vault_dto.AddAttachementRequest) (string, error) {
 	// Get session
 	session, err := vh.GetSession(req.UserID)
 	if err != nil {
@@ -918,49 +1155,114 @@ func (vh *VaultHandler) AddAttachement(ctx context.Context, req vault_dto.AddAtt
 	}
 	vh.logger.Info(session.LastCID)
 
-	// Upload
-	upload, err := vh.UploadAttachementToIPFSWithEncryption(req.UserID, UploadAttachRequest{
-		Data:               req.Data,
-		UserSubscriptionID: req.UserSubscriptionID,
-		VaultName:          req.VaultName,
-		Password:           req.Password,
-	})
+	// // Download
+	// cid, err := vh.DownloadAttachment(context.Background(), DownloadAttachmentRequest{})
 
-	// Fetch entry
-	return upload, nil
+	// // Add attachment
+	// vaultPayload, err := vault_session.DecodeSessionVault(session.Vault)
+	// vaultPayload.AddEntryAttachment(req.EntryID, req.Attachment)
+
+	// // Fetch entry
+	// return upload, nil
+	return "", nil
+
+}
+func (vh *VaultHandler) AddAttachement(ctx context.Context, req vault_dto.AddAttachementRequest) (*vaults_domain.Attachment, error) {
+	// 1. Get session
+	// ====================================================================================================
+	session, err := vh.GetSession(req.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("❌ VaultHandler - AddAttachement: failed to get session: %w", err)
+	}
+
+	// 2. Download
+	// ====================================================================================================
+	hash, err := vh.SaveAttachment(req.UserID, session.Runtime.VaultID, req.Data)
+
+	// 3. Create attachment
+	// ====================================================================================================
+	att := vaults_domain.NewAttachment(
+		"",
+		"",
+		hash,
+		req.Name,
+		req.Size,
+		req.Ext,
+	)
+
+	// 4. Create attachment Node
+	// ====================================================================================================
+	vaultCtx := app_config_domain.VaultContext{
+		Configs:            req.Configs,
+		UserID:             req.UserID,
+		VaultName:          req.VaultName,
+		StorageConfig:      req.Configs.App.Storage,
+		UserOnboarding:     req.UserOnboardingID,
+		UserSubscriptionID: req.Configs.Subscription.UserID,
+	}
+
+	// Dry-Run for saving local first - no ipfs
+	service := vaults_service.NewVaultServiceDryRun(
+		vh.VaultRepository,
+		vh.SessionManager.SessionRepository,
+		&vaults_service.AESEncryptor{},
+		vaultCtx,
+		vh.CreateIPFSPayloadCommandHandler,
+	)
+	service.Password = req.Password
+
+	attachmentNodeLink, err := service.GetAttachmentNodeLink(*att)
+	att.NodeCID = attachmentNodeLink.CID
+
+	// vh.logger.LogPretty("VaultHandler - SaveAttachment: attachmentNodeLink", attachmentNodeLink)
+
+	// 5. Add attachment to session
+	// ====================================================================================================
+	vaultPayload, err := vault_session.DecodeSessionVault(session.Vault)
+	vaultPayload.AddEntryAttachment(req.EntryID, *att)
+	vh.SessionManager.SetVault(req.UserID, vaultPayload)
+
+	return att, nil
+}
+
+func (h *VaultHandler) SaveAttachment(userID string, vaultID string, data []byte) (string, error) {
+	// Get vault
+	vault, err := h.VaultRepository.GetVault(vaultID)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - SaveAttachment: failed to get vault for user %s: %w", userID, err)
+	}
+	h.logger.Info("✅ VaultHandler - SaveAttachment: vault retrieved for user %s", userID)
+
+	// Get vault attachement path
+	vaultPath := vault.GetVaultAttachmentPath()
+	h.logger.Info("✅ VaultHandler - SaveAttachment: vault path: %s", vaultPath)
+
+	// Create attachment store
+	attachmentStore := vaults_storage.NewAttachmentStore(vaultPath)
+	h.logger.Info("✅ VaultHandler - SaveAttachment: attachment store created")
+
+	// Save attachment on disk
+	hash, err := attachmentStore.Save(data)
+	if err != nil {
+		return "", fmt.Errorf("❌ VaultHandler - SaveAttachment: failed to save attachment: %w", err)
+	}
+	h.logger.Info("✅ VaultHandler - SaveAttachment: attachment saved")
+
+	return hash, nil
 
 }
 func (vh *VaultHandler) UploadAttachementToIPFS(userID string, ur UploadAttachRequest) (string, error) {
-	appCfg, err := vh.GetAppConfig(userID)
-	if err != nil {
-		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
-	}
 
-	/* -----------------------------
-	// 1. LOAD TRACECORE CLIENT
-	// ------------------------------------------------------------
-	// utils.LogPretty("StoreOnIpfs - appCFG", req.AppCfg)
-	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
-
-	// ------------------------------------------------------------
-	// 2. LOAD STORAGE PROVIDER
-	// ------------------------------------------------------------
-	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
-		StorageConfig: appCfg.Storage,
-		UserID:        ur.UserSubscriptionID,
-		VaultName:     ur.VaultName,
-	}, tracecoreClient)
-	vh.CreateIPFSPayloadCommandHandler.SetIpfsService(storageProvider)
-	*/
 	// ------------------------------------------------------------
 	// 3. GET IPFS CID
 	// ------------------------------------------------------------
 	vc := app_config_domain.VaultContext{
-		AppConfig:     appCfg,
-		StorageConfig: appCfg.Storage,
+		Configs:       ur.Configs,
+		StorageConfig: ur.Configs.App.Storage,
 		UserID:        ur.UserSubscriptionID,
 		VaultName:     ur.VaultName,
+		UserOnboarding: ur.UserOnboarding,
+		UserSubscriptionID: ur.UserSubscriptionID,
 	}
 	vault, err := vh.GetVault(userID, ur.VaultName)
 	if err != nil {
@@ -976,6 +1278,8 @@ func (vh *VaultHandler) UploadAttachementToIPFS(userID string, ur UploadAttachRe
 			Vault:    vault,
 			Password: "password",
 			Data:     ur.Data,
+			UserID: userID,
+			UserOnboardingID: ur.UserOnboarding,
 		},
 	)
 	// newCID, err := vh.IPFS.Add(context.Background(), encrypted)
@@ -1070,7 +1374,7 @@ func (vh *VaultHandler) LoadAvatar(userID string, vaultName string) (string, err
 
 	return avatar, nil
 }
-func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash string) (string, error) {
+func (vh *VaultHandler) LoadAttachment_ALPHA(userID string, vaultName string, hash string) (string, error) {
 	// Get vault
 	vault, err := vh.VaultRepository.GetByUserIDAndName(userID, vaultName)
 	if err != nil {
@@ -1088,15 +1392,85 @@ func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash str
 	// vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment store created")
 
 	// Load attachment
-	attachment, err := attachmentStore.LoadBase64(hash)
+	attachmentHash, err := attachmentStore.LoadBase64(hash)
 	if err != nil {
 		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
 		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
 	}
 	vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment loaded")
 
-	return attachment, nil
+	return attachmentHash, nil
 }
+
+func (vh *VaultHandler) LoadAttachment(userID string, vaultName string, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error) {
+	// Get vault
+	vault, err := vh.VaultRepository.GetByUserIDAndName(userID, vaultName)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to get vault for user %s: %w", userID, err)
+		return nil, fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to get vault for user %s: %w", userID, err)
+	}
+	// vh.logger.Info("✅ VaultHandler - LoadAttachments: vault retrieved for user %s", userID)
+
+	// Get vault attachement path
+	vaultPath := vault.GetVaultAttachmentPath()
+	vh.logger.Info("✅ VaultHandler - LoadAttachments: vault path: %s", vaultPath)
+
+	// Create attachment store
+	attachmentStore := vaults_storage.NewAttachmentStore(vaultPath)
+	// vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment store created")
+
+
+
+	// Load attachment
+	var file []byte
+	var hashPath string
+
+	if formatReturned == "string" {
+		hashPath, err = vh.LoadAttachmentToString(userID, vaultName, hash, *attachmentStore)
+		if err != nil {
+			vh.logger.Error("❌ VaultHandler - LoadAttachment: failed to get attachment path hash %s: %w", userID, err)
+			return nil, fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to get attachment path hash %s: %w", userID, err)
+		}
+
+	} else {
+		file, err = vh.LoadAttachmentToBytes(userID, vaultName, hash, *attachmentStore)
+		if err != nil {
+			vh.logger.Error("❌ VaultHandler - LoadAttachment: failed to get attachment file %s: %w", userID, err)
+			return nil, fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to get attachment file %s: %w", userID, err)
+		}
+
+	}
+
+	return &vaults_service.LoadAttachmentResponse{
+		File: file,
+		Hash: hashPath,
+	}, nil
+}
+func (vh *VaultHandler) LoadAttachmentToBytes(userID string, vaultName string, hash string, attachmentStore vaults_storage.AttachmentStore) ([]byte, error) {
+	vh.logger.LogPretty("VaultHandler - LoadAttachmentToBytes -  Args", []string{userID, vaultName, hash, attachmentStore.Root})
+
+	// Load attachment
+	attachmentFile, err := attachmentStore.Load(hash)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
+		return nil, fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
+	}
+	vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment loaded")
+
+	return attachmentFile, nil
+}
+func (vh *VaultHandler) LoadAttachmentToString(userID string, vaultName string, hash string, attachmentStore vaults_storage.AttachmentStore) (string, error) {
+	// Load attachment
+	attachmentHash, err := attachmentStore.LoadBase64(hash)
+	if err != nil {
+		vh.logger.Error("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
+		return "", fmt.Errorf("❌ VaultHandler - LoadAttachments: failed to load attachment: %w", err)
+	}
+	vh.logger.Info("✅ VaultHandler - LoadAttachments: attachment loaded")
+
+	return attachmentHash, nil
+}
+
 func (vh *VaultHandler) EncryptAttachment(data []byte, password string) ([]byte, error) {
 	return blockchain.Encrypt(data, password)
 }
@@ -1105,54 +1479,6 @@ func (vh *VaultHandler) DecryptAttachment(data []byte, password string) ([]byte,
 }
 func (vh *VaultHandler) DecryptAttachmentBase64(data string, password string) ([]byte, error) {
 	return blockchain.Decrypt([]byte(data), password)
-}
-func (vh *VaultHandler) UpdateEntryWithAttachments(userID string, entryType string, raw json.RawMessage, vaultName string, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
-	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse entry: %w", err)
-	}
-	return vh.UpdateEntryWithAttachmentsFor(userID, parsed, attachments)
-}
-
-func (vh *VaultHandler) UpdateEntryWithAttachmentsFor(userID string, entry any, attachments []vault_dto.SelectedAttachment) (*vaults_domain.VaultEntry, error) {
-	vh.logger.Info("✅ Updating entry for user %s", userID)
-	ve, ok := entry.(vaults_domain.VaultEntry)
-	if !ok {
-		return nil, fmt.Errorf("entry does not implement VaultEntry interface %v", entry)
-	}
-	// 1.1 ---------- Validate entry type ----------
-	entryType := ve.GetTypeName()
-	vh.logger.Info("✅ Updating %s entry for user %s", entryType, userID)
-	// 1.2 ---------- Get handler for entry type ----------
-	handler, err := vh.EntryRegistry.HandlerFor(entryType)
-	if err != nil {
-		return nil, err
-	}
-	// 1.3 ---------- Get session ----------
-	session, err := vh.GetSession(userID)
-	if err != nil {
-		return nil, err
-	}
-	handler.SetSession(session)
-	handler.SetVaultRepository(vh.VaultRepository)
-	vh.logger.Info("VaultHandler - UpdateEntryWithAttachmentFor - session Before", session.Dirty)
-	// 1.4 ---------- Update entry ----------
-	vaultSessionWithUpdatedEntry, err := handler.EditWithAttachments(userID, entry, attachments)
-	if err != nil {
-		return nil, err
-	}
-	// 1.5 ---------- Update session ----------
-	vh.SessionManager.SetVault(userID, vaultSessionWithUpdatedEntry)
-	vh.logger.Info("VaultHandler - UpdateEntryFor - vaultSessionWithUpdatedEntry", vaultSessionWithUpdatedEntry)
-	// 1.6 ---------- Mark session as dirty ----------
-	vh.logger.Info("✅ Updated %s entry for user %s", entryType, userID)
-	// Fires vault stores Edit entry event
-	vh.SessionManager.MarkDirty(userID)
-
-	v, _ := vh.VaultRepository.GetVault(session.Runtime.VaultID)
-	utils.LogPretty("VaultHandler - UpdateEntryFor - vault", v)
-
-	return &ve, nil
 }
 
 func (vh *VaultHandler) CheckEmail(email string) (*tracecore_types.User, error) {
@@ -1183,57 +1509,49 @@ type GetIPFSFileRequest struct {
 	Password string
 }
 
-func (vh *VaultHandler) GetIPFSFile(req GetIPFSFileRequest) ([]byte, error) {
+func (vh *VaultHandler) GetIPFSFile(req vault_queries.GetIPFSDataQuerry) ([]byte, error) {
 	appCfg, err := vh.GetAppConfig(req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
 	}
 
 	tracecoreClient := tracecore.NewTracecoreFromConfig(&appCfg, "token")
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - tracecoreClient init baseurl", tracecoreClient.BaseURL)
-
-	// ------------------------------------------------------------
-	// 2. LOAD STORAGE PROVIDER
-	// ------------------------------------------------------------
-	storageProvider := blockchain.NewStorageProvider(blockchain.Config{
-		StorageConfig: appCfg.Storage,
-		UserID:        req.Vault.UserSubscriptionID,
-		VaultName:     req.Vault.Name,
-	}, tracecoreClient)
-	vh.GetIPFSDataQuerryHandler.SetIpfsService(storageProvider)
+	utils.LogPretty("VaultHandler - GetIPFSFile - tracecoreClient init baseurl", tracecoreClient.BaseURL)
+	utils.LogPretty("VaultHandler - GetIPFSFile - req", req)
 
 	// ------------------------------------------------------------
 	// 3. GET FROM IPFS
 	// ------------------------------------------------------------
-	rawBytes, err := vh.GetIPFSDataQuerryHandler.GetFromIpfs(context.Background(), vault_queries.GetIPFSDataQuerry{
-		CID: req.Vault.CID,
-	})
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - GetFromIpfs - rawBytes", rawBytes)
+	res, err := vh.GetIPFSDataQuerryHandler.Execute(context.Background(), req)
+	vh.logger.Info("VaultHandler - GetIPFSFile - rawBytes ok")
 
 	// ------------------------------------------------------------
 	// 4. DECRYPT
 	// ------------------------------------------------------------
-	// Must be valid Base64 string
-	if !utf8.Valid(rawBytes) {
-		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - GetFromIpfs - invalid UTF‑8 in base64 input")
-	}
+	// // Must be valid Base64 string
+	// if !utf8.Valid(res.Raw) {
+	// 	return nil, fmt.Errorf("VaultHandler - GetFromIpfs - invalid UTF‑8 in base64 input")
+	// }
+	// vh.logger.Info("VaultHandler - GetIPFSFile - rawBytes utf8.Valid ok")
 
-	// 3. Decode Base64 → binary (salt + nonce + ciphertext)
-	decoded, err := base64.StdEncoding.DecodeString(string(rawBytes))
-	if err != nil {
-		return nil, fmt.Errorf("❌ CreateIPFSPayloadCommandHandler - GetFromIpfs - base64 decode failed: %w", err)
-	}
-	if vh.CryptoService == nil {
-		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - GetFromIpfs - CryptoService is nil")
-	}
+	// // 3. Decode Base64 → binary (salt + nonce + ciphertext)
+	// decoded, err := base64.StdEncoding.DecodeString(string(res.Raw))
+	// if err != nil {
+	// 	return nil, fmt.Errorf("❌ VaultHandler - GetFromIpfs - base64 decode failed: %w", err)
+	// }
+	// vh.logger.Info("VaultHandler - GetIPFSFile - decoded ok")
+	// if vh.CryptoService == nil {
+	// 	return nil, fmt.Errorf("VaultHandler - GetFromIpfs - CryptoService is nil")
+	// }
+	// vh.logger.Info("VaultHandler - GetIPFSFile - CryptoService ok")
 
-	// 4. Decrypt binary data
-	plain, err := vh.CryptoService.Decrypt(decoded, req.Password)
-	if err != nil {
-		return nil, fmt.Errorf("❌ decryption failed: %w", err)
-	}
+	// // 4. Decrypt binary data
+	// plain, err := vh.CryptoService.Decrypt(decoded, req.Password)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("❌ decryption failed: %w", err)
+	// }
 
-	return plain, nil
+	return res.Raw, nil
 }
 
 type DownloadAttachmentRequest struct {
@@ -1245,29 +1563,20 @@ type DownloadAttachmentRequest struct {
 	PrivateKey   string
 	EncryptedKey string
 	SymKey       []byte
-	AppCfg       *app_config_domain.AppConfig
+	Configs      *app_config_domain.Config
+	IsShared     bool
 }
 type SymKeyDecryptor interface {
 	DecryptPasswordWithStellarByte(encNonce, encPassword, privateKey string) ([]byte, error)
 }
 
+// From IPFS
 func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAttachmentRequest) (string, error) {
+	// 0. Initialisation - Guard
+	// ========================================================================================================
+	if !req.IsShared {
+		kr, err := vh.KeyringService.LoadHybrid(req.Configs.App.Branch, req.Password, "") // TODO: use real userID instead of eq.Configs.App.Branch
 
-	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - STARTED", req.CID)
-	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", req)
-	// var appCfg app_config_domain.AppConfig
-	// if req.AppCfg == nil {
-	// 	appCfg, errr  = vh.GetAppConfig(req.UserID)
-	// 	if errr != nil {
-	// 		return "", fmt.Errorf("❌ VaultHandler - UploadAttachementToIPFS: failed to get app config %w", err)
-	// 	}
-	// }
-
-	// var kr *vaults_domain.VaultKeyring
-
-	if req.SymKey == nil {
-		kr, err := vh.KeyringService.LoadHybrid(req.AppCfg.Branch, req.Password, "")
-	
 		if kr == nil || err != nil {
 			// Log more context here
 			utils.LogPretty("DownloadAttachment: keyring loading failed", err)
@@ -1275,45 +1584,45 @@ func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAtta
 		}
 	}
 
-	// ... use kr to decrypt / prepare for IPFS; if that fails, return error,
-	// do not continue to os.WriteFile with nil Raw.
-
 	// Sharing case
-	if req.SymKey != nil {
+	if req.IsShared {
 		utils.LogPretty("DownloadAttachment: detecting sharing scenario running", req.PrivateKey)
 		vh.GetIPFSDataQuerryHandler.EncryptionMode = vault_commands.PUBLIC_MODE // for sharing encryption
 	}
 
-	result, err := vh.GetIPFSDataQuerryHandler.Execute(
+	// 1. IPFS READ Operation
+	// ========================================================================================================
+	ipfsOperation, err := vh.GetIPFSDataQuerryHandler.Execute(
 		context.Background(),
 		vault_queries.GetIPFSDataQuerry{
 			CID:              req.CID,
 			Password:         req.Password,
-			AppCfg:           *req.AppCfg,
+			Configs:          *req.Configs,
 			UserID:           req.UserID,
 			VaultName:        req.Vault.Name,
-			UserOnboardingID: req.AppCfg.Branch,
+			UserOnboardingID: req.Configs.App.Branch, // TODO: use real userID instead of eq.Configs.App.Branch
 			PrivateKey:       req.PrivateKey,
 			EncryptedKey:     req.EncryptedKey,
 			SymKey:           req.SymKey,
 		},
 	)
-	vh.logger.LogPretty("VaultHandler - DownloadAttachment - GetIPFSDataQuerryHandler result", result)
+	// vh.logger.LogPretty("VaultHandler - DownloadAttachment - GetIPFSDataQuerryHandler result", ipfsOperation)
 	if err != nil {
 		vh.logger.LogPretty("❌ VaultHandler - DownloadAttachment - GetIPFSDataQuerryHandler error", err)
 		return "", fmt.Errorf("DownloadAttachment: failed to get IPFS data: %w", err)
 	}
 
-	if result == nil {
+	if ipfsOperation == nil {
 		return "", fmt.Errorf("DownloadAttachment: query result is nil")
 	}
 
-	if len(result.Raw) == 0 {
+	if len(ipfsOperation.Raw) == 0 {
 		return "", fmt.Errorf("DownloadAttachment: empty Raw data from IPFS query")
 	}
 
-	// 2. Write to Downloads (or other safe dir)
-	// Use something like: ~/Downloads/VaultCore/attachments/
+	// 3. Write to Downloads (or other safe dir) - Use something like: ~/Downloads/VaultCore/attachments/
+	// TODO/ move to vaults_storage.AttachmentStore
+	// ========================================================================================================
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -1330,45 +1639,48 @@ func (vh *VaultHandler) DownloadAttachment(ctx context.Context, req DownloadAtta
 	path := filepath.Join(destDir, filename)
 	vh.logger.Info("VaultHandler - DownloadAttachment - path : ", path)
 
-	if err := os.WriteFile(path, result.Raw, 0o600); err != nil {
+	if err := os.WriteFile(path, ipfsOperation.Raw, 0o600); err != nil {
 		vh.logger.LogPretty("❌ VaultHandler - DownloadAttachment: failed to write file %w", err)
 		return "", err
 	}
 
-	//4. Return path; Wails will open it
 	return path, nil
 
 }
 
-func (vh *VaultHandler) HandleShareCreated(ctx context.Context, evt share_domain.ShareCreated) error {
-	// get vault session
-	vps, err := vh.GetVaultSession(evt.OwnerID)
+func (vh *VaultHandler) HandleShareCreated(
+	ctx context.Context,
+	shareEvent share_entry_domain.ShareCreated,
+	identityUser identity_domain.User,
+	vault vaults_domain.Vault,
+	appConfigs app_config_domain.Config,
+) error {
+	session, err := vh.GetSession(shareEvent.OwnerID)
 	if err != nil {
 		return err
 	}
-	// get entry
-	entry := vps.GetEntry(evt.EntryType, evt.EntryName)
 
-	for i, attId := range evt.AttachementIDs {
-		err := vps.UpdateEntryAttachment(
-			entry.GetId(),
-			attId,
-			func(att *vaults_domain.Attachment) error {
-				att.HashShare = evt.CIDs[i]
-				return nil
-			},
-		)
-		if err != nil {
-			log.Printf("could not update attachment: %v", err)
-		}
-
+	vp, err := vault_session.DecodeSessionVault(session.Vault)
+	if err != nil {
+		return err
 	}
-	utils.LogPretty("VaultHandler - HandleShareCreated - entry", entry)
 
-	// update entry
-	isSyncMode := false
-	ve, err := vh.UpdateEntryFor(evt.OwnerID, entry, isSyncMode)
-	utils.LogPretty("VaultHandler - HandleShareCreated - entry updated", ve)
+	for _, att := range shareEvent.Attachements {
+		vp.UpdateAttachment(att)
+	}
 
-	return nil
+	vh.SessionManager.SetVault(shareEvent.OwnerID, vp)
+
+
+	_, err = vh.CommitAttachments(vault_dto.SynchronizeAttachmentRequest{
+		UserID: shareEvent.OwnerID,
+		Password: "password",
+		Vault: vault,
+		UserIdentity: identityUser,
+		UserOnboarding: appConfigs.Onboarding.UserID,
+		Configs: appConfigs,
+		PrivateKey: appConfigs.User.StellarAccount.PrivateKey,
+	})
+
+	return err
 }

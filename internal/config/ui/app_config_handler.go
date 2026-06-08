@@ -3,32 +3,41 @@ package app_config_ui
 import (
 	"context"
 	"errors"
+
+	"gorm.io/gorm"
+
 	app_config "vault-app/internal/config"
 	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_dto "vault-app/internal/config/application/dto"
+	app_config_worker "vault-app/internal/config/application/worker"
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/utils"
+	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
+	subscription_domain "vault-app/internal/subscription/domain"
 	vaults_domain "vault-app/internal/vault/domain"
-
-	"gorm.io/gorm"
+	vault_ui "vault-app/internal/vault/ui"
 )
 
 type AppConfigHandler struct {
-	DB                        *gorm.DB
-	CreateAppConfigCommand    *app_config_commands.CreateAppConfigCommand
-	CreateUserConfigCommand   *app_config_commands.CreateUserConfigCommand
-	CreateVaultConfigCommand  *app_config_commands.CreateVaultConfigCommand
-	CreateDeviceConfigCommand *app_config_commands.CreateDeviceConfigCommand
+	DB                              *gorm.DB
+	CreateAppConfigCommand          *app_config_commands.CreateAppConfigCommand
+	CreateUserConfigCommand         *app_config_commands.CreateUserConfigCommand
+	CreateVaultConfigCommand        *app_config_commands.CreateVaultConfigCommand
+	CreateDeviceConfigCommand       *app_config_commands.CreateDeviceConfigCommand
 	CreateSubscriptionConfigCommand *app_config_commands.CreateSubscriptionConfigCommand
-	UpdateVaultConfigCommand *app_config_commands.UpdateVaultConfigCommand
-	AppConfigRepository          app_config_domain.AppConfigRepository
-	UserConfigRepository         app_config_domain.UserConfigRepository
-	VaultConfigRepository        app_config_domain.VaultConfigRepository
-	DeviceConfigRepository       app_config_domain.DeviceConfigRepository
-	SubscriptionConfigRepository app_config_domain.SubscriptionConfigRepository
-	Logger                       logger.Logger
+	CreateOnboardingCommandHandler  *app_config_commands.CreateOnboardingCommandHandler
+	UpdateVaultConfigCommand        *app_config_commands.UpdateVaultConfigCommand
+	AppConfigRepository             app_config_domain.AppConfigRepository
+	UserConfigRepository            app_config_domain.UserConfigRepository
+	VaultConfigRepository           app_config_domain.VaultConfigRepository
+	DeviceConfigRepository          app_config_domain.DeviceConfigRepository
+	SubscriptionConfigRepository    app_config_domain.SubscriptionConfigRepository
+	Logger                          logger.Logger
+	VaultHandler                    *vault_ui.VaultHandler
+	OnboardingConfigRepository      app_config_domain.OnboardingConfigRepository
+	ApplyOnboardingPacksWorker      *app_config_worker.ApplyOnboardingPacksWorker
+	OnboardingHandler               onboarding_ui_wails.OnBoardingHandler
 }
 
 func NewAppConfigHandler(
@@ -40,28 +49,32 @@ func NewAppConfigHandler(
 	vaultConfigRepository := app_config_persistence.NewGormVaultConfigRepository(DB)
 	deviceConfigRepository := app_config_persistence.NewGormDeviceConfigRepository(DB)
 	subscriptionConfigRepository := app_config_persistence.NewGormSubscriptionConfigRepository(DB)
+	onboardingConfigRepository := app_config_persistence.NewGormOnboardingConfigRepo(DB)
 
 	createAppConfigCommand := app_config_commands.NewCreateAppConfigCommand(appConfigRepository)
 	createUserConfigCommand := app_config_commands.NewCreateUserConfigCommand(userConfigRepository)
 	createVaultConfigCommand := app_config_commands.NewCreateVaultConfigCommand(vaultConfigRepository)
 	createDeviceConfigCommand := app_config_commands.NewCreateDeviceConfigCommand(deviceConfigRepository)
 	createSubscriptionConfigCommand := app_config_commands.NewCreateSubscriptionConfigCommand(subscriptionConfigRepository)
+	createOnboardingCommandHandler := app_config_commands.NewCreateOnboardingCommandHandler(onboardingConfigRepository)
 	updateVaultConfigCommand := app_config_commands.NewUpdateVaultConfigCommand(vaultConfigRepository, createVaultConfigCommand, &Logger)
 
 	return &AppConfigHandler{
-		DB:                        DB,
-		CreateAppConfigCommand:    createAppConfigCommand,
-		CreateUserConfigCommand:   createUserConfigCommand,
-		CreateVaultConfigCommand:  createVaultConfigCommand,
-		CreateDeviceConfigCommand: createDeviceConfigCommand,
+		DB:                              DB,
+		CreateAppConfigCommand:          createAppConfigCommand,
+		CreateUserConfigCommand:         createUserConfigCommand,
+		CreateVaultConfigCommand:        createVaultConfigCommand,
+		CreateDeviceConfigCommand:       createDeviceConfigCommand,
 		CreateSubscriptionConfigCommand: createSubscriptionConfigCommand,
-		UpdateVaultConfigCommand: updateVaultConfigCommand,
-		AppConfigRepository:          appConfigRepository,
-		UserConfigRepository:         userConfigRepository,
-		VaultConfigRepository:        vaultConfigRepository,
-		DeviceConfigRepository:       deviceConfigRepository,
-		SubscriptionConfigRepository: subscriptionConfigRepository,
-		Logger:                       Logger,
+		UpdateVaultConfigCommand:        updateVaultConfigCommand,
+		AppConfigRepository:             appConfigRepository,
+		UserConfigRepository:            userConfigRepository,
+		VaultConfigRepository:           vaultConfigRepository,
+		DeviceConfigRepository:          deviceConfigRepository,
+		SubscriptionConfigRepository:    subscriptionConfigRepository,
+		Logger:                          Logger,
+		OnboardingConfigRepository:      onboardingConfigRepository,
+		CreateOnboardingCommandHandler:  createOnboardingCommandHandler,
 	}
 }
 
@@ -122,6 +135,11 @@ func (vh *AppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigComman
 	if err != nil {
 		return nil, err
 	}
+
+	if err := vh.CreateOnboardingCommandHandler.Handle(&input.Configs.Onboarding); err != nil {
+		return nil, err
+	}
+
 	return &app_config_dto.CreateConfigCommandOutput{
 		Configs: app_config_domain.Config{
 			App:          appConfigOutput.AppConfig,
@@ -134,37 +152,82 @@ func (vh *AppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigComman
 }
 
 // -------- GETTERS --------
-func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault) (*app_config_domain.Config, error) {
+func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, sub *subscription_domain.Subscription) (*app_config_domain.Config, error) {
 	vh.Logger.Info("AppConfigHandler: GetConfig - userID: %s, vaultName: %s", userID, vault.Name)
+
 	appConfig, err := vh.GetAppConfigByUserID(context.Background(), userID)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get app config: %v", err)
 	}
-	utils.LogPretty("AppConfigHandler: GetConfig - appConfig", appConfig)
 	userConfig, err := vh.GetUserConfigByUserID(userID)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get user config: %v", err)
 	}
-	utils.LogPretty("AppConfigHandler: GetConfig - userConfig", userConfig)
 	vaultConfig, err := vh.GetVaultConfigByUserID(userID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get vault config: %v", err)
 	}
-	utils.LogPretty("AppConfigHandler: GetConfig - vaultConfig", vaultConfig)
-	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(appConfig.Branch, vault.Name)
+	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", appConfig)
+	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", userConfig)
+
+	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(sub.UserID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get subscription config: %v", err)
 	}
+	// utils.LogPretty("AppConfigHandler: GetConfig - subscriptionConfig", subscriptionConfig)
 	deviceConfigs, err := vh.GetDeviceConfigsByUserID(userID, vault.Name)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get device configs: %v", err)
 	}
-	utils.LogPretty("AppConfigHandler: GetConfig - deviceConfigs", deviceConfigs)
+	if vh.VaultHandler == nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - vaultHandler is nil: %v", err)
+	}
+
+	session, err := vh.VaultHandler.GetSession(userID)
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get device configs: %v", err)
+	}
+
+	vh.Logger.LogPretty("AppConfigHandler: GetConfig - session", session)
+
+	// vh.Logger.LogPretty("AppConfigHandler: GetConfig - AppConfig.Branch", session.Runtime.AppConfig.Branch)
+
+	// Get User Oboarding
+	var opt map[string]interface{}
+	userOnboarding, err := vh.OnboardingHandler.UserRepo.FindByEmail(userConfig.Email)
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get userOnboarding: %v", err)
+	}
+	// Get User Oboarding-Config
+	onboardingConfig, err := vh.GetOnboardingConfigByUserID(context.Background(), userOnboarding.ID, opt)
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get onboarding configs: %v", err)
+	}
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - no onboarding configs ", "create a new one....")
+		defaultConfig, err := app_config_domain.InitConfigFromVault(session.Runtime.AppConfig.Branch, vault.Name)
+		defaultConfig.Onboarding.Packs = []string{"pack.client_data"}
+		defaultConfig.Onboarding.UseCases = []string{"Personal Backups"}
+		if err != nil {
+			vh.Logger.Error("AppConfigHandler: GetConfig - Failed to init onboarding configs: %v", err)
+		}
+		vh.Logger.LogPretty("AppConfigHandler: GetConfig - onboarding configs created:", defaultConfig.Onboarding)
+		onboardingConfig = &defaultConfig.Onboarding
+
+		if err := vh.CreateOnboardingCommandHandler.Handle(onboardingConfig); err != nil {
+			vh.Logger.Error("AppConfigHandler: GetConfig - Failed to create onboarding configs: %v", err)
+		}
+	}
+	vh.Logger.LogPretty("AppConfigHandler: GetConfig - onboardingConfig", onboardingConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - subscriptionConfig: %v", subscriptionConfig)
-	// vh.Logger.Info("AppConfigHandler: GetConfig - deviceConfigs: %v", deviceConfigs)
+	check, err := vh.GetOnboardingConfigByUserID(context.Background(), session.Runtime.AppConfig.Branch, opt)
+	if err != nil {
+		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to check onboarding configs: %v", err)
+	}
+	vh.Logger.Info("AppConfigHandler: GetConfig - onboardingConfig checked:", check)
 
 	return &app_config_domain.Config{
 		App:          appConfig,
@@ -172,6 +235,7 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault) 
 		Vaults:       vaultConfig,
 		Subscription: &subscriptionConfig,
 		Devices:      deviceConfigs,
+		Onboarding:   *onboardingConfig,
 	}, nil
 }
 
@@ -257,6 +321,21 @@ func (vh *AppConfigHandler) GetSubscriptionConfigByUserID(userID string, vaultNa
 	return subscriptionConfig, nil
 }
 
+func (vh *AppConfigHandler) GetOnboardingConfigByUserID(ctx context.Context, userID string, optDB map[string]interface{}) (*app_config_domain.OnboardingConfig, error) {
+	if userID == "" {
+		return nil, errors.New("user id is required")
+	}
+	if vh.OnboardingConfigRepository == nil {
+		return nil, errors.New("onboarding config repository is required")
+	}
+	onboardingConfig, err := vh.OnboardingConfigRepository.FindByUserID(userID, optDB)
+	if err != nil {
+		vh.Logger.LogPretty("AppConfigHandler - GetOnboardingConfigByUserID - failed to find onboardingConfig", err)
+		return nil, err
+	}
+	return onboardingConfig, nil
+}
+
 // -------- UPDATERS --------
 
 func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settings *app_config_dto.Settings) error {
@@ -268,7 +347,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 		}
 
 		userCfg.UI = app_config_domain.UIConfig{
-			Theme: settings.UI.Theme,
+			Theme:             settings.UI.Theme,
 			AnimationsEnabled: settings.UI.AnimationsEnabled,
 		}
 		// vh.Logger.LogPretty("userCfg", userCfg)
@@ -277,9 +356,9 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			return err
 		}
 	}
-	
+
 	// vh.UpdateVaultConfigCommand.CreateIfNotExists(&settings.Vaults)
-	
+
 	existingVaultCfg, err := vh.GetVaultConfigByUserID(userID, vaultName)
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to get vault config: %v", err)
@@ -323,6 +402,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 		}
 	}
 	vh.Logger.Info("settings.Device passed....")
+
 	existingSub, err := vh.GetSubscriptionConfigByUserID(userID, vaultName)
 	if err != nil {
 		vh.Logger.Info("AppConfigHandler: OnChangingSettings - subscription config not found")
@@ -336,7 +416,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to create subscription config: %v", output.Error)
 			return output.Error
 		}
-		vh.Logger.LogPretty("AppConfigHandler: OnChangingSettings - subscriptionCfg created", output.SubscriptionConfig)
+		// vh.Logger.LogPretty("AppConfigHandler: OnChangingSettings - subscriptionCfg created", output.SubscriptionConfig)
 	} else {
 		vh.Logger.Info("AppConfigHandler: OnChangingSettings - subscription config found => update")
 		if err := vh.UpdateSubscriptionConfig(existingSub.ID, settings.Subscription); err != nil {
@@ -347,7 +427,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 	vh.Logger.Info("settings.Subscription passed....")
 
 	if settings.Storage != nil {
-		vh.Logger.LogPretty("settings storage", settings.Storage)
+		// vh.Logger.LogPretty("settings storage", settings.Storage)
 		appCfg, err := vh.GetAppConfigByUserID(context.Background(), userID)
 		if err != nil {
 			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to get app config: %v", err)
@@ -359,15 +439,33 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 			appCfg.Storage.LocalIPFS.GatewayURL = app_config_domain.DefaultStorageConfig().LocalIPFS.GatewayURL
 		}
 		if settings.Storage.Mode == app_config.StorageCloud {
-			appCfg.Storage.Cloud.BaseURL = app_config_domain.DefaultStorageConfig().Cloud.BaseURL	
+			appCfg.Storage.Cloud.BaseURL = app_config_domain.DefaultStorageConfig().Cloud.BaseURL
 		}
 		if err := vh.UpdateAppConfig(appCfg); err != nil {
-			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update app config: %v", err)
+			vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update Storage config: %v", err)
 			return err
 		}
-		vh.Logger.LogPretty("appCfg storage", appCfg.Storage)
+		// vh.Logger.LogPretty("appCfg storage", appCfg.Storage)
 	}
 	vh.Logger.Info("settings.Storage passed....")
+
+	var opt map[string]interface{}
+	onboardingCfg := app_config_domain.NewOnboardingConfig(
+		settings.Onboarding.UserID,
+		settings.Onboarding.Packs,
+		settings.Onboarding.UseCases,
+		settings.Onboarding.InstalledSeeds,
+		settings.Onboarding.Completed,
+		settings.Onboarding.PacksApplied,
+	)
+
+	if err := vh.UpdateOnboardingConfig(settings.Onboarding.UserID, &onboardingCfg, opt); err != nil {
+		vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update Onboarding config: %v", err)
+		return err
+	}
+	// vh.Logger.LogPretty("AppConfigHandler: OnChangingSettings - onboardingCfg updated", onboardingCfg)
+
+	vh.Logger.Info("settings.Onboarding passed....")
 
 	return nil
 }
@@ -401,6 +499,13 @@ func (vh *AppConfigHandler) UpdateDeviceConfigs(id string, deviceConfigs *app_co
 	return nil
 }
 
+func (vh *AppConfigHandler) UpdateOnboardingConfig(id string, onboardingConfig *app_config_domain.OnboardingConfig, opts map[string]interface{}) error {
+	if err := vh.OnboardingConfigRepository.Update(id, onboardingConfig, opts); err != nil {
+		return err
+	}
+	return nil
+}
+
 // -------- EVENT HANDLERS --------
 func (vh *AppConfigHandler) OnGenerateApiKey(userID string, stellarAccount *app_config_domain.StellarAccountConfig) (*app_config_domain.UserConfig, error) {
 	userConfig, err := vh.GetUserConfigByUserID(userID)
@@ -411,4 +516,18 @@ func (vh *AppConfigHandler) OnGenerateApiKey(userID string, stellarAccount *app_
 	userConfig.OnGenerateApiKey(stellarAccount)
 
 	return userConfig, vh.UpdateUserConfig(userConfig)
+}
+
+func (vh *AppConfigHandler) OnApplyOnboardingPacks(userID string, vaultName string, userOnboardingID string) {
+	if vh.ApplyOnboardingPacksWorker == nil {
+		return
+	}
+	go vh.ApplyOnboardingPacksWorker.HandleOnboardingCompleted(context.Background(), userID, vaultName, userOnboardingID)
+}
+
+func (vh *AppConfigHandler) SetVaultHandler(handler vault_ui.VaultHandler) {
+	vh.VaultHandler = &handler
+}
+func (vh *AppConfigHandler) SetOnboardingHandler(handler onboarding_ui_wails.OnBoardingHandler) {
+	vh.OnboardingHandler = handler
 }

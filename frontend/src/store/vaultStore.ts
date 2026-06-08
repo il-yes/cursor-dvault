@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { VaultContext, VaultEntry } from '@/types/vault';
+import { ENTRY_TYPES, VaultContext, VaultEntry } from '@/types/vault';
 import { CreateLinkShareEntryPayload, CreateShareEntryPayload, LinkShareEntry, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 import * as AppAPI from "../../wailsjs/go/main/App";
@@ -63,9 +63,11 @@ interface VaultStoreState {
 
   addEntry: (entry: VaultEntry) => Promise<void>;
   updateEntry: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
-  updateEntryAttachements: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
-  
   deleteEntry: (entryId: string) => Promise<void>;
+
+  updateEntryAttachments: (entryId: string, updates: Partial<VaultEntry>) => Promise<void>;
+  deleteEntryAttachment: (entryId: string, cidsToDelete: string[]) => Promise<void>;
+
   restoreEntry: (entryId: string) => Promise<void>;
 
   addFolder: (name: string) => Promise<void>;
@@ -554,33 +556,88 @@ export const useVaultStore = create<VaultStoreState>()(
           };
         });
       },
-      updateEntryAttachements: async (entryId: string, updates: Partial<VaultEntry>) => {
+      // updateEntryAttachements: async (entryId: string, updates: Partial<VaultEntry>) => {
+      //   useVaultStore.setState((state) => {
+      //     if (!state.vault) return state;
+
+      //     const newEntries: any = {};
+      //     let updated = false;
+
+      //     for (const type of Object.keys(state.vault.Vault.entries)) {
+      //       const entries = state.vault.Vault.entries[type];
+      //       if (!entries) continue; // <-- safeguard for null/undefined
+      //       newEntries[type] = entries.map((e) =>
+      //         e.id === entryId
+      //           ? ((updated = true), { ...e, ...updates, updated_at: new Date().toISOString() })
+      //           : e
+      //       );
+      //     }
+
+      //     if (!updated) return state;
+
+      //     state.vault.Dirty = true;
+
+      //     return {
+      //       vault: {
+      //         ...state.vault,
+      //         Vault: {
+      //           ...state.vault.Vault,
+      //           entries: newEntries,
+      //         },
+      //       },
+      //       lastSyncTime: new Date().toISOString(),
+      //     };
+      //   });
+      // },
+
+
+      updateEntryAttachments: async (entryId: string, updates: Partial<VaultEntry>) => {
         useVaultStore.setState((state) => {
           if (!state.vault) return state;
 
-          const newEntries: any = {};
+          const newEntries: typeof state.vault.Vault.entries = {
+            ...state.vault.Vault.entries,
+          };
+
+          updates.attachmentCIDs
+
           let updated = false;
 
-          for (const type of Object.keys(state.vault.Vault.entries)) {
+          for (const type of ENTRY_TYPES) {
             const entries = state.vault.Vault.entries[type];
-            if (!entries) continue; // <-- safeguard for null/undefined
-            newEntries[type] = entries.map((e) =>
-              e.id === entryId
-                ? ((updated = true), { ...e, ...updates, updated_at: new Date().toISOString() })
-                : e
-            );
+            if (!entries) continue;
+
+            newEntries[type] = entries.map((e) => {
+              if (e.id === entryId) {
+                updated = true;
+                console.log("🚀 ~ updateEntryAttachments ~ e.attachmentCIDs - before:", e.attachmentCIDs)
+                const newAttachmentCIDs = [...(e.attachmentCIDs || []), ...(updates.attachmentCIDs || [])];
+                console.log("🚀 ~ updateEntryAttachments ~ e.attachmentCIDs - after:", newAttachmentCIDs)
+                console.log("🚀 ~ updateEntryAttachments ~ updates.attachmentCIDs - after:", updates.attachmentCIDs)
+
+                return {
+                  ...e,
+                  ...updates,
+                  updated_at: new Date().toISOString(),
+                  attachmentCIDs: newAttachmentCIDs ?? [],
+                }
+              }
+
+              return e
+            });
           }
 
           if (!updated) return state;
 
-          state.vault.Dirty = true;
-
           return {
+            ...state,
             vault: {
               ...state.vault,
+              Dirty: true,
               Vault: {
                 ...state.vault.Vault,
                 entries: newEntries,
+                attachments: [...(state.vault?.Vault?.attachments || []), ...(updates?.attachments || [])],
               },
             },
             lastSyncTime: new Date().toISOString(),
@@ -588,6 +645,56 @@ export const useVaultStore = create<VaultStoreState>()(
         });
       },
 
+      deleteEntryAttachment: async (entryId: string, cidsToDelete: string[]) => {
+        useVaultStore.setState((state) => {
+          if (!state.vault) return state;
+
+          const newEntries = { ...state.vault.Vault.entries };
+
+          let updated = false;
+
+          for (const type of ENTRY_TYPES) {
+            const entries = state.vault.Vault.entries[type];
+            if (!entries) continue;
+
+            newEntries[type] = entries.map((e) => {
+              if (e.id !== entryId) return e;
+
+              updated = true;
+
+              const nextAttachmentCIDs = (e.attachmentCIDs ?? []).filter(
+                (cid) => !cidsToDelete.includes(cid)
+              );
+
+              return {
+                ...e,
+                updated_at: new Date().toISOString(),
+                attachmentCIDs: nextAttachmentCIDs,
+              };
+            });
+          }
+
+          if (!updated) return state;
+
+          const nextAttachments = (state.vault.Vault.attachments ?? []).filter(
+            (att) => !cidsToDelete.includes(att.node_cid)
+          );
+
+          return {
+            ...state,
+            vault: {
+              ...state.vault,
+              Dirty: true,
+              Vault: {
+                ...state.vault.Vault,
+                entries: newEntries,
+                attachments: nextAttachments,
+              },
+            },
+            lastSyncTime: new Date().toISOString(),
+          };
+        });
+      },
 
       deleteEntry: async (entryId: string) => {
         await get().updateEntry(entryId, { trashed: true });

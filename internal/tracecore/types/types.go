@@ -164,6 +164,7 @@ type DecryptCryptoShareResponse struct {
 	Payload     string            `json:"payload"` // decrypted vault payload
 	ExpiresIn   int64             `json:"expires_in,omitempty"`
 	Attachments map[string]string `json:"attachments"` // map[attachmentID]CID (cloud‑only)
+	EncryptedKey     string            `json:"encrypted_key,omitempty"`
 }
 type AddPublicKeyToCustomerRequest struct {
 	PublicKey string `json:"public_key"`

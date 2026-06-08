@@ -74,17 +74,18 @@ const AccessSecurityView = () => {
     setIsLoading(false);
   }, []);
 
-//   useEffect(() => {
-//     fetchSecurityStats();
-    
-//     // Poll every 30s for real-time security updates
-//     const interval = setInterval(fetchSecurityStats, 30000);
-//     return () => clearInterval(interval);
-//   }, [fetchSecurityStats]);
+  useEffect(() => {
+    fetchSecurityStats();
+
+    // Poll every 30s for real-time security updates
+    const interval = setInterval(fetchSecurityStats, 30000);
+    return () => clearInterval(interval);
+  }, [fetchSecurityStats]);
+
 
   if (isLoading) {
     return (
-      <Section className="security-section">
+      <div className="security-section">
         <div className="section-header">
           <span className="icon">🔐</span>
           <h2>Access Security</h2>
@@ -93,24 +94,24 @@ const AccessSecurityView = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
           <span className="ml-2 text-sm text-muted-foreground">Loading security status...</span>
         </div>
-      </Section>
+      </div>
     );
   }
 
+
   return (
-    <Section className="security-section">
+    <div className="security-section">
       <div className="section-header">
         <span className="icon">🔐</span>
         <h2>Access Security</h2>
-        <div className={`ml-auto px-3 py-1 rounded-full text-xs font-medium ${
-          isWailsReady 
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+        <div className={`ml-auto px-3 py-1 rounded-full text-xs font-medium ${isWailsReady
+            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
             : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-        }`}>
+          }`}>
           {isWailsReady ? '✅ Live Data' : '🔧 Mock Mode'}
         </div>
       </div>
-      
+
       <ul className="status-list">
         {/* MFA Status */}
         <li className={`status-item ${stats.mfaEnabled ? 'success' : 'warning'}`}>
@@ -119,7 +120,7 @@ const AccessSecurityView = () => {
             MFA (Multi-Factor Authentication) {stats.mfaEnabled ? 'enabled' : 'disabled'}
           </span>
           {!stats.mfaEnabled && (
-            <button 
+            <button
               className="action-btn"
               onClick={() => window.location.href = '/dashboard/settings'}
             >
@@ -144,7 +145,7 @@ const AccessSecurityView = () => {
             Recovery phrase {stats.recoveryBackedUp ? 'backed up' : 'not backed up'}
           </span>
           {!stats.recoveryBackedUp && (
-            <button 
+            <button
               className="action-btn warning"
               onClick={() => window.location.href = '/dashboard/settings'}
             >
@@ -153,7 +154,7 @@ const AccessSecurityView = () => {
           )}
         </li>
       </ul>
-    </Section>
+    </div>
   );
 };
 

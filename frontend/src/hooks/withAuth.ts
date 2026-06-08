@@ -2,7 +2,7 @@ import { auth } from "wailsjs/go/models";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { useAuthStore } from "@/store/useAuthStore";
 
-export async function withAuth<T>(
+export async function withAuth_ALPHA<T>(
   call: (jwtToken: string) => Promise<T>
 ): Promise<T> {
   const auth = useAuthStore.getState();
@@ -45,6 +45,39 @@ export async function withAuth<T>(
     auth.setRefreshToken(newAccessToken.refresh_token);
 
     // 🔁 Retry with fresh token
+    return await call(newAccessToken.access_token);
+  }
+}
+
+export async function withAuth<T>(
+  call: (jwtToken: string) => Promise<T>
+): Promise<T> {
+  const auth = useAuthStore.getState();
+
+  if (!auth.jwtToken) {
+    throw new Error("Not authenticated");
+  }
+
+  try {
+    return await call(auth.jwtToken);
+  } catch (err: any) {
+    const errorString = String(err?.message || err?.error || err || "");
+
+    if (!errorString.includes("expired token")) {
+      throw err;
+    }
+
+    const latestAuth = useAuthStore.getState();
+    if (!latestAuth.refreshToken || !latestAuth.user?.id) {
+      latestAuth.clearAll();
+      throw new Error("Session expired, please log in again");
+    }
+
+    const newAccessToken = await AppAPI.RefreshToken(latestAuth.user.id);
+
+    latestAuth.setJwtToken(newAccessToken.access_token);
+    latestAuth.setRefreshToken(newAccessToken.refresh_token);
+
     return await call(newAccessToken.access_token);
   }
 }

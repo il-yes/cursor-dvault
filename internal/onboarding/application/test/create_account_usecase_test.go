@@ -189,6 +189,14 @@ func (m *mockCrypto) DecryptSymKey(data []byte, key []byte) ([]byte, error) {
 	return data[len(key):], nil
 }
 
+func (m *mockCrypto) DecryptPasswordWithStellar(enc []byte, stellarSecret string) ([]byte, error) {
+	return m.DecryptSymKey(enc, []byte(stellarSecret))
+}
+
+
+func(m *mockCrypto) AsymetricDecrypt(privateKey string, encryptedKey string) ([]byte, error) {
+	return nil, nil
+}
 
 
 // ============= MockKeyEnc =======================================================

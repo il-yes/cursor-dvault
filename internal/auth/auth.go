@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"vault-app/internal/utils"
 
 	"github.com/golang-jwt/jwt/v4"
 )
@@ -88,6 +89,7 @@ func (j *Auth) GenerateTokenPair(user *JwtUser) (TokenPairs, error) {
 }
 
 func (j *Auth) VerifyToken(tokenStr string) (*Claims, error) {
+    utils.LogPretty("Auth - VerifyToken - tokenStr", tokenStr)    
     claims := &Claims{}
 
     token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {

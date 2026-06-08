@@ -510,6 +510,28 @@ export namespace app_config_domain {
 	}
 	
 	
+	export class OnboardingConfig {
+	    user_id: string;
+	    packs: string[];
+	    use_cases: string[];
+	    installed_seeds: string[];
+	    completed: boolean;
+	    packs_applied: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new OnboardingConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user_id = source["user_id"];
+	        this.packs = source["packs"];
+	        this.use_cases = source["use_cases"];
+	        this.installed_seeds = source["installed_seeds"];
+	        this.completed = source["completed"];
+	        this.packs_applied = source["packs_applied"];
+	    }
+	}
 	export class DeviceConfig {
 	    id: string;
 	    user_id: string;
@@ -532,24 +554,6 @@ export namespace app_config_domain {
 	        this.device_name = source["device_name"];
 	        this.trusted = source["trusted"];
 	        this.last_sync = source["last_sync"];
-	    }
-	}
-	export class OnboardingConfig {
-	    packs: string[];
-	    use_cases: string[];
-	    installed_templates: string[];
-	    completed: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new OnboardingConfig(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.packs = source["packs"];
-	        this.use_cases = source["use_cases"];
-	        this.installed_templates = source["installed_templates"];
-	        this.completed = source["completed"];
 	    }
 	}
 	export class SharingPolicy {
@@ -646,7 +650,6 @@ export namespace app_config_domain {
 	    privacy: PrivacyConfig;
 	    security: SecurityConfig;
 	    sharing: SharingPolicy;
-	    onboarding: OnboardingConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new VaultConfigBeta(source);
@@ -663,7 +666,6 @@ export namespace app_config_domain {
 	        this.privacy = this.convertValues(source["privacy"], PrivacyConfig);
 	        this.security = this.convertValues(source["security"], SecurityConfig);
 	        this.sharing = this.convertValues(source["sharing"], SharingPolicy);
-	        this.onboarding = this.convertValues(source["onboarding"], OnboardingConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -818,6 +820,7 @@ export namespace app_config_domain {
 	}
 	export class UserConfig {
 	    id: string;
+	    email?: string;
 	    role: string;
 	    signature: string;
 	    connected_orgs: string[];
@@ -833,6 +836,7 @@ export namespace app_config_domain {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
+	        this.email = source["email"];
 	        this.role = source["role"];
 	        this.signature = source["signature"];
 	        this.connected_orgs = source["connected_orgs"];
@@ -866,6 +870,7 @@ export namespace app_config_domain {
 	    Subscription?: SubscriptionConfig;
 	    Vaults: VaultConfigBeta;
 	    Devices: DeviceConfig[];
+	    Onboarding: OnboardingConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -878,6 +883,7 @@ export namespace app_config_domain {
 	        this.Subscription = this.convertValues(source["Subscription"], SubscriptionConfig);
 	        this.Vaults = this.convertValues(source["Vaults"], VaultConfigBeta);
 	        this.Devices = this.convertValues(source["Devices"], DeviceConfig);
+	        this.Onboarding = this.convertValues(source["Onboarding"], OnboardingConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -925,6 +931,7 @@ export namespace app_config_dto {
 	    vaults: app_config_domain.VaultConfigBeta;
 	    devices?: app_config_domain.DeviceConfig;
 	    storage?: app_config.StorageConfig;
+	    onboarding?: app_config_domain.OnboardingConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -937,6 +944,7 @@ export namespace app_config_dto {
 	        this.vaults = this.convertValues(source["vaults"], app_config_domain.VaultConfigBeta);
 	        this.devices = this.convertValues(source["devices"], app_config_domain.DeviceConfig);
 	        this.storage = this.convertValues(source["storage"], app_config.StorageConfig);
+	        this.onboarding = this.convertValues(source["onboarding"], app_config_domain.OnboardingConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -956,6 +964,79 @@ export namespace app_config_dto {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace app_config_worker {
+	
+	export class TemplateRef {
+	    seed_id: string;
+	    template_id: string;
+	    folder_id?: string;
+	    overrides?: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.seed_id = source["seed_id"];
+	        this.template_id = source["template_id"];
+	        this.folder_id = source["folder_id"];
+	        this.overrides = source["overrides"];
+	    }
+	}
+	export class PackDTO {
+	    ID: string;
+	    templates: TemplateRef[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PackDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.templates = this.convertValues(source["templates"], TemplateRef);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TemplateDTO {
+	    template_id: string;
+	    record_type: string;
+	    schema_version: number;
+	    fields: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
+	        this.fields = source["fields"];
+	    }
 	}
 
 }
@@ -1144,74 +1225,6 @@ export namespace handlers {
 	        this.status = source["status"];
 	        this.auth_methods = source["auth_methods"];
 	    }
-	}
-	export class RecipientPayload {
-	    name: string;
-	    email: string;
-	    role: string;
-	    public_key: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new RecipientPayload(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.email = source["email"];
-	        this.role = source["role"];
-	        this.public_key = source["public_key"];
-	    }
-	}
-	export class CreateShareEntryPayload {
-	    entry_name: string;
-	    entry_type: string;
-	    entry_ref: string;
-	    status: string;
-	    access_mode: string;
-	    encryption: string;
-	    entry_snapshot: string;
-	    expires_at: string;
-	    recipients: RecipientPayload[];
-	    download_allowed: boolean;
-	    attachments: vaults_domain.Attachment[];
-	
-	    static createFrom(source: any = {}) {
-	        return new CreateShareEntryPayload(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.entry_name = source["entry_name"];
-	        this.entry_type = source["entry_type"];
-	        this.entry_ref = source["entry_ref"];
-	        this.status = source["status"];
-	        this.access_mode = source["access_mode"];
-	        this.encryption = source["encryption"];
-	        this.entry_snapshot = source["entry_snapshot"];
-	        this.expires_at = source["expires_at"];
-	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
-	        this.download_allowed = source["download_allowed"];
-	        this.attachments = this.convertValues(source["attachments"], vaults_domain.Attachment);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class LoginRequest {
 	    email?: string;
@@ -1447,6 +1460,7 @@ export namespace main {
 	    plan: string;
 	    periodMonths: string;
 	    mode: string;
+	    prorate?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CheckoutContext(source);
@@ -1462,6 +1476,7 @@ export namespace main {
 	        this.plan = source["plan"];
 	        this.periodMonths = source["periodMonths"];
 	        this.mode = source["mode"];
+	        this.prorate = source["prorate"];
 	    }
 	}
 	export class ClientPaymentRequest {
@@ -1493,7 +1508,7 @@ export namespace main {
 	    }
 	}
 	export class CreateLinkShareOutput {
-	    data?: share_domain.LinkShare;
+	    data?: share_entry_domain.LinkShare;
 	    status: string;
 	    error: string;
 	    code: string;
@@ -1504,7 +1519,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.data = this.convertValues(source["data"], share_domain.LinkShare);
+	        this.data = this.convertValues(source["data"], share_entry_domain.LinkShare);
 	        this.status = source["status"];
 	        this.error = source["error"];
 	        this.code = source["code"];
@@ -1529,7 +1544,7 @@ export namespace main {
 		}
 	}
 	export class CreateShareInput {
-	    payload: handlers.CreateShareEntryPayload;
+	    payload: share_entry_application_dto.CreateShareEntryPayload;
 	    jwtToken: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1538,7 +1553,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.payload = this.convertValues(source["payload"], handlers.CreateShareEntryPayload);
+	        this.payload = this.convertValues(source["payload"], share_entry_application_dto.CreateShareEntryPayload);
 	        this.jwtToken = source["jwtToken"];
 	    }
 	
@@ -2212,6 +2227,7 @@ export namespace onboarding_usecase {
 	    password?: string;
 	    is_anonymous: boolean;
 	    stellar_key?: string;
+	    use_cases?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountCreationRequest(source);
@@ -2223,6 +2239,7 @@ export namespace onboarding_usecase {
 	        this.password = source["password"];
 	        this.is_anonymous = source["is_anonymous"];
 	        this.stellar_key = source["stellar_key"];
+	        this.use_cases = source["use_cases"];
 	    }
 	}
 	export class FreeSetupRequest {
@@ -2296,8 +2313,76 @@ export namespace onboarding_usecase {
 
 }
 
-export namespace share_application_dto {
+export namespace share_entry_application_dto {
 	
+	export class RecipientPayload {
+	    name: string;
+	    email: string;
+	    role: string;
+	    public_key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RecipientPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.email = source["email"];
+	        this.role = source["role"];
+	        this.public_key = source["public_key"];
+	    }
+	}
+	export class CreateShareEntryPayload {
+	    entry_name: string;
+	    entry_type: string;
+	    entry_ref: string;
+	    status: string;
+	    access_mode: string;
+	    encryption: string;
+	    entry_snapshot: string;
+	    expires_at: string;
+	    recipients: RecipientPayload[];
+	    download_allowed: boolean;
+	    attachmentCIDs: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateShareEntryPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry_name = source["entry_name"];
+	        this.entry_type = source["entry_type"];
+	        this.entry_ref = source["entry_ref"];
+	        this.status = source["status"];
+	        this.access_mode = source["access_mode"];
+	        this.encryption = source["encryption"];
+	        this.entry_snapshot = source["entry_snapshot"];
+	        this.expires_at = source["expires_at"];
+	        this.recipients = this.convertValues(source["recipients"], RecipientPayload);
+	        this.download_allowed = source["download_allowed"];
+	        this.attachmentCIDs = source["attachmentCIDs"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LinkShareCreateRequest {
 	    payload: string;
 	    // Go type: time
@@ -2346,62 +2431,7 @@ export namespace share_application_dto {
 
 }
 
-export namespace share_application_use_cases {
-	
-	export class AddReceiverInput {
-	    ShareID: string;
-	    Name: string;
-	    Email: string;
-	    Role: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AddReceiverInput(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ShareID = source["ShareID"];
-	        this.Name = source["Name"];
-	        this.Email = source["Email"];
-	        this.Role = source["Role"];
-	    }
-	}
-	export class AddReceiverResult {
-	    ShareID: string;
-	    RecipientID: string;
-	    Message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AddReceiverResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ShareID = source["ShareID"];
-	        this.RecipientID = source["RecipientID"];
-	        this.Message = source["Message"];
-	    }
-	}
-	export class RejectShareResult {
-	    ShareID: string;
-	    RecipientID: string;
-	    Message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new RejectShareResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ShareID = source["ShareID"];
-	        this.RecipientID = source["RecipientID"];
-	        this.Message = source["Message"];
-	    }
-	}
-
-}
-
-export namespace share_domain {
+export namespace share_entry_domain {
 	
 	export class EntrySnapshot {
 	    entry_name: string;
@@ -2436,7 +2466,9 @@ export namespace share_domain {
 	    postal_code: string;
 	    country: string;
 	    extra_fields: number[];
-	    attachements: vaults_domain.Attachment[];
+	    attachmentCIDs: string[];
+	    recipient_cids: Record<string, string>;
+	    attachments: vaults_domain.Attachment[];
 	
 	    static createFrom(source: any = {}) {
 	        return new EntrySnapshot(source);
@@ -2476,7 +2508,9 @@ export namespace share_domain {
 	        this.postal_code = source["postal_code"];
 	        this.country = source["country"];
 	        this.extra_fields = source["extra_fields"];
-	        this.attachements = this.convertValues(source["attachements"], vaults_domain.Attachment);
+	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.recipient_cids = source["recipient_cids"];
+	        this.attachments = this.convertValues(source["attachments"], vaults_domain.Attachment);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2717,6 +2751,61 @@ export namespace share_domain {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace share_entry_use_cases {
+	
+	export class AddReceiverInput {
+	    ShareID: string;
+	    Name: string;
+	    Email: string;
+	    Role: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddReceiverInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.Name = source["Name"];
+	        this.Email = source["Email"];
+	        this.Role = source["Role"];
+	    }
+	}
+	export class AddReceiverResult {
+	    ShareID: string;
+	    RecipientID: string;
+	    Message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddReceiverResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.RecipientID = source["RecipientID"];
+	        this.Message = source["Message"];
+	    }
+	}
+	export class RejectShareResult {
+	    ShareID: string;
+	    RecipientID: string;
+	    Message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RejectShareResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ShareID = source["ShareID"];
+	        this.RecipientID = source["RecipientID"];
+	        this.Message = source["Message"];
+	    }
 	}
 
 }
@@ -3346,6 +3435,7 @@ export namespace tracecore_types {
 	    payload: string;
 	    expires_in?: number;
 	    attachments: Record<string, string>;
+	    encrypted_key?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DecryptCryptoShareResponse(source);
@@ -3356,6 +3446,7 @@ export namespace tracecore_types {
 	        this.payload = source["payload"];
 	        this.expires_in = source["expires_in"];
 	        this.attachments = source["attachments"];
+	        this.encrypted_key = source["encrypted_key"];
 	    }
 	}
 	export class CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_ {
@@ -3556,6 +3647,62 @@ export namespace tracecore_types {
 
 export namespace vault_dto {
 	
+	export class SelectedAttachment {
+	    name: string;
+	    size: number;
+	    data: number[];
+	    storage: string;
+	    ext: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SelectedAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.size = source["size"];
+	        this.data = source["data"];
+	        this.storage = source["storage"];
+	        this.ext = source["ext"];
+	    }
+	}
+	export class AddAttachementsRequest {
+	    vault_name: string;
+	    entry_id: string;
+	    password: string;
+	    attachments: SelectedAttachment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AddAttachementsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault_name = source["vault_name"];
+	        this.entry_id = source["entry_id"];
+	        this.password = source["password"];
+	        this.attachments = this.convertValues(source["attachments"], SelectedAttachment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DownloadShareAttachmentRequest {
 	    EncryptedKey: string;
 	    AttachmentCID: string;
@@ -3614,26 +3761,6 @@ export namespace vault_dto {
 		    return a;
 		}
 	}
-	export class SelectedAttachment {
-	    name: string;
-	    size: number;
-	    data: number[];
-	    storage: string;
-	    ext: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SelectedAttachment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.size = source["size"];
-	        this.data = source["data"];
-	        this.storage = source["storage"];
-	        this.ext = source["ext"];
-	    }
-	}
 
 }
 
@@ -3645,6 +3772,7 @@ export namespace vault_session {
 	    UserConfig: app_config_domain.UserConfig;
 	    SessionSecrets: Record<string, string>;
 	    WorkingBranch: string;
+	    VaultName: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RuntimeContext(source);
@@ -3657,6 +3785,7 @@ export namespace vault_session {
 	        this.UserConfig = this.convertValues(source["UserConfig"], app_config_domain.UserConfig);
 	        this.SessionSecrets = source["SessionSecrets"];
 	        this.WorkingBranch = source["WorkingBranch"];
+	        this.VaultName = source["VaultName"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3684,19 +3813,17 @@ export namespace vaults_domain {
 	
 	export class Attachment {
 	    id: string;
-	    entry_id: string;
+	    file_cid: string;
+	    node_cid: string;
 	    hash: string;
 	    name: string;
 	    size: number;
-	    cid?: string;
-	    storage?: string;
 	    ext?: string;
 	    // Go type: time
-	    downloaded_at?: any;
-	    downloaded_to?: string;
-	    hash_local: string;
-	    hash_share: string;
+	    donwloaded_at?: any;
+	    is_dirty?: boolean;
 	    recipient_cids: Record<string, string>;
+	    share_version: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attachment(source);
@@ -3705,18 +3832,16 @@ export namespace vaults_domain {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.entry_id = source["entry_id"];
+	        this.file_cid = source["file_cid"];
+	        this.node_cid = source["node_cid"];
 	        this.hash = source["hash"];
 	        this.name = source["name"];
 	        this.size = source["size"];
-	        this.cid = source["cid"];
-	        this.storage = source["storage"];
 	        this.ext = source["ext"];
-	        this.downloaded_at = this.convertValues(source["downloaded_at"], null);
-	        this.downloaded_to = source["downloaded_to"];
-	        this.hash_local = source["hash_local"];
-	        this.hash_share = source["hash_share"];
+	        this.donwloaded_at = this.convertValues(source["donwloaded_at"], null);
+	        this.is_dirty = source["is_dirty"];
 	        this.recipient_cids = source["recipient_cids"];
+	        this.share_version = source["share_version"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3743,6 +3868,7 @@ export namespace vaults_domain {
 	    created_at: string;
 	    updated_at: string;
 	    is_draft: boolean;
+	    is_dirty: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Folder(source);
@@ -3755,7 +3881,135 @@ export namespace vaults_domain {
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
 	    }
+	}
+	export class WrappedKey {
+	    ID: string;
+	    Type: string;
+	    Data: number[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WrappedKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Type = source["Type"];
+	        this.Data = source["Data"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
+	export class VaultMeta {
+	    name: string;
+	    user_id: string;
+	    created_at: string;
+	    updated_at: string;
+	    last_synced: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.user_id = source["user_id"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.last_synced = source["last_synced"];
+	    }
+	}
+	export class Vault {
+	    id: string;
+	    version: string;
+	    name: string;
+	    type: string;
+	    user_id: string;
+	    user_subscription_id: string;
+	    cid: string;
+	    created_at: string;
+	    updated_at: string;
+	    VaultMeta: VaultMeta;
+	    KeyVersion: number;
+	    Keyring: WrappedKey[];
+	    avatar: string;
+	    tx_hash: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.user_id = source["user_id"];
+	        this.user_subscription_id = source["user_subscription_id"];
+	        this.cid = source["cid"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.VaultMeta = this.convertValues(source["VaultMeta"], VaultMeta);
+	        this.KeyVersion = source["KeyVersion"];
+	        this.Keyring = this.convertValues(source["Keyring"], WrappedKey);
+	        this.avatar = source["avatar"];
+	        this.tx_hash = source["tx_hash"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Index {
+	    byType: Record<string, Array<Link>>;
+	    byFolder: Record<string, Array<Link>>;
+	
+	    static createFrom(source: any = {}) {
+	        return new Index(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.byType = this.convertValues(source["byType"], Array<Link>, true);
+	        this.byFolder = this.convertValues(source["byFolder"], Array<Link>, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SSHKeyEntry {
 	    id: string;
@@ -3763,6 +4017,9 @@ export namespace vaults_domain {
 	    entry_name: string;
 	    folder_id: string;
 	    type: string;
+	    template_id: string;
+	    record_type?: string;
+	    schema_version?: number;
 	    additionnal_note?: string;
 	    custom_fields?: Record<string, any>;
 	    trashed: boolean;
@@ -3771,8 +4028,9 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
-	    attachments?: Attachment[];
 	    attachmentCIDs?: string[];
+	    attachments?: Attachment[];
+	    KeyVersion: number;
 	    private_key: string;
 	    public_key: string;
 	    e_fingerprint: string;
@@ -3788,6 +4046,9 @@ export namespace vaults_domain {
 	        this.entry_name = source["entry_name"];
 	        this.folder_id = source["folder_id"];
 	        this.type = source["type"];
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
 	        this.additionnal_note = source["additionnal_note"];
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
@@ -3796,8 +4057,9 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.KeyVersion = source["KeyVersion"];
 	        this.private_key = source["private_key"];
 	        this.public_key = source["public_key"];
 	        this.e_fingerprint = source["e_fingerprint"];
@@ -3827,6 +4089,9 @@ export namespace vaults_domain {
 	    entry_name: string;
 	    folder_id: string;
 	    type: string;
+	    template_id: string;
+	    record_type?: string;
+	    schema_version?: number;
 	    additionnal_note?: string;
 	    custom_fields?: Record<string, any>;
 	    trashed: boolean;
@@ -3835,8 +4100,9 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
-	    attachments?: Attachment[];
 	    attachmentCIDs?: string[];
+	    attachments?: Attachment[];
+	    KeyVersion: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new NoteEntry(source);
@@ -3849,6 +4115,9 @@ export namespace vaults_domain {
 	        this.entry_name = source["entry_name"];
 	        this.folder_id = source["folder_id"];
 	        this.type = source["type"];
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
 	        this.additionnal_note = source["additionnal_note"];
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
@@ -3857,8 +4126,9 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.KeyVersion = source["KeyVersion"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3885,6 +4155,9 @@ export namespace vaults_domain {
 	    entry_name: string;
 	    folder_id: string;
 	    type: string;
+	    template_id: string;
+	    record_type?: string;
+	    schema_version?: number;
 	    additionnal_note?: string;
 	    custom_fields?: Record<string, any>;
 	    trashed: boolean;
@@ -3893,8 +4166,9 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
-	    attachments?: Attachment[];
 	    attachmentCIDs?: string[];
+	    attachments?: Attachment[];
+	    KeyVersion: number;
 	    genre?: string;
 	    firstname?: string;
 	    second_firstname?: string;
@@ -3925,6 +4199,9 @@ export namespace vaults_domain {
 	        this.entry_name = source["entry_name"];
 	        this.folder_id = source["folder_id"];
 	        this.type = source["type"];
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
 	        this.additionnal_note = source["additionnal_note"];
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
@@ -3933,8 +4210,9 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.KeyVersion = source["KeyVersion"];
 	        this.genre = source["genre"];
 	        this.firstname = source["firstname"];
 	        this.second_firstname = source["second_firstname"];
@@ -3979,6 +4257,9 @@ export namespace vaults_domain {
 	    entry_name: string;
 	    folder_id: string;
 	    type: string;
+	    template_id: string;
+	    record_type?: string;
+	    schema_version?: number;
 	    additionnal_note?: string;
 	    custom_fields?: Record<string, any>;
 	    trashed: boolean;
@@ -3987,12 +4268,17 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
-	    attachments?: Attachment[];
 	    attachmentCIDs?: string[];
+	    attachments?: Attachment[];
+	    KeyVersion: number;
 	    owner: string;
 	    number: string;
 	    expiration: string;
 	    cvc: string;
+	    record_type?: string;
+	    shema_version?: string;
+	    fields?: Record<string, any>;
+	    tags?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new CardEntry(source);
@@ -4005,6 +4291,9 @@ export namespace vaults_domain {
 	        this.entry_name = source["entry_name"];
 	        this.folder_id = source["folder_id"];
 	        this.type = source["type"];
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
 	        this.additionnal_note = source["additionnal_note"];
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
@@ -4013,12 +4302,17 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.KeyVersion = source["KeyVersion"];
 	        this.owner = source["owner"];
 	        this.number = source["number"];
 	        this.expiration = source["expiration"];
 	        this.cvc = source["cvc"];
+	        this.record_type = source["record_type"];
+	        this.shema_version = source["shema_version"];
+	        this.fields = source["fields"];
+	        this.tags = source["tags"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4045,6 +4339,9 @@ export namespace vaults_domain {
 	    entry_name: string;
 	    folder_id: string;
 	    type: string;
+	    template_id: string;
+	    record_type?: string;
+	    schema_version?: number;
 	    additionnal_note?: string;
 	    custom_fields?: Record<string, any>;
 	    trashed: boolean;
@@ -4053,8 +4350,9 @@ export namespace vaults_domain {
 	    is_favorite: boolean;
 	    created_at: string;
 	    updated_at: string;
-	    attachments?: Attachment[];
 	    attachmentCIDs?: string[];
+	    attachments?: Attachment[];
+	    KeyVersion: number;
 	    user_name: string;
 	    password: string;
 	    web_site?: string;
@@ -4070,6 +4368,9 @@ export namespace vaults_domain {
 	        this.entry_name = source["entry_name"];
 	        this.folder_id = source["folder_id"];
 	        this.type = source["type"];
+	        this.template_id = source["template_id"];
+	        this.record_type = source["record_type"];
+	        this.schema_version = source["schema_version"];
 	        this.additionnal_note = source["additionnal_note"];
 	        this.custom_fields = source["custom_fields"];
 	        this.trashed = source["trashed"];
@@ -4078,8 +4379,9 @@ export namespace vaults_domain {
 	        this.is_favorite = source["is_favorite"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
-	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.attachmentCIDs = source["attachmentCIDs"];
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.KeyVersion = source["KeyVersion"];
 	        this.user_name = source["user_name"];
 	        this.password = source["password"];
 	        this.web_site = source["web_site"];
@@ -4147,6 +4449,9 @@ export namespace vaults_domain {
 	    folders: Folder[];
 	    // Go type: Entries
 	    entries: any;
+	    attachments?: Attachment[];
+	    // Go type: Index
+	    index?: any;
 	    created_at: string;
 	    updated_at: string;
 	
@@ -4160,6 +4465,8 @@ export namespace vaults_domain {
 	        this.name = source["name"];
 	        this.folders = this.convertValues(source["folders"], Folder);
 	        this.entries = this.convertValues(source["entries"], null);
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.index = this.convertValues(source["index"], null);
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }

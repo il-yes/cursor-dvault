@@ -3,6 +3,9 @@ package subscription_usecase
 
 import (
 	"context"
+
+	"gorm.io/gorm"
+
 	billing_ui_handlers "vault-app/internal/billing/ui/handlers"
 	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_dto "vault-app/internal/config/application/dto"
@@ -17,8 +20,6 @@ import (
 	subscription_eventbus "vault-app/internal/subscription/application"
 	subscription_domain "vault-app/internal/subscription/domain"
 	utils "vault-app/internal/utils"
-
-	"gorm.io/gorm"
 )
 
 // ----------- Interface -----------
@@ -113,13 +114,7 @@ func (m *SubscriptionActivationMonitor) Listen(ctx context.Context) {
 			m.Logger.Error("Monitor - Failed to retrieve subscription: %v", err)
 			return
 		}
-		// subscription.UserID = userSubscription.ID
-		// if err := m.SubscriptionRepository.Update(ctx, subscription); err != nil {
-		// 	m.Logger.Error("Monitor - Failed to update subscription: %v", err)
-		// 	return
-		// }
-		// utils.LogPretty("Monitor - Subscription updated:", subscription)
-		// m.Logger.Info("Monitor - User subscription retrieved and updated with user ID %s: %v", userSubscription.ID, subscription)
+
 		appStateRepo := onboarding_persistence.NewAppStateRepository(m.DB)
 		// 3. ------------ II. Close Onboarding ------------
 		onboardingUC := onboarding_usecase.NewOnboardUseCase(

@@ -940,6 +940,7 @@ func (ah *AuthHandler) Logout(userID string) error {
 // Middleware
 // -----------------------------
 func (ah *AuthHandler) RequireAuth(jwtToken string) (*auth.Claims, error) {
+	utils.LogPretty("Auth - RequireAuth - jwtToken", jwtToken)
 	claims, err := ah.VerifyToken(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)

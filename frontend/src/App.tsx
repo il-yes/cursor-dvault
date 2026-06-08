@@ -15,7 +15,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Feedback from "./pages/Feedback";
 import About from "./pages/About";
 import ProfileBeta from "./pages/ProfileBeta";
-import SettingsBeta from "./pages/SettingsBeta";
+import Settings from "./pages/Settings";
 import OnboardingWizardBeta from "@/components/onBoardingWizardBeta";
 import { Elements } from '@stripe/react-stripe-js';
 import { stripePromise } from '@/lib/stripe';
@@ -129,7 +129,7 @@ function AppContent() {
 			<Route path="/dashboard/vault/folder/:folderId" element={<Vault />} />
 			<Route path="/dashboard/shared" element={<ShareEntries />} />
 			<Route path="/dashboard/profile" element={<ProfileBeta />} />
-			<Route path="/dashboard/settings" element={<SettingsBeta />} />
+			<Route path="/dashboard/settings" element={<Settings />} />
 			{/* <Route path="/vault/offline" element={<OfflineVault />} /> */}
 			{/* <Route path="/auth/signin" element={<SignIn />} /> */}
 			<Route path="/login/email" element={<EmailLookup />} />

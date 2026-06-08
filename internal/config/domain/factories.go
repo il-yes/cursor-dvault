@@ -1,10 +1,12 @@
 package app_config_domain
 
 import (
+	"fmt"
 	"os"
-	app_config "vault-app/internal/config"
 
 	"github.com/google/uuid"
+
+	app_config "vault-app/internal/config"
 )
 
 const (
@@ -47,6 +49,7 @@ type Config struct {
 	Subscription *SubscriptionConfig
 	Vaults       VaultConfigBeta
 	Devices      []DeviceConfig
+	Onboarding   OnboardingConfig
 }
 
 func InitConfig(userID string) (*Config, error) {
@@ -75,7 +78,7 @@ func InitConfig(userID string) (*Config, error) {
 					GatewayURL:  "https://ipfs.io/ipfs/",
 				},
 			},
-			Storage:  DefaultStorageConfig(),
+			Storage: DefaultStorageConfig(),
 		},
 		User: &UserConfig{
 			ID:            userID,
@@ -133,6 +136,7 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 		User: &UserConfig{
 			ID:            userID,
 			Role:          "user",
+			Email:         "",
 			Signature:     "",
 			ConnectedOrgs: []string{""},
 			StellarAccount: StellarAccountConfig{
@@ -200,12 +204,6 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 				RequirePassword:      true,
 				MaxSharesPerEntry:    10,
 			},
-			Onboarding: OnboardingConfig{
-				Packs:              []string{},
-				UseCases:           []string{},
-				InstalledTemplates: []string{},
-				Completed:          false,
-			},
 		},
 		Devices: []DeviceConfig{
 			{
@@ -240,6 +238,14 @@ func InitConfigFromVault(userID string, vaultName string) (*Config, error) {
 				MaxShares:  DefaultMaxShares,
 			},
 		},
+		Onboarding: OnboardingConfig{
+			UserID:         userID,
+			Packs:          []string{},
+			UseCases:       []string{},
+			InstalledSeeds: []string{},
+			PacksApplied:   false,
+			Completed:      false,
+		},
 	}
 
 	return cfg, nil
@@ -271,9 +277,29 @@ func DefaultStorageConfig() app_config.StorageConfig {
 	}
 }
 
+func NewOnboardingConfig(userID string, packs StringSlice, useCases StringSlice, installedSeeds StringSlice, isCompleted bool, packsApplied bool) OnboardingConfig {
+	return OnboardingConfig{
+		UserID:         userID,
+		Packs:          packs,
+		UseCases:       useCases,
+		InstalledSeeds: installedSeeds,
+		Completed:      isCompleted,
+		PacksApplied:   packsApplied,
+	}
+}
 
+type SeedKey struct {
+	PackID string
+	SeedID string
+}
 
+func NewSeedKey(packID, seedID string) SeedKey {
+	return SeedKey{PackID: packID, SeedID: seedID}
+}
 
+func (k SeedKey) String() string {
+	return fmt.Sprintf("%s:%s", k.PackID, k.SeedID)
+}
 
 // func (c *Config) ValidateFeatures(sub SubscriptionSnapshot) {
 

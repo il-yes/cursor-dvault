@@ -12,12 +12,12 @@ import (
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
+	"vault-app/internal/utils"
 	vault_commands "vault-app/internal/vault/application/commands"
 	vault_dto "vault-app/internal/vault/application/dto"
 	vault_domain "vault-app/internal/vault/domain"
 	vaults_domain "vault-app/internal/vault/domain"
 )
-
 
 //	------------------------------------------------------------------------------------------
 //  FAKES
@@ -113,13 +113,10 @@ func (m *fakeVaultRepo) SaveVault(v *vault_domain.Vault) error {
 	m.existingVault = v
 	return nil
 }
-//	func (f *fakeVaultRepo) SaveVault(v *vault_domain.Vault) error {
-//		f.saveCalled = true
-//		f.savedVault = v
-//		return f.saveError
-//	}
-//
-// vaultcommand
+func (f *fakeVaultRepo) GetVaultByCID(vaultID string) (*vaults_domain.Vault, error) {
+	return f.Vault, nil
+}
+
 func (f *fakeVaultRepo) GetLatestByUserID(userID string) (*vault_domain.Vault, error) {
 	if userID == "user-1" { //"test_user" {
 		return &vault_domain.Vault{
@@ -157,6 +154,18 @@ func (f *fakeVaultRepo) UpdateVaultCID(vaultID, cid string) error {
 	return f.updateError
 }
 
+
+
+
+func GetConfig(userID string, vaultName string) (*app_config_domain.Config, error) {
+	res, err := app_config_domain.InitConfigFromVault(userID, vaultName)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+	
 //	------------------------------------------------------------------------------------------
 //  TESTS
 //	------------------------------------------------------------------------------------------
@@ -210,6 +219,10 @@ func TestCreateVault_Success(t *testing.T) {
 			return nil
 		},
 	}
+	cfgs, err := GetConfig(userID, vault.Name)
+	if err != nil {
+		utils.LogPretty("Vault service (WRITE) error", err)
+	}
 
 	handler := vault_commands.NewCreateVaultCommandHandler(mockInit, mockIPFS, mockRepo)
 
@@ -218,7 +231,7 @@ func TestCreateVault_Success(t *testing.T) {
 		VaultName:          vaultName,
 		Password:           password,
 		UserSubscriptionID: userSubscriptionID,
-		AppConfig:          app_config_domain.AppConfig{},
+		Configs:          *cfgs,
 	}
 
 	// -----------------------------

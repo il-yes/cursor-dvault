@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useToast } from "@/hooks/use-toast";
 import { uploadAttachments } from "@/services/api";
 import { UploadStorage } from "@/types/vault";
+import { vault_dto } from "../../wailsjs/go/models";
 import { useVaultStore } from "@/store/vaultStore";
 
 interface FileUploadWidgetProps {
@@ -16,7 +17,6 @@ interface FileUploadWidgetProps {
   value?: File[];
   entry: any;
   vaultName: string;
-  setAttachments: (attachments: any[]) => void;
   attachments: any[];
 }
 
@@ -37,7 +37,7 @@ export function FileUploadWidget({
   value = [],
   entry,
   vaultName,
-  setAttachments,
+  // setAttachments,
   attachments,
 }: FileUploadWidgetProps) {
   const { toast } = useToast();
@@ -46,7 +46,8 @@ export function FileUploadWidget({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const vaultPassword = "vaultPassword";
   const { jwtToken } = useAuthStore.getState();
-  const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
+  // const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
+  const updateEntryAttachments = useVaultStore((state) => state.updateEntryAttachments);
 
   const [progressVisible, setProgressVisible] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -142,15 +143,23 @@ export function FileUploadWidget({
         })
       )
 
-      // Call Go binding
-      const entryWithAttachments = await uploadAttachments(jwtToken, vaultName, entry.type, entry, attachments);
-      console.log({ entryWithAttachments })
+      const payload = vault_dto.AddAttachementsRequest.createFrom({
+        vault_name: vaultName,
+        entry_id: entry.id,
+        password: vaultPassword,
+        attachments: attachments,
+      });
 
-      const updates = {
-        attachments: entryWithAttachments.attachments
-      }
-      await updateEntryAttachements(entry.id, updates);
-      setAttachments(entryWithAttachments.attachments)
+      // Call Go binding — returns the updated Attachment[] for this entry
+      const returnedAttachments = await uploadAttachments(jwtToken, payload);
+      console.log("returnedAttachments", returnedAttachments);
+
+      await updateEntryAttachments(entry.id, {
+        attachments: returnedAttachments as any,
+        attachmentCIDs: returnedAttachments.map(a => a.node_cid),
+      });
+      console.log("store after update", useVaultStore.getState().vault?.Vault);
+
 
       toast({
         title: "Attachments uploaded",

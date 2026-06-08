@@ -24,7 +24,7 @@
  */
 import { LoginRequest, SelectedAttachment, SettingsState, User, Vault, VaultPayload } from "@/types/vault";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { handlers, main, subscription_domain, share_application_dto, vault_dto, app_config_dto, tracecore_types, vaults_domain, tracecore } from "../../wailsjs/go/models";
+import { handlers, main, subscription_domain, share_entry_application_dto, vault_dto, app_config_dto, tracecore_types, vaults_domain, tracecore } from "../../wailsjs/go/models";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
@@ -369,7 +369,7 @@ const filterFilledProps = (obj: Record<string, any>): Record<string, any> => {
 /**
  * Decrypt a sensitive field
  */
-export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string; expires_in: number }> {
+export async function decryptField(payload: { entry_id: string; field_name: string; challenge?: string, signature?: string }): Promise<{ plaintext: string, full_data: any, expires_in: number, encrypted_key: string }> {
 	const user = useAuthStore.getState().user;
 	console.log({ user })
 
@@ -390,10 +390,15 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 		console.log("Decrypted vault entry Data:", JSON.parse(result.data.payload));
 
 		const filledOnly = filterFilledProps(JSON.parse(result.data.payload));
+		console.log(typeof result.data.payload)
+		const rek = JSON.parse(result.data.payload)
+		console.log({rek})
 
 		return {
 			plaintext: JSON.stringify(filledOnly),
+			full_data: rek,
 			expires_in: result.data.expires_in,
+			encrypted_key: result.data.encrypted_key,
 		};
 	} catch (err) {
 		console.error("Failed to decrypt vault entry:", err);
@@ -478,11 +483,12 @@ export async function getVaultContext(): Promise<any> {
  */
 export async function createSharedEntry(payload: {
 	entry_id: string;
-	recipients: { name: string; email: string; role: 'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
+	recipients: { id: string, name: string; email: string; role: 'viewer' | 'editor'; publicKey: string, revokedAt?: string }[];
 	permission: 'read' | 'edit' | 'temporary';
 	expires_at?: string;
 	custom_message?: string;
 	download_allowed?: boolean;
+	attachmentCIDs?: string[];
 }): Promise<any> {
 	try {
 		const jwtToken = useAuthStore.getState().jwtToken;
@@ -506,7 +512,7 @@ export async function createSharedEntry(payload: {
 		// convert the vaultEntry in an entryType
 
 		// Build the proper CreateShareEntryPayload
-		const createSharePayload = new handlers.CreateShareEntryPayload({
+		const createSharePayload = new share_entry_application_dto.CreateShareEntryPayload({
 			entry_name: selectedEntry.entry_name,
 			entry_type: selectedEntry.type,
 			status: "active",
@@ -515,13 +521,14 @@ export async function createSharedEntry(payload: {
 			entry_snapshot: JSON.stringify(buildEntrySnapshot(selectedEntry)),
 			expires_at: payload.expires_at || "",
 			recipients: payload.recipients.map(r => ({
+				id: r.id,
 				name: r.name,
 				email: r.email,
 				role: r.role,
 				public_key: r.publicKey,
 			})),
 			download_allowed: payload.download_allowed || false,
-			attachments: selectedEntry.attachments,
+			attachmentCIDs: payload?.attachmentCIDs,
 		});
 
 		// Wails backend is exposed via the global App object
@@ -550,7 +557,7 @@ type CreateLinkShareEntryResponse = {
 export async function createLinkShareEntry(payload: CreateLinkShareEntryPayload): Promise<CreateLinkShareEntryResponse> {
 	try {
 		const jwtToken = useAuthStore.getState().jwtToken;
-		const request = new share_application_dto.LinkShareCreateRequest({
+		const request = new share_entry_application_dto.LinkShareCreateRequest({
 			payload: JSON.stringify(payload.payload),
 			expires_at: payload.expires_at,
 			max_views: payload.max_views,
@@ -767,6 +774,7 @@ type CreateAccountPayload = {
 	country?: string;
 	tier: string;
 	is_anonymous: boolean;
+	use_cases?: string[];
 }
 type AccountCreationResponse = {
 	user_id: string;
@@ -1128,10 +1136,12 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			remaskDelay: getConfigRes.Vaults.privacy.remask_delay,
 		},
 		onboarding: {
-			packs: getConfigRes.Vaults.onboarding?.packs,
-			use_cases: getConfigRes.Vaults.onboarding?.use_cases,
-			installed_templates: getConfigRes.Vaults.onboarding?.installed_templates,
-			completed: getConfigRes.Vaults.onboarding?.completed
+			user_id: getConfigRes?.Onboarding?.user_id,
+			packs: getConfigRes?.Onboarding?.packs,
+			use_cases: getConfigRes?.Onboarding?.use_cases,
+			installed_seeds: getConfigRes?.Onboarding?.installed_seeds,
+			packs_applied: getConfigRes?.Onboarding?.packs_applied,
+			completed: getConfigRes?.Onboarding?.completed
 		},
 		storage: {
 			mode: getConfigRes?.App?.storage?.mode,
@@ -1203,7 +1213,7 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 			security: {
 				AutoLockSeconds: settings.security.autoLockSeconds,
 				ClearClipboardAfter: settings.security.clearClipboardAfter
-			}
+			},
 		},
 		devices: {
 			user_id: settings.device.user_id,
@@ -1238,6 +1248,14 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 			cloud: {
 				base_url: "http://localhost:4001/api"
 			}
+		},
+		onboarding: {
+			user_id: settings.onboarding?.user_id,
+			use_cases: settings.onboarding?.use_cases,
+			packs: settings.onboarding?.packs,
+			installed_seeds: settings.onboarding?.installed_seeds,
+			packs_applied: settings.onboarding?.packs_applied,
+			completed: settings.onboarding?.completed
 		}
 	}
 	console.log({ payload })
@@ -1261,13 +1279,15 @@ export const loadAvatar = async (jwtToken: string, vaultName: string): Promise<s
 	return response;
 };
 
-export const uploadAttachments = async (jwtToken: string, vaultName: string, entryType: string, entry: any, attachments: SelectedAttachment[]): Promise<VaultEntry> => {
-	const response = await AppAPI.UploadAttachments(jwtToken, vaultName, entryType, entry, attachments);
+export const uploadAttachments = async (jwtToken: string, payload: vault_dto.AddAttachementsRequest): Promise<vaults_domain.Attachment[]> => {
+	const response = await AppAPI.AddAttachements(jwtToken, payload);
 	console.log({ response })
 	return response;
 };
-export const loadAttachment = async (jwtToken: string, vaultName: string, entryID: string): Promise<string> => {
-	const response = await AppAPI.LoadAttachment(jwtToken, vaultName, entryID);
+
+export const loadAttachment = async (jwtToken: string, vaultName: string, hash: string): Promise<string> => {
+	const response = await AppAPI.LoadAttachment(jwtToken, vaultName, hash);
+	// const response = await AppAPI.AddAttachement(jwtToken, vaultName, entryID);
 	return response;
 };
 
@@ -1283,17 +1303,17 @@ export const getSubscriptionFromCloud = async (jwtToken: string, vaultName: stri
 };
 
 export const encryptAttachment = async (
-  jwtToken: string,
-  fileData: Uint8Array,
-  vaultPassword: string
+	jwtToken: string,
+	fileData: Uint8Array,
+	vaultPassword: string
 ): Promise<number[]> => {
-  const normalized = Array.from(new Uint8Array(fileData));
-  
-  return await AppAPI.EncryptAttachment(
-    jwtToken,
-    normalized,
-    vaultPassword
-  );
+	const normalized = Array.from(new Uint8Array(fileData));
+
+	return await AppAPI.EncryptAttachment(
+		jwtToken,
+		normalized,
+		vaultPassword
+	);
 };
 export const decryptAttachment = async (jwtToken: string, fileData: Uint8Array, vaultPassword: string): Promise<Uint8Array<ArrayBuffer>> => {
 	const response = await AppAPI.DecryptAttachment(jwtToken, Array.from(fileData), vaultPassword);

@@ -183,6 +183,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 password: isAnonymous ? '' : password,
                 tier: selectedTier,
                 is_anonymous: isAnonymous,
+                use_cases: useCases,
             })) as unknown as CreateAccountResponse;
             console.log({ response })
 
@@ -201,7 +202,17 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                     called.current = true
                     // Get checkoutUrl
                     const bronzePlan = "bronze"
-                    const url = await AppAPI.GetCheckoutURL(identity, isAnonymous, rail, email, selectedTier, bronzePlan);
+                    const payload = {
+                        identity: identity,
+                        isAnonymous: false,
+                        rail: rail,
+                        email: email,
+                        tier: selectedTier,
+                        plan: bronzePlan,
+                        periodMonths: "1",
+                        mode: "activate"
+                    }
+                    const url = await AppAPI.GetCheckoutURL(payload);
 
                     // activate free tier subscription
                     const response = await AppAPI.SetupFreeAndActivate({

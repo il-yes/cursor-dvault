@@ -2,9 +2,10 @@ package share_domain
 
 import (
 	"time"
-	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/datatypes"
+
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 // --------------------------------------------------------------------
@@ -13,17 +14,17 @@ import (
 type LinkShare struct {
 	ID        string
 	Payload   string
-	CreatedAt time.Time	
+	CreatedAt time.Time
 
-	ExpiresAt   *time.Time
-	MaxViews    *int
-	ViewCount   int
-	Password *string
-    DownloadAllowed bool
+	ExpiresAt       *time.Time
+	MaxViews        *int
+	ViewCount       int
+	Password        *string
+	DownloadAllowed bool
 
 	CreatorUserID string
-	CreatorEmail string
-	Metadata      Metadata 
+	CreatorEmail  string
+	Metadata      Metadata
 }
 
 type Metadata struct {
@@ -31,27 +32,26 @@ type Metadata struct {
 	Title     string
 }
 
-
 // -----------------------
 // Cryptography - Aggregate root
 // -----------------------
 type ShareEntry struct {
-	ID            string		`json:"id"`
-	OwnerID       string `json:"owner_id"`
-	EntryName     string `json:"entry_name"`	
-	EntryType     string `json:"entry_type"`
-	EntryRef      string	 `json:"entry_ref"`
-	Status        string `json:"status"`
-	AccessMode    string `json:"access_mode"`
-	Encryption    string `json:"encryption"`	
-	EntrySnapshot EntrySnapshot `json:"entry_snapshot"`
-	EncryptedPayload string `json:"encrypted_payload"`
+	ID               string         `json:"id"`
+	OwnerID          string         `json:"owner_id"`
+	EntryName        string         `json:"entry_name"`
+	EntryType        string         `json:"entry_type"`
+	EntryRef         string         `json:"entry_ref"`
+	Status           string         `json:"status"`
+	AccessMode       string         `json:"access_mode"`
+	Encryption       string         `json:"encryption"`
+	EntrySnapshot    EntrySnapshot  `json:"entry_snapshot"`
+	EncryptedPayload string         `json:"encrypted_payload"`
 	AccessLog        datatypes.JSON `json:"access_log"`
-	ExpiresAt     *time.Time `json:"expires_at"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	SharedAt      time.Time `json:"shared_at"`	
-	DownloadAllowed bool `json:"download_allowed"`
+	ExpiresAt        *time.Time     `json:"expires_at"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	SharedAt         time.Time      `json:"shared_at"`
+	DownloadAllowed  bool           `json:"download_allowed"`
 
 	Recipients []Recipient `gorm:"foreignKey:ShareID;constraint:OnDelete:CASCADE" json:"recipients"`
 }
@@ -60,34 +60,33 @@ type ShareEntry struct {
 // Entity
 // -----------------------
 type Recipient struct {
-	ID        string `json:"id"`
-	ShareID   string `json:"share_id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	PublicKey string `json:"public_key"`
-	Role      string `json:"role"`
+	ID        string    `json:"id"`
+	ShareID   string    `json:"share_id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	PublicKey string    `json:"public_key"`
+	Role      string    `json:"role"`
 	JoinedAt  time.Time `json:"joined_at"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-    // Blob containing encrypted vault snapshot (optional)
-    EncryptedBlob []byte `json:"encrypted_blob"`
-	RevokedAt	time.Time `json:"revoked_at"`	
+	// Blob containing encrypted vault snapshot (optional)
+	EncryptedBlob []byte    `json:"encrypted_blob"`
+	RevokedAt     time.Time `json:"revoked_at"`
 }
 
 type ShareAcceptData struct {
-    Share      ShareEntry `json:"share"`	
-    Recipient  Recipient `json:"recipient"`
-    Blob       []byte `json:"blob"`	 // encrypted snapshot for this recipient 
+	Share     ShareEntry `json:"share"`
+	Recipient Recipient  `json:"recipient"`
+	Blob      []byte     `json:"blob"` // encrypted snapshot for this recipient
 }
 
-
 type AuditLog struct {
-    ID        string `gorm:"primaryKey;size:64" json:"id"`
-    ShareID   string `gorm:"index;size:64" json:"share_id"`
-    Action    string `json:"action"`
-    Actor     string `json:"actor"`
-    Timestamp time.Time `json:"timestamp"`
-    Details   string `json:"details"`
+	ID        string    `gorm:"primaryKey;size:64" json:"id"`
+	ShareID   string    `gorm:"index;size:64" json:"share_id"`
+	Action    string    `json:"action"`
+	Actor     string    `json:"actor"`
+	Timestamp time.Time `json:"timestamp"`
+	Details   string    `json:"details"`
 }
 
 type EntrySnapshot struct {
@@ -134,7 +133,6 @@ type EntrySnapshot struct {
 	Country              string `json:"country"`
 
 	// Custom fields fallback
-	ExtraFields datatypes.JSON `json:"extra_fields" gorm:"type:json"`
-	Attachements []vaults_domain.Attachment `json:"attachements" gorm:"foreignKey:EntrySnapshotID;constraint:OnDelete:CASCADE"`
+	ExtraFields datatypes.JSON             `json:"extra_fields" gorm:"type:json"`
+	Attachments []vaults_domain.Attachment `json:"attachements" gorm:"foreignKey:EntrySnapshotID;constraint:OnDelete:CASCADE"`
 }
-

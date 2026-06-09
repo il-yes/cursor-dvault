@@ -3,6 +3,7 @@ package vault_commands
 import (
 	"context"
 	"fmt"
+
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
@@ -87,11 +88,14 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 	vaultCtx app_config_domain.VaultContext,
 	data []byte,
 ) (string, error) {
+
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - vaultCtx", vaultCtx)
 	storageProvider := h.StorageFactory.New(&vaultCtx)
 	return storageProvider.Add(ctx, data)
 }
 
 func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
+
 	// 1. Unlock vault key
 	// ==============================================
 	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
@@ -99,7 +103,7 @@ func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloa
 		UserID:   cmd.UserOnboardingID, // userOnboarding required
 	})
 	if err != nil {
-		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - - error", cmd)
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - error", cmd)
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption - failed to unlock vault key: %w", err)
 	}
 	vaultKey := unlockRes.VaultKey.Key
@@ -123,7 +127,6 @@ func (h *CreateIPFSPayloadCommandHandler) HandleEcryption(cmd CreateIPFSPayloadC
 	utils.LogPretty("CreateIPFSPayloadCommandHandler - HandleEcryption - EncryptionMode", PRIVATE_MODE)
 	return h.PrivateEncryption(cmd, vaultCtx)
 }
-
 
 func (h *CreateIPFSPayloadCommandHandler) SetIpfsService(ipfs IpfsServiceInterface) {
 	h.IpfsService = ipfs

@@ -154,7 +154,7 @@ func (h *CardHandler) EditWithAttachments(userID string, entry any, attachments 
 		}
 		entryAttachments = append(entryAttachments, vaults_domain.Attachment{
 			ID:   uuid.New().String(),
-			EntryID: updatedEntry.ID,
+			FileCID: updatedEntry.ID,
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,

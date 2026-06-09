@@ -9,6 +9,8 @@ import (
 // -------- EVENTS --------
 type VaultOpened struct {
 	UserID  string
+	UserOnboardingID string
+	VaultName string
 	VaultPayload *vault_domain.VaultPayload
     Dirty   bool
     LastCID string

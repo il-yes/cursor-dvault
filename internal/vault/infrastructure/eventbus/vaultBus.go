@@ -17,6 +17,7 @@ func NewMemoryBus() *MemoryBus {
 	}
 }
 
+// VaultOpened Event
 func (mb *MemoryBus) PublishVaultOpened(ctx context.Context, event vault_events.VaultOpened) error {
 	mb.lock.RLock()
 	defer mb.lock.RUnlock()

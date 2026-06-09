@@ -97,11 +97,34 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 
 				expires_at: expirationDate?.toISOString() || null,
 				download_allowed: allowDownload,
+				attachmentCIDs: selectedVaultEntry?.attachmentCIDs,
 			};
 
 			// 2️⃣ Add optimistic entry and get temp ID
 			const tempId = addSharedEntry(optimisticPayload);
 
+
+			let pendingShareIntents: string[] = []
+			const getCustomersFromCloud = async (email: string) => {
+				try {
+					const response = await AppAPI.CheckUserEmail(jwtToken, email);
+					console.log('getCustomersFromCloud response', response);
+					return response;
+
+				} catch (error) {
+					console.log('User not found with this email: ', email)
+					pendingShareIntents.push(email)
+					// build temp trace_core.User
+					const tempUser = {
+						id: 0,
+						firstName: email.split("@")[0],
+						lastName: "",
+						email: email,
+						public_key: "",
+					}
+					return tempUser
+				}
+			};
 			const getPublicKey = async (email: string) => {
 				const response = await AppAPI.CheckUserEmail(jwtToken, email);
 				console.log('getPublicKey response', response);
@@ -111,30 +134,35 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 				return response?.public_key;
 			};
 			// Get public key for recipients
-			const publicKeys = await Promise.all(recipients.map(email => getPublicKey(email)));
+			const customers = await Promise.all(recipients.map(email => getCustomersFromCloud(email)));
+			console.log({ customers });
+			const publicKeys = customers.map(customer => customer?.public_key);
 			console.log({ publicKeys });
 
-			if (!publicKeys) {
+			// TODO: change no found logic, if not found, let inform that this unknow user will be notified to join Ankhora and accept the share
+			if (pendingShareIntents.length > 0) {
+				console.log("pendingShareIntents", pendingShareIntents);
 				toast({
-					title: "Error",
-					description: "No public key found for this email",
+					title: "Invitation to Join",
+					description: `${pendingShareIntents.toString()} doesn't have any Ankhora account yet. We'll notify them to join Ankhora and accept the share`,
 				});
-				return;
 			}
 
 			// 3️⃣ Create real shared entry via backend
 			const cloudResponse = await createSharedEntry({
 				entry_id: selectedEntry,
-				recipients: recipients.map((email, index) => ({
-					name: email.split("@")[0],	// TODO: useless
-					email,
-					publicKey: publicKeys[index],
+				recipients: customers.map((customer) => ({
+					id: customer?.id.toString(),
+					name: customer?.first_name + " " + customer?.last_name,
+					email: customer?.email,
+					publicKey: customer?.public_key,
 					role: permission == "edit" ? "editor" : "viewer",
 				})),
 				permission: permission as "read" | "edit" | "temporary",
 				expires_at: expirationDate?.toISOString(),
 				custom_message: customMessage,
 				download_allowed: allowDownload,
+				attachmentCIDs: selectedVaultEntry?.attachmentCIDs,
 			});
 
 			console.log("☁️ Cloud shared entry:", cloudResponse);

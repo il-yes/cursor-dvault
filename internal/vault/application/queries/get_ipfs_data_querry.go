@@ -32,7 +32,7 @@ type IpfsServiceInterface interface {
 type GetIPFSDataQuerry struct {
 	CID              string
 	Password         string
-	AppCfg           app_config_domain.AppConfig
+	Configs           app_config_domain.Config
 	UserID           string
 	VaultName        string
 	UserOnboardingID string
@@ -124,10 +124,11 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
 	vc := app_config_domain.VaultContext{
-		AppConfig:     req.AppCfg,
-		StorageConfig: req.AppCfg.Storage,
+		Configs:     req.Configs,
+		StorageConfig: req.Configs.App.Storage,
 		UserID:        req.UserID,
 		VaultName:     req.VaultName,
+		UserSubscriptionID: req.Configs.Subscription.UserID,
 	}
 
 	if h.StorageFactory == nil {

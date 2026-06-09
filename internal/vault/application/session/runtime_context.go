@@ -12,6 +12,7 @@ type RuntimeContext struct {
     UserConfig     app_config_domain.UserConfig
     SessionSecrets map[string]string
     WorkingBranch  string
+    VaultName string
 }
 
 
@@ -24,12 +25,19 @@ func NewRuntimeContext() *RuntimeContext {
     }
 }
 
-func NewRuntimeContextFrom(appConfig app_config_domain.AppConfig, userConfig app_config_domain.UserConfig, sessionSecrets map[string]string, workingBranch string) *RuntimeContext {
+func NewRuntimeContextFrom(
+    appConfig app_config_domain.AppConfig, 
+    userConfig app_config_domain.UserConfig, 
+    sessionSecrets map[string]string,
+    workingBranch string,
+    vn string,
+) *RuntimeContext {
     return &RuntimeContext{
         AppConfig:      appConfig,
         UserConfig:     userConfig,
         SessionSecrets: sessionSecrets,
         WorkingBranch:  workingBranch,
+        VaultName: vn,
     }
 }
 func (rc *RuntimeContext) GetAppConfig() app_config_domain.AppConfig {
@@ -70,6 +78,10 @@ func (rc *RuntimeContext) CurrentUserID() string {
 
 func (rc *RuntimeContext) SetVaultID(vaultID string) {
     rc.VaultID = vaultID
+}
+
+func (rc *RuntimeContext) SetVaultName(name string) {
+    rc.VaultName = name
 }
 
 

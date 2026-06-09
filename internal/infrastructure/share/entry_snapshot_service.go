@@ -3,9 +3,10 @@ package share_infrastructure
 import (
 	"context"
 	"encoding/json"
+
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/logger/logger"
-	vaults_domain "vault-app/internal/vault/domain"
+	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vault_ui "vault-app/internal/vault/ui"
 )
 
@@ -14,7 +15,7 @@ import (
 // ---------------------------------------------------------------------------------
 type Vaulthandler interface {
 	UploadAttachementToIPFSWithEncryption(userID string, ur vault_ui.UploadAttachRequest) (string, error)
-	LoadAttachment(userID string, vaultName string, hash string) (string, error)
+	LoadAttachment(userID string, vaultName string, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error)
 }
 
 type EntrySnapshotService struct {
@@ -42,7 +43,7 @@ type BuildRequest struct {
 	UserSubscriptionID string
 	VaultName          string
 	Password           string
-    SymKey             []byte
+	SymKey             []byte
 }
 type BuildResponse struct {
 	Raw            []byte
@@ -75,77 +76,77 @@ func (s *EntrySnapshotService) Build(
 	}, nil
 }
 
-
-
-
 // Extract attachements from entry snapshot
 func (s *EntrySnapshotService) Process(
-    ctx context.Context,
-    req BuildRequest,
+	ctx context.Context,
+	req BuildRequest,
 ) (*share_domain.EntrySnapshot, []string, []string, error) {
-    entrySnapshot := req.Share.EntrySnapshot
+	// entrySnapshot := req.Share.EntrySnapshot
 
-    if entrySnapshot.Attachements == nil {
-        entrySnapshot.Attachements = make([]vaults_domain.Attachment, 0, len(entrySnapshot.Attachements))
-    }
+	// if entrySnapshot.Attachements == nil {
+	// 	entrySnapshot.Attachements = make([]vaults_domain.Attachment, 0, len(entrySnapshot.Attachements))
+	// }
 
-    cids := []string{}
-    attachementIDs := []string{}
+	// cids := []string{}
+	// attachementIDs := []string{}
 
-    for i := range entrySnapshot.Attachements {
-        attachment := &entrySnapshot.Attachements[i]
-        if attachment.HashShare == "" {
-            buffer, err := s.VaultHandler.LoadAttachment(
-                req.UserID,
-                req.VaultName,
-                attachment.Hash,
-            )
-            if err != nil {
-                s.Logger.Error(
-                    "❌ Failed to load attachment for user %s: %v",
-                    req.UserID,
-                    err,
-                )
-                return nil, nil, nil, err
-            }
+	// for i := range entrySnapshot.Attachements {
+	// 	attachment := &entrySnapshot.Attachements[i]
+	// 	// TODO: Change logic, test obsolete
+	// 	if attachment.Hash == "" {
+	// 		resp, err := s.VaultHandler.LoadAttachment(
+	// 			req.UserID,
+	// 			req.VaultName,
+	// 			attachment.Hash,
+	// 			"string",
+	// 		)
+	// 		if err != nil {
+	// 			s.Logger.Error(
+	// 				"❌ Failed to load attachment for user %s: %v",
+	// 				req.UserID,
+	// 				err,
+	// 			)
+	// 			return nil, nil, nil, err
+	// 		}
 
-            if attachment.RecipientCIDs == nil {
-                attachment.RecipientCIDs = make(map[string]string)
-            }
+	// 		if attachment.RecipientCIDs == nil {
+	// 			attachment.RecipientCIDs = make(map[string]string)
+	// 		}
 
-            for _, recipUser := range req.Share.Recipients {
-                if attachment.RecipientCIDs[recipUser.PublicKey] != "" {
-                    continue
-                }
-                // recipUser.
+	// 		for _, recipUser := range req.Share.Recipients {
+	// 			if attachment.RecipientCIDs[recipUser.PublicKey] != "" {
+	// 				continue
+	// 			}
+	// 			// recipUser.
 
-                cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
-                    req.UserID,
-                    vault_ui.UploadAttachRequest{
-                        Data:               []byte(buffer),
-                        UserSubscriptionID: req.UserSubscriptionID,
-                        VaultName:          req.VaultName,
-                        Password:           req.Password,
-                        EncryptionMode: "public",
-                        SymKey:             req.SymKey,
-                    },
-                )
-                if err != nil {
-                    s.Logger.Error(
-                        "❌ Failed to upload attachment for user %s: %v",
-                        req.UserID,
-                        err,
-                    )
-                    return nil, nil, nil, err
-                }
+	// 			cid, err := s.VaultHandler.UploadAttachementToIPFSWithEncryption(
+	// 				req.UserID,
+	// 				vault_ui.UploadAttachRequest{
+	// 					Data:               []byte(resp.Hash),
+	// 					UserSubscriptionID: req.UserSubscriptionID,
+	// 					VaultName:          req.VaultName,
+	// 					Password:           req.Password,
+	// 					EncryptionMode:     "public",
+	// 					SymKey:             req.SymKey,
+	// 				},
+	// 			)
+	// 			if err != nil {
+	// 				s.Logger.Error(
+	// 					"❌ Failed to upload attachment for user %s: %v",
+	// 					req.UserID,
+	// 					err,
+	// 				)
+	// 				return nil, nil, nil, err
+	// 			}
 
-                attachment.RecipientCIDs[recipUser.PublicKey] = cid
-                cids = append(cids, cid)
-                attachementIDs = append(attachementIDs, attachment.ID)
+	// 			attachment.RecipientCIDs[recipUser.PublicKey] = cid
+	// 			cids = append(cids, cid)
+	// 			attachementIDs = append(attachementIDs, attachment.ID)
 
-            }
-        }
-    }
+	// 		}
+	// 	}
+	// }
 
-    return &entrySnapshot, cids, attachementIDs, nil
+	// return &entrySnapshot, cids, attachementIDs, nil
+	return nil, nil, nil, nil
 }

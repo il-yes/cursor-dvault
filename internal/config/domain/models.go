@@ -1,23 +1,26 @@
 package app_config_domain
 
 import (
-	app_config "vault-app/internal/config"
-	utils "vault-app/internal/utils"
-	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	app_config "vault-app/internal/config"
+	utils "vault-app/internal/utils"
+	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 )
 
-
-
 type VaultContext struct {
-	SessionID     string
-	AppConfig     AppConfig
-	StorageConfig app_config.StorageConfig
-	UserID        string
-	VaultName     string
-	UserOnboarding string
+	SessionID          string
+	Configs            Config
+	StorageConfig      app_config.StorageConfig
+	UserID             string
+	VaultName          string
+	UserOnboarding     string
+	UserSubscriptionID string
 }
 
 type CommitRule struct {
@@ -74,6 +77,7 @@ func (a *AppConfig) BeforeCreate(tx *gorm.DB) (err error) {
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type UserConfig struct {
 	ID               string               `json:"id" gorm:"primaryKey"` // -> UserId reference
+	Email            string               `json:"email,omitempty" gorm:"column:email"`
 	Role             string               `json:"role" gorm:"column:role"`
 	Signature        string               `json:"signature" gorm:"column:signature"`
 	ConnectedOrgs    []string             `json:"connected_orgs" gorm:"type:json;serializer:json"`
@@ -248,13 +252,12 @@ func (s *SyncConfig) BeforeCreate(tx *gorm.DB) (err error) {
 type VaultConfigBeta struct {
 	BaseVaultConfig
 
-	Features   FeatureFlags     `json:"features" gorm:"embedded;embeddedPrefix:features_"`
-	Sync       SyncConfig       `json:"sync" gorm:"embedded;embeddedPrefix:sync_"`
-	Backup     BackupConfig     `json:"backup" gorm:"embedded;embeddedPrefix:backup_"`
-	Privacy    PrivacyConfig    `json:"privacy" gorm:"embedded;embeddedPrefix:privacy_"`
-	Security   SecurityConfig   `json:"security" gorm:"embedded;embeddedPrefix:security_"`
-	Sharing    SharingPolicy    `json:"sharing" gorm:"embedded;embeddedPrefix:sharing_"`
-	Onboarding OnboardingConfig `json:"onboarding" gorm:"embedded;embeddedPrefix:onboarding_"`
+	Features FeatureFlags   `json:"features" gorm:"embedded;embeddedPrefix:features_"`
+	Sync     SyncConfig     `json:"sync" gorm:"embedded;embeddedPrefix:sync_"`
+	Backup   BackupConfig   `json:"backup" gorm:"embedded;embeddedPrefix:backup_"`
+	Privacy  PrivacyConfig  `json:"privacy" gorm:"embedded;embeddedPrefix:privacy_"`
+	Security SecurityConfig `json:"security" gorm:"embedded;embeddedPrefix:security_"`
+	Sharing  SharingPolicy  `json:"sharing" gorm:"embedded;embeddedPrefix:sharing_"`
 }
 
 func (dc *VaultConfigBeta) BeforeCreate(tx *gorm.DB) (err error) {
@@ -416,8 +419,35 @@ type SubscriptionLimits struct {
 //
 // -----------------------------
 type OnboardingConfig struct {
-	Packs              []string `json:"packs" gorm:"type:json"`               // ["compliance_critical","client_data"]
-	UseCases           []string `json:"use_cases" gorm:"type:json"`           // optional UI labels if you want
-	InstalledTemplates []string `json:"installed_templates" gorm:"type:json"` // ["devsecops.incident.v1", ...]
-	Completed          bool     `json:"completed" gorm:"column:completed"`
+	UserID         string      `json:"user_id" gorm:"column:user_id"`
+	Packs          StringSlice `json:"packs" gorm:"type:json"`           // ["compliance_critical","client_data"]
+	UseCases       StringSlice `json:"use_cases" gorm:"type:json"`       // optional UI labels if you want
+	InstalledSeeds StringSlice `json:"installed_seeds" gorm:"type:json"` // ["devsecops.incident.v1", ...]
+	Completed      bool        `json:"completed" gorm:"column:completed"`
+	PacksApplied   bool        `json:"packs_applied" gorm:"column:packs_applied"`
+}
+type StringSlice []string
+
+func (s *StringSlice) Scan(value any) error {
+	if value == nil {
+		*s = nil
+		return nil
+	}
+	var b []byte
+	switch v := value.(type) {
+	case []byte:
+		b = v
+	case string:
+		b = []byte(v)
+	default:
+		return fmt.Errorf("unsupported type %T", value)
+	}
+	return json.Unmarshal(b, s)
+}
+
+func (s StringSlice) Value() (driver.Value, error) {
+	if s == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(s))
 }

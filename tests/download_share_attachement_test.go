@@ -346,6 +346,14 @@ func mockAccessEncryptedEntryResponse() map[string]any {
 	}
 }
 
+
+func GetConfig(userID string, vaultName string) (*app_config_domain.Config, error) {
+	res, err := app_config_domain.InitConfigFromVault(userID, vaultName)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
 // --------------------------------------------------------------------------------------------------
 // TESTS
 // --------------------------------------------------------------------------------------------------
@@ -460,6 +468,11 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 		"",
 	)
 
+	cfgs, err := GetConfig(userID, vault.Name)
+	if err != nil {
+		utils.LogPretty("Vault service (WRITE) error", err)
+	}
+
 	// 5. DownloadAttachmentRequest
 	downloadReq := vault_ui.DownloadAttachmentRequest{
 		UserID:       userID,
@@ -470,7 +483,7 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 		PrivateKey:   "private-key",
 		EncryptedKey: "encrypted-key",
 		SymKey:       symKey,
-		AppCfg:       mockAppConfig(),
+		Configs:       cfgs,
 	}
 	// 6. Act
 	path, err := vaultHandler.DownloadAttachment(context.Background(), downloadReq)
@@ -603,6 +616,12 @@ func TestDownloadAttachment_Success(t *testing.T) {
     require.NoError(t, err)
     require.Equal(t, 32, len(symKey))
 
+	cfgs, err := GetConfig(userID, vaultName)
+	if err != nil {
+		utils.LogPretty("Vault service (WRITE) error", err)
+	}
+
+
     // 11. Download request
     downloadReq := vault_ui.DownloadAttachmentRequest{
         UserID:       userID,
@@ -613,7 +632,7 @@ func TestDownloadAttachment_Success(t *testing.T) {
         PrivateKey:   "private-key",
         EncryptedKey: "encrypted-key",
         SymKey:       symKey,
-        AppCfg:       mockAppConfig(),
+        Configs:      cfgs,
     }
 
     // 12. Act

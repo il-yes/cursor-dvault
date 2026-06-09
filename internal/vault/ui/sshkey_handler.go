@@ -143,7 +143,7 @@ func (h *SSHKeyHandler) EditWithAttachments(userID string, entry any, attachment
 		}
 		entryAttachments = append(entryAttachments, vaults_domain.Attachment{
 			ID:   uuid.New().String(),
-			EntryID: updatedEntry.ID,
+			FileCID: updatedEntry.ID,
 			Hash: hash,
 			Name: attachment.Name,
 			Size: attachment.Size,

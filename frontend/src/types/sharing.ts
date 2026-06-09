@@ -130,6 +130,7 @@ export interface CreateShareEntryPayload {
   }[];
   expires_at?: string | null;
   download_allowed?: boolean;
+	attachmentCIDs?: string[];
 }
 export interface LinkShareEntry {
   id: string;

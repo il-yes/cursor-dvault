@@ -97,18 +97,24 @@ export interface FederatedProvider {
   client_secret?: string;
   scopes?: string[];
 }
- export const ENTRY_TYPE_LOGIN = "login";
- export const ENTRY_TYPE_CARD = "card";
- export const ENTRY_TYPE_NOTE = "note";
- export const ENTRY_TYPE_SSHKEY = "sshkey";
- export const ENTRY_TYPE_IDENTITY = "identity";
- 
+export const ENTRY_TYPE_LOGIN = "login";
+export const ENTRY_TYPE_CARD = "card";
+export const ENTRY_TYPE_NOTE = "note";
+export const ENTRY_TYPE_SSHKEY = "sshkey";
+export const ENTRY_TYPE_IDENTITY = "identity";
+
+export const ENTRY_TYPES = ["login", "card", "note", "sshkey", "identity"] as const;
+export type EntryType = typeof ENTRY_TYPES[number];
+
 // Base Entry matching Go BaseEntry struct
 export interface BaseEntry {
   id: string;
   entry_name: string;
   folder_id?: string;
-  type: 'login' | 'card' | 'note' | 'sshkey' | 'identity';
+  type: EntryType; // 'login' | 'card' | 'note' | 'sshkey' | 'identity';
+  template_id?: string;
+  schema_version?: number;
+  record_type?: string;
   additionnal_note?: string;
   custom_fields?: Record<string, any>;
   trashed: boolean;
@@ -116,6 +122,7 @@ export interface BaseEntry {
   created_at: string;
   updated_at: string;
   is_favorite?: boolean;
+  attachmentCIDs?: string[];
   attachments?: Attachment[];
 }
 
@@ -175,13 +182,15 @@ export interface Vault {
   version: string;
   name: string;
   folders: Folder[];
-  entries: {
-    login: VaultEntry[];
-    card: VaultEntry[];
-    note: VaultEntry[];
-    sshkey: VaultEntry[];
-    identity: VaultEntry[];
-  };
+  // entries: {
+  //   login: VaultEntry[];
+  //   card: VaultEntry[];
+  //   note: VaultEntry[];
+  //   sshkey: VaultEntry[];
+  //   identity: VaultEntry[];
+  // };
+  entries: VaultEntries;
+  attachments: Attachment[];
   created_at?: string;
   updated_at?: string;
 
@@ -190,31 +199,37 @@ export interface Vault {
 // Union type for all entries
 export type VaultEntry = LoginEntry | CardEntry | IdentityEntry | NoteEntry | SSHKeyEntry;
 
+export type VaultEntries = {
+  [K in EntryType]: Extract<VaultEntry, { type: K }>[];
+};
+
 export interface Folder {
   id: string;
   name: string;
   icon?: string;
   parent_id?: string;
+  is_dirty?: boolean;
 }
 
 
 export type AttachmentStorage = "local" | "cloud" | "ipfs";
 export type TransferStatus = "idle" | "uploading" | "success" | "error";
+
 export interface Attachment {
   id: string;
-  entry_id: string;
   hash: string;
+  node_cid: string;
+  file_cid: string
   name: string;
-  size: number;
-  storage: AttachmentStorage;
-  cid?: string;
-  transferStatus?: TransferStatus;
+  size?: number;
   ext?: string;
-  downloaded_at?: string;
-  downloaded_to?: string;
-hash_local?: string;
-  hash_share?: string;
   recipient_cids?: Record<string, string>;
+  downloaded_at?: string;
+  storage?: AttachmentStorage;
+  is_dirty?: string;
+  downloaded_to?: string;
+
+
 }
 
 export const UploadStorage = {
@@ -260,6 +275,13 @@ export interface AuditEvent {
   timestamp: string;
   user_id: string;
 }
+export interface Link {
+  cid: string;
+}
+export interface IndexMetadata {
+  byType: Record<string, Link>;
+  byFolder: Record<string, Link>;
+}
 
 export interface VaultPayload {
   version: string;
@@ -272,6 +294,8 @@ export interface VaultPayload {
     identity: Entry[]
     sshkey: Entry[]
   };
+  attachments: Attachment[];
+  index: IndexMetadata;
   created_at: string;
   updated_at: string;
 }
@@ -404,10 +428,12 @@ export type SettingsState = {
     animationsEnabled?: boolean
   }
   onboarding: {
+    user_id?: string,
     packs: string[],
     use_cases: string[],
-    installed_templates: string[],
-    completed: boolean
+    installed_seeds: string[],
+    completed: boolean,
+    packs_applied: boolean
   }
 
   storage?: {
@@ -429,3 +455,7 @@ export type SelectedAttachment = {
   ext: string
 }
 
+export interface RecipientCIDs {
+  file_cid: string;
+  attachment_id: string;
+}

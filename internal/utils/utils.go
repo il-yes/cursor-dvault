@@ -45,3 +45,5 @@ func Uint64() uint64 {
 func mapToStruct(input map[string]interface{}, out any) error {
 	return mapstructure.Decode(input, out)
 }
+
+type JSONMapAny map[string]any

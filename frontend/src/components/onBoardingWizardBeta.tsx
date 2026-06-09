@@ -183,6 +183,7 @@ const OnboardingWizardBeta: React.FC<OnboardingWizardBetaProps> = ({ onComplete 
                 password: isAnonymous ? '' : password,
                 tier: selectedTier,
                 is_anonymous: isAnonymous,
+                use_cases: useCases,
             })) as unknown as CreateAccountResponse;
             console.log({ response })
 

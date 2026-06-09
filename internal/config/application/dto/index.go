@@ -11,6 +11,7 @@ type Settings struct {
     Vaults       app_config_domain.VaultConfigBeta `json:"vaults"`
     Device      *app_config_domain.DeviceConfig `json:"devices"`
 	Storage     *app_config.StorageConfig `json:"storage"`
+	Onboarding *app_config_domain.OnboardingConfig `json:"onboarding"`
 }
 
 type CreateConfigCommandInput struct {

@@ -66,7 +66,6 @@ func (m *Manager) Prepare(userID string) (*Session, error) {
 	var s *Session
 	if existing != nil {
 		s = existing
-		utils.LogPretty("Manager - Prepare - existing session", existing)
 	} else {
 		s = newSession(userID)
 		utils.LogPretty("Manager - Prepare - new session", userID)
@@ -247,8 +246,6 @@ func (m *Manager) SetVault(userID string, vault *vaults_domain.VaultPayload) err
 	s.Vault = vault.ToBytes()
 	s.LastUpdated = m.NowUTC()
 	// 3. ---------- Mark session as dirty ----------	
-	s.Dirty = true
-	utils.LogPretty("Manager - SetVault - vault set", vault)
 	return nil
 }	
 
@@ -273,7 +270,7 @@ func (m *Manager) Sync(userID string, newCID string) {
 		s.LastUpdated = m.NowUTC()	
 		s.LastSynced = time.Now().Format(time.RFC3339)
 		s.Dirty = false
-		utils.LogPretty("Manager - Sync - vault synced", s)
+		utils.LogPretty("Manager - Sync - vault synced", "ok")
 	}
 	m.logger.Info("✅ Vault synced for user %s:", userID)
 }

@@ -5,6 +5,8 @@ import { GlobalSecurityInsight } from "@/components/GlobalSecurityInsight";
 import { useVaultStore } from "@/store/vaultStore";
 import ContributionGraph from "@/components/ContributionGraph/ContributionGraph"
 import AccessSecurityView from "@/components/AccessSecurity/AccessSecurityView";
+import { Button } from "@/components/ui/button";
+import * as AppAPI from "../../wailsjs/go/main/App";
 
 const Index = () => {
   const { vault, lastSyncTime, loadVault } = useVaultStore();
@@ -28,12 +30,23 @@ const Index = () => {
     "2025-01-03": 10,
   };
 
+  const fetchPacks = async() => {
+    const packs = await AppAPI.GetPacks("pack.client_data")
+    console.log({packs})
+
+
+    const template = await AppAPI.GetTemplate("devsecops.incident.v1")
+    console.log({template})
+
+
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
         <div className="space-y-2">
           <h1 className="text-4xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-primary/80 bg-clip-text text-transparent">
-            
+
           </h1>
           <p className="text-lg text-muted-foreground max-w-md pt-3">
             <small><em>Overview of your vault activity and statistics</em></small>
@@ -145,9 +158,23 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          <AccessSecurityView />
+          <Card className="border-none shadow-xl backdrop-blur-sm bg-white/60 dark:bg-zinc-900/50 lg:col-span-1 ">
+            <CardHeader>
 
-          <GlobalSecurityInsight />
+              <Button onClick={fetchPacks}>Load templates</Button>
+              <Button onClick={fetchPacks}>Install templates</Button>
+            </CardHeader>
+            <CardContent className="p-6">
+              <AccessSecurityView />
+            </CardContent>
+          </Card>
+
+          
+          <Card className="border-none shadow-xl backdrop-blur-sm bg-white/60 dark:bg-zinc-900/50 lg:col-span-1 ">
+            <GlobalSecurityInsight />
+          </Card>
+
+
         </div>
       </div>
     </DashboardLayout>

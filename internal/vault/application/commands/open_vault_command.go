@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"gorm.io/gorm"
+
 	app_config_domain "vault-app/internal/config/domain"
+	subscription_domain "vault-app/internal/subscription/domain"
 	utils "vault-app/internal/utils"
 	vault_events "vault-app/internal/vault/application/events"
 	vault_queries "vault-app/internal/vault/application/queries"
@@ -14,8 +17,6 @@ import (
 	vault_domain "vault-app/internal/vault/domain"
 	vaults_domain "vault-app/internal/vault/domain"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
-
-	"gorm.io/gorm"
 )
 
 // AppConfigFacade is a local interface for config operations needed by vault commands.
@@ -24,6 +25,7 @@ type AppConfigFacade interface {
 	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
 	UpdateAppConfig(appConfig *app_config_domain.AppConfig) error
 	UpdateUserConfig(userConfig *app_config_domain.UserConfig) error
+	GetConfig(userID string, vault vaults_domain.Vault, sub *subscription_domain.Subscription) (*app_config_domain.Config, error)
 }
 type VaultReconstructorInterface interface {
 	BuildFromRoot(
@@ -39,6 +41,8 @@ type OpenVaultCommand struct {
 	Password         string
 	Session          *vault_session.Session
 	UserOnboardingID string
+	Configs          app_config_domain.Config
+	Subscription     subscription_domain.Subscription
 }
 
 // -------- RESULT --------
@@ -94,7 +98,6 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 0. SESSION INVARIANT
 	// ------------------------------------------------------------
 	if cmd.Session == nil {
-		utils.LogPretty("OpenVaultCommandHandler - session is nil", cmd.Session)
 		cmd.Session = vault_session.InitNewSession(cmd.UserID)
 	}
 
@@ -107,12 +110,12 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 1. REUSE SESSION (FAST PATH)
 	// ------------------------------------------------------------
 	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
-		utils.LogPretty("OpenVaultCommandHandler - something is nil", cmd)
 		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
 
+		utils.LogPretty("OpenVaultCommandHandler - User", cmd.UserID)
 		vault, err := h.VaultRepo.GetLatestByUserID(cmd.UserID)
 		if err != nil {
-			utils.LogPretty("OpenVaultCommandHandler - session is nil", cmd.Session)
+			utils.LogPretty("OpenVaultCommandHandler -", "session is nil")
 		}
 
 		// ------------------------------------------------------------
@@ -123,15 +126,17 @@ func (h *OpenVaultCommandHandler) Handle(
 		runtimeCtx.AppConfig.RepoID = vault.ID
 		runtimeCtx.AppConfig.Branch = cmd.UserOnboardingID
 		runtimeCtx.VaultID = vault.ID
+		runtimeCtx.VaultName = vault.Name
 		payload.Name = vault.Name
 		cmd.Session.Runtime = runtimeCtx
 
 		eventBus.PublishVaultOpened(ctx, vault_events.VaultOpened{
-			UserID:       cmd.UserID,
-			VaultPayload: &payload,
-			LastCID:      cmd.Session.LastCID,
-			Runtime:      runtimeCtx,
-			OccurredAt:   time.Now().Unix(),
+			UserID:           cmd.UserID,
+			UserOnboardingID: cmd.UserOnboardingID,
+			VaultPayload:     &payload,
+			LastCID:          cmd.Session.LastCID,
+			Runtime:          runtimeCtx,
+			OccurredAt:       time.Now().Unix(),
 		})
 
 		return &OpenVaultResult{
@@ -169,12 +174,17 @@ func (h *OpenVaultCommandHandler) Handle(
 	// ------------------------------------------------------------
 	// 3. RECONSTRUCT VAULT FROM IPFS (ONLY PLACE)
 	// ------------------------------------------------------------
+	cfgs, err := configFacade.GetConfig(cmd.UserID, *vault, &cmd.Subscription) // TODO: inject userOnboarding email via struct to retrieve the onboarding config via email
+	if err != nil {
+		utils.LogPretty("OpenVaultCommandHandler - Handle - Error get Config", err)
+	}
+
 	legacyPayload, err := h.VaultReconstructor.BuildFromRoot(
 		ctx,
 		vault_queries.GetIPFSDataQuerry{
 			CID:              vault.CID,
 			Password:         cmd.Password,
-			AppCfg:           runtimeCtx.AppConfig,
+			Configs:          *cfgs,
 			UserID:           cmd.UserID,
 			VaultName:        vault.Name,
 			UserOnboardingID: cmd.UserOnboardingID,
@@ -201,11 +211,13 @@ func (h *OpenVaultCommandHandler) Handle(
 	// 5. EVENT
 	// ------------------------------------------------------------
 	eventBus.PublishVaultOpened(ctx, vault_events.VaultOpened{
-		UserID:       cmd.UserID,
-		VaultPayload: &legacyPayload,
-		LastCID:      vault.CID,
-		Runtime:      runtimeCtx,
-		OccurredAt:   time.Now().Unix(),
+		UserID:           cmd.UserID,
+		UserOnboardingID: cmd.UserOnboardingID,
+		VaultName:        vault.Name,
+		VaultPayload:     &legacyPayload,
+		LastCID:          vault.CID,
+		Runtime:          runtimeCtx,
+		OccurredAt:       time.Now().Unix(),
 	})
 
 	// ------------------------------------------------------------
@@ -268,116 +280,4 @@ func (h *OpenVaultCommandHandler) LoadConfigurationsForUserID(ctx context.Contex
 type AttachRuntimeRequest struct {
 	UserID  string
 	Runtime *vault_session.RuntimeContext
-}
-
-func (h *OpenVaultCommandHandler) Handle2(
-	ctx context.Context,
-	cmd OpenVaultCommand,
-	eventBus vault_events.VaultEventBus,
-	configFacade AppConfigFacade,
-) (*OpenVaultResult, error) {
-	utils.LogPretty("OpenVaultCommandHandler - Handle - cmd", cmd)
-
-	// ------------------------------------------------------------
-	// 0. ENFORCE INVARIANTS (NON-NEGOTIABLE)
-	// ------------------------------------------------------------
-	if cmd.Session == nil {
-		cmd.Session = vault_session.InitNewSession(cmd.UserID)
-	}
-
-	runtimeCtx, err := h.GetRuntimeContext(ctx, cmd.UserID, configFacade)
-	if err != nil {
-		return nil, err
-	}
-
-	// ------------------------------------------------------------
-	// 1. REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)
-	// ------------------------------------------------------------
-	if cmd.Session.Vault != nil && cmd.Session.LastCID != "" {
-		utils.LogPretty("OpenVaultCommandHandler - Handle - REUSE SESSION VAULT IF POSSIBLE (SINGLE PATH)", cmd.Session)
-		payload := vaults_domain.ParseVaultPayload(cmd.Session.Vault)
-		// utils.LogPretty("OpenVaultCommandHandler - Handle - parsed payload", payload)
-
-		evt := vault_events.VaultOpened{
-			UserID:       cmd.UserID,
-			VaultPayload: &payload,
-			LastCID:      cmd.Session.LastCID,
-			LastSynced:   cmd.Session.LastSynced,
-			LastUpdated:  cmd.Session.LastUpdated,
-			Runtime:      runtimeCtx,
-			OccurredAt:   time.Now().Unix(),
-		}
-
-		eventBus.PublishVaultOpened(ctx, evt)
-
-		return &OpenVaultResult{
-			Vault:          nil,
-			Content:        &payload,
-			RuntimeContext: runtimeCtx,
-			Session:        cmd.Session,
-			LastCID:        cmd.Session.LastCID,
-			ReusedExisting: true,
-		}, nil
-	}
-
-	// ------------------------------------------------------------
-	// 2. CREATE VAULT METADATA IF NOT EXISTS
-	// ------------------------------------------------------------
-	// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", cmd.UserID)
-	vault, err := h.VaultRepo.GetLatestByUserID(cmd.UserID)
-	if err != nil {
-		utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", err)
-		if errors.Is(err, vault_domain.ErrVaultNotFound) {
-			// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", cmd.UserID)
-			vault = vault_domain.NewVault(cmd.UserID, "")
-			if err := h.VaultRepo.SaveVault(vault); err != nil {
-				utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - VAULT NOT FOUND", err)
-				return nil, err
-			}
-			vault = vault_domain.NewVault(cmd.UserID, "")
-			if err := h.VaultRepo.SaveVault(vault); err != nil {
-				// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA - NEW VAULT NOT FOUND", err)
-				return nil, err
-			}
-		} else {
-			// utils.LogPretty("OpenVaultCommandHandler - Handle - LOAD OR CREATE VAULT METADATA", err)
-			return nil, err
-		}
-	}
-	// ------------------------------------------------------------
-	// 5. EMIT EVENT
-	// ------------------------------------------------------------
-	legacyPayload, err := h.VaultReconstructor.BuildFromRoot(ctx, vault_queries.GetIPFSDataQuerry{
-		CID:       vault.CID,
-		Password:  cmd.Password,
-		AppCfg:    cmd.Session.Runtime.AppConfig,
-		UserID:    cmd.UserID,
-		VaultName: vault.Name,
-	})
-	if err != nil {
-		return nil, err
-	}
-	evt := vault_events.VaultOpened{
-		UserID:       cmd.UserID,
-		VaultPayload: &legacyPayload,
-		LastCID:      vault.CID,
-		LastSynced:   vault.UpdatedAt,
-		LastUpdated:  vault.UpdatedAt,
-		Runtime:      runtimeCtx,
-		OccurredAt:   time.Now().Unix(),
-	}
-
-	eventBus.PublishVaultOpened(ctx, evt)
-
-	// ------------------------------------------------------------
-	// 6. RETURN RESULT
-	// ------------------------------------------------------------
-	return &OpenVaultResult{
-		Vault: vault,
-		// Content:        &payload,
-		RuntimeContext: runtimeCtx,
-		Session:        cmd.Session,
-		LastCID:        vault.CID,
-		ReusedExisting: false,
-	}, nil
 }

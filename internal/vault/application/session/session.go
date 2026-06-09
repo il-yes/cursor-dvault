@@ -3,6 +3,7 @@ package vault_session
 
 import (
 	"encoding/json"
+	"errors"
 	tracecore_models "vault-app/internal/tracecore/models"
 	vaults_domain "vault-app/internal/vault/domain"
 )
@@ -41,7 +42,7 @@ func InitNewSession(userID string) *Session {
 
 func DecodeSessionVault(blob []byte) (*vaults_domain.VaultPayload, error) {
 	if len(blob) == 0 {
-		return nil, nil
+		return nil, errors.New("Vault domain - DecodeSessionVault - error blob")
 	}
 
 	var payload vaults_domain.VaultPayload
@@ -61,6 +62,7 @@ type SessionRepository interface {
 	GetLatestByUserID(userID string) (*Session, error)
 	GetEntries(session Session) (*vaults_domain.Entries, error) 
 	GetFolders(s Session) ([]vaults_domain.Folder, error)
+	GetAttachements(session Session) ([]vaults_domain.Attachment, error)
 }
 
 

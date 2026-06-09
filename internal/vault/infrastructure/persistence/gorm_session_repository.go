@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	utils "vault-app/internal/utils"
-	"vault-app/internal/blockchain"
-	vault_session "vault-app/internal/vault/application/session"
-	vaults_domain "vault-app/internal/vault/domain"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"vault-app/internal/blockchain"
+	vault_session "vault-app/internal/vault/application/session"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type GormSessionRepository struct {
@@ -70,7 +70,6 @@ func (r *GormSessionRepository) GetSession(userID string) (*vault_session.Sessio
 	err := r.db.Where("user_id = ?", userID).First(&mapper).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.LogPretty("GormSessionRepository - GetSession - mapper not found", mapper)
 			// create a default session if not found
 			// session := vault_session.InitNewSession(userID)
 			// if err := r.SaveSession(userID, session); err != nil {
@@ -91,9 +90,6 @@ func (r *GormSessionRepository) GetSession(userID string) (*vault_session.Sessio
 	if err := json.Unmarshal(decrypted, &session); err != nil {
 		return nil, err
 	}
-	utils.LogPretty("GormSessionRepository - GetSession - mapper", mapper)
-	utils.LogPretty("GormSessionRepository - GetSession - session", session)
-	utils.LogPretty("GormSessionRepository - GetSession - decrypted", vaults_domain.ParseVaultPayload(decrypted))
 	return &session, nil
 }
 
@@ -116,16 +112,22 @@ func (r *GormSessionRepository) GetEntries(s vault_session.Session) (*vaults_dom
 	if err != nil {
 		return nil, err
 	}
-	return  &vp.Entries, nil
+	return &vp.Entries, nil
 }
 func (r *GormSessionRepository) GetFolders(s vault_session.Session) ([]vaults_domain.Folder, error) {
 	vp, err := vault_session.DecodeSessionVault(s.Vault)
 	if err != nil {
 		return nil, err
 	}
-	return  vp.Folders, nil
+	return vp.Folders, nil
 }
-
+func (r *GormSessionRepository) GetAttachements(s vault_session.Session) ([]vaults_domain.Attachment, error) {
+	vp, err := vault_session.DecodeSessionVault(s.Vault)
+	if err != nil {
+		return nil, err
+	}
+	return vp.Attachments, nil
+}
 
 type SessionDBModel struct {
 	db *gorm.DB
@@ -157,4 +159,3 @@ func (db *SessionDBModel) FindAll() (map[string]*vault_session.Session, error) {
 
 	return sessions, nil
 }
-

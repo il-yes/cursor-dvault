@@ -75,6 +75,7 @@ type AccountCreationRequest struct {
 	Password    string `json:"password,omitempty"`
 	IsAnonymous bool   `json:"is_anonymous"`
 	StellarKey  string `json:"stellar_key,omitempty"` // For anonymous accounts
+	UseCases    []string `json:"use_cases,omitempty"` 
 }
 
 type AccountCreationResponse struct {
@@ -210,6 +211,7 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		Email:       req.Email,
 		IsAnonymous: false,
 		Password:    string(hashedPassword),
+		UseCases:    req.UseCases,
 		CreatedAt:   time.Now(),
 	}
 

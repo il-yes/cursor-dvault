@@ -27,22 +27,29 @@ type VaultHandlerInterface interface {
 	GetSession(userID string) (*vault_session.Session, error)
 }
 
+type ApplyOnboardingPacksWorkerInterface interface {
+	OnApplyOnboardingPacks(userID, vaultName string, userOnboarding string)
+}
+
 // -------- LISTENER --------
 type VaultOpenedListener struct {
 	Logger       *logger.Logger
 	Bus          vault_events.VaultEventBus
 	VaultHandler VaultHandlerInterface
+	PackWorker   ApplyOnboardingPacksWorkerInterface
 }
 
 func NewVaultOpenedListener(
 	logger *logger.Logger,
 	bus vault_events.VaultEventBus,
 	vaultHandler VaultHandlerInterface,
+	pw ApplyOnboardingPacksWorkerInterface,
 ) *VaultOpenedListener {
 	return &VaultOpenedListener{
 		Logger:       logger,
 		Bus:          bus,
 		VaultHandler: vaultHandler,
+		PackWorker: pw,
 	}
 }
 
@@ -63,7 +70,10 @@ func (l *VaultOpenedListener) Listen(ctx context.Context) {
 			l.Logger.Error("❌ VaultOpenedListener - failed to open vault for user %s: %v", e.UserID, err)
 			return
 		}
-		l.Logger.Info("✅ VaultOpenedListener - vault opened for user %s", e.UserID)
+		l.Logger.Info("✅ VaultOpenedListener - vault opened for user: %s - %s", e.UserID, e.UserOnboardingID)
+
+		// TODO: launch the packWorker with the runtime instead of the vaultHandler
+		l.PackWorker.OnApplyOnboardingPacks(e.UserID, e.VaultName, e.UserOnboardingID)
 	})
 
 	<-ctx.Done()

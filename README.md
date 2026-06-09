@@ -574,151 +574,6 @@ curl -X POST https://ankhora.io/back/vaults/839471c9-a394-40e5-b5a5-aa5e4ca02288
 - stellar payment integration
 
 
-type BoundaryContext interface {
-  Name() string
-  Version() string
-  Build() string
-	BuildInfra() string
-  InjectDependency(dependency BoundaryContext) 
-  InjectDependencies(app application.Application) 
-}
-
-type VaultBC struct {
-  db *gorm.DB
-  logger logger.Logger
-
-	name string
-	version string
-  isWarmedUp bool
-  isBuilt bool
-  isDependenciesInjected bool
-  dependencyList map[string]bool
-
-	userRepo user_repo.UserRepository
-  vaultRepo vault_repo.VaultRepository
-  avatarStorage attachment_storage.AvatarStorage
-  attachmentStorage attachment_storage.AttachmentStorage
-  useCase UseCase
-  createVaultCommand
-  openVaultCommand
-  monitor Monitor
-  
-
-  SubscriptionBC *SubscriptionBC
-  IdentityBC *IdentityBC
-}
-
-func (bc *VaultBC) New(db *gorm.DB, logger logger.Logger) *VaultBC {
-  bc.BuildInfra(db, logger)
-
-	return &VaultBC{
-    db: db,
-    logger: logger,
-		name: "VaultBC",
-		version: "1.0.0",
-		isDependenciesInjected: false,
-		dependencyList: map[string]bool{
-			"SubscriptionBC": false,
-			"IdentityBC": false,
-		},
-	}
-}
-
-
-func (bc *VaultBC) BuildInfra(db *gorm.DB, logger logger.Logger) (bool, error) {
-	bc.userRepo, err := user_repo.NewUserRepository(db, logger)
-  if err != nil {
-    return false, err
-  }
-  bc.vaultRepo, err := vault_repo.NewVaultRepository(db, logger)
-  if err != nil {
-    return false, err
-  }
-  bc.avatarStorage, err := attachment_storage.NewAvatarStorage()
-  if err != nil {
-    return false, err
-  }
-  bc.attachmentStorage, err := attachment_storage.NewAttachmentStorage()
-  if err != nil {
-    return false, err
-  }
-  bc.isBuilt = true
-	return true, nil  
-}
-
-func (bc *VaultBC) Build(db *gorm.DB, logger logger.Logger) (bool, error) {
-  if !bc.isWarmedUp {
-    return false, errors.New("infra not warmed up")
-  }
-	bc.useCase, err := usecase.NewUseCase(db, logger)
-  if err != nil {
-    return false, err
-  }
-  bc.createVaultCommand, err := command.NewCreateVaultCommand(bc.vaultRepo, db, logger)
-  if err != nil {
-    return false, err
-  }
-  bc.openVaultCommand, err := command.NewOpenVaultCommand(db, logger)
-  if err != nil {
-    return false, err
-  }
-  bc.monitor, err = monitor.NewMonitor(db, logger)
-  if err != nil {
-    return false, err
-  }
-  return true, nil
-}
-
-func (bc *VaultBC) InjectDependency(dependency BoundaryContext) {
-  if dependency.isWarmedUp {
-    bc.dependencyList[dependency.name] = true
-	  bc[dependency.name] = dependency
-  }
-}
-
-func (bc *VaultBC) InjectDependencies(app application.Application) {
-  for _, dependency := range bc.dependencyList {
-    if app[dependency] != nil {
-      bc.InjectDependency(app[dependency])
-    }
-  }
-}
-
-func (bc *VaultBC) GetDependency(name string) *BoundaryContext {
-	return bc[name]
-}
-
-type SubscriptionBC struct {
-	name string
-	version string
-	userRepo user_repo.UserRepository
-  useCase UseCase
-  monitor Monitor
-}
-func (bc *SubscriptionBC) BuildInfra() string {
-	bc.userRepo = user_repo.NewUserRepository()
-	bc.useCase = usecase.NewUseCase()
-	bc.monitor = monitor.NewMonitor()
-	return "infra built"
-}
-
-// ====== build application implementation ========
-app := NewApplication()
-app.AddBoundaryContext(NewVaultBC(db, logger))
-app.AddBoundaryContext(NewSubscriptionBC(db, logger))
-app.AddBoundaryContext(NewIdentityBC(db, logger))
-// inject dependencies
-for _, bc := range app.boundaryContexts {
-  bc.InjectDependencies(app)
-}
-// build - build boundaries context app
-for _, bc := range app.boundaryContexts {
-  bc.Build(db, logger)
-}
-
-app.Run() 
-
-
 
 .
 ├── application
@@ -781,25 +636,6 @@ vault/
  logs in link share (optional)
  handle share links attachement view
  handle share cryptographic attachement view
-
-
-
-Error to track - token expired
-🚀 ~ withAuth ~ errorString: – "unauthorized: expired token"
-2DashboardLayout.tsx:477
-	useEffect(() => {
-		const fetchAvatar = async () => {
-			const b64 = await withAuth((token) => {
-				return loadAvatar(jwtToken, vaultContext?.Vault?.name);
-			});
-			setAvatar(b64);
-		};
-
-		fetchAvatar();
-	}, [jwtToken, vaultContext]);
-
-
-
 
 
   Perfect — let’s go one level deeper. This is where your project becomes **truly decentralized**.
@@ -1162,101 +998,6 @@ folder_root node
   ]
 }
 
-folder_item
-{
-  "id": 61734720405,
-  "name": "Stone",
-  "created_at": "2025-08-28T11:27:38-07:00",
-  "updated_at": "2025-08-28T11:27:38-07:00",
-  "is_draft": false,
-  "cid": "Bfm...
-}
-
-type Vault struct {
-  // Legacy
-	ID        string `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name" gorm:"column:name"`
-	Type      string `json:"type" gorm:"column:type"`
-	UserID    string `json:"user_id" gorm:"column:user_id"`
-	UserSubscriptionID string `json:"user_subscription_id" gorm:"column:user_subscription_id"`
-	CID       string `json:"cid" gorm:"column:cid"` // ✅ Explicitly map this!
-	TxHash    string `json:"tx_hash" gorm:"column:tx_hash,omitempty"`
-	CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
-
-  // beta 
-  version string `json:"version" gorm:"column:version"`
-  VaultMeta VaultMeta `json:"vault_meta" gorm:"column:vault_meta"`
-  Folders Link
-  Entries Link
-  Attachements Link
-  IndexCID string `json:"index_cid"`
-
-}
-VaultMeta {
-	Name      string `json:"name" gorm:"column:name"`
-	UserID    string `json:"user_id" gorm:"column:user_id"`
-  CreatedAt string `json:"created_at" gorm:"column:created_at"` // change to time.Time later
-	UpdatedAt string `json:"updated_at" gorm:"column:updated_at"` // change to time.Time later
-}
-
-type VaultModel struct {
-	ID  string
-  Meta  VaultMeta
-	CID string
-}
-type VaultNode struct {
-	Type     string
-	Version  string
-	Folders  Link
-	Entries  Link
-	Index    Link
-}
-
-type Link struct {
-	CID string `json:"/"`
-}
-type EntriesRoot struct {
-	Items []Link `json:"items"`
-}
-type FoldersRoot struct {
-	Items []Link `json:"items"`
-}
-type AttachementsRoot {
-  Items []Link `json:"items"`
-}
-type Index struct {
-	ByType   map[string][]Link `json:"byType"`
-	ByFolder map[string][]Link `json:"byFolder"`
-}
-
-type Folder struct {
-	ID        string `json:"id" gorm:"primaryKey"`
-	Name      string `json:"name" gorm:"varchar(100)"`
-	CreatedAt string `json:"created_at" gorm:"varchar(100)"`
-	UpdatedAt string `json:"updated_at" gorm:"varchar(100)"`
-	IsDraft   bool   `json:"is_draft"`
-	NodeCID  string `json:"cid"`    <= new 
-}
-// Entry = BaseEntry + LoginEntry/CardEntry....
-type BaseEntry struct {
-	ID              string    `json:"id"`
-	EntryName       string    `json:"entry_name"`
-	FolderID        string    `json:"folder_id"`
-	Type            EntryType `json:"type"`
-	AdditionnalNote string    `json:"additionnal_note,omitempty"`
-	CustomFields    JSONMap   `json:"custom_fields,omitempty" gorm:"type:jsonb"`
-	Trashed         bool      `json:"trashed"`
-	IsDraft         bool      `json:"is_draft"`
-	IsFavorite      bool      `json:"is_favorite"`
-	CreatedAt string `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt string `json:"updated_at" gorm:"autoUpdateTime"`
-	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"` // legacy
-
-	AttachmentCIDs []string `json:"attachments,omitempty"` // <= new
-	NodeCID  string `json:"cid"`    <= new 
-}
-
 
         User Edit
             ↓
@@ -1286,4 +1027,87 @@ type BaseEntry struct {
 - add to session.runtime.share_entries ShareEntries []share_domain.ShareEntries
 - handle attachement lifecycle
 
+- test download share attachements
+- move share decryption from cloud backend to the dvault
+- finalize download ux (after downloading show "open" button instead of "download")
+- templates implementations 
+- rotate keys
+- Team_vault & Enterprise grade implementaion dvault side
+- templates workflow automation
+- fix stellar fee payment supported by Ankhora cloud
 
+
+
+curl -X POST http://localhost:4001/api/templates \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_id": "legal.matter.v1",
+    "record_type": "legal_matter",
+    "schema_version": 1,
+    "fields": {
+      "matter_id": "",
+      "title": "",
+      "client_name": "",
+      "client_reference": "",
+      "matter_type": "advisory",
+      "status": "open",
+      "opened_at": "",
+      "closed_at": "",
+      "jurisdiction": "",
+      "confidentiality_level": "confidential",
+      "lead_counsel": "",
+      "team_members": [],
+      "summary": "",
+      "key_facts": [],
+      "positions": {
+        "our_position": "",
+        "their_position": ""
+      },
+      "deadlines": [],
+      "documents": [],
+      "evidence_links": [],
+      "billing": {
+        "fee_type": "hourly",
+        "rate": "",
+        "currency": "USD",
+        "cap": ""
+      },
+      "notes": "",
+      "tags": []
+    }
+  }'
+
+curl -X POST http://localhost:4001/api/packs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "pack.client_data",
+    "templates": [
+      {
+        "template_id": "devsecops.incident.v1",
+        "folder_id": "Incidents",
+        "overrides": {
+          "status": "draft",
+          "environment": "production"
+        }
+      }
+    ]
+  }'
+curl -X POST http://localhost:4001/api/packs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "pack.client_data",
+    "template_id": "legal.matter.v1",
+    "folder_id": "",
+    "overrides": {}
+  }'
+
+
+
+pendingShareIntent
+- ID
+- entryID
+- ownerID
+- recipientID
+- status
+- createdAt
+- expiredAt

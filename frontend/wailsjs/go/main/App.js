@@ -6,8 +6,8 @@ export function AccessDecryptVaultEntry(arg1, arg2) {
   return window['go']['main']['App']['AccessDecryptVaultEntry'](arg1, arg2);
 }
 
-export function AddAttachement(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['AddAttachement'](arg1, arg2, arg3, arg4, arg5);
+export function AddAttachements(arg1, arg2) {
+  return window['go']['main']['App']['AddAttachements'](arg1, arg2);
 }
 
 export function AddEntry(arg1, arg2, arg3) {
@@ -142,6 +142,10 @@ export function GenerateApiKey(arg1) {
   return window['go']['main']['App']['GenerateApiKey'](arg1);
 }
 
+export function GetAllConfigs(arg1, arg2) {
+  return window['go']['main']['App']['GetAllConfigs'](arg1, arg2);
+}
+
 export function GetAppState() {
   return window['go']['main']['App']['GetAppState']();
 }
@@ -162,8 +166,12 @@ export function GetFoldersByVault(arg1, arg2) {
   return window['go']['main']['App']['GetFoldersByVault'](arg1, arg2);
 }
 
-export function GetIPFSFile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GetIPFSFile'](arg1, arg2, arg3);
+export function GetIPFSFile(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetIPFSFile'](arg1, arg2, arg3, arg4);
+}
+
+export function GetPacks(arg1) {
+  return window['go']['main']['App']['GetPacks'](arg1);
 }
 
 export function GetPendingPaymentRequests(arg1) {
@@ -192,6 +200,10 @@ export function GetSubscriptionDetails(arg1) {
 
 export function GetSubscriptionFromCloud(arg1, arg2) {
   return window['go']['main']['App']['GetSubscriptionFromCloud'](arg1, arg2);
+}
+
+export function GetTemplate(arg1) {
+  return window['go']['main']['App']['GetTemplate'](arg1);
 }
 
 export function GetTierFeatures() {
@@ -350,12 +362,20 @@ export function SignUp(arg1) {
   return window['go']['main']['App']['SignUp'](arg1);
 }
 
+export function SimulatePackWorker(arg1, arg2) {
+  return window['go']['main']['App']['SimulatePackWorker'](arg1, arg2);
+}
+
 export function SynchronizeVault(arg1, arg2) {
   return window['go']['main']['App']['SynchronizeVault'](arg1, arg2);
 }
 
 export function TrashEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['TrashEntry'](arg1, arg2, arg3);
+}
+
+export function UpdateAttachment(arg1, arg2) {
+  return window['go']['main']['App']['UpdateAttachment'](arg1, arg2);
 }
 
 export function UpdateFolder(arg1, arg2, arg3, arg4) {

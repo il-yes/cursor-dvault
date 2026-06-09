@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen, Eye, EyeOff, Copy, Sparkles, Image } from "lucide-react";
+import { UserPlus, Trash2, Download, Shield, Database, Calendar, FolderOpen, Eye, EyeOff, Copy, Sparkles, Image, BatteryFullIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import ankhoraLogo from "@/assets/ankhora-logo-transparent.png";
@@ -14,12 +14,11 @@ import { useVaultStore } from "@/store/vaultStore";
 import { cn, Gateways } from "@/lib/utils";
 import { decryptField, GetConfig, logAuditEvent } from "@/services/api";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { share_application_dto } from "../../wailsjs/go/models";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAppStore } from "@/store/appStore";
 import { Textarea } from "./ui/textarea";
-import { Attachment, CardEntry, IdentityEntry, LoginEntry, NoteEntry, SettingsState, SSHKeyEntry } from "@/types/vault";
+import { Attachment, CardEntry, IdentityEntry, LoginEntry, NoteEntry, RecipientCIDs, SettingsState, SSHKeyEntry } from "@/types/vault";
 import { useAuthStore } from "@/store/useAuthStore";
 import { withAuth } from "@/hooks/withAuth";
 
@@ -34,6 +33,7 @@ interface RevealedField {
 	name: string;
 	value: string;
 	timeout: NodeJS.Timeout;
+	full_data: any;
 }
 
 const DEFAULT_REVEAL_TIMEOUT = 15;
@@ -175,7 +175,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 
 			console.log({ entry_id: entry.id, field_name: fieldName }); // ← DEBUG
 
-			const { plaintext, expires_in, encrypted_key } = await decryptField({
+			const { plaintext, full_data, expires_in, encrypted_key } = await decryptField({
 				entry_id: entry.id,
 				field_name: fieldName,
 				challenge,
@@ -184,13 +184,13 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 			setShareKey(encrypted_key);
 
 
-			await logAuditEvent({
-				event_type: 'decrypt',
-				entry_id: entry.id,
-				field_name: fieldName,
-				timestamp: new Date().toISOString(),
-				user_id: 'current_user',
-			});
+			// await logAuditEvent({
+			// 	event_type: 'decrypt',
+			// 	entry_id: entry.id,
+			// 	field_name: fieldName,
+			// 	timestamp: new Date().toISOString(),
+			// 	user_id: 'current_user',
+			// });
 
 			const timeout = setTimeout(() => {
 				handleMaskField(fieldName);
@@ -198,7 +198,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 
 			setRevealedFields(prev => {
 				const newMap = new Map(prev);
-				newMap.set(fieldName, { name: fieldName, value: plaintext, timeout });
+				newMap.set(fieldName, { name: fieldName, value: plaintext, timeout, full_data: full_data });
 				return newMap;
 			});
 
@@ -240,7 +240,8 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 			newMap.set(fieldName, {
 				name: fieldName,
 				value: JSON.stringify(entry) as string,
-				timeout  // ← ADD THIS LINE
+				timeout,  // ← ADD THIS LINE
+				full_data: entry,
 			});
 			return newMap;
 		});
@@ -285,70 +286,77 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
 	};
-	const RenderAttachements = ({ selectedFiles }) => (
+	const RenderAttachements = ({ entry }: { entry?: { attachments?: any[] } }) => {
+		console.log("----------------------------------------------------------------------------------------------------------------------------")
+		console.log("RenderAttachements", entry)
+		const attachments = entry?.attachments ?? [];
 
-		<div className="px-3 py-5 space-y-3 max-h-48 overflow-y-auto glass-scrollbar">
-			{selectedFiles.map((attachment, index) => (
-				<div
-					key={index}
-					className="group flex items-center gap-4 p-4 rounded-2xl backdrop-blur-xl bg-white/70 dark:bg-zinc-900/70 border border-white/40 shadow-xl hover:shadow-2xl hover:shadow-primary/20 hover:scale-[1.01] transition-all duration-300 hover:border-primary/50"
-				>
-					{/* File icon */}
-					<div className="flex-shrink-0 p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/30 shadow-md">
-						<Image className="w-5 h-5 text-primary" />
+		return (
+			<div className="px-3 py-5 space-y-3 max-h-48 overflow-y-auto glass-scrollbar">
+				{attachments?.map((attachment, index) => (
+					<div
+						key={index}
+						className="group flex items-center gap-4 p-4 rounded-2xl backdrop-blur-xl bg-white/70 dark:bg-zinc-900/70 border border-white/40 shadow-xl hover:shadow-2xl hover:shadow-primary/20 hover:scale-[1.01] transition-all duration-300 hover:border-primary/50"
+					>
+						{/* File icon */}
+						<div className="flex-shrink-0 p-3 rounded-2xl bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/30 shadow-md">
+							<Image className="w-5 h-5 text-primary" />
 
-					</div>
+						</div>
 
-					{/* File info */}
-					<div className="flex-1 min-w-0">
-						<p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-							{attachment.name}
-						</p>
-						<p className="text-xs text-muted-foreground/80 font-mono">
-							{formatFileSize(attachment.size)}
-						</p>
-					</div>
+						{/* File info */}
+						<div className="flex-1 min-w-0">
+							<p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+								{attachment.name}
+							</p>
+							<p className="text-xs text-muted-foreground/80 font-mono">
+								{formatFileSize(attachment.size)}
+							</p>
+						</div>
 
-					{/* Show full screen button */}
-					{attachment.recipient_cids[stellar.public_key] &&
+
+						{ }
+						{/* Show full screen button */}
 						<button
-							onClick={() => downloadAttachment(attachment)}
+							onClick={() => downloadAttachment(attachment.recipient_cids[stellar.public_key], attachment.ext)}
 							className="
-								rounded-full 
-								bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
-								px-3 py-1.5 
-								text-[11px] font-semibold text-[#F3DFA6] 
-								backdrop-blur-md 
-								hover:from-[#C9A44A]/50 hover:to-amber-500/50
-								transition-all 
-								shadow-lg
-								border border-[#C9A44A]/30
-								hover:scale-105 active:scale-95"
+									rounded-full 
+									bg-gradient-to-r from-[#C9A44A]/30 to-amber-500/30 
+									px-3 py-1.5 
+									text-[11px] font-semibold text-[#F3DFA6] 
+									backdrop-blur-md 
+									hover:from-[#C9A44A]/50 hover:to-amber-500/50
+									transition-all 
+									shadow-lg
+									border border-[#C9A44A]/30
+									hover:scale-105 active:scale-95"
 							title="Download"
 						>
 							Download
-						</button>}
-				</div>
-			))}
-		</div>
-	)
+						</button>
+					</div>
+				))}
+			</div>
+		)
+	}
 	const openIpfsInBrowser = async (attachment: Attachment) => {
 		try {
-			const url = `${Gateways.local}/${attachment.hash_share}`;
+			const url = `${Gateways.local}/${attachment.hash}`;
 			AppAPI.OpenURL(url);
 		} catch (err) {
 			console.error("Decrypt view failed:", err);
 		}
 	};
 
-	const downloadAttachment = async (attachment: Attachment) => {
-		console.log({attachment})
-		console.log(attachment.recipient_cids[stellar.public_key])
-		console.log({shareKey})
+
+	const downloadAttachment = async (file_cid: string, extension: string) => {
+		// console.log(attachment.recipient_cids[stellar.public_key])
+		console.log({ shareKey })
+
 		const payload = {
 			EncryptedKey: shareKey,
-			AttachmentCID: attachment.recipient_cids[stellar.public_key],
-			FileExtension: attachment.ext,
+			AttachmentCID: file_cid,
+			FileExtension: extension,
 		}
 		try {
 			const fileURL = await AppAPI.DownloadShareAttachement(
@@ -364,6 +372,11 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 			console.error("DownloadAttachment failed:", err);
 		}
 	};
+
+	const getAttachment = (entry: any, recipientCIDs: RecipientCIDs) => {
+		const attachment = entry.attachments.find((x) => x.id == recipientCIDs.attachment_id)
+
+	}
 
 	const renderSensitiveField = (
 		fieldName: string,
@@ -384,14 +397,28 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 				decryptedEntry = null;
 			}
 		}
+		// revealed && console.log({ revealed })
+		// console.log("----------------- // ------------------")
+		// revealed && console.log(revealed!.full_data)
 
+		const full = revealed?.full_data
+		// console.log({full}, full?.attachments?.length > 0)
 		const effectiveEntry = (decryptedEntry as any) || entry;
 
 		const renderEntryContent = () => {
-			console.log({ effectiveEntry })
-			switch (effectiveEntry.type) {
+			const effectiveEntry = (decryptedEntry as any) || entry;
+			const type = effectiveEntry?.type?.toLowerCase();
+
+
+			console.log("revealed entry", revealed);
+			console.log("full_data", revealed?.full_data);
+			console.log("full attachments", revealed?.full_data?.attachments);
+			console.log("type", type)
+
+			switch (type) {
 				case "login": {
 					const login = effectiveEntry as LoginEntry;
+					login.attachments = full?.attachments
 					return (
 						<div className="space-y-3">
 							<div className="flex items-center gap-2">
@@ -410,7 +437,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 									{isRevealed ? login.password : "••••••••••••"}
 								</span>
 							</div>
-							{effectiveEntry?.attachements?.length > 0 && <RenderAttachements selectedFiles={effectiveEntry.attachements} />}
+							{full?.attachements?.length > 0 && <RenderAttachements entry={full} />}
 						</div>
 					);
 				}
@@ -484,14 +511,25 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 				}
 
 				case "note": {
+					console.log("------------- NOTE case -----------")
 					const note = effectiveEntry as NoteEntry;
+					const attachments = revealed?.full_data?.attachments ?? note.attachments ?? []
 					const text = (note as any).note ?? (note as any).content;
+					console.log('full attachments length with attachments : ', attachments > 0)
+
+					console.log("about to render attachments", {
+						revealed: !!revealed,
+						full_data: revealed?.full_data,
+						full_attachments: revealed?.full_data?.attachments,
+						note_attachments: (effectiveEntry as any)?.attachments,
+					});
+
 					return (
 						<div className="space-y-3">
 							<div className="text-sm">
 								{isRevealed ? text || "No content" : "••••••••••••"}
 							</div>
-							{effectiveEntry?.attachements?.length > 0 && <RenderAttachements selectedFiles={effectiveEntry.attachements} />}
+							<RenderAttachements entry={{ attachments }} />
 						</div>
 					);
 				}
@@ -519,6 +557,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 						</div>
 					);
 				}
+
 
 				default:
 					return (

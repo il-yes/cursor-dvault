@@ -1,9 +1,9 @@
 package vaults_persistence
 
 import (
-	vaults_domain "vault-app/internal/vault/domain"
-
 	"gorm.io/gorm"
+
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type GormVaultRepository struct {
@@ -25,7 +25,14 @@ func (r *GormVaultRepository) GetVault(vaultID string) (*vaults_domain.Vault, er
 		return nil, err
 	}
 	return vault.ToDomain(), nil
-}	
+}
+func (r *GormVaultRepository) GetVaultByCID(cid string) (*vaults_domain.Vault, error) {
+	var vault VaultMapper
+	if err := r.db.First(&vault, "cid = ?", cid).Error; err != nil {
+		return nil, err
+	}
+	return vault.ToDomain(), nil
+}
 
 func (r *GormVaultRepository) UpdateVault(vault *vaults_domain.Vault) error {
 	vdb := VaultDomainToMapper(vault)
@@ -34,7 +41,7 @@ func (r *GormVaultRepository) UpdateVault(vault *vaults_domain.Vault) error {
 
 func (r *GormVaultRepository) DeleteVault(vaultID string) error {
 	return r.db.Delete(&VaultMapper{}, vaultID).Error
-}	
+}
 
 func (r *GormVaultRepository) GetLatestByUserID(id string) (*vaults_domain.Vault, error) {
 	var record VaultMapper
@@ -52,8 +59,12 @@ func (r *GormVaultRepository) GetByUserIDAndName(userID string, name string) (*v
 	return record.ToDomain(), nil
 }
 
-func (r *GormVaultRepository) UpdateVaultCID(vaultID, cid string) error 	 {
-	// vdb := VaultDomainToMapper(vault)
-	// return r.db.Save(&vdb).Error
-	return  nil
+func (r *GormVaultRepository) UpdateVaultCID(vaultID, cid string) error {
+	vault, err := r.GetVault(vaultID)
+	if err != nil {
+		return  err
+	}
+	vault.CID = cid
+	vdb := VaultDomainToMapper(vault)
+	return r.db.Save(&vdb).Error
 }

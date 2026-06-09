@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { FileUploadWidget } from "./FileUploadWidget";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useVaultStore } from "@/store/vaultStore";
 import * as AppAPI from "../../wailsjs/go/main/App";
-import { Keypair } from "stellar-sdk";
+import { hash, Keypair } from "stellar-sdk";
 import { Buffer } from 'buffer';
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVault } from "@/hooks/useVault";
@@ -85,9 +85,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
     const vaultContext = useVaultStore((state) => state.vault);
-    const stellar = vaultContext?.vault_runtime_context?.UserConfig?.stellar_account
     const { jwtToken } = useAuthStore.getState();
     const { user } = useAuthStore();
+    const deleteEntryAttachment = useVaultStore((state) => state.deleteEntryAttachment);
 
     const [progressVisible, setProgressVisible] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -97,7 +97,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const [progress, setProgress] = useState(0);
     const [stage, setStage] = useState('encrypting'); // encrypting | uploading | complete
     const attachmentUrlCache = new Map<string, string>();
-
 
     const defaultSettings: SettingsState = {
         security: {
@@ -166,8 +165,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         onboarding: {
             packs: [],
             use_cases: [],
-            installed_templates: [],
-            completed: false
+            installed_seeds: [],
+            completed: false,
+            packs_applied: false,
         }
     };
     const [settings, setSettings] = useState<SettingsState>(defaultSettings);
@@ -182,6 +182,45 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const previousEntryId = useRef<string | null>(null);
 
 
+    const getEntryAttachment = (attachments: Attachment[]) => {
+        let collection = []
+
+
+        if (entry?.attachmentCIDs?.length > 0) {
+            console.log("entry attachmentCIDs", entry?.attachmentCIDs);
+            entry?.attachmentCIDs?.map((nodeCid) => {
+                let matched = attachments.find((x) => {
+                    console.log(x.node_cid, nodeCid, x.node_cid == nodeCid)
+                    return x.node_cid == nodeCid
+                })
+                matched && collection.push(matched)
+            })
+        }
+        console.log({ collection })
+
+        return collection
+    }
+
+    const current = useMemo(() => {
+        if (!entry) return null;
+        const entries = vaultContext?.Vault?.entries?.[entry.type] ?? [];
+        return entries.find((e) => e.id === entry.id) ?? entry;
+    }, [vaultContext?.Vault?.entries, entry?.id, entry?.type]);
+
+    // const attachments = useMemo(() => {
+    //     if (!entry?.id) return [];
+    //     return (vaultContext?.Vault?.attachments ?? []).filter(a =>
+    //         current?.attachmentCIDs?.includes(a.node_cid)
+    //     );
+    // }, [vaultContext?.Vault?.attachments, current?.attachmentCIDs]);
+
+    const attachments = useMemo(() => {
+        const cids = current?.attachmentCIDs ?? [];
+        const all = vaultContext?.Vault?.attachments ?? [];
+        return all.filter((a) => cids.includes(a.node_cid));
+    }, [vaultContext?.Vault?.attachments, current?.attachmentCIDs]);
+
+
     useEffect(() => {
         if (!vault?.Vault?.name) return
         fetchConfig(vault.Vault.name)
@@ -193,7 +232,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 return AppAPI.GetConfig(vaultName, token)
             });
 
-            console.log("fetchConfig response", response)
+            // console.log("fetchConfig response", response)
 
             setSettings(response as unknown as SettingsState)
 
@@ -201,9 +240,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             console.error("fetchConfig failed", err)
         }
     }
-
-    // just for dev checks
-    const [attachments, setAttachments] = useState<Attachment[]>([])
 
     useEffect(() => {
         vaultContext && setFolders(vaultContext.Vault.folders || []);
@@ -226,10 +262,11 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
         // Only update when switching entry
         if (previousEntryId.current !== entry.id) {
-            setAttachments(entry.attachments || []);
+            // const atts = getEntryAttachment(vault?.Vault?.attachments)
+            // setAttachments(atts || []);
             previousEntryId.current = entry.id;
         }
-    }, [entry?.id]);
+    }, [entry?.id, vault?.Vault?.attachments]);
 
     // Cleanup timeouts on unmount / when revealedFields changes
     useEffect(() => {
@@ -282,6 +319,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             }
         };
     }, []);
+
 
 
     const handleFieldChange = (fieldName: string, value: any) => {
@@ -563,8 +601,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     };
 
     // Use localEntry for guard (but we still use 'entry' prop for other logic)
-    const current = localEntry ?? entry;
+    // const current = localEntry ?? entry;
     console.log({ current })
+    console.log(vault?.Vault)
 
     // const [customFields, setCustomFields] = useState<Record<string, any>>(
     //     current?.custom_fields ?? {}
@@ -714,9 +753,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             return next;
         });
     };
-
-
-
     // - Attachements: Get raw buffer from attachment.file (no more fetch(hash))
     const fetchLocalAttachmentBuffer = async (hash: string): Promise<Uint8Array> => {
         const base64Url = await fetchAttachment(hash);
@@ -737,7 +773,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const onTransferToBlockchainWithEncryption = async (attachment: Attachment) => {
         alert('--------------------- encryption path used !!!!')
         console.log('--------------------- encryption path used !!!!')
-        const hash = attachment.hash;
+        const hash = attachment?.hash;
         updateTransferStatus(hash, "uploading");
 
         try {
@@ -750,7 +786,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
             console.log("🌐 IPFS CID:", cid);
 
-            updateAttachmentStorage(hash, UploadStorage.IPFS as AttachmentStorage, cid);
+            attachment.file_cid = cid
+            attachment.storage = "ipfs"
+            updateAttachmentStorage(attachment);
             toast({
                 title: "✅ IPFS pinned",
                 description: `CID: ${cid.slice(0, 16)}...`
@@ -764,68 +802,34 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
         }
     };
-    
-    const onTransferToBlockchain = async (attachment: Attachment) => {
-        const hash = attachment.hash;
-        updateTransferStatus(hash, "uploading");
 
-        try {
-            // 1. Get RAW file bytes
-            const fileBuffer = await fetchLocalAttachmentBuffer(hash);
 
-            // 3. Upload 
-            const cid = await uploadAttachementToIPFS(jwtToken, Array.from(fileBuffer), vaultPassword);
-
-            console.log("🌐 IPFS CID:", cid);
-
-            updateAttachmentStorage(hash, UploadStorage.IPFS as AttachmentStorage, cid);
-            toast({
-                title: "✅ IPFS pinned",
-                description: `CID: ${cid.slice(0, 16)}...`
-            });
-
-        } catch (error) {
-            console.error("🚀 IPFS error:", error);
-            updateTransferStatus(hash, "error");
-            toast({ title: "❌ IPFS upload failed", variant: "destructive" });
-        } finally {
-            setTimeout(() => updateTransferStatus(hash, "idle"), 2000);
-        }
-    };
 
     const updateTransferStatus = (hash: string, status: TransferStatus) => {
         setTransferring(prev => ({ ...prev, [hash]: status }));
     };
 
     const updateAttachmentStorage = async (
-        hash: string,
-        storage: AttachmentStorage,
-        cid?: string
+        attachment: Attachment,
     ) => {
         // 🧠 1. Optimistic UI update (instant, no flicker)
-        setAttachments(prev => {
-            const updated = prev.map(att =>
-                att.hash === hash ? { ...att, storage, cid } : att
-            );
+        // setAttachments(prev => {
+        //     const updated = prev.map(att =>
+        //         att.hash === attachment.hash ? { ...att, storage: attachment.storage, file_cid: attachment.file_cid } : att
+        //     );
 
-            // 🔁 use fresh state
-            syncAttachmentsAfterChange(updated);
+        //     // 🔁 use fresh state
+        //     syncAttachmentsAfterChange(updated);
 
-            return updated;
-        });
+        //     return updated;
+        // });
 
         // 🧠 2. Background sync (NO UI dependency)
         try {
             await withAuth((token) =>
-                AppAPI.EditEntry(
-                    entry!.type,
-                    {
-                        ...entry,
-                        attachments: attachments.map(att =>
-                            att.hash === hash ? { ...att, storage, cid } : att
-                        ),
-                    },
-                    token
+                AppAPI.UpdateAttachment(
+                    token,
+                    attachment as any
                 )
             );
         } catch (err) {
@@ -835,12 +839,12 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     };
 
     const onTransferToCloud = async (attachment: Attachment) => {
-        const hash = attachment.hash;
+        const hash = attachment?.hash;
         updateTransferStatus(hash, "uploading");
 
         try {
             // Your cloud upload logic
-            const response = await uploadToCloud(jwtToken, attachment.hash);
+            const response = await uploadToCloud(jwtToken, attachment?.hash);
             console.log("response", response);
             updateAttachmentStorage(hash, "cloud");
             toast({ title: "Cloud upload complete" });
@@ -871,7 +875,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         );
     };
 
-    
+
     // 2. Updated RenderAttachements
     const RenderAttachements = ({
         attachments,
@@ -893,21 +897,23 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         };
 
         const onDeleteAttachment = async (attachment: Attachment) => {
-            if (deletePending === attachment.hash) {
+            if (deletePending === attachment?.hash) {
                 // ✨ 1. Instant UI update (no refresh, no flicker)
-                setAttachments(prev => {
-                    const updated = prev.filter(att => att.hash !== attachment.hash);
+                // setAttachments(prev => {
+                //     const updated = prev.filter(att => att.hash !== attachment?.hash);
 
-                    // 🔁 2. Background sync using UPDATED state
-                    syncAttachmentsAfterChange(updated);
+                //     // 🔁 2. Background sync using UPDATED state
+                //     syncAttachmentsAfterChange(updated);
 
-                    return updated;
-                });
+                //     return updated;
+                // });
+
+                await deleteEntryAttachment(attachment.id, [attachment.hash]);
 
                 toast({ title: "Attachment deleted" });
                 setDeletePending(null);
             } else {
-                setDeletePending(attachment.hash);
+                setDeletePending(attachment?.hash);
                 toast({
                     title: "Double-click to delete",
                     duration: 2000
@@ -920,9 +926,9 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         return (
             <motion.div layout className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <AnimatePresence mode="popLayout">
-                    {attachments.map((attachment) => (
+                    {attachments.length > 0 && attachments.map((attachment) => (
                         <motion.div
-                            key={attachment.hash}
+                            key={attachment?.id}
                             layout
                             initial={{ opacity: 0, scale: 0.92, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -935,7 +941,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         >
                             <AttachmentPreview
                                 attachment={attachment}
-                                transferring={transferring[attachment.hash]}
+                                transferring={transferring[attachment?.hash]}
                                 onTransferToCloud={onTransferToCloud}
                                 onTransferToBlockchain={onTransferToBlockchain}
                                 onCopyCid={onCopyCid}
@@ -948,24 +954,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             </motion.div>
         );
     };
-    const syncAttachmentsAfterChange = async (next?: Attachment[]) => {
-        const updated = next ?? attachments;
 
-        try {
-            await withAuth((token) =>
-                AppAPI.EditEntry(
-                    entry!.type,
-                    {
-                        ...entry,
-                        attachments: updated,
-                    },
-                    token
-                )
-            );
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     // 3. Final AttachmentPreview (no custom hooks needed)
     const AttachmentPreview = ({
@@ -992,17 +981,17 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             let isMounted = true;
 
             // 🧠 1. Use cache FIRST (instant, no flicker)
-            if (attachmentUrlCache.has(attachment.hash)) {
-                setSrc(attachmentUrlCache.get(attachment.hash)!);
+            if (attachmentUrlCache.has(attachment?.hash)) {
+                setSrc(attachmentUrlCache.get(attachment?.hash)!);
                 return;
             }
 
             // 🧠 2. Fetch only if not cached
-            fetchAttachment(attachment.hash)
+            fetchAttachment(attachment?.hash)
                 .then((url) => {
                     if (!isMounted || !url) return;
 
-                    attachmentUrlCache.set(attachment.hash, url);
+                    attachmentUrlCache.set(attachment?.hash, url);
                     setSrc(url);
                 })
                 .catch((err) => {
@@ -1012,10 +1001,10 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             return () => {
                 isMounted = false;
             };
-        }, [attachment.hash]);
+        }, [attachment?.hash]);
 
-        const isIpfs = attachment.storage === "ipfs" || !!attachment.cid;
-        const isLocal = !attachment.storage || attachment.storage === "local";
+        const isIpfs = attachment?.storage === "ipfs" || !!attachment?.file_cid;
+        const isLocal = !attachment?.storage || attachment?.storage === "local";
         const isTransferring = transferring === "uploading";
 
         if (!src) {
@@ -1028,7 +1017,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
 
         return (
             <>
-                {selectedAttachment && selectedAttachment.hash === attachment.hash && (
+                {selectedAttachment && selectedAttachment.hash === attachment?.hash && (
                     <FullscreenAttachmentModal
                         attachment={attachment}
                         onClose={() => setSelectedAttachment(null)}
@@ -1054,7 +1043,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                     <motion.img
                         layout
                         src={src}
-                        alt={attachment.name || attachment.hash}
+                        alt={attachment.name || attachment?.hash}
                         className="w-full h-auto object-cover"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -1121,8 +1110,8 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4">
                             <div className="flex items-end justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className="text-xs font-medium text-white/90 truncate">{attachment.name || attachment.hash}</p>
-                                    <p className="mt-1 text-[11px] text-white/60 truncate font-mono">{attachment.hash.slice(0, 12)}...</p>
+                                    <p className="text-xs font-medium text-white/90 truncate">{attachment.name || attachment?.hash}</p>
+                                    <p className="mt-1 text-[11px] text-white/60 truncate font-mono">{attachment?.hash.slice(0, 12)}...</p>
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0">
                                     {isLocal && !isTransferring && (
@@ -1146,7 +1135,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                     {isIpfs && (
                                         <button
                                             className="rounded-full bg-cyan-500/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 backdrop-blur-md hover:bg-cyan-500/40 transition-all"
-                                            onClick={() => onCopyCid(attachment.cid!)}
+                                            onClick={() => onCopyCid(attachment?.file_cid!)}
                                         >
                                             Copy CID
                                         </button>
@@ -1164,7 +1153,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                     <p className="font-semibold text-white/90 mb-2">IPFS Content ID</p>
                                     <div className="flex items-center gap-2">
                                         <code className="break-all font-mono text-[11px] text-white/95 flex-1 bg-black/20 px-2 py-1 rounded">
-                                            {attachment.cid}
+                                            {attachment?.file_cid}
                                         </code>
 
                                         {/* 👁 VIEW ON IPFS */}
@@ -1204,11 +1193,11 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                             title="Download"
                                         >
                                             Download
-                                         </button>
+                                        </button>
 
                                         {/* COPY */}
                                         <button
-                                            onClick={() => onCopyCid(attachment.cid!)}
+                                            onClick={() => onCopyCid(attachment?.file_cid!)}
                                             className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/30 transition-all whitespace-nowrap"
                                             title="Copy to clipboard"
                                         >
@@ -1244,7 +1233,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 {/* Fullscreen image */}
                 <div className="flex-1 flex items-center justify-center min-h-[60vh] lg:min-h-[70vh]">
                     <motion.img
-                        layoutId={attachment.hash}
+                        layoutId={attachment?.hash}
                         src={src} // ← pass src from parent or refetch
                         alt={attachment.name}
                         className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
@@ -1260,7 +1249,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         </h3>
                         <div className="flex items-center gap-4 text-sm text-white/70">
                             <span>Size: {formatFileSize(attachment?.size || 0)}</span>
-                            <span>Hash: {attachment.hash.slice(0, 16)}...</span>
+                            <span>Hash: {attachment?.hash.slice(0, 16)}...</span>
                         </div>
                     </div>
 
@@ -1271,19 +1260,19 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 Storage
                             </span>
                             <div className="flex items-center gap-3">
-                                {attachment.storage === "ipfs" && (
+                                {attachment?.storage === "ipfs" && (
                                     <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200">
                                         <span className="h-2 w-2 rounded-full bg-cyan-300" />
                                         Decentralized (IPFS)
                                     </div>
                                 )}
-                                {attachment.storage === "cloud" && (
+                                {attachment?.storage === "cloud" && (
                                     <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200">
                                         <Cloud className="h-3 w-3" />
                                         Cloud Storage
                                     </div>
                                 )}
-                                {attachment.storage === "local" && (
+                                {attachment?.storage === "local" && (
                                     <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/40 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-200">
                                         <HardDrive className="h-3 w-3" />
                                         Local
@@ -1292,19 +1281,19 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             </div>
                         </div>
 
-                        {attachment.cid && (
+                        {attachment?.file_cid && (
                             <div>
                                 <span className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-2 block">
                                     IPFS CID
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <code className="flex-1 break-all font-mono text-sm text-white/90 bg-black/20 px-3 py-2 rounded-xl">
-                                        {attachment.cid}
+                                        {attachment?.file_cid}
                                     </code>
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        onClick={() => copyCidToClipboard(attachment.cid!)}
+                                        onClick={() => copyCidToClipboard(attachment?.file_cid!)}
                                         className="h-8 w-8 p-0"
                                     >
                                         <Copy className="h-3 w-3" />
@@ -1323,7 +1312,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                         >
                             Close
                         </Button>
-                        {attachment.storage === "local" && (
+                        {attachment?.storage === "local" && (
                             <div className="flex gap-2">
                                 <Button
                                     size="sm"
@@ -1355,139 +1344,12 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         </div>
     );
 
-
-    const openIpfsInBrowser = async (attachment: Attachment) => {
-        const cid = "QmRd5ewmsZcALpgfYDB3u7VUxveSPxb1QFQ6B6qJPZEoMS";
-        const localGateway = "http://127.0.0.1:5001";
-        const gateway = "https://ipfs.dweb.link";
-        try {
-            fetch(`${localGateway}/ipfs/${attachment.cid}`)
-                .then(r => r.arrayBuffer())
-                .then(buf => {
-                    console.log("Image size (public flow):", buf.byteLength);
-                });
-
-
-
-            // const url = `${gateway}/${attachment.cid}`;
-            // console.log("Opening IPFS in browser:", url);
-            // window.open(url, "_blank")
-            // AppAPI.OpenURL(url);
-            const ipfsHost = "http://127.0.0.1:8080";
-            const url = `${ipfsHost}/ipfs/${attachment.cid}`;
-
-            await AppAPI.OpenFileInDefaultApp(url);
-        } catch (err) {
-            console.error("Decrypt view failed:", err);
-        }
-    };
-    const openPrivateIpfsInBrowser0 = async (attachment: Attachment) => {
-        try {
-            console.log("Fetching CID from backend:", attachment.cid);
-
-            // ✅ DIRECT BACKEND CALL (NO FETCH)
-            const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
-
-            // // decode → bytes
-            // const binaryString = atob(base64);
-            // const bytes = new Uint8Array(binaryString.length);
-
-            // for (let i = 0; i < binaryString.length; i++) {
-            //     bytes[i] = binaryString.charCodeAt(i);
-            // }
-
-            // const decryptedBuffer = await decryptAttachment(
-            //     jwtToken,
-            //     bytes,
-            //     vaultPassword
-            // );
-
-            // if (!decryptedBuffer || decryptedBuffer.length === 0) {
-            //     throw new Error("Decryption returned empty buffer");
-            // }
-
-            const blob = new Blob([base64], {
-                type: "image/jpeg"
-            });
-
-            console.log("Blob size:", blob.size);
-
-            const objectUrl = URL.createObjectURL(blob);
-            console.log({ objectUrl })
-
-            AppAPI.OpenURL(objectUrl);
-
-        } catch (err) {
-            console.error("Decrypt view failed:", err);
-        }
-    };
-    // Try to open directly in wails
-    const openPrivateIpfsInBrowser1 = async (attachment: Attachment) => {
-        try {
-            console.log("Fetching CID from backend:", attachment.cid);
-
-            // ✅ Backend already returns base64(plain)
-            const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
-
-            // ✅ Base64 → bytes
-            const binaryString = atob(base64);
-            const decryptedBytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                decryptedBytes[i] = binaryString.charCodeAt(i);
-            }
-
-            // ✅ Plain file bytes, no extra decryption
-            const blob = new Blob([decryptedBytes], {
-                type: attachment?.mimeType || "application/octet-stream"
-            });
-
-            console.log("Blob size:", blob.size);
-
-            const objectUrl = URL.createObjectURL(blob);
-            console.log({ objectUrl });
-
-            // AppAPI.OpenURL(objectUrl);
-            window.open(objectUrl, "_blank");
-
-        } catch (err) {
-            console.error("Decrypt view failed:", err);
-        }
-    };
-    // Force to download
-    const openPrivateIpfsInBrowser = async (attachment: Attachment) => {
-        // ... same base64 → decryptedBytes
-        console.log("Fetching CID from backend:", attachment.cid);
-
-        // ✅ Backend already returns base64(plain)
-        const base64 = await AppAPI.GetIPFSFile(jwtToken, attachment.cid, vaultPassword);
-
-        // ✅ Base64 → bytes
-        const binaryString = atob(base64);
-        const decryptedBytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            decryptedBytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const blob = new Blob([decryptedBytes], {
-            type: attachment?.mimeType || "application/octet-stream"
-        });
-
-        const objectUrl = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download = attachment.name ?? "attachment";
-        link.click();
-
-        // Optional: revoke the URL after use
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
-    };
     const downloadAttachment = async (attachment: Attachment) => {
         try {
             const fileURL = await AppAPI.DownloadAttachment(
                 jwtToken,
                 vaultPassword,
-                attachment.cid,
+                attachment?.file_cid,
                 attachment.ext
             );
             console.log("Download path:", fileURL);
@@ -1499,18 +1361,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
             console.error("DownloadAttachment failed:", err);
         }
     };
-    function base64ToUint8Array(base64: string): Uint8Array {
-        const binaryString = atob(base64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        return bytes;
-    }
-
 
     // - Helpers - Custom Fields
     const RESERVED = new Set(["template_id", "record_type", "schema_version"]); // Ankhora templates identifiers
@@ -1542,7 +1392,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         return JSON.stringify(v, null, 2);
     }
 
-
     if (current) {
         // For testing
         // current.custom_fields = devsecops_incident_v1   // legal_matter_v1
@@ -1559,7 +1408,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                 .catch((err) => {
                     // if (err == "Enregistrement Introuvable") {
                     console.error(err)
-                    setAttachments(prev => prev.filter(att => att.hash !== attachement.hash));
+                    // setAttachments(prev => prev.filter(att => att.hash !== attachement.hash));
                     current.attachments = current.attachments.filter(att => att.hash !== attachement.hash);
                     // }
                     console.log('error fetch attachement', err)
@@ -1571,6 +1420,17 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         AppAPI.EditEntry(current.type, current, jwtToken);
     }
 
+    console.log("current", current)
+    console.log("entry", entry)
+    console.log("attachements", attachments)
+
+    console.log("vault attachments", vaultContext?.Vault?.attachments);
+    console.log(
+        "matched attachments",
+        (vaultContext?.Vault?.attachments ?? []).filter((a) =>
+            current?.attachmentCIDs?.includes(a.node_cid)
+        )
+    );
 
     return (
         <div className="flex flex-col backdrop-blur-xl bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 border border-white/20 dark:border-zinc-700/20 shadow-2xl">
@@ -1656,7 +1516,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             </div>
                             <TabsList className="grid w-[190px] grid-cols-2" style={{ fontSize: "10px" }}>
                                 <TabsTrigger className="text-xs" value="entry_data">Entry</TabsTrigger>
-                                <TabsTrigger className="text-xs" value="entry_attachements" >Attachement{entry?.attachments?.length > 1 ? "s" : ""}</TabsTrigger>
+                                <TabsTrigger className="text-xs" value="entry_attachements" >{entry?.attachmentCIDs?.length} Attachement{current?.attachmentCIDs?.length > 1 ? "s" : ""} ({current?.attachmentCIDs?.length})</TabsTrigger>
                             </TabsList>
                         </div>
                     </div>
@@ -1904,14 +1764,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             </h3>
 
                             <div className="flex gap-2">
-                                {current?.custom_fields?.template_id && (
+                                {current?.template_id && (
                                     <Badge variant="outline" className="bg-white/60 dark:bg-zinc-800/60">
-                                        Template: {String(current.custom_fields.template_id)}
+                                        Template: {String(current?.template_id)}
                                     </Badge>
                                 )}
-                                {current?.custom_fields?.schema_version && (
+                                {current?.schema_version && (
                                     <Badge variant="outline" className="bg-white/60 dark:bg-zinc-800/60">
-                                        v{String(current.custom_fields.schema_version)}
+                                        v{String(current?.schema_version)}
                                     </Badge>
                                 )}
                             </div>
@@ -1994,7 +1854,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 entry={current}
                                 vaultName={vaultContext.Vault.name}
                                 attachments={attachments}
-                                setAttachments={setAttachments}
                             />
                         </div>
                         {/* gallery attachements */}

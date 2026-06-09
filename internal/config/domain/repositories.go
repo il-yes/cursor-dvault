@@ -40,3 +40,12 @@ type SubscriptionConfigRepository interface {
 	Update(id string, subscriptionConfig *SubscriptionConfig) error
 	Delete(id string) error
 }
+
+type OnboardingConfigRepository interface {
+	Create(onboardingConfig *OnboardingConfig) error
+	Find(id string) (*OnboardingConfig, error)
+	FindByUserID(userID string, optDB map[string]interface{}) (*OnboardingConfig, error)
+	FindAll(userID string) ([]*OnboardingConfig, error)
+	Update(id string, onboardingConfig *OnboardingConfig, opts map[string]interface{}) error
+	Delete(id string) error
+}

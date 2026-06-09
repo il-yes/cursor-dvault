@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	app_config_domain "vault-app/internal/config/domain"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	utils "vault-app/internal/utils"
@@ -16,7 +17,7 @@ type CreateVaultCommand struct {
 	VaultName          string
 	Password           string
 	UserSubscriptionID string
-	AppConfig          app_config_domain.AppConfig
+	Configs            app_config_domain.Config
 	UserOnboarding     *onboarding_domain.User
 }
 
@@ -95,7 +96,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	utils.LogPretty("CreateVaultCommandHandler - Execute - vaultPayload", vaultPayload)
 
 	// -----------------------------
-	// 2. Get vault content
+	// 2. Get vault content bytes
 	// -----------------------------
 	vaultBytes, err := vaultPayload.GetContentBytes()
 	if err != nil {
@@ -108,15 +109,19 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// 2. Create vault context
 	// -----------------------------
 	vc := app_config_domain.VaultContext{
-		AppConfig:     cmd.AppConfig,
-		StorageConfig: cmd.AppConfig.Storage,
-		UserID:        cmd.UserSubscriptionID,
-		VaultName:     cmd.VaultName,
+		Configs:            cmd.Configs,
+		StorageConfig:      cmd.Configs.App.Storage,
+		UserID:             cmd.UserID,
+		VaultName:          cmd.VaultName,
+		UserSubscriptionID: cmd.UserSubscriptionID,
+		UserOnboarding: cmd.UserOnboarding.ID,
 	}
 
 	if h.createIPFSPayloadHandler == nil {
 		utils.LogPretty("CreateVaultCommandHandler - Execute - createIPFSPayloadHandler", h.createIPFSPayloadHandler)
 	}
+	utils.LogPretty("CreateVaultCommandHandler - VaultContext", vc)
+	utils.LogPretty("CreateVaultCommandHandler - VaultContext", []string{cmd.UserID, cmd.UserOnboarding.ID})
 
 	// -----------------------------
 	// 2. Create IPFS CID
@@ -125,10 +130,10 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		context.Background(),
 		vc,
 		CreateIPFSPayloadCommand{
-			Vault:    vault,
-			Password: cmd.Password,
-			Data:     vaultBytes,
-			UserID: cmd.UserOnboarding.ID,
+			Vault:            vault,
+			Password:         cmd.Password,
+			Data:             vaultBytes,
+			UserID:           cmd.UserID,
 			UserOnboardingID: cmd.UserOnboarding.ID,
 		})
 	if err != nil {
@@ -140,7 +145,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	// -----------------------------
 	// 3. Update vault with IPFS CID
 	// -----------------------------
-	// vault.Vault.UserID = 
+	// vault.Vault.UserID =
 	vault.AttachCID(ipfsRecord.CID)
 	utils.LogPretty("CreateVaultCommandHandler - vault attached CID", vault)
 

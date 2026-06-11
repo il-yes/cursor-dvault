@@ -51,6 +51,8 @@ export function CheckUserEmail(arg1:string,arg2:string):Promise<tracecore_types.
 
 export function CompleteOnboarding():Promise<void>;
 
+export function ConnectToRealtime(arg1:string):Promise<void>;
+
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;

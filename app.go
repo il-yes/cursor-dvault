@@ -33,6 +33,9 @@ import (
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_worker "vault-app/internal/config/application/worker"
 	app_config_domain "vault-app/internal/config/domain"
+	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
+	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
+	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
 	share_entry_application_dto "vault-app/internal/share_entry/application"
 	share_entry_use_cases "vault-app/internal/share_entry/application/use_cases"
 	share_entry_domain "vault-app/internal/share_entry/domain"
@@ -53,6 +56,7 @@ import (
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	"vault-app/internal/registry"
+	shared_realtime "vault-app/internal/shared/realtime"
 	shared "vault-app/internal/shared/stellar"
 	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
 	"vault-app/internal/stellar_recovery/infrastructure/events"
@@ -129,9 +133,10 @@ type config struct {
 	TracecoreToken string
 
 	// Cloud
-	CloudURL      string
-	CloudBackURL  string
-	CloudFrontURL string
+	CloudURL                  string
+	CloudBackURL              string
+	CloudFrontURL             string
+	ANKHORA_WEBSOCKET_GATEWAY string
 
 	KEYRING_PATH string
 }
@@ -424,6 +429,17 @@ func NewApp() *App {
 	appLogger.Info("shareEntryHandler", shareEntryHandler)
 
 	// -------------------------------------------------------------------------------------------------
+	// Realtime Client
+	// // -------------------------------------------------------------------------------------------------
+	// wsClient := websocket.New(conn)
+
+	// client := realtime_client.NewClient(handlers)
+
+	// go wsClient.Start(ctx, func(msg shared_realtime.Message) {
+	// 	_ = client.Handle(ctx, msg)
+	// })
+
+	// -------------------------------------------------------------------------------------------------
 	// Stellar Recovery
 	// -------------------------------------------------------------------------------------------------
 	eventDisp := events.NewLocalDispatcher()
@@ -483,8 +499,6 @@ func NewApp() *App {
 	go vaultHandler.VaultOpenedListener.Listen(ctx)
 	appLogger.Info("✅ Vault opened listener started")
 
-	
-
 	// ===== New: onboarding packs =====
 	packWorker := app_config_worker.NewApplyOnboardingPacksWorker(
 		db.DB,
@@ -542,7 +556,6 @@ func NewApp() *App {
 	)
 	go vaultListener.Listen(ctx)
 	appLogger.Info("✅ Vault share created listener started")
-
 
 	return application
 }
@@ -905,6 +918,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		vaultRes.ReusedExisting,
 	)
 
+	// ---------- Connect to real-time --------- //
+	a.ConnectToRealtime(result.User.ID)
+
 	loginRes := &vault_dto.LoginResponse{
 		User:                *result.User,
 		Tokens:              result.Tokens,
@@ -981,7 +997,7 @@ func (a *App) GetConfig(vaultName string, jwtToken string) (*app_config_domain.C
 func (a *App) GetAllConfigs(userID string, email string) (*subscription_domain.Subscription, *vaults_domain.Vault, *app_config_domain.Config, error) {
 	a.Logger.LogPretty("App - GetAllConfigs - userID", userID)
 	a.Logger.LogPretty("App - GetAllConfigs - email", email)
-	
+
 	vault, err := a.Vault.GetLatestByUserID(userID)
 	if err != nil {
 		a.Logger.Error("App - GetAllConfigs - error: %v", err)
@@ -1967,7 +1983,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_entry_domain.ShareEntr
 		a.Logger.Error("App - CreateShare - error: %v", err)
 		return nil, err
 	}
-	
+
 	subscription, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
 	if err != nil {
 		a.Logger.Error("App - CreateShare - error: %v", err)
@@ -2452,6 +2468,30 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 }
 
 // -----------------------------
+// Websocket integration
+// -----------------------------
+func (a *App) ConnectToRealtime(userID string) error {
+
+	a.Logger.Info("ConnectToRealtime called")
+	a.Logger.Info("ConnectToRealtime - user id: %s", userID)
+
+	ws := realtime_client_infrastructure_websocket.NewClient(a.config.ANKHORA_WEBSOCKET_GATEWAY + "/ws/" + userID)
+
+	handlers := realtime_client_handlers.RegisterHandlers(a.ctx)
+
+	client := realtime_client_application_services.NewClient(handlers)
+
+	go func() {
+		_ = ws.Run(a.ctx, func(msg shared_realtime.Message) {
+			_ = client.Handle(a.ctx, msg)
+		})
+	}()
+
+	return nil
+}
+
+
+// -----------------------------
 // Helpers
 // -----------------------------
 
@@ -2493,21 +2533,22 @@ func loadConfig() config {
 			secret: os.Getenv("STRIPE_SECRET"),
 			key:    os.Getenv("STRIPE_SECRET"),
 		},
-		StellarNetwork:     os.Getenv("STELLAR_NETWORK"),
-		StellarHorizonURL:  os.Getenv("STELLAR_HORIZON_URL"),
-		StellarAssetCode:   os.Getenv("STELLAR_ASSET_CODE"),
-		StellarAssetIssuer: os.Getenv("STELLAR_ASSET_ISSUER"),
-		IPFSClient:         os.Getenv("IPFS_CLIENT"),
-		IPFSGateway:        os.Getenv("IPFS_GATEWAY"),
-		IPFSNetwork:        os.Getenv("IPFS_NETWORK"),
-		Branch:             os.Getenv("BRANCH"),
-		EncryptionPolicy:   os.Getenv("ENCRYPTION_POLICY"),
-		TracecoreURL:       os.Getenv("TRACECORE_URL"),
-		TracecoreToken:     os.Getenv("TRACECORE_TOKEN"),
-		CloudBackURL:       os.Getenv("CLOUD_BACK_URL"),
-		CloudFrontURL:      os.Getenv("CLOUD_FRONT_URL"),
-		ANCHORA_SECRET:     os.Getenv("ANCHORA_SECRET"),
-		KEYRING_PATH:       os.Getenv("KEYRING_PATH"),
+		StellarNetwork:            os.Getenv("STELLAR_NETWORK"),
+		StellarHorizonURL:         os.Getenv("STELLAR_HORIZON_URL"),
+		StellarAssetCode:          os.Getenv("STELLAR_ASSET_CODE"),
+		StellarAssetIssuer:        os.Getenv("STELLAR_ASSET_ISSUER"),
+		IPFSClient:                os.Getenv("IPFS_CLIENT"),
+		IPFSGateway:               os.Getenv("IPFS_GATEWAY"),
+		IPFSNetwork:               os.Getenv("IPFS_NETWORK"),
+		Branch:                    os.Getenv("BRANCH"),
+		EncryptionPolicy:          os.Getenv("ENCRYPTION_POLICY"),
+		TracecoreURL:              os.Getenv("TRACECORE_URL"),
+		TracecoreToken:            os.Getenv("TRACECORE_TOKEN"),
+		CloudBackURL:              os.Getenv("CLOUD_BACK_URL"),
+		CloudFrontURL:             os.Getenv("CLOUD_FRONT_URL"),
+		ANCHORA_SECRET:            os.Getenv("ANCHORA_SECRET"),
+		KEYRING_PATH:              os.Getenv("KEYRING_PATH"),
+		ANKHORA_WEBSOCKET_GATEWAY: os.Getenv("ANKHORA_WEBSOCKET_GATEWAY"),
 	}
 }
 

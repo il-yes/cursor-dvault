@@ -15,7 +15,8 @@ declare global {
       };
     };
     runtime?: {
-      EventsOn?: (eventName: string, callback: (data: any) => void) => void;
+      // EventsOn?: (eventName: string, callback: (data: any) => void) => void;
+      EventsOn?: (eventName: string, callback: (data: any) => void) => (() => void);
       EventsOff?: (eventName: string) => void;
     };
   }
@@ -48,7 +49,7 @@ class WailsBridgeService {
    */
   onContextReceived(callback: VaultContextCallback): () => void {
     this.listeners.push(callback);
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners = this.listeners.filter(cb => cb !== callback);

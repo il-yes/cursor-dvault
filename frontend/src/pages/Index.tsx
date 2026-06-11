@@ -7,8 +7,11 @@ import ContributionGraph from "@/components/ContributionGraph/ContributionGraph"
 import AccessSecurityView from "@/components/AccessSecurity/AccessSecurityView";
 import { Button } from "@/components/ui/button";
 import * as AppAPI from "../../wailsjs/go/main/App";
+import { useEffect } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const Index = () => {
+	const { jwtToken } = useAuthStore.getState();
   const { vault, lastSyncTime, loadVault } = useVaultStore();
   const linkShareEntries = useVaultStore((state) => state.linkSharedByMe.items);
   const cryptographicSharedEntries = useVaultStore((state) => state.shared.items);
@@ -40,6 +43,9 @@ const Index = () => {
 
 
   }
+
+
+
 
   return (
     <DashboardLayout>

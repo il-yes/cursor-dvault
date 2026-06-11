@@ -1,5 +1,12 @@
 import { Attachment, VaultEntry } from "./vault";
 
+export const EVENTS = {
+  SHARE_INVITATION: "share.invitation",
+  SHARE_ACCEPTED: "share.accepted",
+  SHARE_REJECTED: "share.rejected",
+  SHARE_READY: "share.ready_to_accept",
+} as const;
+
 export interface AuditEvent {
   Event: string;
   EventID: string;
@@ -181,3 +188,39 @@ export interface RevokeShareRequest {
 	email: string;
 	signature: string;
 }	
+
+export interface NotificationPayload { 
+  id: string;    
+  title: string;   
+  body: string;    
+  created_at: string; 
+}
+
+export interface ShareInvitationNotificationPayload extends NotificationPayload {
+	share_id:        string 
+	intent_id:       string 
+	recipient_email: string 
+}
+
+export interface ShareAcceptedPayload extends NotificationPayload {
+	share_id:        string 
+	intent_id:       string 
+	recipient_email: string 
+}
+
+export interface ShareRejectedPayload extends NotificationPayload {
+	share_id:        string 
+	intent_id:       string 
+	recipient_email: string 
+}
+
+export interface ShareReadyToAcceptPayload extends NotificationPayload {
+	share_id:        string 
+	intent_id:       string 
+	recipient_email: string 
+}
+
+export interface SubscriptionActivatedPayload extends NotificationPayload {
+	subscription_id: string
+	user_id:         string
+}

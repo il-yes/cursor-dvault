@@ -54,6 +54,10 @@ export function CompleteOnboarding() {
   return window['go']['main']['App']['CompleteOnboarding']();
 }
 
+export function ConnectToRealtime(arg1) {
+  return window['go']['main']['App']['ConnectToRealtime'](arg1);
+}
+
 export function ConnectWithStellar(arg1) {
   return window['go']['main']['App']['ConnectWithStellar'](arg1);
 }

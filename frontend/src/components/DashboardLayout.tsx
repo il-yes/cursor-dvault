@@ -47,7 +47,7 @@ import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
 import { useVault } from "@/hooks/useVault";
 import { loadAvatar } from "@/services/api";
-
+import { EVENTS, ShareAcceptedPayload, ShareInvitationNotificationPayload, ShareReadyToAcceptPayload, ShareRejectedPayload } from "@/types/sharing";
 
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
@@ -483,6 +483,76 @@ function AppSidebar() {
 		fetchAvatar();
 	}, [jwtToken, vaultContext]);
 
+	useEffect(() => {
+		const unsub = window.runtime?.EventsOn(
+			EVENTS.SHARE_INVITATION,
+			(payload) => {
+				console.log("EVENT RECEIVED", payload)
+			}
+		)
+
+		return () => unsub?.()
+	}, [])
+
+	useEffect(() => {
+		const unsubInvitation = window.runtime?.EventsOn(
+			EVENTS.SHARE_INVITATION,
+			handleShareInvitation
+		)
+
+		const unsubAccepted = window.runtime?.EventsOn(
+			EVENTS.SHARE_ACCEPTED,
+			handleShareAccepted
+		)
+
+		const unsubRejected = window.runtime?.EventsOn(
+			EVENTS.SHARE_REJECTED,
+			handleShareRejected
+		)
+
+		const unsubReady = window.runtime?.EventsOn(
+			EVENTS.SHARE_READY,
+			handleShareReadyToAccept
+		)
+
+		return () => {
+			unsubInvitation?.()
+			unsubAccepted?.()
+			unsubRejected?.()
+			unsubReady?.()
+		}
+	}, [])
+
+	const handleShareInvitation = (payload: ShareInvitationNotificationPayload) => {
+		toast({
+			title: payload.title,
+			description: payload.body,
+		})
+	}
+
+	const handleShareAccepted = (payload: ShareAcceptedPayload) => {
+		toast({
+			title: payload.title,
+			description: payload.body,
+		})
+	}
+
+	const handleShareRejected = (payload: ShareRejectedPayload) => {
+		toast({
+			title: payload.title,
+			description: payload.body,
+			variant: "destructive",
+		})
+	}
+
+	const handleShareReadyToAccept = (
+		payload: ShareReadyToAcceptPayload
+	) => {
+		toast({
+			title: payload.title,
+			description: payload.body,
+		})
+	}
 
 
 

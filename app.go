@@ -2482,9 +2482,12 @@ func (a *App) ConnectToRealtime(userID string) error {
 	client := realtime_client_application_services.NewClient(handlers)
 
 	go func() {
-		_ = ws.Run(a.ctx, func(msg shared_realtime.Message) {
-			_ = client.Handle(a.ctx, msg)
+		err := ws.Run(a.ctx, func(msg shared_realtime.Message) error {
+			return client.Handle(a.ctx, msg)
 		})
+		if err != nil {
+			utils.LogPretty("APP - ConnectToRealtime - error: %v", err)
+		}
 	}()
 
 	return nil

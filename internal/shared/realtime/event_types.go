@@ -9,4 +9,5 @@ const (
     ShareRevoked = "share.revoked"
     ShareReady = "share.ready"
     
+    NotificationAck = "notification.ack"
 )

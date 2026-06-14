@@ -16,12 +16,14 @@ import (
 type Client struct {
 	url    string
 	dialer *websocket.Dialer
+	Ack    *realtime_client_infrastructure.AckSender
 }
 
 func NewClient(url string) *Client {
 	return &Client{
 		url:    url,
 		dialer: websocket.DefaultDialer,
+		Ack:    realtime_client_infrastructure.NewAckSender(),
 	}
 }
 
@@ -48,7 +50,7 @@ func (c *Client) Start(
 
 func (c *Client) Run(
 	ctx context.Context,
-	onMessage func(shared_realtime.Message),
+	onMessage func(shared_realtime.Message) error,
 ) error {
 	utils.LogPretty("Attempting to connect to realtime server at: ", c.url)
 	backoff := 1 * time.Second
@@ -95,7 +97,7 @@ func (c *Client) Run(
 func (c *Client) readLoop(
 	ctx context.Context,
 	conn *websocket.Conn,
-	onMessage func(shared_realtime.Message),
+	onMessage func(shared_realtime.Message) error,
 ) error {
 
 	for {
@@ -119,6 +121,54 @@ func (c *Client) readLoop(
 		}
 		log.Printf("WS message: %s", string(data))
 
-		onMessage(msg)
+		// Ignore ACK messages
+		if msg.Type == shared_realtime.NotificationAck {
+			continue
+		}
+
+		// 1. Execute business logic
+		if err := onMessage(msg); err != nil {
+
+			log.Printf(
+				"WS handler failed seq=%d err=%v",
+				msg.Seq,
+				err,
+			)
+
+			// IMPORTANT:
+			// No ACK sent.
+			// Cloud will replay later.
+			continue
+		}
+
+		// 2. Extract notification id
+		var notif shared_realtime.NotificationPayload
+
+		if err := json.Unmarshal(
+			msg.Payload,
+			&notif,
+		); err != nil {
+
+			log.Printf(
+				"WS payload decode failed seq=%d err=%v",
+				msg.Seq,
+				err,
+			)
+
+			continue
+		}
+
+		// 3. ACK after successful processing
+		if err := c.Ack.Send(
+			conn,
+			notif.ID,
+		); err != nil {
+
+			log.Printf(
+				"WS ACK failed notification=%s err=%v",
+				notif.ID,
+				err,
+			)
+		}
 	}
 }

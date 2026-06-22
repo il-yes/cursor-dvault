@@ -392,7 +392,7 @@ export async function decryptField(payload: { entry_id: string; field_name: stri
 		const filledOnly = filterFilledProps(JSON.parse(result.data.payload));
 		console.log(typeof result.data.payload)
 		const rek = JSON.parse(result.data.payload)
-		console.log({rek})
+		console.log({ rek })
 
 		return {
 			plaintext: JSON.stringify(filledOnly),
@@ -660,7 +660,28 @@ export async function listLinkSharesWithMe(): Promise<any> {
 		console.error("Failed to list link shares with me:", err);
 	}
 }
-
+export async function listPendingIntentSharesByMe(): Promise<any> {
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result = await AppAPI.ListPendingIntentSharesByMe(jwtToken);
+		console.log("Listed pending intent shares by me:", result);
+		return result?.data;
+	} catch (err) {
+		console.error("Failed to list pending intent shares by me:", err);
+		// throw err;
+	}
+}
+export async function listPendingIntentSharesWithMe(): Promise<any> {
+	try {
+		const jwtToken = useAuthStore.getState().jwtToken;
+		const result = await AppAPI.ListPendingIntentSharesWithMe(jwtToken);
+		console.log("Listed pending intent shares with me:", result);
+		return result?.data;
+	} catch (err) {
+		console.error("Failed to list pending intent shares with me:", err);
+		// throw err;
+	}
+}
 // Auth APIs
 export interface CheckEmailResponse {
 	status: 'NEW_USER' | 'EXISTS';
@@ -1352,4 +1373,29 @@ export const getStorageUsage = async (jwtToken: string, vaultName: string): Prom
 		quota_gb: quota_gb,
 		percentage: used_gb / quota_gb
 	};
+};
+
+
+export type ShareActionResult = unknown;
+
+export const acceptShare = async (shareId: string, intentId: string) => {
+	const { jwtToken } = useAuthStore.getState();
+	return AppAPI.AcceptShare(jwtToken, shareId, intentId);
+};
+
+export const rejectShare = async (shareId: string, intentId: string) => {
+	const { jwtToken } = useAuthStore.getState();
+	return AppAPI.RejectShare(jwtToken, shareId, intentId);
+};
+
+export const revokeShare = async (shareId: string) => {
+	const { jwtToken } = useAuthStore.getState();
+	const user = useAuthStore.getState().user;
+	const payload = {
+		share_id: shareId,
+		email: user?.email,
+		role: user?.role,
+		revokedAt: new Date().toISOString(),
+	}
+	return AppAPI.RevokeShare(jwtToken, payload);
 };

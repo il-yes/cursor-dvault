@@ -19,6 +19,7 @@ type RecipientPayload struct {
 	PublicKey string `json:"public_key"`
 }
 type CreateShareEntryPayload struct {
+	EntryID string	`json:"entry_id"`
 	EntryName  string `json:"entry_name"`
 	EntryType  string `json:"entry_type"`
 	EntryRef   string `json:"entry_ref"`
@@ -80,4 +81,9 @@ type UpdateRecipientRequest struct {
 type AttachementCIDsAdded struct {
 	CIDs           []string              `json:"cids"`
 	Attachments    []vaults_domain.Attachment `json:"attachments"`
+}
+
+type ActivateCryptographicShareResponse struct {
+	Cryptoshare share_entry_domain.ShareEntry `json:"cryptoshare"`
+	PendingShare share_entry_domain.PendingShareIntent `json:"pending_share"`
 }

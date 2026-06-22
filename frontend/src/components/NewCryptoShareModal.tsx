@@ -90,7 +90,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 				access_mode: permission === "edit" ? "edit" : "read",
 				encryption: "AES-256-GCM",
 
-				entry_snapshot: buildEntrySnapshot(selectedVaultEntry),
+				entry_snapshot: buildEntrySnapshot(selectedVaultEntry), // TODO: fix to get the customFields too
 
 				// IMPORTANT: OPTIMISTIC → no recipients yet
 				recipients: [],

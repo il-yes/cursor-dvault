@@ -1516,7 +1516,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                             </div>
                             <TabsList className="grid w-[190px] grid-cols-2" style={{ fontSize: "10px" }}>
                                 <TabsTrigger className="text-xs" value="entry_data">Entry</TabsTrigger>
-                                <TabsTrigger className="text-xs" value="entry_attachements" >{entry?.attachmentCIDs?.length} Attachement{current?.attachmentCIDs?.length > 1 ? "s" : ""} ({current?.attachmentCIDs?.length})</TabsTrigger>
+                                <TabsTrigger className="text-xs" value="entry_attachements" >Attachement{current?.attachmentCIDs?.length > 1 ? "s" : ""} ({current?.attachmentCIDs?.length})</TabsTrigger>
                             </TabsList>
                         </div>
                     </div>
@@ -1562,7 +1562,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                 }
                                 {editMode && (
                                     <>
-                                        <Select value={folderId} onValueChange={setFolderId}>
+                                        {folders.length > 0 && <Select value={folderId} onValueChange={setFolderId}>
                                             <SelectTrigger id="entry">
                                                 <SelectValue placeholder="Choose an entry from your vault" />
                                             </SelectTrigger>
@@ -1573,7 +1573,7 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
-                                        </Select>
+                                        </Select>}
                                     </>)}
                             </div>
                         </div>

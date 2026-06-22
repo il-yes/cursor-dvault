@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	// "vault-app/internal/models"
 	"vault-app/internal/utils"
+	// "vault-app/internal/models"
 )
 
 const DefaultVaultName = "Default Vault"
@@ -57,7 +57,7 @@ func NewVault(userID string, name string) *Vault {
 
 	return &Vault{
 		ID:        uuid.New().String(),
-		Version: "1.0.0",
+		Version:   "1.0.0",
 		Name:      name,
 		Type:      "default",
 		UserID:    userID,
@@ -106,7 +106,7 @@ type Folder struct {
 	CreatedAt string `json:"created_at" gorm:"varchar(100)"`
 	UpdatedAt string `json:"updated_at" gorm:"varchar(100)"`
 	IsDraft   bool   `json:"is_draft"`
-	IsDirty  bool   `json:"is_dirty" gorm:"boolean"` 
+	IsDirty   bool   `json:"is_dirty" gorm:"boolean"`
 	// VaultCID  string `json:"vault_cid"`
 }
 
@@ -117,7 +117,7 @@ type BaseVaultContent struct {
 	Folders     []Folder     `json:"folders"`
 	Entries     Entries      `json:"entries"`
 	Attachments []Attachment `json:"attachments,omitempty"`
-	Index       Index       `json:"index,omitempty"`
+	Index       Index        `json:"index,omitempty"`
 	CreatedAt   string       `json:"created_at" gorm:"-"`
 	UpdatedAt   string       `json:"updated_at" gorm:"-"`
 }

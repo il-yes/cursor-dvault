@@ -1,11 +1,12 @@
 package driver
 
 import (
+	"gorm.io/gorm"
+
 	"vault-app/internal/auth"
 	app_config_domain "vault-app/internal/config/domain"
 	share_entry_domain "vault-app/internal/share_entry/domain"
 	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
-
 	// auth_domain "vault-app/internal/auth/domain"
 	// auth_persistence "vault-app/internal/auth/infrastructure/persistence"
 	app_config "vault-app/internal/config"
@@ -17,9 +18,8 @@ import (
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
+	vaults_domain "vault-app/internal/vault/domain"
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
-
-	"gorm.io/gorm"
 )
 
 func AutoMigrate(db *gorm.DB) error {
@@ -74,5 +74,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&vaults_persistence.VaultMapper{},
 		&vaults_persistence.SessionMapper{},
 		&vaults_persistence.KeyringMapper{},
+		&vaults_domain.Folder{}, // delete this later
 	)
-}	
+}

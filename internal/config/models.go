@@ -2,10 +2,11 @@ package app_config
 
 import (
 	"context"
-	utils "vault-app/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"vault-app/internal/utils"
 )
 
 // 🔧 Load this on boot from embedded JSON/YAML or system file (e.g., $HOME/.dvault/config.json)
@@ -50,21 +51,21 @@ func (c *CommitRule) BeforeCreate(tx *gorm.DB) (err error) {
 
 // 🔐 Loaded after auth, encrypted at rest if persistent.
 type UserConfig struct {
-	ID             string               `json:"id" yaml:"id" gorm:"primaryKey"`
-	Role           string               `json:"role" yaml:"role" gorm:"column:role"`
-	Signature      string               `json:"signature" yaml:"signature" gorm:"column:signature"`
-	ConnectedOrgs  []string             `json:"connected_orgs" yaml:"connected_orgs" gorm:"type:json;serializer:json"`
-	StellarAccount StellarAccountConfig `json:"stellar_account" yaml:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
-	SharingRules   []SharingRule        `json:"sharing_rules" yaml:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
-	TwoFactorEnabled bool               `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
+	ID               string               `json:"id" yaml:"id" gorm:"primaryKey"`
+	Role             string               `json:"role" yaml:"role" gorm:"column:role"`
+	Signature        string               `json:"signature" yaml:"signature" gorm:"column:signature"`
+	ConnectedOrgs    []string             `json:"connected_orgs" yaml:"connected_orgs" gorm:"type:json;serializer:json"`
+	StellarAccount   StellarAccountConfig `json:"stellar_account" yaml:"stellar_account" gorm:"embedded;embeddedPrefix:stellar_"`
+	SharingRules     []SharingRule        `json:"sharing_rules" yaml:"sharing_rules" gorm:"foreignKey:UserConfigID;constraint:OnDelete:CASCADE"`
+	TwoFactorEnabled bool                 `json:"two_factor_enabled" yaml:"two_factor_enabled" gorm:"column:two_factor_enabled"`
 }
 
 type StellarAccountConfig struct {
-	PublicKey  string `json:"public_key" yaml:"public_key" gorm:"column:public_key"`
-	PrivateKey string `json:"private_key,omitempty" yaml:"private_key,omitempty" gorm:"column:private_key"` // should be encrypted
-    EncPassword []byte `gorm:"column:enc_password"` // ciphertext
-    EncNonce    []byte `gorm:"column:enc_nonce"`    // AES-GCM nonce
-    EncSalt     []byte `gorm:"column:enc_salt"`     // salt
+	PublicKey   string `json:"public_key" yaml:"public_key" gorm:"column:public_key"`
+	PrivateKey  string `json:"private_key,omitempty" yaml:"private_key,omitempty" gorm:"column:private_key"` // should be encrypted
+	EncPassword []byte `gorm:"column:enc_password"`                                                          // ciphertext
+	EncNonce    []byte `gorm:"column:enc_nonce"`                                                             // AES-GCM nonce
+	EncSalt     []byte `gorm:"column:enc_salt"`                                                              // salt
 }
 
 // internal/config/vault.go
@@ -81,9 +82,9 @@ type BlockchainConfig struct {
 }
 
 type StellarConfig struct {
-	Network    string `json:"network" yaml:"network" gorm:"column:network"`
-	HorizonURL string `json:"horizon_url" yaml:"horizon_url" gorm:"column:horizon_url"`
-	Fee        int64  `json:"fee" yaml:"fee" gorm:"column:fee"`
+	Network       string `json:"network" yaml:"network" gorm:"column:network"`
+	HorizonURL    string `json:"horizon_url" yaml:"horizon_url" gorm:"column:horizon_url"`
+	Fee           int64  `json:"fee" yaml:"fee" gorm:"column:fee"`
 	SyncFrequency string `json:"sync_frequency" yaml:"sync_frequency" gorm:"column:sync_frequency"`
 }
 
@@ -123,17 +124,14 @@ func (s *SharingConfig) BeforeCreate(tx *gorm.DB) (err error) {
 	return
 }
 
-
-
-
 type StorageMode string
 
 const (
-	StorageCloud  StorageMode = "cloud"
-	StorageLocal  StorageMode = "local"
+	StorageCloud        StorageMode = "cloud"
+	StorageLocal        StorageMode = "local"
 	StorageEnterpriseS3 StorageMode = "enterprise_s3"
-	StoragePrivateIPFS StorageMode = "private_ipfs"
-	StorageHybrid StorageMode = "hybrid"
+	StoragePrivateIPFS  StorageMode = "private_ipfs"
+	StorageHybrid       StorageMode = "hybrid"
 )
 
 type StorageProvider interface {
@@ -141,20 +139,20 @@ type StorageProvider interface {
 	Get(ctx context.Context, cid string) ([]byte, error)
 }
 type StorageConfig struct {
-    Mode StorageMode `json:"mode" yaml:"mode" gorm:"column:mode"`
+	Mode StorageMode `json:"mode" yaml:"mode" gorm:"column:mode"`
 
-    LocalIPFS   IPFSConfig `json:"local_ipfs" yaml:"local_ipfs" gorm:"embedded;embeddedPrefix:local_ipfs_"`
-    PrivateIPFS IPFSConfig `json:"private_ipfs" yaml:"private_ipfs" gorm:"embedded;embeddedPrefix:private_ipfs_"`
-    Cloud       CloudConfig `json:"cloud" yaml:"cloud" gorm:"embedded;embeddedPrefix:cloud_"`
-    EnterpriseS3 S3Config `json:"enterprise_s3" yaml:"enterprise_s3" gorm:"embedded;embeddedPrefix:enterprise_s3_"`
+	LocalIPFS    IPFSConfig  `json:"local_ipfs" yaml:"local_ipfs" gorm:"embedded;embeddedPrefix:local_ipfs_"`
+	PrivateIPFS  IPFSConfig  `json:"private_ipfs" yaml:"private_ipfs" gorm:"embedded;embeddedPrefix:private_ipfs_"`
+	Cloud        CloudConfig `json:"cloud" yaml:"cloud" gorm:"embedded;embeddedPrefix:cloud_"`
+	EnterpriseS3 S3Config    `json:"enterprise_s3" yaml:"enterprise_s3" gorm:"embedded;embeddedPrefix:enterprise_s3_"`
 }
 
 type CloudConfig struct {
-    BaseURL string `json:"base_url" yaml:"base_url" gorm:"column:base_url"`
+	BaseURL string `json:"base_url" yaml:"base_url" gorm:"column:base_url"`
 }
 
 type S3Config struct {
-    Region   string `json:"region" yaml:"region" gorm:"column:region"`
-    Bucket   string `json:"bucket" yaml:"bucket" gorm:"column:bucket"`
-    Endpoint string `json:"endpoint" yaml:"endpoint" gorm:"column:endpoint"`
+	Region   string `json:"region" yaml:"region" gorm:"column:region"`
+	Bucket   string `json:"bucket" yaml:"bucket" gorm:"column:bucket"`
+	Endpoint string `json:"endpoint" yaml:"endpoint" gorm:"column:endpoint"`
 }

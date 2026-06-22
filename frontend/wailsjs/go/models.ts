@@ -2172,6 +2172,75 @@ export namespace models {
 
 }
 
+export namespace notification_center_domain {
+	
+	export class Notification {
+	    id: string;
+	    user_id: string;
+	    type: string;
+	    category: string;
+	    title: string;
+	    body: string;
+	    payload: any;
+	    status: string;
+	    event_id: string;
+	    delivery_attempts: number;
+	    last_error: string;
+	    // Go type: time
+	    delivered_at?: any;
+	    // Go type: time
+	    read_at?: any;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    sequence: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Notification(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.user_id = source["user_id"];
+	        this.type = source["type"];
+	        this.category = source["category"];
+	        this.title = source["title"];
+	        this.body = source["body"];
+	        this.payload = source["payload"];
+	        this.status = source["status"];
+	        this.event_id = source["event_id"];
+	        this.delivery_attempts = source["delivery_attempts"];
+	        this.last_error = source["last_error"];
+	        this.delivered_at = this.convertValues(source["delivered_at"], null);
+	        this.read_at = this.convertValues(source["read_at"], null);
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.sequence = source["sequence"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace onboarding_domain {
 	
 	export class AppState {
@@ -2334,6 +2403,7 @@ export namespace share_entry_application_dto {
 	    }
 	}
 	export class CreateShareEntryPayload {
+	    entry_id: string;
 	    entry_name: string;
 	    entry_type: string;
 	    entry_ref: string;
@@ -2352,6 +2422,7 @@ export namespace share_entry_application_dto {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry_id = source["entry_id"];
 	        this.entry_name = source["entry_name"];
 	        this.entry_type = source["entry_type"];
 	        this.entry_ref = source["entry_ref"];
@@ -2655,6 +2726,7 @@ export namespace share_entry_domain {
 	export class ShareEntry {
 	    id: string;
 	    owner_id: string;
+	    entry_id: string;
 	    entry_name: string;
 	    entry_type: string;
 	    entry_ref: string;
@@ -2683,6 +2755,7 @@ export namespace share_entry_domain {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.owner_id = source["owner_id"];
+	        this.entry_id = source["entry_id"];
 	        this.entry_name = source["entry_name"];
 	        this.entry_type = source["entry_type"];
 	        this.entry_ref = source["entry_ref"];
@@ -2782,22 +2855,6 @@ export namespace share_entry_use_cases {
 	
 	    static createFrom(source: any = {}) {
 	        return new AddReceiverResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ShareID = source["ShareID"];
-	        this.RecipientID = source["RecipientID"];
-	        this.Message = source["Message"];
-	    }
-	}
-	export class RejectShareResult {
-	    ShareID: string;
-	    RecipientID: string;
-	    Message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new RejectShareResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -3193,6 +3250,8 @@ export namespace tracecore {
 	    AccessLog: number[];
 	    Signature: string;
 	    Title: string;
+	    EntryID: string;
+	    EntryName: string;
 	    EntryType: string;
 	    DownloadAllowed: boolean;
 	    Metadata: number[];
@@ -3214,6 +3273,8 @@ export namespace tracecore {
 	        this.AccessLog = source["AccessLog"];
 	        this.Signature = source["Signature"];
 	        this.Title = source["Title"];
+	        this.EntryID = source["EntryID"];
+	        this.EntryName = source["EntryName"];
 	        this.EntryType = source["EntryType"];
 	        this.DownloadAllowed = source["DownloadAllowed"];
 	        this.Metadata = source["Metadata"];
@@ -3395,6 +3456,103 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class PendingShareIntent {
+	    id: string;
+	    share_id: string;
+	    owner_id: string;
+	    owner_email: string;
+	    recipient_id: string;
+	    recipient_email: string;
+	    status: string;
+	    // Go type: time
+	    invitation_sent_at?: any;
+	    notification_attempts: number;
+	    // Go type: time
+	    accepted_at?: any;
+	    // Go type: time
+	    declined_at?: any;
+	    // Go type: time
+	    expires_at?: any;
+	    // Go type: time
+	    created_at: any;
+	    last_notification_error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingShareIntent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.share_id = source["share_id"];
+	        this.owner_id = source["owner_id"];
+	        this.owner_email = source["owner_email"];
+	        this.recipient_id = source["recipient_id"];
+	        this.recipient_email = source["recipient_email"];
+	        this.status = source["status"];
+	        this.invitation_sent_at = this.convertValues(source["invitation_sent_at"], null);
+	        this.notification_attempts = source["notification_attempts"];
+	        this.accepted_at = this.convertValues(source["accepted_at"], null);
+	        this.declined_at = this.convertValues(source["declined_at"], null);
+	        this.expires_at = this.convertValues(source["expires_at"], null);
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.last_notification_error = source["last_notification_error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CloudResponse___vault_app_internal_tracecore_types_PendingShareIntent_ {
+	    status: number;
+	    data: PendingShareIntent[];
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse___vault_app_internal_tracecore_types_PendingShareIntent_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], PendingShareIntent);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_ {
 	    status: number;
 	    data: tracecore.CloudCryptographicShare;
@@ -3485,6 +3643,42 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_ {
+	    status: number;
+	    data: PendingShareIntent;
+	    message: string;
+	    success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.data = this.convertValues(source["data"], PendingShareIntent);
+	        this.message = source["message"];
+	        this.success = source["success"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class StorageUsageResponse {
 	    bytes_used: number;
 	    bytes_limit: number;
@@ -3537,6 +3731,7 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	
 	
 	
 	

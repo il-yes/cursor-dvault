@@ -60,7 +60,7 @@ export interface SharedEntry {
   access_log: AuditEvent[]; // always empty for now, backend returns nothing
 }
 
-export type ShareFilter = "all" | "sent" | "received" | "pending" | "revoked" | "withme";
+export type ShareFilter = "all" | "entry_name" | "entry_type" | "status" | "revoked" | "withme" | "shared_with" | "shared_by";
 export type DetailView = "recipients" | "audit" | "encryption" | "metadata";
 export interface EntrySnapshot {
   entry_name: string;
@@ -193,7 +193,8 @@ export interface NotificationPayload {
   id: string;    
   title: string;   
   body: string;    
-  created_at: string; 
+  created_at: string;
+  seq: number;
 }
 
 export interface ShareInvitationNotificationPayload extends NotificationPayload {
@@ -223,4 +224,18 @@ export interface ShareReadyToAcceptPayload extends NotificationPayload {
 export interface SubscriptionActivatedPayload extends NotificationPayload {
 	subscription_id: string
 	user_id:         string
+}
+
+type ShareActionKind = "accept" | "reject" | "revoke";
+
+export interface PendingIntentShare {
+	id:         string;
+	share_id:    string;
+	owner_id:    string;
+	owner_email: string;
+	recipient_id:    string;
+	recipient_email: string;
+	status:      string;
+	updated_at: string;
+	created_at: string;
 }

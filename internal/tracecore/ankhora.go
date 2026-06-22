@@ -18,6 +18,7 @@ import (
 
 	billing_domain "vault-app/internal/billing/domain"
 	app_config_worker "vault-app/internal/config/application/worker"
+	notification_center_domain "vault-app/internal/notification_center/domain"
 	share_entry_application_dto "vault-app/internal/share_entry/application"
 	share_entry_domain "vault-app/internal/share_entry/domain"
 	subscription_domain "vault-app/internal/subscription/domain"
@@ -719,6 +720,256 @@ func (c *TracecoreClient) ReactivateSubscription(ctx context.Context, userID str
 	return nil
 }
 
+
+// ---------------------------------------------------------
+//
+//	Notifications Center
+//
+// ---------------------------------------------------------
+func (c *TracecoreClient) ListByUser(ctx context.Context, userID string, limit int, offset int) ([]notification_center_domain.Notification, error) {
+	utils.LogPretty("user id", userID)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		c.AnkhoraCloudUrl+"/notifications/user/"+userID,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	type CloudResponse struct {
+		Status  int                                       `json:"status"`
+		Data    []notification_center_domain.Notification `json:"data"`
+		Success bool                                      `json:"success"`
+		Message string                                      `json:"message"`
+	}
+
+	var cloudResp CloudResponse
+	if err := json.Unmarshal(body, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if !cloudResp.Success {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	return cloudResp.Data, nil
+}
+
+func (c *TracecoreClient) CountUnread(ctx context.Context, userID string) (int64, error) {
+	utils.LogPretty("user id", userID)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		c.AnkhoraCloudUrl+"/notifications/user/"+userID+"/unread-count",
+		nil,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	type CloudResponse struct {
+		Status  int   `json:"status"`
+		Data    int64 `json:"data"`
+		Success bool  `json:"success"`
+		Message string  `json:"message"`
+	}
+
+	var cloudResp CloudResponse
+	if err := json.Unmarshal(body, &cloudResp); err != nil {
+		return 0, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if !cloudResp.Success {
+		return 0, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	return cloudResp.Data, nil
+}
+
+func (c *TracecoreClient) MarkRead(ctx context.Context, id string) error {
+	utils.LogPretty("id", id)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPatch,
+		c.AnkhoraCloudUrl+"/notifications/"+id+"/read",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	type CloudResponse struct {
+		Status  int                                       `json:"status"`
+		Data    []notification_center_domain.Notification `json:"data"`
+		Success bool                                      `json:"success"`
+		Message string                                      `json:"message"`
+	}
+
+	var cloudResp CloudResponse
+	if err := json.Unmarshal(body, &cloudResp); err != nil {
+		return  fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if !cloudResp.Success {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("cloud response", cloudResp)
+
+	return nil
+}
+
+func (c *TracecoreClient) Archive(ctx context.Context, id string) error {
+	
+	utils.LogPretty("id", id)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPatch,
+		c.AnkhoraCloudUrl+"/notifications/"+id+"/archive",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	type CloudResponse struct {
+		Status  int                                       `json:"status"`
+		Data    []notification_center_domain.Notification `json:"data"`
+		Success bool                                      `json:"success"`
+		Message string                                      `json:"message"`
+	}
+
+	var cloudResp CloudResponse
+	if err := json.Unmarshal(body, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if !cloudResp.Success {
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("cloud response", cloudResp)
+
+	return nil
+}
+
+func (c *TracecoreClient) MarkAllRead(ctx context.Context, userID string) error {
+	
+	utils.LogPretty("user id", userID)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPatch,
+		c.AnkhoraCloudUrl+"/notifications/"+userID+"/read-all",
+		nil,
+	)
+	if err != nil {
+		return  err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	type CloudResponse struct {
+		Status  int                                       `json:"status"`
+		Data    []notification_center_domain.Notification `json:"data"`
+		Success bool                                      `json:"success"`
+		Message string                                      `json:"message"`
+	}
+
+	var cloudResp CloudResponse
+	if err := json.Unmarshal(body, &cloudResp); err != nil {
+		return fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if !cloudResp.Success {
+		return  fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("cloud response", cloudResp)
+
+	return nil
+}
 // ---------------------------------------------------------
 //
 //	Cryptographic Share
@@ -741,6 +992,8 @@ type CloudCryptographicShare struct {
 	AccessLog        datatypes.JSON `json:"AccessLog"`
 	Signature        string         `json:"Signature"`
 	Title            string         `json:"Title"`
+	EntryID 		string		 `json:"EntryID"`
+	EntryName string		 `json:"EntryName"`
 	EntryType        string         `json:"EntryType"`
 	DownloadAllowed  bool           `json:"DownloadAllowed"`
 	Metadata         datatypes.JSON `json:"Metadata"`
@@ -801,6 +1054,38 @@ func (c *TracecoreClient) CreateShare(ctx context.Context, payload ProdCreateCry
 		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
 	}
 	utils.LogPretty("TracecoreClient - CreateCloudShare - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+// Get ShareEntry
+func (c *TracecoreClient) GetShareEntry(ctx context.Context, shareID string) (*tracecore_types.CloudResponse[CloudCryptographicShare], error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AnkhoraCloudUrl+"/shares/cryptographic/"+shareID, nil)
+	if err != nil {
+		return nil, err
+	}
+	// defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[CloudCryptographicShare]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("TracecoreClient - GetShareEntry - invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("TracecoreClient - GetShareEntry - cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - GetShareEntry - cloud response", cloudResp)
 
 	return &cloudResp, nil
 }
@@ -941,6 +1226,74 @@ func (c *TracecoreClient) UpdateRecipient(ctx context.Context, req share_entry_a
 	return &cloudResp, nil
 }
 
+func (c *TracecoreClient) AcceptShare(ctx context.Context, req tracecore_types.ShareAcceptedPayload) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	utils.LogPretty("TracecoreClient - AcceptShare - payload", req)
+	bodyBytes, _ := json.Marshal(req)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.AnkhoraCloudUrl+"/shares/cryptographic/"+req.ShareID+"/accept", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.PendingShareIntent]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("TracecoreClient - AcceptShare - invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("TracecoreClient - AcceptShare - cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - AcceptShare - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+func (c *TracecoreClient) RejectShare(ctx context.Context, req tracecore_types.ShareRejectedPayload) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	utils.LogPretty("TracecoreClient - RejectShare - payload", req)
+	bodyBytes, _ := json.Marshal(req)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.AnkhoraCloudUrl+"/shares/cryptographic/"+req.ShareID+"/reject", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.PendingShareIntent]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("TracecoreClient - RejectShare - invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("TracecoreClient - RejectShare - cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - RejectShare - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
 func (c *TracecoreClient) RevokeShare(ctx context.Context, req tracecore_types.RevokeShareRequest) (*tracecore_types.CloudResponse[CloudCryptographicShare], error) {
 	utils.LogPretty("TracecoreClient - RevokeShare - payload", req)
 	bodyBytes, _ := json.Marshal(req)
@@ -975,6 +1328,87 @@ func (c *TracecoreClient) RevokeShare(ctx context.Context, req tracecore_types.R
 	return &cloudResp, nil
 }
 
+func (c *TracecoreClient) ListPendingIntentSharesByMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	utils.LogPretty("TracecoreClient - ListPendingIntentSharesByMe - payload", email)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		c.AnkhoraCloudUrl+"/shares/pending-intents?owner="+email,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("TracecoreClient - ListPendingIntentSharesByMe - invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("TracecoreClient - ListPendingIntentSharesByMe - cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - ListPendingIntentSharesByMe - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+func (c *TracecoreClient) ListPendingIntentSharesWithMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	utils.LogPretty("TracecoreClient - ListPendingIntentSharesWithMe - payload", email)
+	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		c.AnkhoraCloudUrl+"/shares/pending-intents?recipient="+email,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("TracecoreClient - ListPendingIntentSharesWithMe - invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("TracecoreClient - ListPendingIntentSharesWithMe - cloud returned error: %s", cloudResp.Message)
+	}
+	utils.LogPretty("TracecoreClient - ListPendingIntentSharesWithMe - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+
+// r.Put("/{id}/accept", app.AcceptShare)  
+// r.Put("/{id}/reject", app.RejectShare)
+// r.Put("/{id}/revoke", app.RevokeShare) 
 // ---------------------------------------------------------
 // Get Share By Me
 // ---------------------------------------------------------

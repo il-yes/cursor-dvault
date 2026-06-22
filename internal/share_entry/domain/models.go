@@ -38,6 +38,7 @@ type Metadata struct {
 type ShareEntry struct {
 	ID               string         `json:"id"`
 	OwnerID          string         `json:"owner_id"`
+	EntryID			string 			`json:"entry_id"`
 	EntryName        string         `json:"entry_name"`
 	EntryType        string         `json:"entry_type"`
 	EntryRef         string         `json:"entry_ref"`
@@ -58,6 +59,7 @@ type ShareEntry struct {
 
 func NewShareEntry(
 	ownerID string,
+	entryID string,
 	entryName string,
 	entryRef string,
 	entryType string,
@@ -70,6 +72,7 @@ func NewShareEntry(
 ) ShareEntry {
 	var s ShareEntry
 	s.OwnerID = ownerID
+	s.EntryID = entryID
 	s.EntryName = entryName
 	s.EntryRef = entryRef
 	s.EntryType = entryType
@@ -94,7 +97,7 @@ func NewShareEntry(
 }
 
 // -----------------------
-// Entity
+// Recipient
 // -----------------------
 type Recipient struct {
 	ID        string    `json:"id"`
@@ -111,12 +114,18 @@ type Recipient struct {
 	RevokedAt     time.Time `json:"revoked_at"`
 }
 
+// -----------------------
+// ShareAcceptData
+// -----------------------
 type ShareAcceptData struct {
 	Share     ShareEntry `json:"share"`
 	Recipient Recipient  `json:"recipient"`
 	Blob      []byte     `json:"blob"` // encrypted snapshot for this recipient
 }
 
+// -----------------------
+// AuditLog
+// -----------------------
 type AuditLog struct {
 	ID        string    `gorm:"primaryKey;size:64" json:"id"`
 	ShareID   string    `gorm:"index;size:64" json:"share_id"`
@@ -126,6 +135,9 @@ type AuditLog struct {
 	Details   string    `json:"details"`
 }
 
+// -----------------------
+// EntrySnapshot
+// -----------------------
 type EntrySnapshot struct {
 	EntryName string `json:"entry_name" gorm:"size:255"`
 	Type      string `json:"type" gorm:"size:64"`
@@ -176,7 +188,34 @@ type EntrySnapshot struct {
 	Attachments []vaults_domain.Attachment `json:"attachments" gorm:"-"`
 }
 
+// -----------------------
+// RecipientCIDs
+// -----------------------
 type RecipientCIDs struct {
 	FileCID string `json:"file_cid"`
 	AttachmentID string `json:"attachment_id"`
+}
+
+// -----------------------
+// PendingShareIntent
+// -----------------------
+type PendingShareIntent struct {
+	ID         string
+	ShareID    string
+	OwnerID    string
+	OwnerEmail string
+
+	RecipientID    string
+	RecipientEmail string
+
+	Status string
+
+	InvitationSentAt     *time.Time
+	NotificationAttempts int
+	AcceptedAt           *time.Time
+	DeclinedAt           *time.Time
+	ExpiresAt            *time.Time
+
+	CreatedAt             time.Time
+	LastNotificationError string
 }

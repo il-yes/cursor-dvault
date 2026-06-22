@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { SharedEntry, ShareFilter, DetailView } from "@/types/sharing";
+import { SharedEntry, ShareFilter, DetailView, PendingIntentShare } from "@/types/sharing";
 import { SharedEntriesList } from "@/components/SharedEntriesList";
 import { SharedEntryOverview } from "@/components/SharedEntryOverview";
 import { SharedEntryDetails } from "@/components/SharedEntryDetails";
@@ -10,6 +10,17 @@ import * as AppAPI from "../../wailsjs/go/main/App";
 
 import QRCode from "react-qr-code"; // npm install qrcode.react
 import { NewLinkShareModal } from "./NewLinkShare";
+import { PendingIntentShareView } from "./PendingIntentShareView";
+
+export type ShareListItem =
+	| {
+		kind: "share";
+		share: SharedEntry;
+	}
+	| {
+		kind: "pending_activation";
+		intent: PendingIntentShare;
+	};
 
 export function SharedEntriesLayout() {
 	// const sharedEntries = useVaultStore((state) => state.shared.items);
@@ -24,7 +35,7 @@ export function SharedEntriesLayout() {
 	const [refreshKey, setRefreshKey] = useState(0);
 	const [sharedEntriesRefreshKey, setSharedEntriesRefreshKey] = useState(0);
 
-	const shareTypeParam = (searchParams.get("type") || "linkshare") as "linkshare" | "cryptographicshare";
+	const shareTypeParam = (searchParams.get("type") || "linkshare") as "linkshare" | "cryptographicshare" | "pendingIntent";
 	const scopeParam = (searchParams.get("scope") || "byme") as "byme" | "withme";
 
 	// Data sources
@@ -32,79 +43,98 @@ export function SharedEntriesLayout() {
 	const sharedWithMeLink = useVaultStore(state => state.linkSharedWithMe.items); // for Link Share, with me
 	const sharedByMeCrypto = useVaultStore(state => state.shared.items); // for Cryptographic Share, by me
 	const sharedWithMeCrypto = useVaultStore(state => state.sharedWithMe.items); // for Cryptographic Share, with me
+	const pendingIntentSharesByMe = useVaultStore(state => state.pendingIntentSharesByMe.items);
+	const pendingIntentSharesWithMe = useVaultStore(state => state.pendingIntentSharesWithMe.items);
 
 
 	const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
 
-	// Pick the correct entries based on params
-	// const sharedEntries = useMemo(() => {
-	// 	if (shareTypeParam === "linkshare") {
-	// 		return scopeParam === "byme" ? sharedByMeLink : sharedWithMeLink;
-	// 	}
-	// 	return scopeParam === "byme" ? sharedByMeCrypto : sharedWithMeCrypto;
-	// }, [
-	// 	shareTypeParam,
-	// 	scopeParam,
-	// 	sharedByMeLink,
-	// 	sharedWithMeLink,
-	// 	sharedByMeCrypto,
-	// 	sharedWithMeCrypto
-	// ]);
 	const sharedEntries: SharedEntry[] = useMemo(() => {
 		if (shareTypeParam !== "cryptographicshare") return [];
 		return scopeParam === "byme" ? sharedByMeCrypto : sharedWithMeCrypto;
 	}, [shareTypeParam, scopeParam, sharedByMeCrypto, sharedWithMeCrypto]);
 
 
+	const pendingIntentShares: PendingIntentShare[] = useMemo(() => {
+		if (shareTypeParam !== "pendingIntent") return [];
+		// const shares = sharedEntries.map(entry => ({
+		// 	kind: "share" as const,
+		// 	share: entry,
+		// }));
+
+		// const pending = pendingIntentShares
+		// 	// .filter(i => i.status === "accepted")
+		// 	.map(intent => ({
+		// 		kind: "pending_activation" as const,
+		// 		intent,
+		// 	}));
+
+		// return [...pending, ...shares];
+
+		return scopeParam === "byme" ? pendingIntentSharesByMe : pendingIntentSharesWithMe;
+	}, [shareTypeParam, scopeParam, pendingIntentSharesByMe, pendingIntentSharesWithMe]);
+	console.log({ pendingIntentShares })
+
+
 	useEffect(() => {
 		setFilter(filterParam);
 	}, [filterParam]);
 
-	// useEffect(() => {
-	// 	const handleRefresh = () => {
-	// 		setRefreshKey(prev => prev + 1);
-	// 	};
 
-	// 	window.addEventListener('shareEntriesRefresh', handleRefresh);
-	// 	return () => window.removeEventListener('shareEntriesRefresh', handleRefresh);
-	// }, []);
-
-	// useEffect(() => {
-	// 	if (!selectedEntry) return;
-
-	// 	const fresh = sharedByMe.find(e => e.id === selectedEntry.id);
-	// 	if (fresh) {
-	// 		setSelectedEntry(fresh);
-	// 	}
-	// }, [sharedByMe]);
-
-	// Filter entries
+	// Filter Share entries
 	const filteredEntries = useMemo(() => {
 		let filtered = sharedEntries;
 
 		switch (filterParam) {
-			// case "sent":
-			// 	// In real app, filter by entries shared by current user
-			// 	filtered = filtered.filter(e => e.status === "active" || e.status === "pending");
-			// 	break;
-			// case "received":
-			// 	// In real app, filter by entries received by current user
-			// 	filtered = filtered.filter(e => e.status === "active");
-			// 	break;
-			// case "pending":
-			// 	filtered = filtered.filter(e => e.status === "pending");
-			// 	break;
+			case "entry_name":
+				// In real app, filter by entries shared by current user
+				// Group by entry_name	
+				filtered = filtered.sort((a, b) => a.entry_name.localeCompare(b.entry_name));
+				break;
+			case "entry_type":
+				// In real app, filter by entries received by current user
+				// Group by entry_type
+				filtered = filtered.sort((a, b) => a.entry_type.localeCompare(b.entry_type));
+				break;
+			case "shared_with":
+				// Group by recipients
+				filtered = filtered.sort((a, b) => a.recipients.length - b.recipients.length);
+				break;
+			case "shared_by":
+				// Group by owner
+				filtered = filtered.sort((a, b) => a.owner_id.localeCompare(b.owner_id));
+				break;
 			case "revoked":
 				filtered = filtered.filter(e => e.status === "revoked");
 				break;
 			case "all":
+				filtered = filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+				break;
 			default:
-				// Show all entries
+				// Show all entries ordered by created_at desc
+				filtered = [];
 				break;
 		}
 
 		return filtered;
 	}, [filterParam, sharedEntries, scopeParam, shareTypeParam]);
+
+	// Filtered Pending
+	const filteredPendingIntentShares = useMemo(() => {
+		let filtered = pendingIntentShares;
+		switch (filterParam) {
+			case "revoked":
+				filtered = filtered.filter(e => e.status === "revoked");
+				break;
+			case "all":
+				filtered = filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+				break;
+			default:
+				filtered = [];
+				break;
+		}
+		return filtered;
+	}, [filterParam, pendingIntentShares, scopeParam, shareTypeParam]);
 
 	// Reset selectedEntry when data source changes
 	// const [selectedEntry, setSelectedEntry] = useState<SharedEntry | null>(null);
@@ -158,6 +188,18 @@ export function SharedEntriesLayout() {
 
 			{shareTypeParam === "linkshare" && <LinkShareContent linkShares={sharedByMeLink} onAddLinkShare={() => setIsNewShareOpen(true)} />}
 
+			{shareTypeParam === "pendingIntent" &&
+				<PendingIntentShareView
+					items={filteredPendingIntentShares}
+					onReject={(intent) => {
+						console.log("reject", intent);
+					}}
+				onShareSuccess={() => {
+					setSharedEntriesRefreshKey(prev => prev + 1);
+					window.dispatchEvent(new CustomEvent('shareEntriesRefresh'));
+				}}
+				/>
+			}
 			<NewLinkShareModal
 				open={isNewShareOpen}
 				onOpenChange={setIsNewShareOpen}

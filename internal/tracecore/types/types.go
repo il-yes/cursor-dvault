@@ -189,6 +189,43 @@ type AddRecipientRequest struct {
 	Signature    string     `json:"signature"`
 }
 
+
+type PendingShareIntent struct {
+    ID         string `json:"id"`	
+    ShareID    string `json:"share_id"`
+    OwnerID    string `json:"owner_id"`
+    OwnerEmail string `json:"owner_email"`
+
+
+    RecipientID    string `json:"recipient_id"`
+    RecipientEmail string `json:"recipient_email"`
+
+
+    Status string `json:"status"`
+
+
+    InvitationSentAt     *time.Time `json:"invitation_sent_at"`
+    NotificationAttempts int `json:"notification_attempts"`
+    AcceptedAt           *time.Time `json:"accepted_at"`
+    DeclinedAt           *time.Time `json:"declined_at"`
+    ExpiresAt            *time.Time `json:"expires_at"`
+
+
+    CreatedAt             time.Time `json:"created_at"`
+    LastNotificationError string `json:"last_notification_error"`
+}
+
+type ShareAcceptedPayload struct {
+    ShareID        string `json:"share_id"`
+    IntentID       string `json:"intent_id"`
+    RecipientEmail string `json:"recipient_email"`
+}
+
+type ShareRejectedPayload struct {
+    ShareID        string `json:"share_id"`
+    IntentID       string `json:"intent_id"`
+    RecipientEmail string `json:"recipient_email"`
+}
 type RevokeShareRequest struct {
 	ShareID   string `json:"share_id"`
 	Challenge string `json:"challenge"`
@@ -267,3 +304,6 @@ type StorageUsageResponse struct {
 	BytesLimit int64  `json:"bytes_limit"`
 	UserID     string `json:"user_id"`
 }
+
+
+

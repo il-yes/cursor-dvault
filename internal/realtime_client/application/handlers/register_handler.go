@@ -12,9 +12,9 @@ func RegisterHandlers(
 ) map[string]realtime_client_domain.MessageHandler {
 
 	return map[string]realtime_client_domain.MessageHandler{
-		shared_realtime.ShareInvitation: NewShareInvitationHandler(ctx),
-		shared_realtime.ShareAccepted:   NewShareAcceptedHandler(ctx),
-		shared_realtime.ShareRejected:   NewShareRejectedHandler(ctx),
-		shared_realtime.ShareReady:      NewShareReadyHandler(ctx),
+		shared_realtime.ShareInvitation:      NewShareInvitationHandler(ctx),
+		shared_realtime.ShareAccepted:        NewShareAcceptedHandler(ctx),
+		shared_realtime.ShareRejected:        NewShareRejectedHandler(ctx),
+		shared_realtime.ShareReadyToAccept: NewShareReadyHandler(ctx),
 	}
 }

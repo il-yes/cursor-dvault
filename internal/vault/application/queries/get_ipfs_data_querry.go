@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
 	blockchain_ipfs "vault-app/internal/blockchain/ipfs"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/utils"
@@ -206,6 +207,7 @@ func (h GetIPFSDataQuerryHandler) ShareDecryption(cmd GetIPFSDataQuerry, rawByte
 	return rawBytes, nil
 }
 func (h GetIPFSDataQuerryHandler) HandleDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
+	utils.LogPretty("EncryptionMode", h.EncryptionMode)
 	if h.EncryptionMode == PUBLIC_MODE {
 		utils.LogPretty("GetIPFSDataQuerryHandler - HandleDecryption - EncryptionMode", PUBLIC_MODE)
 		return h.ShareDecryption(cmd, rawBytes)

@@ -5,7 +5,8 @@ import {
 	Home, Rocket, Info, HelpCircle, Folder, Star, Trash2,
 	LogIn, CreditCard, UserCircle, FileText, Key, ArrowLeft,
 	Plus, Crown, X, Clock, Users, Bell, MessageSquare, EllipsisVertical, MessageCircleWarning, Share,
-	Trash
+	Trash,
+	FileTextIcon
 } from "lucide-react";
 import { NewShareModal } from "@/components/NewCryptoShareModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,6 +49,8 @@ import { withAuth } from "@/hooks/withAuth";
 import { useVault } from "@/hooks/useVault";
 import { loadAvatar } from "@/services/api";
 import { EVENTS, ShareAcceptedPayload, ShareInvitationNotificationPayload, ShareReadyToAcceptPayload, ShareRejectedPayload } from "@/types/sharing";
+import { useNotificationsEvents } from "@/hooks/useNotificationSocket";
+import { NotificationBell } from "./Notification/NotificationBell";
 
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
@@ -84,6 +87,7 @@ const dashboardSecondaryItems = [
 	{ title: "About", url: "/dashboard/about", icon: Info },
 	{ title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
 ];
+
 
 const sharedEntriesItems = [
 	{ title: "All", filter: "all", url: "/dashboard/shared", icon: Folder },
@@ -161,6 +165,25 @@ const vaultSecondaryItems = [
 	{ title: "SSH key", type: "sshkey", url: "/dashboard/vault/sshkey", icon: Key },
 ];
 
+const cryptographicShareItems = [
+	{ id: "all", title: "All", url: "/dashboard/cryptographicshare?filter=all", icon: Share },
+	{ id: "revoked", title: "Revoked", url: "/dashboard/cryptographicshare?filter=revoked", icon: Share },
+	{ id: "entry_name", title: "Entry Name", url: "/dashboard/cryptographicshare?filter=entry_name", icon: Share },
+	{ id: "entry_type", title: "Entry Type", url: "/dashboard/cryptographicshare?filter=entry_type", icon: Share },
+	{ id: "shared_with", title: "Shared With", url: "/dashboard/cryptographicshare?filter=shared_with", icon: Share },
+	{ id: "shared_by", title: "Shared By", url: "/dashboard/cryptographicshare?filter=shared_by", icon: Share },
+];
+
+const pendingIntentItems = [
+	{ id: "all", title: "All", url: "/dashboard/pendingintent?filter=all", icon: Share },
+	{ id: "revoked", title: "Revoked", url: "/dashboard/pendingintent?filter=revoked", icon: Share },
+	{ id: "entry_name", title: "Entry Name", url: "/dashboard/pendingintent?filter=entry_name", icon: Share },
+	{ id: "shared_with", title: "Shared With", url: "/dashboard/pendingintent?filter=shared_with", icon: Share },
+	{ id: "shared_by", title: "Shared By", url: "/dashboard/pendingintent?filter=shared_by", icon: Share },
+];
+// ================================================
+// DashBoard Nav Bar
+// ================================================
 function DashboardNavbar() {
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -336,8 +359,8 @@ function DashboardNavbar() {
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" className="w-48">
-						<DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
-							<User className="mr-2 h-4 w-4 text-primary" />
+						<DropdownMenuItem onClick={() => navigate("/dashboard/notifications")} >
+							<NotificationBell className="mr-2 h-4 w-4" />
 							Unread notifications
 						</DropdownMenuItem>
 						<DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
@@ -406,11 +429,15 @@ const RenderAvatar = (id: string | number) => {
 	return img ? img.src : ""
 }
 
+// =================================================
+// App Side Bar
+// =================================================
 function AppSidebar() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
 	const isSharedContext = location.pathname.startsWith("/dashboard/shared");
+	useNotificationsEvents();
 
 	const vaultContext = useVaultStore((state) => state.vault);
 	const { clearVault: clearVaultContext } = useVault();
@@ -471,7 +498,6 @@ function AppSidebar() {
 		removeFolder(folder.id);
 	};
 
-
 	useEffect(() => {
 		const fetchAvatar = async () => {
 			const b64 = await withAuth((token) => {
@@ -482,78 +508,6 @@ function AppSidebar() {
 
 		fetchAvatar();
 	}, [jwtToken, vaultContext]);
-
-	useEffect(() => {
-		const unsub = window.runtime?.EventsOn(
-			EVENTS.SHARE_INVITATION,
-			(payload) => {
-				console.log("EVENT RECEIVED", payload)
-			}
-		)
-
-		return () => unsub?.()
-	}, [])
-
-	useEffect(() => {
-		const unsubInvitation = window.runtime?.EventsOn(
-			EVENTS.SHARE_INVITATION,
-			handleShareInvitation
-		)
-
-		const unsubAccepted = window.runtime?.EventsOn(
-			EVENTS.SHARE_ACCEPTED,
-			handleShareAccepted
-		)
-
-		const unsubRejected = window.runtime?.EventsOn(
-			EVENTS.SHARE_REJECTED,
-			handleShareRejected
-		)
-
-		const unsubReady = window.runtime?.EventsOn(
-			EVENTS.SHARE_READY,
-			handleShareReadyToAccept
-		)
-
-		return () => {
-			unsubInvitation?.()
-			unsubAccepted?.()
-			unsubRejected?.()
-			unsubReady?.()
-		}
-	}, [])
-
-	const handleShareInvitation = (payload: ShareInvitationNotificationPayload) => {
-		toast({
-			title: payload.title,
-			description: payload.body,
-		})
-	}
-
-	const handleShareAccepted = (payload: ShareAcceptedPayload) => {
-		toast({
-			title: payload.title,
-			description: payload.body,
-		})
-	}
-
-	const handleShareRejected = (payload: ShareRejectedPayload) => {
-		toast({
-			title: payload.title,
-			description: payload.body,
-			variant: "destructive",
-		})
-	}
-
-	const handleShareReadyToAccept = (
-		payload: ShareReadyToAcceptPayload
-	) => {
-		toast({
-			title: payload.title,
-			description: payload.body,
-		})
-	}
-
 
 
 	return (
@@ -674,76 +628,128 @@ function AppSidebar() {
 
 				{/* New Share Menu (Shared Entries only) */}
 				{isSharedContext && (
-					<SidebarGroup>
-						<SidebarGroupContent>
-							{/* Top-level tabs */}
-							<div className="mb-4 px-2 gap-2">
-								<button
-									className={`w-[100%] mb-5 px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "linkshare"
-										? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
-										: "text-muted-foreground hover:text-foreground bg-transparent"
-										}`}
-									onClick={() => handleTabChange("linkshare")}
-								>
-									Link Share
-								</button>
-								<button
-									className={`w-[100%] px-4 py-2 rounded-xl font-semibold transition-all ${shareType === "cryptographicshare"
-										? "bg-gradient-to-r from-primary/20 to-amber-500/20 text-primary shadow border-primary/30"
-										: "text-muted-foreground hover:text-foreground bg-transparent"
-										}`}
-									onClick={() => handleTabChange("cryptographicshare")}
-								>
-									Cryptographic Share
-								</button>
-							</div>
-							{/* Scope buttons */}
-							{shareType === "cryptographicshare" &&
-								<>
-									<div className="flex mb-2 px-4 gap-2">
-										<button
-											className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
-												? "bg-primary/10 text-primary"
-												: "text-muted-foreground hover:text-foreground bg-transparent"
-												}`}
-											onClick={() => handleScopeChange("byme")}
-										>
-											By me
-										</button>
-										<button
-											className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
-												? "bg-primary/10 text-primary"
-												: "text-muted-foreground hover:text-foreground bg-transparent"
-												}`}
-											onClick={() => handleScopeChange("withme")}
-										>
-											With me
-										</button>
-									</div>
-									{/* Sub-filters */}
-									<SidebarMenu>
-										{["all", "revoked"].map((sub) => (
-											<SidebarMenuItem key={sub}>
-												<SidebarMenuButton asChild>
-													<NavLink
-														to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub}`}
-														className={({ isActive }) =>
-															`group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
-																? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
-																: "text-muted-foreground hover:text-foreground"
-															}`
-														}
-													>
-														<span className="text-xs capitalize">{sub}</span>
-													</NavLink>
-												</SidebarMenuButton>
-											</SidebarMenuItem>
-										))}
-									</SidebarMenu>
-								</>
-							}
-						</SidebarGroupContent>
-					</SidebarGroup>
+					<>
+						<SidebarGroup>
+							<SidebarGroupLabel
+								onClick={() => handleTabChange("linkshare")}
+								className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20 cursor-pointer"
+							>
+								Link
+							</SidebarGroupLabel>
+						</SidebarGroup>
+
+						<SidebarGroup>
+							<SidebarGroupLabel 
+								onClick={() => handleTabChange("cryptographicshare")}
+								className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20 cursor-pointer">
+								Cryptographic
+							</SidebarGroupLabel>
+							<SidebarGroupContent>
+								{/* Scope buttons */}
+								{(shareType === "cryptographicshare") &&
+									<>
+										<div className="flex justify-end px-2 gap-2 bg-white/40 dark:bg-zinc-800/40">
+											<button
+												className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
+													? "bg-primary/10 text-primary"
+													: "text-muted-foreground hover:text-foreground bg-transparent"
+													}`}
+												onClick={() => handleScopeChange("byme")}
+											>
+												By me
+											</button>
+											<button
+												className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
+													? "bg-primary/10 text-primary"
+													: "text-muted-foreground hover:text-foreground bg-transparent"
+													}`}
+												onClick={() => handleScopeChange("withme")}
+											>
+												With me
+											</button>
+										</div>
+										{/* Sub-filters */}
+										<SidebarMenu>
+											{cryptographicShareItems.map((sub) => (
+												<SidebarMenuItem key={sub.title}>
+													<SidebarMenuButton asChild>
+														<NavLink
+															to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub.id}`}
+															className={({ isActive }) =>
+																`group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
+																	? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
+																	: "text-muted-foreground hover:text-foreground"
+																}`
+															}
+														>
+															<sub.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+															<span className="text-xs capitalize">{sub.title}</span>
+														</NavLink>
+													</SidebarMenuButton>
+												</SidebarMenuItem>
+											))}
+										</SidebarMenu>
+									</>
+								}
+							</SidebarGroupContent>
+						</SidebarGroup>
+
+						<SidebarGroup>
+							<SidebarGroupLabel
+								onClick={() => handleTabChange("pendingIntent")}
+								className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20 cursor-pointer">
+								Pending Requests
+							</SidebarGroupLabel>
+							<SidebarGroupContent>
+								{/* Scope buttons */}
+								{(shareType === "pendingIntent") &&
+									<>
+										<div className="flex justify-end px-2 gap-2">
+											<button
+												className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "byme"
+													? "bg-primary/10 text-primary"
+													: "text-muted-foreground hover:text-foreground bg-transparent"
+													}`}
+												onClick={() => handleScopeChange("byme")}
+											>
+												By me
+											</button>
+											<button
+												className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${scope === "withme"
+													? "bg-primary/10 text-primary"
+													: "text-muted-foreground hover:text-foreground bg-transparent"
+													}`}
+												onClick={() => handleScopeChange("withme")}
+											>
+												With me
+											</button>
+										</div>
+										{/* Sub-filters */}
+										<SidebarMenu>
+											{pendingIntentItems.map((sub) => (
+												<SidebarMenuItem key={sub.title}>
+													<SidebarMenuButton asChild>
+														<NavLink
+															to={`/dashboard/shared?type=${shareType}&scope=${scope}&filter=${sub.id}`}
+															className={({ isActive }) =>
+																`group flex items-center gap-3 px-6 py-2 rounded-xl mx-2 my-1 transition-all duration-200 border border-transparent hover:border-primary/20 hover:bg-white/40 dark:hover:bg-zinc-800/40 ${isActive
+																	? "bg-gradient-to-r from-primary/30 to-amber-500/20 text-primary font-semibold shadow border-primary/30"
+																	: "text-muted-foreground hover:text-foreground"
+																}`
+															}
+														>
+															<sub.icon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+															<span className="text-xs capitalize">{sub.title}</span>
+														</NavLink>
+													</SidebarMenuButton>
+												</SidebarMenuItem>
+											))}
+										</SidebarMenu>
+									</>
+								}
+							</SidebarGroupContent>
+						</SidebarGroup>
+					</>
 				)}
 			</SidebarContent>
 
@@ -822,7 +828,9 @@ function AppSidebar() {
 }
 
 
-
+// =================================================
+// DashBoard Layout
+// =================================================	
 export function DashboardLayout({ children }: { children: ReactNode }) {
 	const { user } = useAuthStore();
 

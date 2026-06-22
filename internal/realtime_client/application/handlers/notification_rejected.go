@@ -3,9 +3,11 @@ package realtime_client_handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	identity_domain "vault-app/internal/identity/domain"
 	shared_realtime "vault-app/internal/shared/realtime"
 	"vault-app/internal/utils"
 )
@@ -39,11 +41,18 @@ func (h *ShareRejectedHandler) Handle(
 		return err
 	}
 
-	runtime.EventsEmit(
-		h.appCtx,
-		msg.Type,
-		payload,
-	)
+	user, ok := ctx.Value("user").(identity_domain.User)
+	if !ok {
+		return errors.New("user not found in context")
+	}
+	utils.LogPretty("ShareRejectedHandler - Handle - USER ", user)
+	if payload.RecipientEmail != "" && user.Email == payload.RecipientEmail {
+		runtime.EventsEmit(
+			h.appCtx,
+			msg.Type,
+			payload,
+		)
+	}
 
 	return nil
 }

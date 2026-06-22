@@ -7,7 +7,7 @@ const (
     ShareAccepted = "share.accepted"
     ShareRejected = "share.rejected"
     ShareRevoked = "share.revoked"
-    ShareReady = "share.ready"
+    ShareReadyToAccept = "share.ready_to_accept"
     
     NotificationAck = "notification.ack"
 )

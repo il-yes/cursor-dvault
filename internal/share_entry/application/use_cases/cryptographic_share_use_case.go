@@ -30,14 +30,16 @@ import (
 // ---------------------------------------------------------
 type TracecoreClientInterface interface {
 	CreateShare(ctx context.Context, payload tracecore.ProdCreateCryptoShareRequest) (*tracecore.ProdCreateCryptoShareResponse, error)
-	AcceptShare(ctx context.Context, shareID string) error
-	RejectShare(ctx context.Context, shareID string) error
+	AcceptShare(ctx context.Context, req tracecore_types.ShareAcceptedPayload) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error)
+	RejectShare(ctx context.Context, req tracecore_types.ShareRejectedPayload) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error)
 	GetShareByMe(ctx context.Context, email string) ([]share_entry_domain.ShareEntry, error)
 	GetShareWithMe(ctx context.Context, email string) ([]share_entry_domain.ShareEntry, error)
 	SetToken(token string)
 	AddRecipient(ctx context.Context, req tracecore_types.AddRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error)
 	UpdateRecipient(ctx context.Context, req share_entry_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error)
 	RevokeShare(ctx context.Context, req tracecore_types.RevokeShareRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error)
+	ListPendingIntentSharesByMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error)
+	ListPendingIntentSharesWithMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error)
 }
 
 type ClientCryptoService interface {
@@ -326,30 +328,19 @@ type AcceptShareResult struct {
 // ---------------------------------------------------------
 // Accept Share Invitation
 // ---------------------------------------------------------
-func (uc *ShareUseCase) AcceptShare(ctx context.Context, shareID string, userID string) (*AcceptShareResult, error) {
-
-	// 1. Load share entry + recipient-specific data
-	share, recipient, err := uc.repo.GetShareAndRecipient(ctx, shareID, userID)
+func (uc *ShareUseCase) AcceptShare(ctx context.Context, shareID string, intentID string, email string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	acceptedResponse, err := uc.tc.AcceptShare(ctx, tracecore_types.ShareAcceptedPayload{
+		IntentID:       intentID,
+		ShareID:        shareID,
+		RecipientEmail: email,
+	})
 	if err != nil {
-		return nil, err
-	}
-
-	// 2. Check expiration
-	if share.ExpiresAt != nil && share.ExpiresAt.Before(time.Now()) {
-		return nil, share_entry_domain.ErrShareExpired
-	}
-
-	// 3. Mark recipient accepted
-	if err := uc.repo.MarkRecipientAccepted(ctx, recipient.ID); err != nil {
-		return nil, fmt.Errorf("failed to accept share: %w", err)
+		utils.LogPretty("share_entry_use_case - AcceptShare - tc.AcceptShare error: %v\n", err)
+		return nil, fmt.Errorf("dvault AcceptShare failed: %w", err)
 	}
 
 	// 4. Return data to caller (VaultHandler → frontend)
-	return &AcceptShareResult{
-		Share:     *share,
-		Recipient: *recipient,
-		Blob:      recipient.EncryptedBlob,
-	}, nil
+	return acceptedResponse, nil
 }
 
 type RejectShareResult struct {
@@ -361,24 +352,50 @@ type RejectShareResult struct {
 // ---------------------------------------------------------
 // Reject Share Invitation
 // ---------------------------------------------------------
-func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID string, userID string) (*RejectShareResult, error) {
-
-	// Load share + recipient
-	_, recipient, err := uc.repo.GetShareAndRecipient(ctx, shareID, userID)
+func (uc *ShareUseCase) RejectShare(ctx context.Context, shareID string, intentID string, email string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	rejectResponse, err := uc.tc.RejectShare(ctx, tracecore_types.ShareRejectedPayload{
+		IntentID:       intentID,
+		ShareID:        shareID,
+		RecipientEmail: email,
+	})
 	if err != nil {
-		return nil, err
+		utils.LogPretty("share_entry_use_case - RejectShare - tc.RejectShare error: %v\n", err)
+		return nil, fmt.Errorf("dvault RejectShare failed: %w", err)
 	}
 
-	// Mark the recipient invitation as "rejected"
-	if err := uc.repo.MarkRecipientRejected(ctx, recipient.ID); err != nil {
-		return nil, fmt.Errorf("failed to reject share: %w", err)
+	return rejectResponse, nil
+}
+
+// ---------------------------------------------------------
+// Revoke Share Invitation
+// ---------------------------------------------------------
+func (uc *ShareUseCase) RevokeShare(ctx context.Context, requesterID string, in share_entry_application_dto.UpdateRecipientRequest, configFacade share_entry_ports.AppConfigHandlerInterface) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
+	// ---------------------------------------------------------
+	// 1. Sign share
+	// ---------------------------------------------------------
+	// fetch userr private key from db
+	userCfg, err := configFacade.GetUserConfigByUserID(requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to get user config: %w", err)
 	}
 
-	return &RejectShareResult{
-		ShareID:     shareID,
-		RecipientID: recipient.ID,
-		Message:     "Share invitation rejected",
-	}, nil
+	message := "revoke.share" // TODO: improve
+	signature, err := blockchain.SignActorWithStellarPrivateKey(string(userCfg.StellarAccount.PrivateKey), message)
+	if err != nil {
+		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to sign share: %w", err)
+	}
+
+	input := tracecore_types.RevokeShareRequest{
+		Challenge: message,
+		Email:     in.Email,
+		ShareID:   in.ShareID,
+		Signature: signature,
+	}
+	response, err := uc.tc.RevokeShare(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to revoke share: %w", err)
+	}
+	return response, nil
 }
 
 // ---------------------------------------------------------
@@ -532,35 +549,6 @@ func (uc *ShareUseCase) UpdateRecipient(ctx context.Context, requesterID string,
 	response, err := uc.tc.UpdateRecipient(ctx, in)
 	if err != nil {
 		return nil, fmt.Errorf("❌ ShareUseCase - UpdateRecipient: failed to update recipient: %w", err)
-	}
-	return response, nil
-}
-
-func (uc *ShareUseCase) RevokeShare(ctx context.Context, requesterID string, in share_entry_application_dto.UpdateRecipientRequest, configFacade share_entry_ports.AppConfigHandlerInterface) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-	// ---------------------------------------------------------
-	// 1. Sign share
-	// ---------------------------------------------------------
-	// fetch userr private key from db
-	userCfg, err := configFacade.GetUserConfigByUserID(requesterID)
-	if err != nil {
-		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to get user config: %w", err)
-	}
-
-	message := "revoke.share" // TODO: improve
-	signature, err := blockchain.SignActorWithStellarPrivateKey(string(userCfg.StellarAccount.PrivateKey), message)
-	if err != nil {
-		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to sign share: %w", err)
-	}
-
-	input := tracecore_types.RevokeShareRequest{
-		Challenge: message,
-		Email:     in.Email,
-		ShareID:   in.ShareID,
-		Signature: signature,
-	}
-	response, err := uc.tc.RevokeShare(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("❌ ShareUseCase - RevokeShare: failed to revoke share: %w", err)
 	}
 	return response, nil
 }

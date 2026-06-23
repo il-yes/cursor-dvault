@@ -22,6 +22,7 @@ import { stripePromise } from '@/lib/stripe';
 import PaymentSuccess from "./components/PaymentSuccess";
 import SubscriptionManager from "./components/Subscription/subscriptionManager";
 import * as AppAPI from "../wailsjs/go/main/App";
+import NotificationsPage from "./pages/NotificationsPage";
 
 
 const queryClient = new QueryClient();
@@ -134,6 +135,7 @@ function AppContent() {
 			{/* <Route path="/auth/signin" element={<SignIn />} /> */}
 			<Route path="/login/email" element={<EmailLookup />} />
 			<Route path="/login/step2" element={<LoginStep2 />} />
+			<Route path="/dashboard/notifications" element={<NotificationsPage />} />
 			<Route path="/dashboard/feedback" element={<Feedback />} />
 			<Route path="/dashboard/about" element={<About />} />
 			<Route path="/payment/success" element={<PaymentSuccess />} />

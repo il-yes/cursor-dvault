@@ -69,6 +69,7 @@ func (vh *CryptographicShareHandler) CreateShareEntry(
 	// ==================================================================================================================
 	share := share_entry_domain.NewShareEntry(
 		ownerID,
+		payload.EntryID,
 		payload.EntryName,
 		payload.EntryRef,
 		payload.EntryType,
@@ -177,7 +178,26 @@ func (vh *CryptographicShareHandler) UpdateRecipient(
 	vh.Logger.Info("✅ CryptographicShareHandler - UpdateRecipient: Successfully updated recipient: %v\n", result)
 	return result, nil
 }
+func (vh *CryptographicShareHandler) AcceptShare(ctx context.Context, shareID string, intentID string, email string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	result, err := vh.CryptographicShareUseCase.AcceptShare(ctx, shareID, intentID, email)
+	if err != nil {
+		vh.Logger.Error("❌ CryptographicShareHandler - AcceptShare: Failed to accept share: %v\n", err)
+		return nil, err
+	}
 
+	vh.Logger.Info("✅ CryptographicShareHandler - AcceptShare: Successfully accepted share: %v\n", result)
+	return result, nil
+}
+func (vh *CryptographicShareHandler) RejectShare(ctx context.Context, shareID string, intentID string, email string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	result, err := vh.CryptographicShareUseCase.RejectShare(ctx, shareID, intentID, email)
+	if err != nil {
+		vh.Logger.Error("❌ CryptographicShareHandler - RejectShare: Failed to reject share: %v\n", err)
+		return nil, err
+	}
+
+	vh.Logger.Info("✅ CryptographicShareHandler - RejectShare: Successfully rejected share: %v\n", result)
+	return result, nil
+}
 func (vh *CryptographicShareHandler) RevokeRecipient(ctx context.Context, userID string, in share_entry_application_dto.UpdateRecipientRequest) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	result, err := vh.CryptographicShareUseCase.UpdateRecipient(ctx, userID, in)
 	if err != nil {
@@ -199,5 +219,35 @@ func (vh *CryptographicShareHandler) RevokeShare(
 	}
 
 	vh.Logger.Info("✅ CryptographicShareHandler - RevokeShare: Successfully revoked share: %v\n", result)
+	return result, nil
+}
+
+// ---------------------------------------------------------
+// List Pending Intent Shares (Cloud)
+// ---------------------------------------------------------
+func (vh *CryptographicShareHandler) ListPendingIntentSharesByMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	if vh.TracecoreClient == nil {
+		vh.Logger.LogPretty("share_entry_handler - ListPendingIntentSharesByMe - tracecoreClient is nil", nil)
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	result, err := vh.TracecoreClient.ListPendingIntentSharesByMe(ctx, email)
+	if err != nil {
+		vh.Logger.LogPretty("share_entry_handler - ListPendingIntentSharesByMe - tracecoreClient.GetPendingShareIntents error: %v\n", err)
+		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
+	}
+
+	return result, nil
+}
+func (vh *CryptographicShareHandler) ListPendingIntentSharesWithMe(ctx context.Context, email string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	if vh.TracecoreClient == nil {
+		vh.Logger.LogPretty("share_entry_handler - ListPendingIntentSharesWithMe - tracecoreClient is nil", nil)
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	result, err := vh.TracecoreClient.ListPendingIntentSharesWithMe(ctx, email)
+	if err != nil {
+		vh.Logger.LogPretty("share_entry_handler - ListPendingIntentSharesWithMe - tracecoreClient.GetPendingShareIntents error: %v\n", err)
+		return nil, fmt.Errorf("failed fetching shared entries: %w", err)
+	}
+
 	return result, nil
 }

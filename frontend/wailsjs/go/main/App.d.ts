@@ -9,6 +9,7 @@ import {blockchain} from '../models';
 import {handlers} from '../models';
 import {auth} from '../models';
 import {main} from '../models';
+import {identity_domain} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
 import {share_entry_application_dto} from '../models';
@@ -21,9 +22,11 @@ import {onboarding_domain} from '../models';
 import {app_config_domain} from '../models';
 import {app_config_worker} from '../models';
 import {billing_domain} from '../models';
-import {identity_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
+import {notification_center_domain} from '../models';
 import {tracecore} from '../models';
+
+export function AcceptShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
 
@@ -34,6 +37,8 @@ export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<a
 export function AddReceiver(arg1:string,arg2:share_entry_use_cases.AddReceiverInput):Promise<share_entry_use_cases.AddReceiverResult>;
 
 export function AddRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
+
+export function Archive(arg1:string,arg2:string):Promise<void>;
 
 export function AuthVerify(arg1:blockchain.SignatureVerification):Promise<string>;
 
@@ -51,9 +56,11 @@ export function CheckUserEmail(arg1:string,arg2:string):Promise<tracecore_types.
 
 export function CompleteOnboarding():Promise<void>;
 
-export function ConnectToRealtime(arg1:string):Promise<void>;
+export function ConnectToRealtime(arg1:identity_domain.User):Promise<void>;
 
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
+
+export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
@@ -143,9 +150,15 @@ export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.
 
 export function IsVaultDirty(arg1:string):Promise<boolean>;
 
+export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<notification_center_domain.Notification>>;
+
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 
 export function ListLinkSharesWithMe(arg1:string):Promise<any>;
+
+export function ListPendingIntentSharesByMe(arg1:string):Promise<tracecore_types.CloudResponse___vault_app_internal_tracecore_types_PendingShareIntent_>;
+
+export function ListPendingIntentSharesWithMe(arg1:string):Promise<tracecore_types.CloudResponse___vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function ListReceivedShares(arg1:string):Promise<any>;
 
@@ -154,6 +167,10 @@ export function ListSharedEntries(arg1:string):Promise<any>;
 export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function LoadAvatar(arg1:string,arg2:string):Promise<string>;
+
+export function MarkAllRead(arg1:string):Promise<void>;
+
+export function MarkRead(arg1:string,arg2:string):Promise<void>;
 
 export function NotifyPaymentSuccess(arg1:string):Promise<void>;
 
@@ -175,7 +192,7 @@ export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain
 
 export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 
-export function RejectShare(arg1:string,arg2:string):Promise<share_entry_use_cases.RejectShareResult>;
+export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
 

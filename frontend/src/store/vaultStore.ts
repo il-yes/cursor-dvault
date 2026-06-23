@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ENTRY_TYPES, VaultContext, VaultEntry } from '@/types/vault';
-import { CreateLinkShareEntryPayload, CreateShareEntryPayload, LinkShareEntry, Recipient, SharedEntry } from '@/types/sharing';
+import { CreateLinkShareEntryPayload, CreateShareEntryPayload, LinkShareEntry, PendingIntentShare, Recipient, SharedEntry } from '@/types/sharing';
 import { toast } from '@/hooks/use-toast';
 import * as AppAPI from "../../wailsjs/go/main/App";
 
 // Import or paste your mock payload JSON here
 import mockVaultPayload from '@/data/vault-payload.json';
-import { listSharedEntries, listSharedWithMe, listLinkSharesByMe, listLinkSharesWithMe, updateEntry as updateEntryApi } from '@/services/api';
+import { listSharedEntries, listSharedWithMe, listLinkSharesByMe, listLinkSharesWithMe, updateEntry as updateEntryApi, listPendingIntentSharesByMe, listPendingIntentSharesWithMe } from '@/services/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { wailsBridge } from '@/services/wailsBridge';
 import { get } from 'http';
@@ -34,6 +34,14 @@ interface VaultStoreState {
     status: 'idle' | 'loading' | 'loaded';
     items: SharedEntry[];
   };
+  pendingIntentSharesByMe: {
+    status: 'idle' | 'loading' | 'loaded';
+    items: PendingIntentShare[];
+  };
+  pendingIntentSharesWithMe: {
+    status: 'idle' | 'loading' | 'loaded';
+    items: PendingIntentShare[];
+  };
   isLoading: boolean;
   lastSyncTime: string | null;
 
@@ -41,6 +49,11 @@ interface VaultStoreState {
   loadVault: (preloaded?: PreloadedVaultResponse) => Promise<void>;
   setVault: (vault: VaultContext) => void;
   clearVault: () => void;
+  // Link share
+  setLinkSharedEntries: (linkSharedEntries: LinkShareEntry[]) => void;
+  addLinkSharedEntry: (entry: LinkShareEntry) => void;
+  updateLinkSharedEntry: (entryId: string, updates: Partial<LinkShareEntry>) => void;
+  removeLinkSharedEntry: (entryId: string) => void;
   // Cryptographic share
   setSharedEntries: (sharedEntries: SharedEntry[]) => void;
   addSharedEntry: (entry: CreateShareEntryPayload) => string | null;
@@ -48,14 +61,17 @@ interface VaultStoreState {
   removeSharedEntry: (entryId: string) => void;
   updateSharedEntryRecipients: (entryId: string, recipients: Recipient[]) => void;
   setSharedWithMe: (sharedWithMe: SharedEntry[]) => void;
-  // Link share
-  setLinkSharedEntries: (linkSharedEntries: LinkShareEntry[]) => void;
-  addLinkSharedEntry: (entry: LinkShareEntry) => void;
-  updateLinkSharedEntry: (entryId: string, updates: Partial<LinkShareEntry>) => void;
-  removeLinkSharedEntry: (entryId: string) => void;
+  // PendingIntentShare
+  setPendingIntentSharesByMe: (pendingIntentShares: PendingIntentShare[]) => void;
+  addPendingIntentShareByMe: (entry: PendingIntentShare) => void;
+  updatePendingIntentShareByMe: (entryId: string, updates: Partial<PendingIntentShare>) => void;
+  removePendingIntentShareByMe: (entryId: string) => void;
+  setPendingIntentSharesWithMe: (pendingIntentShares: PendingIntentShare[]) => void;
+  addPendingIntentShareWithMe: (entry: PendingIntentShare) => void;
+  updatePendingIntentShareWithMe: (entryId: string, updates: Partial<PendingIntentShare>) => void;
+  removePendingIntentShareWithMe: (entryId: string) => void;
 
   // From useVault
-
   hydrateVault: (context: VaultContext) => void;
   refreshVault: () => Promise<void>;
 
@@ -121,6 +137,14 @@ export const useVaultStore = create<VaultStoreState>()(
         items: [],
       },
       sharedWithMe: {
+        status: 'idle',
+        items: [],
+      },
+      pendingIntentSharesByMe: {
+        status: 'idle',
+        items: [],
+      },
+      pendingIntentSharesWithMe: {
         status: 'idle',
         items: [],
       },
@@ -224,6 +248,18 @@ export const useVaultStore = create<VaultStoreState>()(
             ? linkSharedWithMe
             : (data.linkSharedWithMe || []);
 
+          // Pending intent share By Me
+          const pendingIntentSharesByMe = await listPendingIntentSharesByMe();
+          const finalPendingIntentSharesByMe = (pendingIntentSharesByMe && pendingIntentSharesByMe.length > 0)
+            ? pendingIntentSharesByMe
+            : (data.pendingIntentSharesByMe || []);
+
+          // Pending intent share With Me
+          const pendingIntentSharesWithMe = await listPendingIntentSharesWithMe();
+          const finalPendingIntentSharesWithMe = (pendingIntentSharesWithMe && pendingIntentSharesWithMe.length > 0)
+            ? pendingIntentSharesWithMe
+            : (data.pendingIntentSharesWithMe || []);
+
           set({
             vault: vaultObject,
             shared: {
@@ -241,6 +277,14 @@ export const useVaultStore = create<VaultStoreState>()(
             linkSharedWithMe: {
               status: 'loaded',
               items: finalLinkSharedWithMe,
+            },
+            pendingIntentSharesByMe: {
+              status: 'loaded',
+              items: finalPendingIntentSharesByMe,
+            },
+            pendingIntentSharesWithMe: {
+              status: 'loaded',
+              items: finalPendingIntentSharesWithMe,
             },
             lastSyncTime: new Date().toISOString(),
             isLoading: false,
@@ -291,8 +335,9 @@ export const useVaultStore = create<VaultStoreState>()(
             created_at: now,
             updated_at: now,
             shared_at: now,
+            owner_id: useAuthStore.getState().user?.id || '',
 
-            audit_log: [],
+            access_log: [],
 
             entry_name: payload.entry_name,
             entry_type: payload.entry_type,
@@ -372,6 +417,91 @@ export const useVaultStore = create<VaultStoreState>()(
                 ? { ...item, recipients: [...recipients] }
                 : item
             ),
+          },
+        });
+      },
+
+      // 🔹 PendingIntentShare
+      setPendingIntentSharesByMe: (pendingIntentShares: PendingIntentShare[]) => {
+        set({
+          pendingIntentSharesByMe: {
+            status: 'loaded',
+            items: pendingIntentShares,
+          },
+        });
+      },
+
+      addPendingIntentShareByMe: (entry: PendingIntentShare) => {
+        const { pendingIntentSharesByMe } = get();
+
+        set({
+          pendingIntentSharesByMe: {
+            ...pendingIntentSharesByMe,
+            items: [...pendingIntentSharesByMe.items, entry],
+          },
+        });
+      },
+
+      updatePendingIntentShareByMe: (entryId: string, updates: Partial<PendingIntentShare>) => {
+        const { pendingIntentSharesByMe } = get();
+        set({
+          pendingIntentSharesByMe: {
+            ...pendingIntentSharesByMe,
+            items: pendingIntentSharesByMe.items.map((item) =>
+              item.id === entryId ? { ...item, ...updates } : item
+            ),
+          },
+        });
+      },
+
+      removePendingIntentShareByMe: (entryId) => {
+        const { pendingIntentSharesByMe } = get();
+        set({
+          pendingIntentSharesByMe: {
+            ...pendingIntentSharesByMe,
+            items: pendingIntentSharesByMe.items.filter((item) => item.id !== entryId),
+          },
+        });
+      },
+
+      setPendingIntentSharesWithMe: (pendingIntentShares: PendingIntentShare[]) => {
+        set({
+          pendingIntentSharesWithMe: {
+            status: 'loaded',
+            items: pendingIntentShares,
+          },
+        });
+      },
+
+      addPendingIntentShareWithMe: (entry: PendingIntentShare) => {
+        const { pendingIntentSharesWithMe } = get();
+
+        set({
+          pendingIntentSharesWithMe: {
+            ...pendingIntentSharesWithMe,
+            items: [...pendingIntentSharesWithMe.items, entry],
+          },
+        });
+      },
+
+      updatePendingIntentShareWithMe: (entryId: string, updates: Partial<PendingIntentShare>) => {
+        const { pendingIntentSharesWithMe } = get();
+        set({
+          pendingIntentSharesWithMe: {
+            ...pendingIntentSharesWithMe,
+            items: pendingIntentSharesWithMe.items.map((item) =>
+              item.id === entryId ? { ...item, ...updates } : item
+            ),
+          },
+        });
+      },
+
+      removePendingIntentShareWithMe: (entryId) => {
+        const { pendingIntentSharesWithMe } = get();
+        set({
+          pendingIntentSharesWithMe: {
+            ...pendingIntentSharesWithMe,
+            items: pendingIntentSharesWithMe.items.filter((item) => item.id !== entryId),
           },
         });
       },

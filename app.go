@@ -33,6 +33,9 @@ import (
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_worker "vault-app/internal/config/application/worker"
 	app_config_domain "vault-app/internal/config/domain"
+	notification_center_usecases "vault-app/internal/notification_center/application/use_cases"
+	notification_center_domain "vault-app/internal/notification_center/domain"
+	notification_center_ui "vault-app/internal/notification_center/ui"
 	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
 	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
 	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
@@ -161,6 +164,7 @@ type App struct {
 	LinkShareHandler          *sahre_entry_ui_wails.LinkShareHandler
 	Identity                  *identity_ui.IdentityHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
+	NotificationCenterHandler *notification_center_ui.NotificationHandler
 	ShareEntryHandler         *sahre_entry_ui_wails.ShareEntryHandler
 	StellarService            *blockchain.StellarService
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
@@ -429,15 +433,11 @@ func NewApp() *App {
 	appLogger.Info("shareEntryHandler", shareEntryHandler)
 
 	// -------------------------------------------------------------------------------------------------
-	// Realtime Client
+	// Notification Center
 	// // -------------------------------------------------------------------------------------------------
-	// wsClient := websocket.New(conn)
-
-	// client := realtime_client.NewClient(handlers)
-
-	// go wsClient.Start(ctx, func(msg shared_realtime.Message) {
-	// 	_ = client.Handle(ctx, msg)
-	// })
+	notificationUsecase := notification_center_usecases.NewNotificationUseCase(tracecoreClient)
+	notificationHandler := notification_center_ui.NewNotificationHandler(*notificationUsecase)
+	appLogger.Info("notificationHandler", notificationHandler)
 
 	// -------------------------------------------------------------------------------------------------
 	// Stellar Recovery
@@ -531,6 +531,7 @@ func NewApp() *App {
 		EntryRegistry:             reg,
 		CryptographicShareHandler: &cryptographicShareHandler,
 		LinkShareHandler:          &linkShareHandler,
+		NotificationCenterHandler: notificationHandler,
 		NowUTC:                    func() string { return time.Now().Format(time.RFC3339) },
 		Identity:                  identityHandler,
 		Logger:                    *appLogger,
@@ -919,7 +920,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	)
 
 	// ---------- Connect to real-time --------- //
-	a.ConnectToRealtime(result.User.ID)
+	a.ConnectToRealtime(*result.User)
 
 	loginRes := &vault_dto.LoginResponse{
 		User:                *result.User,
@@ -2005,6 +2006,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_entry_domain.ShareEntr
 	)
 }
 
+
 // Cryptographic share by me
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_entry_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(jwtToken)
@@ -2056,15 +2058,6 @@ func (a *App) GetShareForAccept(jwt, shareID string) (*share_entry_domain.ShareA
 		claims.UserID,
 		shareID,
 	)
-}
-func (a *App) RejectShare(jwtToken string, shareID string) (*share_entry_use_cases.RejectShareResult, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
-	if err != nil {
-		a.Logger.Error("App - RejectShare - error: %v", err)
-		return nil, err
-	}
-
-	return a.CryptographicShareHandler.CryptographicShareUseCase.RejectShare(context.Background(), shareID, claims.UserID)
 }
 func (a *App) AddReceiver(jwtToken string, inputReceiver share_entry_use_cases.AddReceiverInput) (*share_entry_use_cases.AddReceiverResult, error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
@@ -2127,7 +2120,23 @@ func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_
 	a.Logger.LogPretty("App - RevokeRecipient - request: %v", revokeRecipRequest)
 	return a.CryptographicShareHandler.RevokeRecipient(context.Background(), claims.UserID, revokeRecipRequest)
 }
+func (a *App) AcceptShare(jwtToken string, shareID string, intentID string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - AcceptShare - error: %v", err)
+		return nil, err
+	}
+	return a.CryptographicShareHandler.AcceptShare(context.Background(), shareID, intentID, claims.Email)
+}
+func (a *App) RejectShare(jwtToken string, shareID string, intentID string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - RejectShare - error: %v", err)
+		return nil, err
+	}
 
+	return a.CryptographicShareHandler.RejectShare(context.Background(), shareID, intentID, claims.Email)
+}
 func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
 	claims, err := a.Auth.RequireAuth(jwtToken)
 	if err != nil {
@@ -2144,6 +2153,34 @@ func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_type
 	return a.CryptographicShareHandler.RevokeShare(context.Background(), claims.UserID, revokeShareRequest, a.AppConfigHandler)
 }
 
+func (a *App) ListPendingIntentSharesByMe(jwtToken string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - ListPendingIntentSharesByMe - error: %v", err)
+		return nil, err
+	}
+	res, err := a.CryptographicShareHandler.ListPendingIntentSharesByMe(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - ListPendingIntentSharesByMe - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - ListPendingIntentSharesByMe - res", res)
+	return res, nil
+}
+func (a *App) ListPendingIntentSharesWithMe(jwtToken string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
+	claims, err := a.Auth.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - ListPendingIntentSharesWithMe - error: %v", err)
+		return nil, err
+	}
+	res, err := a.CryptographicShareHandler.ListPendingIntentSharesWithMe(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - ListPendingIntentSharesWithMe - error: %v", err)
+		return nil, err
+	}
+	a.Logger.LogPretty("App - ListPendingIntentSharesWithMe - res", res)
+	return res, nil
+}
 // -----------------------------
 // Vault Config
 // -----------------------------
@@ -2470,12 +2507,13 @@ func (a *App) FetchUsers() ([]models.UserDTO, error) {
 // -----------------------------
 // Websocket integration
 // -----------------------------
-func (a *App) ConnectToRealtime(userID string) error {
+func (a *App) ConnectToRealtime(user identity_domain.User) error {
 
 	a.Logger.Info("ConnectToRealtime called")
-	a.Logger.Info("ConnectToRealtime - user id: %s", userID)
+	a.Logger.Info("ConnectToRealtime - user id: %s", user.ID)
+	a.ctx = context.WithValue(a.ctx, "user", user)
 
-	ws := realtime_client_infrastructure_websocket.NewClient(a.config.ANKHORA_WEBSOCKET_GATEWAY + "/ws/" + userID)
+	ws := realtime_client_infrastructure_websocket.NewClient(a.config.ANKHORA_WEBSOCKET_GATEWAY + "/ws/" + user.ID)
 
 	handlers := realtime_client_handlers.RegisterHandlers(a.ctx)
 
@@ -2483,6 +2521,7 @@ func (a *App) ConnectToRealtime(userID string) error {
 
 	go func() {
 		_ = ws.Run(a.ctx, func(msg shared_realtime.Message) {
+			a.Logger.LogPretty("App - ConnectToRealtime - msg: %v", msg)
 			_ = client.Handle(a.ctx, msg)
 		})
 	}()
@@ -2490,6 +2529,47 @@ func (a *App) ConnectToRealtime(userID string) error {
 	return nil
 }
 
+// -----------------------------
+// Notifications Center
+// -----------------------------
+func (a *App) ListByUser(jwtToken string, limit int, offset int) ([]notification_center_domain.Notification, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.NotificationCenterHandler.ListByUser(context.Background(), claims.UserID, limit, offset)
+}
+func (a *App) CountUnread(jwtToken string) (int64, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return 0, err
+	}
+
+	return a.NotificationCenterHandler.CountUnread(context.Background(), claims.UserID)
+}
+func (a *App) MarkRead(jwtToken string, id string) error {
+	_, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+
+	return a.NotificationCenterHandler.MarkRead(context.Background(), id)
+}
+func (a *App) Archive(jwtToken string, id string) error {
+	_, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	return a.NotificationCenterHandler.Archive(context.Background(), id)
+}
+func (a *App) MarkAllRead(jwtToken string) error {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		return err
+	}
+	return a.NotificationCenterHandler.MarkAllRead(context.Background(), claims.UserID)
+}
 
 // -----------------------------
 // Helpers

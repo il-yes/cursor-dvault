@@ -85,7 +85,7 @@ export function NewLinkShareModal({ open, onOpenChange, onShareSuccess }: NewSha
                 expires_at: expirationDate?.toISOString() || null,
                 max_views: maxViews,
                 creator_user_id: user?.id,
-                creator_email: user?.email,
+                creator_email: user?.email || user?.Email,
                 entry_type: selectedVaultEntry.type,
                 title: selectedVaultEntry.entry_name,
                 download_allowed: allowDownload,

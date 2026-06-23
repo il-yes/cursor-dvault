@@ -320,6 +320,7 @@ export interface LoginRequest {
 export interface User {
   id: string;
   email: string;
+  Email?: string
   password: string;
   username: string;
   role: string;

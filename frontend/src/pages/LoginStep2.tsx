@@ -20,7 +20,7 @@ const LoginStep2 = () => {
   const email = searchParams.get("email") || "";
   const methods = searchParams.get("methods")?.split(",") || ["password"];
 
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("password");
   const [publicKey, setPublicKey] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

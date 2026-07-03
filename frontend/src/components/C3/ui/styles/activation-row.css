@@ -1,0 +1,36 @@
+
+  .toast-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    flex-shrink: 0;
+    background: rgba(26, 26, 26, 0.96);
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .toast-icon {
+    font-size: 14px;
+  }
+
+  .toast-text {
+    flex: 1;
+    font-size: 12px;
+  }
+
+  .toast-text strong {
+    color: var(--c3-gold);
+  }
+
+  .toast-action {
+    color: var(--c3-gold);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .toast-close {
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+  }

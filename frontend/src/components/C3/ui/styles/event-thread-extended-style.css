@@ -1,0 +1,84 @@
+.detail-panel {
+    height: 100%;
+    background: #fff;
+    border-left: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    box-shadow: -6px 0 24px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    z-index: 10;
+}
+
+    .dp-header { padding: 20px 22px 16px; border-bottom: 1px solid #ebebeb; flex-shrink: 0; }
+    .dp-close-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .dp-badge { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #C8922A; background: #FBF0D8; padding: 3px 8px; border-radius: 4px; }
+    .dp-close { width: 24px; height: 24px; border-radius: 6px; background: #f5f5f5; border: 1px solid #e5e5e5; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #888; cursor: pointer; }
+    .dp-title { font-size: 15px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; line-height: 1.3; }
+    .dp-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .dp-meta-chip { font-size: 11px; color: #999; background: #f8f8f8; border: 1px solid #ebebeb; padding: 2px 8px; border-radius: 4px; font-family: 'SF Mono', monospace; }
+    .dp-custom { margin-top: 8px; font-size: 11px; color: #999; }
+
+    .dp-body { flex: 1; overflow-y: auto; padding: 0 22px 20px; }
+    .dp-section { padding: 16px 0 12px; border-bottom: 1px solid #f0f0f0; }
+    .dp-section:last-child { border-bottom: none; }
+    .dp-section-title { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #bbb; margin-bottom: 12px; }
+
+    /* Pipeline steps */
+    .pipeline-step { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .ps-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; margin-top: 1px; }
+    .ps-icon-wait { background: #f0f0f0 !important; border: 2px dashed #ddd; color: #ccc !important; }
+    .ps-content { flex: 1; }
+    .ps-label { font-size: 12px; font-weight: 500; color: #333; }
+    .ps-label.wait { color: #ccc; font-style: italic; }
+    .ps-sublabel { font-size: 11px; color: #bbb; margin-top: 2px; }
+    .ps-ts { font-size: 10px; color: #ccc; margin-top: 2px; }
+    .ps-check { font-size: 13px; flex-shrink: 0; }
+    .ps-check.done { color: #22C55E; }
+    .ps-check.wait { color: #e0e0e0; }
+    .ps-connector { width: 1px; height: 10px; background: #e8e8e8; margin-left: 12px; }
+
+    /* C3 divider in pipeline */
+    .c3-pipe-divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 10px; }
+    .c3-pipe-line { flex: 1; height: 1px; background: #E8C87A; }
+    .c3-pipe-label { font-size: 10px; font-weight: 600; color: #C8922A; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+
+    /* External vault step - gold */
+    .ps-icon-external { background: #FBF0D8 !important; border: 2px solid #C8922A !important; color: #C8922A !important; font-size: 8px !important; }
+    .ps-label-external { color: #C8922A !important; font-weight: 600 !important; }
+    .ps-sublabel-external { color: #C8922A !important; opacity: 0.7; }
+    .ext-role-badge { display: inline-block; font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #C8922A; background: #FBF0D8; border: 1px solid #E8C87A; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
+
+    /* Commits */
+    .commit-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+    .commit-row:last-child { border-bottom: none; }
+    .commit-row.external { background: #FFFDF8; margin: 0 -4px; padding: 8px 4px; border-radius: 5px; }
+    .commit-ts { font-size: 10px; color: #bbb; white-space: nowrap; padding-top: 1px; min-width: 70px; }
+    .commit-body { flex: 1; }
+    .commit-actor { font-size: 11px; font-weight: 600; color: #555; }
+    .commit-actor.ext { color: #C8922A; }
+    .commit-action { font-size: 11px; color: #333; margin-left: 4px; }
+    .commit-cid { font-size: 10px; color: #bbb; font-family: 'SF Mono', monospace; margin-top: 2px; }
+    .commit-verify { font-size: 10px; color: #C8922A; cursor: pointer; white-space: nowrap; padding-top: 1px; }
+
+    /* C3 extended section */
+    .c3-extended-box { padding: 14px 16px; background: #FBF0D8; border: 1px solid #E8C87A; border-radius: 8px; margin-top: 4px; }
+    .c3-ext-header { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+    .c3-ext-icon { font-size: 14px; }
+    .c3-ext-title { font-size: 12px; font-weight: 600; color: #C8922A; }
+    .c3-ext-active-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: #C8922A; color: #fff; padding: 2px 6px; border-radius: 3px; margin-left: auto; }
+    .c3-ext-detail { font-size: 12px; color: #7A5A1A; margin-bottom: 10px; line-height: 1.5; }
+    .c3-ext-detail span { font-weight: 600; }
+    .c3-view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #C8922A; border-radius: 6px; font-size: 12px; font-weight: 500; color: #C8922A; background: #fff; cursor: pointer; }
+    .c3-view-btn:hover { background: #FBF0D8; }
+
+    /* Stellar ref */
+    .stellar-ref-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #fafafa; border: 1px solid #ebebeb; border-radius: 7px; }
+    .stellar-hash-full { font-family: 'SF Mono', monospace; font-size: 10px; color: #888; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .copy-btn { font-size: 10px; color: #C8922A; cursor: pointer; white-space: nowrap; }
+
+    /* Actions */
+    .dp-actions { padding: 14px 22px; border-top: 1px solid #ebebeb; display: flex; gap: 8px; flex-shrink: 0; }
+    .action-btn { flex: 1; padding: 8px 10px; border: 1px solid #e5e5e5; border-radius: 7px; background: #fff; font-size: 11px; font-weight: 500; color: #444; cursor: pointer; text-align: center; }
+    .action-btn:hover { border-color: #C8922A; color: #C8922A; }
+    .action-btn.danger:hover { border-color: #EF4444; color: #EF4444; }

@@ -1111,3 +1111,267 @@ pendingShareIntent
 - status
 - createdAt
 - expiredAt
+
+
+
+Add Channel object + basic policy fields
+Add Event object with idempotency + cursor
+Add receipts
+Keep using your existing share payload format
+
+ (later): “True federation”
+Per-org endpoints / on-prem connectors
+Discovery via .well-known / Stellar federation
+Optional direct delivery (B) while keeping hub fallback
+
+
+## 1) Core objects (minimal but real)
+### VaultIdentity
+- `vault_id` (uuid)
+- `org_id` / `account_id`
+- `vault_public_key` (for signing / encryption)
+- `status` (active, suspended)
+- optional: `capabilities` (rotation, audit, etc.)
+
+### Channel (C3/AFP “relationship contract”)
+Pairwise, even if transport is hub:
+- `channel_id`
+- `state`: `pending` | `active` | `revoked`
+- `allowed_event_types`: e.g. `entry.shared`, `secret.rotated`, `attestation.issued`
+- `allowed_paths` (optional): `prod/stripe/*`
+- `policy`: JSON (limits, max size, retention, required claims)
+- `created_at`, `revoked_at`
+// for pure federation later
+- `allowed_directions`: `A_to_B`, `B_to_A`, `bidirectional`
+- `vault_a_id`, `vault_b_id`
+- `key_agreement`: info about how payload keys are wrapped (see below)
+
+### ThreadAsset
+- ID
+- Ledger ID
+- Channel ID
+- Status: open | transferring | closed
+- Created At
+- Expired At
+
+### ThreadEvent (the thing that moves)
+- `id` (monotonic per channel or global sortable ID)
+- `channel_id`
+- `from_vault_id`, `to_vault_id` // not needed in v1, only sender/recipient are enough. the hub knows this
+- `type`
+- `created_at`
+- `idempotency_key` (critical)
+- `payload_ref` (points to a cid)
+- `headers`: content hash, schema version, etc.
+- `signature` (sender signs event header)
+
+### PayloadBlob (encrypted)
+// cryptographic share: already done
+
+### Receipt / Ack (only send receipt back when requested by the recipient)
+- `receipt_id`
+- `event_id`
+- `to_vault_id`
+- `status`: `received` | `processed` | `rejected`
+- `reason` (if rejected)
+- `signature` (recipient signs)
+
+This is enough to claim “channels + event-based propagation” in a real way.
+
+---
+
+## 3) API surface (hub-based, clean)
+### Channel management
+- `POST /channels` (request channel)
+- `POST /channels/{id}/accept`
+- `POST /channels/{id}/revoke`
+- `GET /channels`
+
+### Event send (write once)
+- `POST /channels/{id}/events`
+  - includes event header + encrypted payload (or payload uploaded separately)
+  - must accept `Idempotency-Key` header
+
+### Event receive (pull)
+- `GET /vaults/{vault_id}/inbox?cursor=...&limit=...`
+  - returns list of events (headers + payload_ref)
+- `GET /payloads/{payload_id}` (download ciphertext)
+
+### Receipts
+- `POST /events/{event_id}/receipt` with status + signature
+
+### Optional: notifications
+- `GET /vaults/{vault_id}/notifications` (like Horizon)
+- `WS /vaults/{vault_id}/stream` (push “new event available”)
+
+This matches your instinct: **WebSockets for live notification**, **REST for listing/history**.
+***
+
+### 4) AccessPolicy (content-addressed, CID-stored)
+
+```typescript
+interface AccessPolicy {
+  policy_id:   string;
+  asset_id:    string;
+  rules:       AccessRule[];
+  issued_at:   ISO8601;
+  issued_by:   string;         // origin vault signing key
+  stellar_tx:  string;         // policy itself is anchored on Stellar
+}
+
+interface AccessRule {
+  vault_id:            string;
+  allowed_properties:  string[];          // which property keys this vault may resolve
+  permission:          "read" | "write" | "append";
+  condition?:          string;            // e.g. "only if flight_clearance.status == 'approved'"
+  expires_at?:         ISO8601;
+}
+```
+---
+
+## 4) Delivery semantics (this is where “enterprise-grade” lives)
+To avoid “sync jobs” and drift, you need these behaviors:
+
+### Idempotency
+- Sender includes `idempotency_key`
+- Hub dedupes: same key + channel + sender → same event_id
+
+### Retry + backoff
+- Sender can safely retry `POST /events` without duplicating
+
+### Cursor-based replay
+- Recipient stores last processed cursor
+- If offline, it resumes from cursor (no missed events)
+
+### Ack states
+- `received` (stored)
+- `processed` (applied to vault)
+- `rejected` (policy fail / decrypt fail / schema fail)
+
+### Ordering
+- Per-channel ordering is usually enough (global ordering is hard and unnecessary)
+
+---
+
+## 5) How “Share Entries” maps into AFP
+Your current endpoint `share-entries/cryptographic` can become:
+- `event_type = entry.shared`
+- payload contains: a pointer to cid of stored entry
+- receipt becomes: “accepted into recipient vault” or “rejected”
+
+So you’re not throwing away work — you’re **formalizing it** into channels + events + receipts.
+
+---
+
+## 6) Development scope: phased roadmap (so you can estimate)
+### Phase 1 (1–2 weeks, depending on codebase): “AFP-lite”
+- Add Channel object + basic policy fields
+- Add Event object with idempotency + cursor
+- Add receipts
+- Keep using your existing share payload format
+
+### Phase 2 (2–4 weeks): “Reliable propagation”
+- WebSocket notifications
+- Retry semantics + dead-letter queue for failed deliveries
+- Admin views: per-channel event timeline
+
+### Phase 3 (4–8 weeks): “Enterprise-ready”
+- Fine-grained policy gating (paths, event types, size limits)
+- Key rotation per channel
+- Audit export bundles (signed)
+- Multi-tenant hardening, rate limits, abuse controls
+
+### Phase 4 (later): “True federation”
+- Per-org endpoints / on-prem connectors
+- Discovery via `.well-known` / Stellar federation
+- Optional direct delivery (B) while keeping hub fallback
+
+
+
+
+## 1) Core objects (minimal but real)
+Ledger
+- ID
+- Name
+- Participants
+- Sections
+- Policies
+
+Channel
+- ID
+- Ledger ID
+- Name
+- Status  pending | active | revoked
+- Allowed Event Type entry.shared, secret.rotated
+- Policy (JSON): limits, max size, retention, required claims
+- Created At
+- Expired At
+- Revoked At
+
+ThreadAsset
+- ID
+- Ledger ID
+- Channel ID
+- name
+- role
+- gated (bool)
+- Status: open | transferring | closed
+- Created At
+- Expired At
+
+ThreadEvent
+- ID
+- Channel ID
+- Previous_thread_event_id
+- Type
+- PayloadRef  (points to cid share entry)
+- Signature (sender signs event header)
+- Idempotency_key
+- Cursor
+- Headers: content hash, schema version, etc.
+- Created At
+- Expired At
+
+Participants
+- ID
+- OrgID / Account ID
+- Vault ID
+- Public Key (for signing / encryption)
+- status (active, suspended)
+- signing_key, 
+- encryption_key, 
+- endpoint, 
+- stellar_anchor
+
+export type Department = {
+    id: string;     // e.g. "vault_legal", "vault_finance", "vault_direction", "vault_treasury", "vault_hr", ...
+    name: string;   // e.g. "Legal", "Finance", "Direction", "Treasury", "HR", ...
+    color: string;  // e.g. "#FF0000", "#00FF00", "#0000FF", ...
+}
+
+
+
+Vault Identity (global, Stellar-anchored)
+  vault_id, signing_key, encryption_key, endpoint, stellar_anchor
+      ↓
+Participant (channel-scoped snapshot)
+  ID, ... , public_key (snapshot at join time)
+
+# Identity
+POST   /vaults                          → register vault, anchor on Stellar
+GET    /vaults/{vault_id}               → resolve identity document
+GET    /vaults/{vault_id}/public_key    → just the current signing key
+GET    /vaults?org_id={org_id}          → discover all vaults in an org
+
+# Key rotation
+POST   /vaults/{vault_id}/rotate        → submit rotation declaration (signed by old key)
+GET    /vaults/{vault_id}/key_history   → full rotation log (for audit)
+
+# Invite (channel extension)
+POST   /channels/{id}/invite            → invite by vault_id or email
+                                          email path → generates onboarding link
+                                          vault_id path → direct join request
+
+
+
+

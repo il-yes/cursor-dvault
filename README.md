@@ -1375,3 +1375,42 @@ POST   /channels/{id}/invite            → invite by vault_id or email
 
 
 
+Vault Root
+ ├── Entries (flat storage)
+ │     └── Entry nodes
+ │
+ ├── Folders (folder nodes)
+ |
+ ├── Attachments (file refs)
+ │
+ └── Index (query layer)
+       ├── byType
+       ├── byId
+       └── (future indexes)
+
+C3
+ ├── Workspace (workspace nodes)
+ │
+ ├── Federation (feeration nodes)
+ │
+ ├── Channel (channel nodes)
+ │
+ ├── Thread (thread nodes)
+ │
+ ├── Asset (thread event nodes)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

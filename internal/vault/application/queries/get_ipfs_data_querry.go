@@ -47,6 +47,9 @@ type GetIPFSDataResponse struct {
 	Raw  []byte
 	Data vault_domain.VaultPayload
 	Node vaults_domain.VaultNode
+	NodeBeta vaults_domain.VaultNodeBeta
+	CollaborativeNode vaults_domain.CollaborativeNode
+	PersonalNode vaults_domain.PersonalNode
 }
 
 // -------- HANDLER --------
@@ -106,7 +109,9 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - Execute - decrypt failed: %w", err)
 	}
 
-	// try to parse as VaultNode (optional)
+	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - Vault Merkle Tree", plain)
+
+	// try to parse as VaultNode (optional) == PersonalNode
 	// ==============================================
 	var node vaults_domain.VaultNode
 	if err := json.Unmarshal(plain, &node); err == nil {
@@ -115,6 +120,30 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 			Node: node,
 		}, nil
 	}
+
+
+	// try to parse as VaultNodeBeta (optional)
+	// ==============================================
+	var nodeBeta vaults_domain.VaultNodeBeta
+	if err := json.Unmarshal(plain, &nodeBeta); err == nil {
+		return &GetIPFSDataResponse{
+			Raw:  plain,
+			NodeBeta: nodeBeta,
+		}, nil
+	}
+
+
+	// try to parse as CollaborativeNodeBet (optional)
+	// ==============================================
+	// var collaborativeNode vaults_domain.CollaborativeNode
+	// if err := json.Unmarshal(plain, &collaborativeNode); err == nil &&
+	// 	collaborativeNode.Type == "collaborative_vault" {
+
+	// 	return &GetIPFSDataResponse{
+	// 		CollaborativeNode: collaborativeNode,
+	// 		Raw:               plain,
+	// 	}, nil
+	// }
 
 	// fallback → just raw
 	return &GetIPFSDataResponse{
@@ -216,9 +245,7 @@ func (h GetIPFSDataQuerryHandler) HandleDecryption(cmd GetIPFSDataQuerry, rawByt
 	return h.PrivateDecryption(cmd, rawBytes)
 }
 
-func (h *GetIPFSDataQuerryHandler) HydrateVaultNode(
-	plainData []byte,
-) (vaults_domain.VaultNode, error) {
+func (h *GetIPFSDataQuerryHandler) HydrateVaultNode(plainData []byte) (vaults_domain.VaultNode, error) {
 
 	var node vaults_domain.VaultNode
 

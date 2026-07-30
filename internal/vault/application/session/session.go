@@ -4,6 +4,7 @@ package vault_session
 import (
 	"encoding/json"
 	"errors"
+
 	tracecore_models "vault-app/internal/tracecore/models"
 	vaults_domain "vault-app/internal/vault/domain"
 )
@@ -16,26 +17,26 @@ const (
 )
 
 type Session struct {
-	UserID      string `gorm:"uniqueIndex"`
-    VaultKey []byte
-	Vault       []byte `json:"vault_blob,omitempty"`
-	LastCID     string
-	LastSynced  string
-	LastUpdated string
-	Runtime     *RuntimeContext `json:"runtime,omitempty" gorm:"-"`
-	Dirty       bool
+	UserID         string `gorm:"uniqueIndex"`
+	VaultKey       []byte
+	Vault          []byte `json:"vault_blob,omitempty"`
+	LastCID        string
+	LastSynced     string
+	LastUpdated    string
+	Runtime        *RuntimeContext `json:"runtime,omitempty" gorm:"-"`
+	Dirty          bool
 	PendingCommits []tracecore_models.CommitEnvelope `json:"pending_commits,omitempty" gorm:"-"`
 }
 
 func InitNewSession(userID string) *Session {
 	return &Session{
-		UserID:      userID,
-		Vault:       nil,
-		LastCID:     "",
-		LastSynced:  "",
-		LastUpdated: "",
-		Runtime:     nil,
-		Dirty:       false,
+		UserID:         userID,
+		Vault:          nil,
+		LastCID:        "",
+		LastSynced:     "",
+		LastUpdated:    "",
+		Runtime:        nil,
+		Dirty:          false,
 		PendingCommits: []tracecore_models.CommitEnvelope{},
 	}
 }
@@ -60,7 +61,7 @@ type SessionRepository interface {
 	DeleteSession(sessionID string) error
 	SaveSession(userID string, session *Session) error
 	GetLatestByUserID(userID string) (*Session, error)
-	GetEntries(session Session) (*vaults_domain.Entries, error) 
+	GetEntries(session Session) (*vaults_domain.Entries, error)
 	GetFolders(s Session) ([]vaults_domain.Folder, error)
 	GetAttachements(session Session) ([]vaults_domain.Attachment, error)
 }

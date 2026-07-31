@@ -88,8 +88,8 @@ type VaultService struct {
 	VaultCtx     app_config_domain.VaultContext
 	IsDraftMode  bool
 	DraftStorage DraftStorage
-	Personal string
-	C3 string
+	Personal     string
+	C3           string
 }
 
 func NewVaultServiceDryRun(
@@ -322,7 +322,7 @@ func (s *VaultService) CommitVaultCollaborative(session vault_session.Session, m
 	// =========================
 	// 1. BUILD TRUST GROUP
 	// =========================
-	trustgroupCID, err := s.BuildTrustGroupsBranch(session, *vp, mode)
+	trustgroupCID, trustGroupIndexbyWorkspace, trustGroupIndexbyMember, err := s.BuildTrustGroupsBranch(session, *vp, mode)
 	if err != nil {
 		return "", fmt.Errorf("VaultService - CommitVaultCollaborative - failed to get trustGroupCID %v", err)
 	}
@@ -340,7 +340,7 @@ func (s *VaultService) CommitVaultCollaborative(session vault_session.Session, m
 	// =========================
 	// 3. BUILD Assets
 	// =========================
-	assetsCID, err := s.BuildAssetsBranch(session, *vp, mode)
+	assetsCID, assetIndexByHash, assetIndexByType, err := s.BuildAssetsBranch(session, *vp, mode)
 	if err != nil {
 		return "", fmt.Errorf("VaultService - CommitVaultCollaborative - failed to get assetsCID %v", err)
 	}
@@ -383,21 +383,35 @@ func (s *VaultService) CommitVaultCollaborative(session vault_session.Session, m
 	// =========================
 	// 7. BUILD Federation
 	// =========================
-	federationCID, err := s.BuildFederationBranch(session, *vp, mode)
+	federationCID, federationIndexCID, err := s.BuildFederationBranch(session, *vp, mode)
 	if err != nil {
 		return "", fmt.Errorf("VaultService - CommitVaultCollaborative - failed to get federationCID %v", err)
 	}
 	// =========================
 	// 7. BUILD Index
 	// =========================
+	indexThreadCID, _, err := s.buildThreadIndex(indexThreadByChannel, indexThreadByStatus)
+	if err != nil {
+		return "", err
+	}
+
+	assetCID, _, err := s.buildAssetIndex(assetIndexByHash, assetIndexByType)
+	if err != nil {
+		return "", err
+	}
+
+	trustGroupCID, _, err := s.buildTrustGroupIndex(trustGroupIndexbyWorkspace, trustGroupIndexbyMember)
+	if err != nil {
+		return "", err
+	}
+
+
+
 	indexCID, _, err := s.buildCollaborativeIndex(
-		vaults_domain.ThreadsIndex{
-			ByChannel: indexThreadByChannel,
-			ByStatus:  indexThreadByStatus,
-		},
-		vaults_domain.AssetsIndex{}, 
-		vaults_domain.FederationsIndex{}, 
-		vaults_domain.TrustGroupsIndex{},
+		indexThreadCID,
+		assetCID,
+		federationIndexCID,
+		trustGroupCID,
 	)
 	if err != nil {
 		return "", fmt.Errorf("VaultService - CommitVaultCollaborative - failed to get indexCID %v", err)

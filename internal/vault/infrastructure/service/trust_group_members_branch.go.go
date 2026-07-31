@@ -1,8 +1,11 @@
 package vaults_service
 
 import (
+	"context"
+	"encoding/json"
 	"time"
 
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 )
@@ -23,6 +26,9 @@ type TrustMemberRequest struct {
 	Members vaults_domain.Link
 }
 
+// =======================================================================================
+// WRITE
+// =======================================================================================
 func (s *VaultService) BuildTrustMembersBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 	// =========================
 	// 1. BUILD TRUSTGROUP
@@ -87,4 +93,35 @@ func (s *VaultService) RotateTrustMembersKeys(session vault_session.Session, vp 
 		return "", err
 	}
 	return cid, nil
+}
+
+
+// =======================================================================================
+// READ
+// =======================================================================================
+func (r *VaultReconstructor) resolveTrustGroupMembers(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	trustGroupMembersRoot vaults_domain.TrustGroupMembersRoot,
+) ([]vaults_domain.TrustGroupMember, error) {
+
+	var result []vaults_domain.TrustGroupMember
+
+	for _, link := range trustGroupMembersRoot.Items {
+
+		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+		if err != nil {
+			return result, err
+		}
+		// utils.LogPretty("VaultReconstructor - resolveTrustGroupMembers - res", res)
+
+		var trustGroupMember vaults_domain.TrustGroupMember
+		if err := json.Unmarshal(res.Raw, &trustGroupMember); err != nil {
+			return result, err
+		}
+
+		result = append(result, trustGroupMember)
+	}
+
+	return result, nil
 }

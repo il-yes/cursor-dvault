@@ -1,22 +1,32 @@
 package vaults_service
 
 import (
+	"context"
+	"encoding/json"
 	"time"
 
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type ShareEntryNode struct {
-	ID           string
-	AssetCID     string
-	TrustGroupID string
-	WrappedDEK   string
-	CreatedBy    string
-	CreatedAt    time.Time
-	Metadata     map[string]string
+	ID           string	`json:"id"`
+	AssetCID     string	`json:"asset_cid"`
+	TrustGroupID string	`json:"trust_group_id"`
+	WrappedDEK   string	`json:"wrapped_dek"`
+	CreatedBy    string	`json:"created_by"`
+	CreatedAt    time.Time	`json:"created_at"`
+	Metadata     map[string]string	`json:"metadata"`
+	IsDraft      bool `json:"is_draft"`
+	IsDirty      bool `json:"is_dirty" gorm:"boolean"`
 }
 
+
+
+// =======================================================================================
+// WRITE
+// =======================================================================================
 func (s *VaultService) BuildShareEntriesBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 
 	shareEntries := vp.Collaborative.ShareEntries
@@ -75,4 +85,33 @@ func (s *VaultService) RotateShareEntryKeys(session vault_session.Session, vp va
 		vp.Collaborative.ShareEntries[i].IsDirty = true
 	}
 	return s.BuildShareEntriesBranch(session, vp, mode)
+}
+
+// =======================================================================================
+// READ
+// =======================================================================================
+func (r *VaultReconstructor) resolveShareEntries(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	shareEntrysRoot vaults_domain.ShareEntriesRoot,
+) ([]vaults_domain.ShareEntry, error) {
+
+	var result []vaults_domain.ShareEntry
+
+	for _, link := range shareEntrysRoot.Items {
+
+		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+		if err != nil {
+			return result, err
+		}
+
+		var shareEntry vaults_domain.ShareEntry
+		if err := json.Unmarshal(res.Raw, &shareEntry); err != nil {
+			return result, err
+		}
+
+		result = append(result, shareEntry)
+	}
+
+	return result, nil
 }

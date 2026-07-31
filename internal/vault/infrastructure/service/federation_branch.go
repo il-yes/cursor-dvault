@@ -3,8 +3,10 @@ package vaults_service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"vault-app/internal/utils"
 	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -14,28 +16,33 @@ import (
 // FEDERATION GRAPH NODES
 // ============================================================
 
-type FederationNode struct {
-	Version string
+// type FederationNode struct {
+// 	Version string `json:"version"`
 
-	RemoteVaults vaults_domain.Link
-	Index        vaults_domain.Link
+//		RemoteVaults vaults_domain.Link `json:"remote_vaults"`
+//		Index        vaults_domain.Link
+//	}
+type FederationNode struct {
+	Version      string             `json:"version"`
+	RemoteVaults vaults_domain.Link `json:"remote_vaults"`
+	Index        vaults_domain.Link `json:"index"`
 }
 
 type RemoteVaultNode struct {
-	Version string
+	Version string `json:"version"`
 
-	VaultID    string
-	LastCursor uint64
-	LastSeen   time.Time
-	TrustState vaults_domain.TrustState
+	VaultID    string                   `json:"vault_id"`
+	LastCursor uint64                   `json:"last_cursor"`
+	LastSeen   time.Time                `json:"last_seen"`
+	TrustState vaults_domain.TrustState `json:"trust_state"`
 
-	PendingSync vaults_domain.Link
+	PendingSync PendingSyncNode `json:"pending"`
 }
 
 type PendingSyncNode struct {
-	Version string
+	Version string `json:"version"`
 
-	Items []vaults_domain.PendingSyncItem
+	Items []vaults_domain.PendingSyncItem `json:"items"`
 }
 
 // =======================================================================================
@@ -45,7 +52,7 @@ func (s *VaultService) BuildFederationBranch(
 	session vault_session.Session,
 	vp vaults_domain.VaultPayload,
 	mode SyncMode,
-) (string, error) {
+) (string, string, error) {
 
 	federation := vp.Collaborative.Federation
 
@@ -53,12 +60,12 @@ func (s *VaultService) BuildFederationBranch(
 	// 1. BUILD REMOTE VAULTS
 	// =========================
 
-	remoteVaultLinks, err := s.BuildRemoteVaults(
+	remoteVaultLinks, byVault, byTrustState, err := s.BuildRemoteVaults(
 		federation.RemoteVaults,
 	)
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// =========================
@@ -70,19 +77,17 @@ func (s *VaultService) BuildFederationBranch(
 	)
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// =========================
 	// 3. BUILD INDEX
 	// =========================
 
-	indexCID, _, err := s.BuildFederationIndex(
-		federation.RemoteVaults,
-	)
+	indexCID, _, err := s.buildFederationIndex(byVault, byTrustState)
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// =========================
@@ -102,61 +107,59 @@ func (s *VaultService) BuildFederationBranch(
 	cid, _, err := s.putNode(node)
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return cid, nil
+	return cid, indexCID, nil
 }
 
-func (s *VaultService) BuildRemoteVaults(
-	vaults []vaults_domain.RemoteVault,
-) ([]vaults_domain.Link, error) {
+func (s *VaultService) BuildRemoteVaults(vaults []vaults_domain.RemoteVault) ([]vaults_domain.Link, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 
 	var links []vaults_domain.Link
+	ByVault := make(map[string][]vaults_domain.Link)
+	ByTrustState := make(map[string][]vaults_domain.Link)
+
+	addLink := func(base vaults_domain.RemoteVault, cid string) {
+		link := vaults_domain.Link{CID: cid}
+		links = append(links, link)
+
+		ByVault[string(base.VaultID)] = append(ByVault[string(base.VaultID)], link)
+
+		if base.TrustState != "" {
+			ByTrustState[string(base.TrustState)] = append(ByTrustState[string(base.TrustState)], link)
+		}
+	}
 
 	for _, remote := range vaults {
 
-		pendingCID, err := s.BuildPendingSync(
-			remote.Pending,
-		)
+		// pendingCID, err := s.BuildPendingSync(
+		// 	remote.Pending,
+		// )
 
-		if err != nil {
-			return nil, err
-		}
+		// if err != nil {
+		// 	return nil, err
+		// }
 
 		node := RemoteVaultNode{
-
-			Version: "1.0",
-
-			VaultID: remote.VaultID,
-
-			LastCursor: remote.LastCursor,
-
-			LastSeen: remote.LastSeen,
-
-			TrustState: remote.TrustState,
-
-			PendingSync: vaults_domain.Link{
-				CID: pendingCID,
-			},
+			Version:     "1.0",
+			VaultID:     remote.VaultID,
+			LastCursor:  remote.LastCursor,
+			LastSeen:    remote.LastSeen,
+			TrustState:  remote.TrustState,
+			PendingSync: PendingSyncNode{Items: remote.Pending},
 		}
 
 		cid, _, err := s.putNode(node)
 
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
-		links = append(
-			links,
-			vaults_domain.Link{
-				CID: cid,
-			},
-		)
+		addLink(remote, cid)
 
 	}
 
-	return links, nil
+	return links, ByVault, ByTrustState, nil
 }
 
 func (s *VaultService) BuildRemoteVaultsRoot(links []vaults_domain.Link) (string, int, error) {
@@ -184,39 +187,129 @@ func (s *VaultService) BuildPendingSync(items []vaults_domain.PendingSyncItem) (
 	return cid, nil
 }
 
-func (s *VaultService) RotateFederationBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateFederationBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, string, error) {
 	vp.Collaborative.Federation.IsDirty = true
 
 	return s.BuildFederationBranch(session, vp, mode)
 }
 
-
-
-
 // =======================================================================================
 // READ
 // =======================================================================================
-func (r *VaultReconstructor) resolveFederations(
+func (r *VaultReconstructor) resolveFederation(
 	ctx context.Context,
 	cmd vault_queries.GetIPFSDataQuerry,
-	federationsRoot vaults_domain.FederationRoot,
-) ([]vaults_domain.FederationConfig, error) {
+	node FederationNode,
+) (vaults_domain.FederationSnapshot, error) {
+	var snapshot vaults_domain.FederationSnapshot
 
-	var result []vaults_domain.FederationConfig
+	// -----------------------------
+	// Load FederationNode
+	// -----------------------------
+	// res, err := r.Query.Execute(ctx, cmd.WithCID(remoteVaultLink.CID))
+	// if err != nil {
+	// 	return snapshot, err
+	// }
 
-	for _, link := range federationsRoot.Items {
+	// utils.LogPretty(
+	// 	"FEDERATION RAW BEFORE UNMARSHAL",
+	// 	string(res.Raw),
+	// )
 
-		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+	// var node FederationNode
+	// if err := json.Unmarshal(res.Raw, &node); err != nil {
+	// 	return snapshot, err
+	// }
+
+	fmt.Printf("FederationNode type: %+v\n", node)
+	utils.LogPretty(
+		"FEDERATION NODE",
+		node,
+	)
+	fmt.Printf(
+		"REMOTE CID AFTER UNMARSHAL = '%s'\n",
+		node.RemoteVaults.CID,
+	)
+
+	utils.LogPretty(
+		"FEDERATION REMOTE VAULT LINK",
+		node.RemoteVaults,
+	)
+	// -----------------------------
+	// Resolve Remote Vaults
+	// -----------------------------
+	remoteVaults, err := r.resolveRemoteVaults(
+		ctx,
+		cmd,
+		node.RemoteVaults,
+	)
+	if err != nil {
+		return snapshot, err
+	}
+
+	snapshot.RemoteVaults = remoteVaults
+
+	return snapshot, nil
+}
+
+func (r *VaultReconstructor) resolveRemoteVaults(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	root vaults_domain.Link,
+) ([]vaults_domain.RemoteVault, error) {
+
+	var result []vaults_domain.RemoteVault
+
+	// -----------------------------
+	// Load RemoteVaultRoot
+	// -----------------------------
+	res, err := r.Query.Execute(ctx, cmd.WithCID(root.CID))
+	if err != nil {
+		return result, err
+	}
+
+	var remoteRoot vaults_domain.RemoteVaultsRoot
+	if err := json.Unmarshal(res.Raw, &remoteRoot); err != nil {
+		return result, err
+	}
+
+	// -----------------------------
+	// Load each RemoteVaultNode
+	// -----------------------------
+	for _, link := range remoteRoot.Items {
+
+		vaultRes, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
 		if err != nil {
 			return result, err
 		}
 
-		var federation vaults_domain.FederationConfig
-		if err := json.Unmarshal(res.Raw, &federation); err != nil {
+		var node RemoteVaultNode
+		if err := json.Unmarshal(vaultRes.Raw, &node); err != nil {
 			return result, err
 		}
+		utils.LogPretty(
+			"REMOTE VAULT ROOT RAW",
+			string(res.Raw),
+		)
 
-		result = append(result, federation)
+		utils.LogPretty(
+			"REMOTE VAULT ROOT",
+			remoteRoot,
+		)
+
+		fmt.Println(
+			"REMOTE VAULT COUNT:",
+			len(remoteRoot.Items),
+		)
+
+		result = append(result, vaults_domain.RemoteVault{
+			VaultID:         node.VaultID,
+			LastCursor:      node.LastCursor,
+			LastSeen:        node.LastSeen,
+			TrustState:      node.TrustState,
+			Pending:         node.PendingSync.Items,
+			ProtocolVersion: node.Version,
+		})
 	}
 
 	return result, nil

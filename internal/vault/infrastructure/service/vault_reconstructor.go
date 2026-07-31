@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"vault-app/internal/utils"
 	vault_queries "vault-app/internal/vault/application/queries"
@@ -28,11 +29,12 @@ func (r *VaultReconstructor) BuildFromRoot(
 	ctx context.Context,
 	cmd vault_queries.GetIPFSDataQuerry,
 ) (vaults_domain.VaultPayload, error) {
-	utils.LogPretty("VaultReconstructor - BuildFromRoot -  cmd", "ok")
+	log.Println("BUILD FROM ROOT START")
 
 	// -----------------------------
 	// 1. ROOT
 	// -----------------------------
+	fmt.Printf("🔥 CALLING QUERY HANDLER %T\n", r.Query)
 	rootRes, err := r.Query.Execute(ctx, cmd)
 	if err != nil {
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail get ipfs query", err)
@@ -43,6 +45,10 @@ func (r *VaultReconstructor) BuildFromRoot(
 	root := rootRes.NodeBeta
 	utils.LogPretty("VaultReconstructor - BuildFromRoot - root", root)
 	cmd.CID = root.Personal.CID
+
+	log.Println("RAW ROOT LENGTH", len(rootRes.Raw))
+	log.Println("RAW ROOT FIRST BYTES", rootRes.Raw[:20])
+
 	personalRes, err := r.Query.Execute(ctx, cmd)
 	if err != nil {
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail get ipfs query", err)
@@ -65,7 +71,7 @@ func (r *VaultReconstructor) BuildFromRoot(
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail to  convert ipfs data to CollaborativeNode", err)
 		return vaults_domain.VaultPayload{}, err
 	}
-	utils.LogPretty( "collaborativeRoot after unmarshal", collaborativeRoot)
+	// utils.LogPretty("collaborativeRoot after unmarshal", collaborativeRoot)
 
 	// TODO: change the condition
 	if root.Version == "" {
@@ -341,7 +347,7 @@ func (r *VaultReconstructor) resolveCollaborativePart(
 	}
 
 	// -----------------------------
-	// 4. TRUSTGROUP ROOT
+	// 5. TRUSTGROUP ROOT
 	// -----------------------------
 	trustgroupsRes, err := r.Query.Execute(ctx, cmd.WithCID(root.TrustGroups.CID))
 	if err != nil {
@@ -355,7 +361,7 @@ func (r *VaultReconstructor) resolveCollaborativePart(
 		return nil, err
 	}
 	// -----------------------------
-	// 4.2 Resolve TRUSTGROUP
+	// 5.2 Resolve TRUSTGROUP
 	// -----------------------------
 	trustgroups, err := r.resolveTrustGroups(ctx, cmd, trustgroupsRoot)
 	if err != nil {
@@ -363,17 +369,139 @@ func (r *VaultReconstructor) resolveCollaborativePart(
 		return nil, err
 	}
 
+	// -----------------------------
+	// 6. SHAREENTRIES ROOT
+	// -----------------------------
+	shareEntriesRes, err := r.Query.Execute(ctx, cmd.WithCID(root.ShareEntries.CID))
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  shareEntriesRes", shareEntriesRes)
+		return nil, err
+	}
+
+	var shareEntriesRoot vaults_domain.ShareEntriesRoot
+	if err := json.Unmarshal(shareEntriesRes.Raw, &shareEntriesRoot); err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  shareEntriesRoot", shareEntriesRoot)
+		return nil, err
+	}
+	// -----------------------------
+	// 6.2 Resolve SHAREENTRIES
+	// -----------------------------
+	shareEntries, err := r.resolveShareEntries(ctx, cmd, shareEntriesRoot)
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  shareEntries", shareEntries)
+		return nil, err
+	}
+
+	// -----------------------------
+	// 7. PARTICIPANTS ROOT
+	// -----------------------------
+	participantsRes, err := r.Query.Execute(ctx, cmd.WithCID(root.Participants.CID))
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  participantsRes", participantsRes)
+		return nil, err
+	}
+
+	var participantsRoot vaults_domain.ParticipantsRoot
+	if err := json.Unmarshal(participantsRes.Raw, &participantsRoot); err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  participantsRoot", participantsRoot)
+		return nil, err
+	}
+	// -----------------------------
+	// 7.2 Resolve PARTICIPANTS
+	// -----------------------------
+	participants, err := r.resolveParticipants(ctx, cmd, participantsRoot)
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  participants", trustgroups)
+		return nil, err
+	}
+
+	// -----------------------------
+	// 8. FEDERATION ROOT
+	// -----------------------------
+	federationSnapshotsRes, err := r.Query.Execute(ctx, cmd.WithCID(root.Federation.CID))
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  federationSnapshotsRes", federationSnapshotsRes)
+		return nil, err
+	}
+
+	var federationSnapshotsRoot FederationNode
+	if err := json.Unmarshal(federationSnapshotsRes.Raw, &federationSnapshotsRoot); err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  federationSnapshotsRoot", federationSnapshotsRoot)
+		return nil, err
+	}
+	// -----------------------------
+	// 8.2 Resolve FEDERATION
+	// -----------------------------
+	federationSnapshot, err := r.resolveFederation(ctx, cmd, federationSnapshotsRoot)
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  federationSnapshots", federationSnapshot)
+		return nil, err
+	}
+
+	// -----------------------------
+	// 9. TrustGroupMembers ROOT
+	// -----------------------------
+	trustGroupMembersRes, err := r.Query.Execute(ctx, cmd.WithCID(root.TrustMembers.CID))
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  trustGroupMembersRes", trustGroupMembersRes)
+		return nil, err
+	}
+
+	var trustGroupMembersRoot vaults_domain.TrustGroupMembersRoot
+	if err := json.Unmarshal(trustGroupMembersRes.Raw, &trustGroupMembersRoot); err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  trustGroupMembersRoot", trustGroupMembersRoot)
+		return nil, err
+	}
+	// -----------------------------
+	// 9.2 Resolve TrustGroupMembers
+	// -----------------------------
+	trustGroupMembers, err := r.resolveTrustGroupMembers(ctx, cmd, trustGroupMembersRoot)
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  trustGroupMembers", trustGroupMembers)
+		return nil, err
+	}
+
+	// -----------------------------
+	// 10. INDEX ROOT
+	// -----------------------------
+	indexsRes, err := r.Query.Execute(ctx, cmd.WithCID(root.Index.CID))
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  indexsRes", indexsRes)
+		return nil, err
+	}
+	// utils.LogPretty("VaultReconstructor - resolveCollaborativePart -  - indexsRes", indexsRes)
+
+	var indexsRoot vaults_domain.CollaborativeIndexRoot
+	if err := json.Unmarshal(indexsRes.Raw, &indexsRoot); err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  indexsRoot", indexsRoot)
+		return nil, err
+	}
+	// utils.LogPretty("VaultReconstructor - resolveCollaborativePart -  - indexsRoot ", indexsRoot)
+	// -----------------------------
+	// 10.2 Resolve INDEX
+	// -----------------------------
+	indexs, err := r.resolveIndexC3s(ctx, cmd, indexsRoot)
+	if err != nil {
+		utils.LogPretty("VaultReconstructor - resolveCollaborativePart - failed to get  indexs", indexs)
+		return nil, err
+	}
+
+	// utils.LogPretty("threadRes.Raw", threadsRes.Raw)
+	// utils.LogPretty("assetRes.Raw", string(assetsRes.Raw))
+	// utils.LogPretty("federationRes.Raw", string(federationSnapshotsRes.Raw))
+	// utils.LogPretty("trustGroupRes.Raw", string(trustgroupsRes.Raw))
+
 	return &ResolveCollaborativeResponse{
 		Workspaces:        workspaces,
 		Channels:          channels,
 		Threads:           threads,
-		ShareEntries:      []vaults_domain.ShareEntry{},
+		ShareEntries:      shareEntries,
 		TrustGroups:       trustgroups,
-		TrustGroupMembers: []vaults_domain.TrustGroupMember{},
-		Federation:        vaults_domain.FederationSnapshot{},
-		Participants:      []vaults_domain.Participant{},
+		TrustGroupMembers: trustGroupMembers,
+		Federation:        federationSnapshot,
+		Participants:      participants,
 		Assets:            assets,
-		Index:             vaults_domain.IndexC3{},
+		Index:             *indexs,
 	}, nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"vault-app/internal/utils"
 	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -28,14 +27,14 @@ type TrustGroupRequest struct {
 // =======================================================================================
 // WRITE
 // =======================================================================================
-func (s *VaultService) BuildTrustGroupsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) BuildTrustGroupsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 	// =========================
 	// 1. BUILD TRUSTGROUP
 	// =========================
 	tgs := vp.Collaborative.TrustGroups
-	tgsLinks, err := s.BuildTrustGroups(tgs)
+	tgsLinks, byWorkspace, byMember, err := s.BuildTrustGroups(tgs)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 
 	// =========================
@@ -43,14 +42,29 @@ func (s *VaultService) BuildTrustGroupsBranch(session vault_session.Session, vp 
 	// =========================
 	trustGroupCID, _, err := s.BuildTrustGroupsRoot(tgsLinks)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 
-	return trustGroupCID, nil
+	return trustGroupCID, byWorkspace, byMember, nil
 }
 
-func (s *VaultService) BuildTrustGroups(groups []vaults_domain.TrustGroup) ([]vaults_domain.Link, error) {
+func (s *VaultService) BuildTrustGroups(groups []vaults_domain.TrustGroup) ([]vaults_domain.Link, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link,  error) {
 	var links []vaults_domain.Link
+
+	byWorkspace := make(map[string][]vaults_domain.Link)
+	byMember := make(map[string][]vaults_domain.Link)
+
+	addLink := func(base vaults_domain.TrustGroup, cid string) {
+		link := vaults_domain.Link{CID: cid}
+		links = append(links, link)
+
+		byWorkspace[string(base.WorkspaceID)] = append(byWorkspace[string(base.WorkspaceID)], link)
+
+		if base.MemberCIDs != "" {
+			byMember[base.MemberCIDs] = append(byMember[base.MemberCIDs], link)
+		}
+	}
+
 
 	for _, group := range groups {
 		if group.IsDraft {
@@ -68,15 +82,13 @@ func (s *VaultService) BuildTrustGroups(groups []vaults_domain.TrustGroup) ([]va
 
 		cid, _, err := s.putNode(node)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
-		utils.LogPretty("VaultService - BuildTrustGroups - node", node)
-
-		links = append(links, vaults_domain.Link{CID: cid})
+		addLink(group, cid)
 	}
 
-	return links, nil
+	return links, byWorkspace, byMember, nil
 }
 
 func (s *VaultService) BuildTrustGroupsRoot(links []vaults_domain.Link) (string, int, error) {
@@ -84,16 +96,16 @@ func (s *VaultService) BuildTrustGroupsRoot(links []vaults_domain.Link) (string,
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateTrustGroupsKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateTrustGroupsKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 	for i := range vp.Collaborative.TrustGroups {
 		vp.Collaborative.TrustGroups[i].IsDirty = true
 	}
 	// 	↓
-	cid, err := s.BuildTrustGroupsBranch(session, vp, mode)
+	cid, byWorkspace, byMember, err := s.BuildTrustGroupsBranch(session, vp, mode)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
-	return cid, nil
+	return cid, byWorkspace, byMember, nil
 }
 
 // =======================================================================================

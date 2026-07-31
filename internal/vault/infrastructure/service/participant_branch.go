@@ -1,27 +1,28 @@
 package vaults_service
 
 import (
+	"context"
+	"encoding/json"
+
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type ParticipantNode struct {
-	Version string
-
-	ChannelID string
-	VaultID   string
-
-	PublicKey string
-
-	Direction string
-
-	Role string
-
-	Permissions []string
-
-	JoinedAt int64
+	Version     string
+	ChannelID   string   `json:"channel_id"`
+	VaultID     string   `json:"vault_id"`
+	PublicKey   string   `json:"public_key"`
+	Direction   string   `json:"direction"` // inbound | outbound | bidirectional
+	Role        string   `json:"role"`
+	Permissions []string `json:"joined_at"`
+	JoinedAt    int64    `json:"permissions"`
 }
 
+// =======================================================================================
+// WRITE
+// =======================================================================================
 func (s *VaultService) BuildParticipantsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 	// =========================
 	// 1. BUILD ENTRIES
@@ -49,7 +50,7 @@ func (s *VaultService) BuildParticipants(participants []vaults_domain.Participan
 	for _, participant := range participants {
 
 		node := ParticipantNode{
-			Version: "v1.0.0",
+			Version:     "v1.0.0",
 			ChannelID:   participant.ChannelID,
 			VaultID:     participant.VaultID,
 			PublicKey:   participant.PublicKey,
@@ -86,4 +87,33 @@ func (s *VaultService) RotateParticipantKeys(session vault_session.Session, vp v
 		return "", err
 	}
 	return cid, nil
+}
+
+// =======================================================================================
+// READ
+// =======================================================================================
+func (r *VaultReconstructor) resolveParticipants(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	participantsRoot vaults_domain.ParticipantsRoot,
+) ([]vaults_domain.Participant, error) {
+
+	var result []vaults_domain.Participant
+
+	for _, link := range participantsRoot.Items {
+
+		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+		if err != nil {
+			return result, err
+		}
+
+		var participant vaults_domain.Participant
+		if err := json.Unmarshal(res.Raw, &participant); err != nil {
+			return result, err
+		}
+
+		result = append(result, participant)
+	}
+
+	return result, nil
 }

@@ -78,7 +78,7 @@ func (h *CreateIPFSPayloadCommandHandler) Execute(
 	if err != nil {
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - Execute - failed to add vault to IPFS: %w", err)
 	}
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - cidFromIpfs", cidFromIpfs)
+	// utils.LogPretty("CreateIPFSPayloadCommandHandler - Execute - cidFromIpfs", cidFromIpfs)
 
 	return &CreateIPFSPayloadCommandResult{CID: cidFromIpfs}, nil
 }
@@ -89,7 +89,7 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 	data []byte,
 ) (string, error) {
 
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - vaultCtx", vaultCtx)
+	// utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - vaultCtx", vaultCtx)
 	storageProvider := h.StorageFactory.New(&vaultCtx)
 	return storageProvider.Add(ctx, data)
 }
@@ -124,7 +124,7 @@ func (h *CreateIPFSPayloadCommandHandler) HandleEcryption(cmd CreateIPFSPayloadC
 		utils.LogPretty("CreateIPFSPayloadCommandHandler - HandleEcryption - EncryptionMode", PUBLIC_MODE)
 		return h.ShareEncryption(cmd, vaultCtx)
 	}
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - HandleEcryption - EncryptionMode", PRIVATE_MODE)
+	// utils.LogPretty("CreateIPFSPayloadCommandHandler - HandleEcryption - EncryptionMode", PRIVATE_MODE)
 	return h.PrivateEncryption(cmd, vaultCtx)
 }
 

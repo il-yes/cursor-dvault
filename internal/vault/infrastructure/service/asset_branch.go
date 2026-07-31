@@ -13,6 +13,7 @@ type AssetNode struct {
 	CID         string
 	Size        int64
 	ContentHash string
+	Type string
 
 	MediaType string
 }
@@ -20,14 +21,14 @@ type AssetNode struct {
 // =======================================================================================
 // WRITE
 // =======================================================================================
-func (s *VaultService) BuildAssetsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) BuildAssetsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 	// =========================
 	// 1. BUILD ENTRIES
 	// =========================
 	assets := vp.Collaborative.Assets
-	assetLinks, err := s.BuildAssets(assets)
+	assetLinks, byHash, byType, err := s.BuildAssets(assets)
 	if err != nil {
-		return "", err
+		return "", nil, nil,  err
 	}
 
 	// =========================
@@ -35,14 +36,28 @@ func (s *VaultService) BuildAssetsBranch(session vault_session.Session, vp vault
 	// =========================
 	assetsCID, _, err := s.BuildAssetsRoot(assetLinks)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 
-	return assetsCID, nil
+	return assetsCID, byHash, byType, nil
 }
 
-func (s *VaultService) BuildAssets(assets []vaults_domain.Asset) ([]vaults_domain.Link, error) {
+func (s *VaultService) BuildAssets(assets []vaults_domain.Asset) ([]vaults_domain.Link, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 	var links []vaults_domain.Link
+
+	byHash := make(map[string][]vaults_domain.Link)
+	byType := make(map[string][]vaults_domain.Link)
+
+	addLink := func(base vaults_domain.Asset, cid string) {
+		link := vaults_domain.Link{CID: cid}
+		links = append(links, link)
+
+		byHash[string(base.ContentHash)] = append(byHash[string(base.ContentHash)], link)
+
+		if base.Type != "" {
+			byType[base.Type] = append(byType[base.Type], link)
+		}
+	}
 
 	for _, asset := range assets {
 
@@ -54,13 +69,14 @@ func (s *VaultService) BuildAssets(assets []vaults_domain.Asset) ([]vaults_domai
 
 		cid, _, err := s.putNode(node)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
-		links = append(links, vaults_domain.Link{CID: cid})
+		
+		addLink(asset, cid)
 	}
 
-	return links, nil
+	return links, byHash, byType, nil
 }
 
 func (s *VaultService) BuildAssetsRoot(links []vaults_domain.Link) (string, int, error) {
@@ -68,17 +84,17 @@ func (s *VaultService) BuildAssetsRoot(links []vaults_domain.Link) (string, int,
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateAssetKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateAssetKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 
 	for i := range vp.Collaborative.Assets {
 		vp.Collaborative.Assets[i].IsDirty = true
 	}
 	// 	↓
-	cid, err := s.BuildAssetsBranch(session, vp, mode)
+	cid, byHash, byType,  err := s.BuildAssetsBranch(session, vp, mode)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
-	return cid, nil
+	return cid, byHash, byType, nil
 }
 
 // =======================================================================================

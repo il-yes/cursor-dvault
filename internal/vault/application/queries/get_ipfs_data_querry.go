@@ -33,7 +33,7 @@ type IpfsServiceInterface interface {
 type GetIPFSDataQuerry struct {
 	CID              string
 	Password         string
-	Configs           app_config_domain.Config
+	Configs          app_config_domain.Config
 	UserID           string
 	VaultName        string
 	UserOnboardingID string
@@ -44,12 +44,12 @@ type GetIPFSDataQuerry struct {
 
 // -------- RESPONSE --------
 type GetIPFSDataResponse struct {
-	Raw  []byte
-	Data vault_domain.VaultPayload
-	Node vaults_domain.VaultNode
-	NodeBeta vaults_domain.VaultNodeBeta
+	Raw               []byte
+	Data              vault_domain.VaultPayload
+	Node              vaults_domain.VaultNode
+	NodeBeta          vaults_domain.VaultNodeBeta
 	CollaborativeNode vaults_domain.CollaborativeNode
-	PersonalNode vaults_domain.PersonalNode
+	PersonalNode      vaults_domain.PersonalNode
 }
 
 // -------- HANDLER --------
@@ -80,6 +80,7 @@ func NewGetIPFSDataQuerryHandler(
 }
 
 func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQuerry) (*GetIPFSDataResponse, error) {
+	fmt.Printf("🔥 ENTERED GetIPFSDataQuerryHandler %p\n", h)
 	if cmd.CID == "" {
 		return nil, fmt.Errorf("CID is empty (invalid DAG state)")
 	}
@@ -92,15 +93,15 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	}
 	if rawBytes == nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes is nil", err)
+		return nil, fmt.Errorf("rawBytes nil after IPFS get")
 	}
-
-	// Immediately after h.GetFromIpfs
-	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes len", len(rawBytes))
-	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes hex", hex.EncodeToString(rawBytes[:min(20, len(rawBytes))]))
 
 	if h.UnlockVaultHandler == nil {
 		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler is nil", err)
+		return nil, fmt.Errorf("UnlockVaultHandler missing")
 	}
+	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", cmd)
+	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes", rawBytes)
 
 	// 2. Decrypt
 	// ==============================================
@@ -108,42 +109,61 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	if err != nil {
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - Execute - decrypt failed: %w", err)
 	}
+	utils.LogPretty(
+		"RAW ROOT BEFORE PARSE",
+		string(plain),
+	)
+	fmt.Println("🔥🔥🔥 DECRYPTED ROOT LENGTH:", len(plain))
+	fmt.Println("🔥🔥🔥 DECRYPTED ROOT:", string(plain))
 
 	utils.LogPretty("GetIPFSDataQuerryHandler - Execute - Vault Merkle Tree", plain)
+	utils.LogPretty(
+		"RAW ROOT BEFORE PARSE",
+		string(plain),
+	)
 
 	// try to parse as VaultNode (optional) == PersonalNode
 	// ==============================================
 	var node vaults_domain.VaultNode
-	if err := json.Unmarshal(plain, &node); err == nil {
+	if err := json.Unmarshal(plain, &node); err == nil && node.Type != "" {
+
 		return &GetIPFSDataResponse{
 			Raw:  plain,
 			Node: node,
 		}, nil
 	}
 
+	// try to parse as CollaborativeNodeBet (optional)
+	// ==============================================
+	var collaborativeNode vaults_domain.CollaborativeNode
+	if err := json.Unmarshal(plain, &collaborativeNode); err == nil {
+		if collaborativeNode.Type == "collaborative_vault" {
+			return &GetIPFSDataResponse{
+				CollaborativeNode: collaborativeNode,
+				Raw:               plain,
+			}, nil
+
+		}
+	}
 
 	// try to parse as VaultNodeBeta (optional)
 	// ==============================================
 	var nodeBeta vaults_domain.VaultNodeBeta
 	if err := json.Unmarshal(plain, &nodeBeta); err == nil {
-		return &GetIPFSDataResponse{
-			Raw:  plain,
-			NodeBeta: nodeBeta,
-		}, nil
+		if nodeBeta.Type == "vault" && 
+			nodeBeta.Personal.CID != "" &&
+			nodeBeta.Collaborative.CID != "" {
+
+			return &GetIPFSDataResponse{
+				Raw:      plain,
+				NodeBeta: nodeBeta,
+			}, nil
+		}
 	}
-
-
-	// try to parse as CollaborativeNodeBet (optional)
-	// ==============================================
-	// var collaborativeNode vaults_domain.CollaborativeNode
-	// if err := json.Unmarshal(plain, &collaborativeNode); err == nil &&
-	// 	collaborativeNode.Type == "collaborative_vault" {
-
-	// 	return &GetIPFSDataResponse{
-	// 		CollaborativeNode: collaborativeNode,
-	// 		Raw:               plain,
-	// 	}, nil
-	// }
+	utils.LogPretty(
+		"NODE BETA DEBUG",
+		nodeBeta,
+	)
 
 	// fallback → just raw
 	return &GetIPFSDataResponse{
@@ -154,10 +174,10 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
 	vc := app_config_domain.VaultContext{
-		Configs:     req.Configs,
-		StorageConfig: req.Configs.App.Storage,
-		UserID:        req.UserID,
-		VaultName:     req.VaultName,
+		Configs:            req.Configs,
+		StorageConfig:      req.Configs.App.Storage,
+		UserID:             req.UserID,
+		VaultName:          req.VaultName,
 		UserSubscriptionID: req.Configs.Subscription.UserID,
 	}
 
@@ -175,6 +195,7 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - Get failed", err)
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: %w", err)
 	}
+	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - data", data)
 
 	if data == nil {
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned nil data")
@@ -216,27 +237,27 @@ func (h GetIPFSDataQuerryHandler) PrivateDecryption(cmd GetIPFSDataQuerry, rawBy
 
 func (h GetIPFSDataQuerryHandler) ShareDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
 	// 1. rawBytes is already base64‑decoded from CloudIPFSStorage → it's a *string* in bytes
-    //    like "data:application/octet-stream;base64,..."
-    //    Convert it to string to inspect and strip:
-    s := string(rawBytes)
+	//    like "data:application/octet-stream;base64,..."
+	//    Convert it to string to inspect and strip:
+	s := string(rawBytes)
 
-    // 2. If it's "data:...base64," prefixed, base64‑decode the payload:
-    const prefix = "data:application/octet-stream;base64,"
-    if strings.HasPrefix(s, prefix) {
-        payload := s[len(prefix):]
-        plain, err := base64.StdEncoding.DecodeString(payload)
-        if err != nil {
-            return nil, fmt.Errorf("failed to decode base64 payload: %w", err)
-        }
-        rawBytes = plain
-    } else {
-        // Already plain binary (no data: wrapper)
-    }
+	// 2. If it's "data:...base64," prefixed, base64‑decode the payload:
+	const prefix = "data:application/octet-stream;base64,"
+	if strings.HasPrefix(s, prefix) {
+		payload := s[len(prefix):]
+		plain, err := base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode base64 payload: %w", err)
+		}
+		rawBytes = plain
+	} else {
+		// Already plain binary (no data: wrapper)
+	}
 
 	return rawBytes, nil
 }
 func (h GetIPFSDataQuerryHandler) HandleDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
-	utils.LogPretty("EncryptionMode", h.EncryptionMode)
+	utils.LogPretty("GetIPFSDataQuerryHandler - HandleDecryption - EncryptionMode", h.EncryptionMode)
 	if h.EncryptionMode == PUBLIC_MODE {
 		utils.LogPretty("GetIPFSDataQuerryHandler - HandleDecryption - EncryptionMode", PUBLIC_MODE)
 		return h.ShareDecryption(cmd, rawBytes)

@@ -1067,25 +1067,25 @@ type VaultMeta struct {
 // VaultNode
 // ==============================================================================
 type VaultNode struct {
-	Type        string
-	Version     string
-	Folders     Link
-	Entries     Link
-	Index       Link
+	Type        string `json:"Type"`
+	Version     string`json:"Version"`
+	Folders     Link `json:"folders"`
+	Entries     Link `json:"entries"`
+	Index       Link	`json:"index"`
 	Attachments Link `json:"attachments"`
 }
 type VaultNodeBeta struct {
-    Type string
-    Version string
-    Personal Link
-    Collaborative Link
+    Type          string `json:"Type"`
+    Version       string `json:"Version"`
+    Personal      Link   `json:"Personal"`
+    Collaborative Link   `json:"Collaborative"`
 }
 type PersonalNode struct {
-    Version string
-    Entries Link
-    Folders Link
-    Attachments Link
-    Index Link
+    Version string	`json:"version"`
+    Entries Link	`json:"entries"`
+    Folders Link	`json:"folders"`
+    Attachments Link	`json:"attachments"`
+    Index Link	`json:"index"`
 }
 
 func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {

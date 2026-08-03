@@ -23,6 +23,14 @@ import PaymentSuccess from "./components/PaymentSuccess";
 import SubscriptionManager from "./components/Subscription/subscriptionManager";
 import * as AppAPI from "../wailsjs/go/main/App";
 import NotificationsPage from "./pages/NotificationsPage";
+import C3App from "./pages/C3.ledger";
+import { Inbox } from "./components/C3/inbox";
+import { AssetCard } from "./components/C3/asset-view";
+import LedgerPage from "./components/C3/ui/ledger/LedgerPage";
+import InboxPage from "./components/C3/ui/inbox/InboxPage";
+import AssetPage from "./components/C3/ui/thread/AssetPage";
+import ChannelPage from "./components/C3/ui/channel/ChannelPage";
+import * as ROUTES from './constants/routes';
 
 
 const queryClient = new QueryClient();
@@ -123,33 +131,41 @@ function AppContent() {
 
 	return (
 		<Routes>
+
+
 			<Route path="/" element={<EmailLookup />} />
-			<Route path="/dashboard" element={<Index />} />
-			<Route path="/dashboard/vault" element={<Vault />} />
-			<Route path="/dashboard/vault/:filter" element={<Vault />} />
-			<Route path="/dashboard/vault/folder/:folderId" element={<Vault />} />
-			<Route path="/dashboard/shared" element={<ShareEntries />} />
-			<Route path="/dashboard/profile" element={<ProfileBeta />} />
-			<Route path="/dashboard/settings" element={<Settings />} />
+			<Route path={ROUTES.DASHBOARD} element={<Index />} />
+			<Route path={ROUTES.VAULT} element={<Vault />} />
+			<Route path={ROUTES.VAULT_FILTER} element={<Vault />} />
+			<Route path={ROUTES.VAULT_FOLDER} element={<Vault />} />
+			<Route path={ROUTES.SHARED} element={<ShareEntries />} />
+			<Route path={ROUTES.PROFILE} element={<ProfileBeta />} />
+			<Route path={ROUTES.SETTINGS} element={<Settings />} />
 			{/* <Route path="/vault/offline" element={<OfflineVault />} /> */}
 			{/* <Route path="/auth/signin" element={<SignIn />} /> */}
-			<Route path="/login/email" element={<EmailLookup />} />
-			<Route path="/login/step2" element={<LoginStep2 />} />
-			<Route path="/dashboard/notifications" element={<NotificationsPage />} />
-			<Route path="/dashboard/feedback" element={<Feedback />} />
-			<Route path="/dashboard/about" element={<About />} />
-			<Route path="/payment/success" element={<PaymentSuccess />} />
-			<Route path="/dashboard/subscription" element={<SubscriptionManager />} />
+			<Route path={ROUTES.LOGIN_EMAIL} element={<EmailLookup />} />
+			<Route path={ROUTES.LOGIN_STEP2} element={<LoginStep2 />} />
+			<Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage />} />
+			<Route path={ROUTES.FEEDBACK} element={<Feedback />} />
+			<Route path={ROUTES.ABOUT} element={<About />} />
+			<Route path={ROUTES.PAYMENT_SUCCESS} element={<PaymentSuccess />} />
+			<Route path={ROUTES.SUBSCRIPTION} element={<SubscriptionManager />} />
 			<Route
-				path="/on-boarding"
+				path={ROUTES.ON_BOARDING}
 				element={
 					<Elements stripe={stripePromise}>
 						<OnboardingWizardBeta onComplete={handleOnBoardingComplete} />
 					</Elements>
 				}
 			/>
+			<Route path={ROUTES.LEDGER} element={<LedgerPage />} />
+			<Route path={ROUTES.INBOX} element={<InboxPage />} />
+			<Route path={ROUTES.THREAD} element={<AssetPage />} />
+			<Route path={ROUTES.CHANNEL} element={<ChannelPage />} />
+
+
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-			<Route path="*" element={<NotFound />} />
+			<Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
 		</Routes>
 
 	);

@@ -48,9 +48,11 @@ import { OnboardingModalBeta } from "./OnboardingModalBeta";
 import { withAuth } from "@/hooks/withAuth";
 import { useVault } from "@/hooks/useVault";
 import { loadAvatar } from "@/services/api";
-import { EVENTS, ShareAcceptedPayload, ShareInvitationNotificationPayload, ShareReadyToAcceptPayload, ShareRejectedPayload } from "@/types/sharing";
 import { useNotificationsEvents } from "@/hooks/useNotificationSocket";
 import { NotificationBell } from "./Notification/NotificationBell";
+import { C3SidebarMenu } from "./C3/ui/Sidebar/SidebarMenu";
+import { useC3DialogStore } from "./C3/infrastructure/store/c3DialogStore";
+import { CreateChannelDialog } from "./C3/features/create-channel/CreateChannelDialog";
 
 
 interface CustomNavLinkProps extends Omit<ReactRouterNavLinkProps, 'className'> {
@@ -83,7 +85,7 @@ const dashboardNavItems = [
 ];
 
 const dashboardSecondaryItems = [
-	{ title: "Chat", url: "/dashboard/chat", icon: MessageSquare },
+	{ title: "Ledger", url: "/dashboard/c3/ledger", icon: MessageSquare },
 	{ title: "About", url: "/dashboard/about", icon: Info },
 	{ title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
 ];
@@ -203,7 +205,10 @@ function DashboardNavbar() {
 	const [decryptionPassword, setDecryptionPassword] = useState<string | null>(null);
 	const auth = useAuthStore.getState();
 
+	const { isCreateC3DialogOpen, setCreateDialogOpen } = useC3DialogStore();
+
 	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
+	const isC3Context = location.pathname.startsWith("/dashboard/c3");
 
 	const allEntries = useMemo(() => {
 		if (!vaultContext?.Vault) return [];
@@ -302,6 +307,8 @@ function DashboardNavbar() {
 		setShowSearchOverlay(searchQuery.trim().length > 0);
 	}, [searchQuery]);
 
+
+
 	return (
 		<header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 			<div className="flex h-16 items-center px-4 md:px-6">
@@ -313,10 +320,12 @@ function DashboardNavbar() {
 					</SidebarTrigger>
 				</div>
 
+
 				<div className="hidden md:flex items-center gap-3">
 					{/* <img src={ankhoraLogo} alt="Ankhora Logo" className="h-9 w-auto" /> */}
 					<span className="text-lg font-bold text-foreground"><small>ANKHORA</small></span>
 				</div>
+
 
 				<div className="ml-20" style={{ display: "flex", justifyContent: "center", alignItems: "center", cursor: "pointer" }}  >
 					<Plus
@@ -327,6 +336,7 @@ function DashboardNavbar() {
 				</div>
 
 				<div className="flex-1 flex justify-center px-4 md:px-8">
+
 					<div className="w-full max-w-md relative">
 						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 						<Input
@@ -348,6 +358,7 @@ function DashboardNavbar() {
 							/>
 						)}
 					</div>
+
 				</div>
 
 				<ThemeToggle />
@@ -413,6 +424,16 @@ function DashboardNavbar() {
 				onOpenChange={setIsCreateDialogOpen}
 				onSubmit={handleCreateEntry}
 			/>
+			{/* <Dialog open={isCreateC3DialogOpen} onOpenChange={setCreateDialogOpen} >
+				<DialogContent style={{ background: "transparent", border: "none", maxWidth: "45rem" }}>
+
+				</DialogContent>
+			</Dialog> */}
+
+			{/* Create C3 Channel */}
+			<CreateChannelDialog open={isCreateC3DialogOpen} onClose={() => setCreateDialogOpen(false)} />
+
+
 		</header>
 	);
 }
@@ -437,6 +458,7 @@ function AppSidebar() {
 	const navigate = useNavigate();
 	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
 	const isSharedContext = location.pathname.startsWith("/dashboard/shared");
+	const isC3Context = location.pathname.startsWith("/dashboard/c3");
 	useNotificationsEvents();
 
 	const vaultContext = useVaultStore((state) => state.vault);
@@ -513,7 +535,7 @@ function AppSidebar() {
 	return (
 		<Sidebar className="border-r border-transparent w-[240px] backdrop-blur-sm bg-white/40 dark:bg-zinc-900/40 shadow-2xl ">
 			<SidebarContent className="backdrop-blur-sm bg-white/30 dark:bg-zinc-900/30 border-r border-zinc-200/30 dark:border-zinc-700/30 scrollbar-glassmorphism thin-scrollbar">
-				{(isVaultContext || isSharedContext) && (
+				{(isVaultContext || isSharedContext || isC3Context) && (
 					<div className="p-4 border-b border-zinc-200/30 dark:border-zinc-700/30 bg-white/20 dark:bg-zinc-900/20 ">
 						<Button
 							variant="ghost"
@@ -527,9 +549,9 @@ function AppSidebar() {
 					</div>
 				)}
 
-				<SidebarGroup >
+				{!isC3Context && <SidebarGroup >
 					<SidebarGroupLabel style={{ marginTop: "30px" }} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
-						{isVaultContext ? "Vault" : isSharedContext ? "Shares" : "Main"}
+						{isVaultContext ? "Vault" : isSharedContext ? "Shares" : ""}
 					</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu>
@@ -554,9 +576,9 @@ function AppSidebar() {
 							))}
 						</SidebarMenu>
 					</SidebarGroupContent>
-				</SidebarGroup>
+				</SidebarGroup>}
 
-				{secondaryItems.length > 0 && (
+				{secondaryItems.length > 0 && !isC3Context && (
 					<SidebarGroup style={{ marginTop: "30px" }} >
 						<SidebarGroupLabel className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20">
 							{isVaultContext ? "Entry Types" : "More"}
@@ -628,7 +650,7 @@ function AppSidebar() {
 
 				{/* New Share Menu (Shared Entries only) */}
 				{isSharedContext && (
-					<>
+					<div className={`${isC3Context ? "hidden" : ""}`}>
 						<SidebarGroup>
 							<SidebarGroupLabel
 								onClick={() => handleTabChange("linkshare")}
@@ -639,7 +661,7 @@ function AppSidebar() {
 						</SidebarGroup>
 
 						<SidebarGroup>
-							<SidebarGroupLabel 
+							<SidebarGroupLabel
 								onClick={() => handleTabChange("cryptographicshare")}
 								className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80 bg-white/20 dark:bg-zinc-900/20 border-b border-zinc-200/20 dark:border-zinc-700/20 cursor-pointer">
 								Cryptographic
@@ -749,8 +771,15 @@ function AppSidebar() {
 								}
 							</SidebarGroupContent>
 						</SidebarGroup>
-					</>
+					</div>
 				)}
+
+				{/* C3 Menu */}
+				{isC3Context &&
+					<SidebarGroup >
+						<C3SidebarMenu />
+					</SidebarGroup>
+				}
 			</SidebarContent>
 
 			{/* Premium Footer */}
@@ -826,6 +855,7 @@ function AppSidebar() {
 		</Sidebar>
 	);
 }
+
 
 
 // =================================================

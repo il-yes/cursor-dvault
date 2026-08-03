@@ -1175,6 +1175,10 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
 
+
+
+
+
 // -----------------------------
 // Cloud Services
 // -----------------------------

@@ -111,7 +111,7 @@ type Folder struct {
 }
 
 // ==============================================================================
-// BaseVaultContent
+// BaseVaultContent => PersonalRoot
 // ==============================================================================
 type BaseVaultContent struct {
 	Folders     []Folder     `json:"folders"`
@@ -129,7 +129,10 @@ type VaultPayload struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
 	BaseVaultContent
+	Personal BaseVaultContent
+	Collaborative C3VaultContent
 }
+
 
 func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 	var vp VaultPayload
@@ -144,8 +147,15 @@ func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 		vp.Name = "New Vault"
 	}
 	vp.InitBaseVaultContent()
+	vp.InitVaultCollaborative()
 
 	return &vp
+}
+func (v *VaultPayload) InitIndex() {
+	v.Personal.Index = Index{
+		ByType:       make(map[string][]Link),
+		ByFolder:     make(map[string][]Link),
+	}
 }
 func (v *VaultPayload) InitFolders() {
 	v.Folders = []Folder{}
@@ -166,6 +176,7 @@ func (v *VaultPayload) InitBaseVaultContent() {
 	v.InitFolders()
 	v.InitEntries()
 	v.InitAttachments()
+	v.InitIndex()
 }
 
 func (v *VaultPayload) GetFolder(folderID string) (Folder, Entries) {
@@ -1056,12 +1067,25 @@ type VaultMeta struct {
 // VaultNode
 // ==============================================================================
 type VaultNode struct {
-	Type        string
-	Version     string
-	Folders     Link
-	Entries     Link
-	Index       Link
+	Type        string `json:"Type"`
+	Version     string`json:"Version"`
+	Folders     Link `json:"folders"`
+	Entries     Link `json:"entries"`
+	Index       Link	`json:"index"`
 	Attachments Link `json:"attachments"`
+}
+type VaultNodeBeta struct {
+    Type          string `json:"Type"`
+    Version       string `json:"Version"`
+    Personal      Link   `json:"Personal"`
+    Collaborative Link   `json:"Collaborative"`
+}
+type PersonalNode struct {
+    Version string	`json:"version"`
+    Entries Link	`json:"entries"`
+    Folders Link	`json:"folders"`
+    Attachments Link	`json:"attachments"`
+    Index Link	`json:"index"`
 }
 
 func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {
@@ -1077,30 +1101,6 @@ func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {
 	utils.LogPretty("", vault)
 	return vault
 }
-
-// func (v *VaultNode) Normalize() {
-// 	if v.Folders == nil {
-// 		v.Folders = []Folder{}
-// 	}
-
-// 	// Entries struct itself always exists, but slices may not
-// 	if v.Entries.Login == nil {
-// 		v.Entries.Login = []LoginEntry{}
-// 	}
-// 	if v.Entries.Card == nil {
-// 		v.Entries.Card = []CardEntry{}
-// 	}
-// 	if v.Entries.Identity == nil {
-// 		v.Entries.Identity = []IdentityEntry{}
-// 	}
-// 	if v.Entries.Note == nil {
-// 		v.Entries.Note = []NoteEntry{}
-// 	}
-// 	if v.Entries.SSHKey == nil {
-// 		v.Entries.SSHKey = []SSHKeyEntry{}
-// 	}
-// }
-
 func (s *VaultNode) ToBytes() []byte {
 	raw, err := json.Marshal(s)
 	if err != nil {
@@ -1108,6 +1108,16 @@ func (s *VaultNode) ToBytes() []byte {
 	}
 	return raw
 }
+
+
+// GetPersonal
+func (v *VaultNode) GetPersonal() {
+
+}
+
+// GetCollaborative
+
+
 
 // ==============================================================================
 // AttachmentNode
@@ -1487,5 +1497,42 @@ This gives you:
 This is the final missing piece before your system feels “enterprise-grade”.
 
 Just say **next**.
+
+
+
+
+Vault Root
+│
+├── Personal
+│   ├── Entries
+│   ├── Folders
+│   ├── Attachments
+│   └── Index
+│
+└── Collaborative
+    ├── Workspaces
+    ├── Channels
+    ├── Threads
+    ├── ShareEntries
+    ├── TrustGroups
+    └── Federation
+
+
+With Fedeartion splitted:
+Desktop:
+Federation
+Remote Vault
+Cursor
+Pending Sync
+Known Trust
+Last Seen
+
+Cloud:
+Exchange
+Envelope
+Retry
+Delivery
+Ack
+Audit
 
 */

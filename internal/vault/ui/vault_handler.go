@@ -745,6 +745,11 @@ func (vh *VaultHandler) DeleteFolder(userID string, id string) error {
 	return nil
 }
 
+func (vh *VaultHandler) UpdateWorkspaceSession(userID string, vp vaults_domain.VaultPayload) {
+	vh.SessionManager.SetVault(userID, &vp)
+}
+
+
 func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.SynchronizeVaultRequest, tc tracecore.TracecoreClient) (string, error) {
 	// 0. Initialisation - Guard
 	// ========================================================================================================

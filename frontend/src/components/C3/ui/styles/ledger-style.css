@@ -1,0 +1,326 @@
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+
+    /* macOS window chrome */
+    .window {
+      width: 1320px;
+      height: 820px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.12);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .titlebar {
+      height: 40px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      flex-shrink: 0;
+    }
+    .traffic-lights { display: flex; gap: 8px; }
+    .tl { width: 12px; height: 12px; border-radius: 50%; }
+    .tl-red { background: #FF5F57; }
+    .tl-yellow { background: #FFBD2E; }
+    .tl-green { background: #28CA41; }
+    .titlebar-name {
+      flex: 1; text-align: center;
+      font-size: 12px; font-weight: 500; color: #666;
+      letter-spacing: 0.04em;
+    }
+
+    /* App topbar */
+    .topbar {
+      height: 52px;
+      background: #fff;
+      border-bottom: 1px solid #ebebeb;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      flex-shrink: 0;
+      gap: 16px;
+    }
+    .topbar-logo {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.12em;
+      color: #1a1a1a;
+    }
+    .workspace-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: #f5f5f5;
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px; color: #555;
+      cursor: pointer;
+    }
+    .workspace-pill svg { width: 12px; height: 12px; color: #999; }
+    .topbar-spacer { flex: 1; }
+    .topbar-actions { display: flex; gap: 8px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px;
+      border-radius: 7px;
+      font-size: 12px; font-weight: 500;
+      cursor: pointer; border: none;
+    }
+    .btn-ghost {
+      background: #f5f5f5;
+      border: 1px solid #e5e5e5;
+      color: #444;
+    }
+    .btn-primary {
+      background: #C8922A;
+      color: #fff;
+    }
+
+    /* Main layout */
+    .layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Vault sidebar */
+    .sidebar {
+      background: #fafafa;
+      border-right: 1px solid #ebebeb;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 0 16px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .sidebar-section-label {
+      padding: 0 16px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: #bbb;
+      text-transform: uppercase;
+    }
+    .vault-row {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #333;
+      position: relative;
+    }
+    .vault-row:hover { background: #f0f0f0; }
+    .vault-row.all-vaults {
+      font-size: 12px; color: #888;
+      padding: 5px 16px 10px;
+      border-bottom: 1px solid #ebebeb;
+      margin-bottom: 6px;
+    }
+    .vault-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .unread-pip {
+      margin-left: auto;
+      width: 6px; height: 6px;
+      background: #C8922A;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .add-vault-btn {
+      margin: 14px 14px 0;
+      padding: 8px 10px;
+      border: 1px dashed #ddd;
+      border-radius: 7px;
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      cursor: pointer;
+    }
+    .add-vault-btn:hover { border-color: #C8922A; color: #C8922A; }
+
+    /* Ledger area */
+    .ledger-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .ledger-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px 14px;
+      flex-shrink: 0;
+    }
+    .ledger-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #1a1a1a;
+    }
+    .ledger-controls { display: flex; gap: 8px; }
+    .ctrl-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 12px;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px; color: #555;
+      cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: #ccc; }
+
+    /* Table */
+    .table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    thead th {
+      padding: 0 10px 10px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #bbb;
+      border-bottom: 1px solid #ebebeb;
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      cursor: pointer;
+      border-bottom: 1px solid #f2f2f2;
+    }
+    tbody tr:hover { background: #fafafa; }
+    tbody tr:hover .row-hover-actions { display: flex; }
+    tbody tr:hover .stellar-val { display: none; }
+
+    td {
+      padding: 11px 10px;
+      vertical-align: middle;
+      border-bottom: 1px solid #f2f2f2;
+    }
+
+    /* Status */
+    .sdot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .s-ok { background: #22C55E; }
+    .s-pend { background: #F59E0B; }
+    .s-flag { background: #EF4444; }
+
+    /* Thread name */
+    .th-line1 {
+      font-size: 13px; font-weight: 500; color: #1a1a1a;
+      white-space: nowrap;
+    }
+    .th-type {
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #bbb;
+      margin-right: 6px;
+    }
+    .th-line2 {
+      font-size: 11px; color: #aaa;
+      margin-top: 2px;
+    }
+
+    /* Flow */
+    .flow {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .vb {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .vb-sm { width: 18px; height: 18px; font-size: 7px; }
+    .fa { color: #ccc; font-size: 10px; font-weight: 400; }
+
+    /* Opacity states */
+    .vb-pending { opacity: 0.4; }
+
+    /* Pipeline mini */
+    .pipeline {
+      display: flex; gap: 3px; align-items: center;
+    }
+    .pseg {
+      height: 4px; width: 20px;
+      border-radius: 2px;
+    }
+    .pseg-done { background: #C8922A; }
+    .pseg-wait { background: #e8e8e8; }
+
+    /* Timestamp */
+    .ts { font-size: 12px; color: #bbb; white-space: nowrap; }
+
+    /* Stellar */
+    .stellar-val {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 10px; color: #ccc;
+      white-space: nowrap;
+    }
+
+    /* Row hover actions */
+    .row-hover-actions {
+      display: none; gap: 5px;
+    }
+    .rha-btn {
+      padding: 3px 9px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 11px; color: #555;
+      background: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .rha-btn:hover { border-color: #C8922A; color: #C8922A; }
+
+    /* C3 badge */
+    .c3b {
+      display: inline-flex; align-items: center;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 11px; font-weight: 600;
+      white-space: nowrap; cursor: pointer;
+    }
+    .c3-ext { background: #f5f5f5; border: 1px solid #e5e5e5; color: #999; }
+    .c3-ext:hover { border-color: #C8922A; color: #C8922A; background: #FBF0D8; }
+    .c3-linked { background: #FBF0D8; border: 1px solid #E8C87A; color: #C8922A; }
+
+    /* Footer */
+    .ledger-footer {
+      padding: 12px 24px;
+      border-top: 1px solid #ebebeb;
+      font-size: 12px; color: #bbb;
+      flex-shrink: 0;
+    }
+
+    /* Screen label */
+    .screen-label {
+      position: absolute;
+      top: 8px; right: 16px;
+      font-size: 10px; color: #ccc;
+      letter-spacing: 0.06em;
+      font-family: 'SF Mono', monospace;
+    }

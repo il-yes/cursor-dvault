@@ -1584,14 +1584,3 @@ func (c *ChannelUsecase) CreateChannel(ctx context.Context, req *CreateChannelRe
 
 
 
-
-type LeafSerializer interface {
-  BuildLeafBranch() (string, error)
-	serializeLeafModel()  []byte 
-  serializeLeafModelRoot() []byte
-	RotateLeafGraph() error
-
-	deserializeLeafModel(data []byte) error
-  deserializeLeafModelRoot([]byte) error
-}
-

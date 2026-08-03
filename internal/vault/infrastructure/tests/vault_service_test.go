@@ -539,7 +539,9 @@ func TestCommitVault(t *testing.T) {
 		},
 	}
 	vp := fakeVaultPayload(userID, vaultName)
+
 	session := GetSession(userID, vp)
+
 	cfgs, err := GetConfig(userID, vaultName)
 	if err != nil {
 		utils.LogPretty("Vault service (WRITE) error", err)

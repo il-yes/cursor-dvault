@@ -71,33 +71,36 @@ func (s *VaultService) buildTrustGroupIndex(byChannel, byStatus map[string][]vau
 	return s.putNode(index)
 }
 
-	func (s *VaultService) buildFederationIndex(bv map[string][]vaults_domain.Link, bts map[string][]vaults_domain.Link) (string, int, error) {
-		index := vaults_domain.FederationsIndex{
-			ByVault: bv,
-			ByTrustState:      bts,
-		}
-		return s.putNode(index)
+func (s *VaultService) buildFederationIndex(bv map[string][]vaults_domain.Link, bts map[string][]vaults_domain.Link) (string, int, error) {
+	index := vaults_domain.FederationsIndex{
+		ByVault:      bv,
+		ByTrustState: bts,
 	}
-// func (s *VaultService) BuildFederationIndex(vaults []vaults_domain.RemoteVault) (string, int, error) {
-
-// 	index := vaults_domain.FederationsIndex{
-// 		ByVault:      make(map[string]vaults_domain.Link),
-// 		ByTrustState: make(map[string][]vaults_domain.Link),
-// 	}
-
-// 	for _, remote := range vaults {
-// 		// temporary reference,
-// 		// populated later if you keep CID cache
-// 		index.ByTrustState[string(remote.TrustState)] = append(index.ByTrustState[string(remote.TrustState)], vaults_domain.Link{})
-
-// 	}
-
-// 	return s.putNode(index)
-// }
+	return s.putNode(index)
+}
 
 // =======================================================================================
 // READ
 // =======================================================================================
+func (r *VaultReconstructor) resolveIndex(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	indexLink vaults_domain.Link,
+) (vaults_domain.Index, error) {
+
+	res, err := r.Query.Execute(ctx, cmd.WithCID(indexLink.CID))
+	if err != nil {
+		return vaults_domain.Index{}, err
+	}
+
+	var index vaults_domain.Index
+	if err := json.Unmarshal(res.Raw, &index); err != nil {
+		return vaults_domain.Index{}, err
+	}
+
+	return index, nil
+}
+
 func (r *VaultReconstructor) resolveIndexC3s(
 	ctx context.Context,
 	cmd vault_queries.GetIPFSDataQuerry,

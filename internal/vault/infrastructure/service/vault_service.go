@@ -260,6 +260,10 @@ func (s *VaultService) CommitVaultPersonal(session vault_session.Session, mode S
 	if err != nil {
 		return "", nil, err
 	}
+
+	// =========================
+	// 0. BUILD ATTACHMENTS
+	// =========================
 	attachementCIDs, err := s.BuildAttachmentsBranch(session, *vp, mode)
 	if err != nil {
 		return "", nil, err

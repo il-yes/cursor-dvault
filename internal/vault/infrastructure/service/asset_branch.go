@@ -84,7 +84,7 @@ func (s *VaultService) BuildAssetsRoot(links []vaults_domain.Link) (string, int,
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateAssetKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
+func (s *VaultService) RotateAssetGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 
 	for i := range vp.Collaborative.Assets {
 		vp.Collaborative.Assets[i].IsDirty = true

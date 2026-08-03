@@ -122,29 +122,6 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		string(plain),
 	)
 
-	// try to parse as VaultNode (optional) == PersonalNode
-	// ==============================================
-	var node vaults_domain.VaultNode
-	if err := json.Unmarshal(plain, &node); err == nil && node.Type != "" {
-
-		return &GetIPFSDataResponse{
-			Raw:  plain,
-			Node: node,
-		}, nil
-	}
-
-	// try to parse as CollaborativeNodeBet (optional)
-	// ==============================================
-	var collaborativeNode vaults_domain.CollaborativeNode
-	if err := json.Unmarshal(plain, &collaborativeNode); err == nil {
-		if collaborativeNode.Type == "collaborative_vault" {
-			return &GetIPFSDataResponse{
-				CollaborativeNode: collaborativeNode,
-				Raw:               plain,
-			}, nil
-
-		}
-	}
 
 	// try to parse as VaultNodeBeta (optional)
 	// ==============================================
@@ -164,6 +141,33 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		"NODE BETA DEBUG",
 		nodeBeta,
 	)
+
+
+	// try to parse as CollaborativeNodeBet (optional)
+	// ==============================================
+	var collaborativeNode vaults_domain.CollaborativeNode
+	if err := json.Unmarshal(plain, &collaborativeNode); err == nil {
+		if collaborativeNode.Type == "collaborative_vault" {
+			return &GetIPFSDataResponse{
+				CollaborativeNode: collaborativeNode,
+				Raw:               plain,
+			}, nil
+
+		}
+	}
+	
+	// try to parse as VaultNode (optional) == PersonalNode
+	// ==============================================
+	var node vaults_domain.VaultNode
+	if err := json.Unmarshal(plain, &node); err == nil && node.Type != "" {
+
+		return &GetIPFSDataResponse{
+			Raw:  plain,
+			Node: node,
+		}, nil
+	}
+
+
 
 	// fallback → just raw
 	return &GetIPFSDataResponse{

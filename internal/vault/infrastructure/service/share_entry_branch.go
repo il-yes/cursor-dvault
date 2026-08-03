@@ -79,7 +79,7 @@ func (s *VaultService) BuildShareEntriesRoot(links []vaults_domain.Link) (string
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateShareEntryKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateShareEntryGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 	// mark all entries by type dirty
 	for i := range vp.Collaborative.ShareEntries {
 		vp.Collaborative.ShareEntries[i].IsDirty = true

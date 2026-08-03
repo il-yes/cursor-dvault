@@ -22,6 +22,10 @@ import (
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vaults_service "vault-app/internal/vault/infrastructure/service"
+	vaults_storage_engine_constructor "vault-app/internal/vault/infrastructure/storage/engine/constructor"
+	vaults_storage_engine_nodestore "vault-app/internal/vault/infrastructure/storage/engine/node_store"
+	vaults_storage_engine_serializer "vault-app/internal/vault/infrastructure/storage/engine/serializer"
+	vaults_storage_engine_type "vault-app/internal/vault/infrastructure/storage/engine/types"
 )
 
 // ============= MockIPFS =======================================================
@@ -282,6 +286,30 @@ func (m *mockVaultHandler) UpdateEntryFor(
 	return &ve, nil
 }
 func (m *mockVaultHandler) LoadAttachment(userID string, vaultName string, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error) {
+	return nil, nil
+}
+
+// ============= mockVaultHandler with storage engine =======================================================
+type mockVaultHandler2 struct {
+	vps *vaults_domain.VaultPayload
+}
+
+func (m *mockVaultHandler2) GetVaultSession(userID string) (*vaults_domain.VaultPayload, error) {
+	return m.vps, nil
+}
+
+func (m *mockVaultHandler2) UpdateEntryFor(
+	userID string,
+	entry any,
+	syncMode bool,
+) (*vaults_domain.VaultEntry, error) {
+	ve, ok := entry.(vaults_domain.VaultEntry)
+	if !ok {
+		return nil, nil
+	}
+	return &ve, nil
+}
+func (m *mockVaultHandler2) LoadAttachment(userID string, vaultName string, hash string, formatReturned string) (*vaults_storage_engine_serializer.LoadAttachmentResponse, error) {
 	return nil, nil
 }
 
@@ -574,7 +602,7 @@ func TestCommitVault(t *testing.T) {
 		CryptoService:      mockCrypto,
 		StorageFactory:     mockFactory,
 	}
-	mode := vaults_service.IncrementalSync
+	// mode := vaults_service.IncrementalSync
 	service := &vaults_service.VaultService{
 		VaultCtx:    vc,
 		Encryptor:   &vaults_service.NoopEncryptor{},
@@ -587,7 +615,42 @@ func TestCommitVault(t *testing.T) {
 
 	service.Password = "password"
 
-	rootCID, _, _, _, err := service.CommitVault(session, mode)
+
+	ipfs := mockIPFS{}
+	ipfsQueryHandler := &vault_queries.GetIPFSDataQuerryHandler{
+		UnlockVaultHandler: mockUnlock,
+		CryptoService:      &vault_infrastructure_crypto.AESService{},
+		IpfsService:        &ipfs,
+		StorageFactory:     mockFactory,
+	}
+	mockVaultH := &mockVaultHandler2{}
+
+	nodeStore := vaults_storage_engine_nodestore.NewNodeStore(
+		*ipfsQueryHandler,
+		ipfsHandler,
+		vc,
+		true,
+	)
+
+	serializer := vaults_storage_engine_serializer.NewSerializerDryRun(
+		nodeStore , 
+		vc, 
+		mockVaultH,
+	)
+
+	vaultConstructor := vaults_storage_engine_constructor.NewVaultConstructor(
+		serializer, 
+		nodeStore,
+		vaultRepo,
+	)
+
+	modeC := vaults_storage_engine_type.IncrementalSync
+	rootCID, _, _, _, err := vaultConstructor.Execute(session, modeC)
+
+	// utils.LogPretty("vaultConstructor", cid)
+
+	
+	// rootCID, _, _, _, err := service.CommitVault(session, mode)
 	utils.LogPretty("TestCommitVault - rootCID", rootCID)
 	require.NoError(t, err)
 	require.NotEmpty(t, rootCID)
@@ -599,9 +662,9 @@ func TestCommitVault(t *testing.T) {
 	require.NotEmpty(t, rootCID)
 	fmt.Errorf("capturedData : %s", capturedData)
 
-	assert.True(t, service.DraftStorage.Exists(rootCID))
-	assert.True(t, service.DraftStorage.Exists(service.Personal))
-	assert.True(t, service.DraftStorage.Exists(service.C3))
+	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(rootCID))
+	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(service.Personal))
+	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(service.C3))
 }
 
 func TestCommitVault_Integration(t *testing.T) {
@@ -617,8 +680,8 @@ func TestCommitVault_Integration(t *testing.T) {
 
 	ipfs := mockIPFS{}
 
-	mockVaultH := &mockVaultHandler{}
-	mode := vaults_service.IncrementalSync
+	// mockVaultH := &mockVaultHandler{}
+	// mode := vaults_service.IncrementalSync
 	nodeRepo := &MockNodeRepo{
 		Entries: vaults_domain.Entries{
 			Login: []vaults_domain.LoginEntry{
@@ -716,21 +779,48 @@ func TestCommitVault_Integration(t *testing.T) {
 		StorageFactory:     mockFactory,
 	}
 
-	service := &vaults_service.VaultService{
-		VaultHandler: mockVaultH,
-		VaultCtx:     vc,
-		Encryptor:    &vaults_service.AESEncryptor{},
-		Repo:         vaultRepo,
-		NodeRepo:     nodeRepo,
-		Password:     userPassword,
-		IPFSHandler:  ipfsCreateHandler,
-		DraftStorage: *vaults_service.NewDraftStorage(),
-		IsDraftMode:  true,
-	}
+	// service := &vaults_service.VaultService{
+	// 	VaultHandler: mockVaultH,
+	// 	VaultCtx:     vc,
+	// 	Encryptor:    &vaults_service.AESEncryptor{},
+	// 	Repo:         vaultRepo,
+	// 	NodeRepo:     nodeRepo,
+	// 	Password:     userPassword,
+	// 	IPFSHandler:  ipfsCreateHandler,
+	// 	DraftStorage: *vaults_service.NewDraftStorage(),
+	// 	IsDraftMode:  true,
+	// }
 
 	vp := fakeVaultPayload(userID, vaultName)
 
-	rootCID, _, _, _, err := service.CommitVault(GetSession(userID, vp), mode)
+
+	session := GetSession(userID, vp)
+	nodeStore := vaults_storage_engine_nodestore.NewNodeStore(
+		*ipfsQueryHandler,
+		ipfsCreateHandler,
+		vc,
+		true,
+	)
+
+	mockVaultH2 := &mockVaultHandler2{}
+	serializer := vaults_storage_engine_serializer.NewSerializerDryRun(
+		nodeStore , 
+		vc, 
+		mockVaultH2,
+	)
+
+	vaultConstructor := vaults_storage_engine_constructor.NewVaultConstructor(
+		serializer, 
+		nodeStore,
+		vaultRepo,
+	)
+	vaultConstructor.NodeRepo = nodeRepo
+	vaultConstructor.Encryptor = &vaults_service.AESEncryptor{}
+
+	modeC := vaults_storage_engine_type.IncrementalSync
+	rootCID, _, _, _, err := vaultConstructor.Execute(session, modeC)
+
+	// rootCID, _, _, _, err := service.CommitVault(GetSession(userID, vp), mode)
 	require.NoError(t, err)
 	require.NotEmpty(t, rootCID)
 

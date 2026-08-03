@@ -83,7 +83,7 @@ func (s *VaultService) BuildTrustMembersRoot(links []vaults_domain.Link) (string
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateTrustMembersKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateTrustMembersGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 	for i := range vp.Collaborative.TrustGroupMembers {
 		vp.Collaborative.TrustGroupMembers[i].IsDirty = true
 	}

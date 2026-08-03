@@ -4006,6 +4006,76 @@ export namespace vault_session {
 
 export namespace vaults_domain {
 	
+	export class Asset {
+	    cid: string;
+	    content_hash: string;
+	    size: number;
+	    type: string;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Asset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cid = source["cid"];
+	        this.content_hash = source["content_hash"];
+	        this.size = source["size"];
+	        this.type = source["type"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	}
+	export class AssetsIndex {
+	    by_hash: Record<string, Array<Link>>;
+	    by_type: Record<string, Array<Link>>;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetsIndex(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by_hash = this.convertValues(source["by_hash"], Array<Link>, true);
+	        this.by_type = this.convertValues(source["by_type"], Array<Link>, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Assignment {
+	    slot_id: string;
+	    owner_id: string;
+	    public_key: string;
+	    vault_address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Assignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slot_id = source["slot_id"];
+	        this.owner_id = source["owner_id"];
+	        this.public_key = source["public_key"];
+	        this.vault_address = source["vault_address"];
+	    }
+	}
 	export class Attachment {
 	    id: string;
 	    file_cid: string;
@@ -4057,123 +4127,6 @@ export namespace vaults_domain {
 		    return a;
 		}
 	}
-	export class Folder {
-	    id: string;
-	    name: string;
-	    created_at: string;
-	    updated_at: string;
-	    is_draft: boolean;
-	    is_dirty: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new Folder(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.is_draft = source["is_draft"];
-	        this.is_dirty = source["is_dirty"];
-	    }
-	}
-	export class WrappedKey {
-	    ID: string;
-	    Type: string;
-	    Data: number[];
-	    CreatedAt: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new WrappedKey(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Type = source["Type"];
-	        this.Data = source["Data"];
-	        this.CreatedAt = source["CreatedAt"];
-	    }
-	}
-	export class VaultMeta {
-	    name: string;
-	    user_id: string;
-	    created_at: string;
-	    updated_at: string;
-	    last_synced: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new VaultMeta(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.user_id = source["user_id"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.last_synced = source["last_synced"];
-	    }
-	}
-	export class Vault {
-	    id: string;
-	    version: string;
-	    name: string;
-	    type: string;
-	    user_id: string;
-	    user_subscription_id: string;
-	    cid: string;
-	    created_at: string;
-	    updated_at: string;
-	    VaultMeta: VaultMeta;
-	    KeyVersion: number;
-	    Keyring: WrappedKey[];
-	    avatar: string;
-	    tx_hash: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Vault(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.version = source["version"];
-	        this.name = source["name"];
-	        this.type = source["type"];
-	        this.user_id = source["user_id"];
-	        this.user_subscription_id = source["user_subscription_id"];
-	        this.cid = source["cid"];
-	        this.created_at = source["created_at"];
-	        this.updated_at = source["updated_at"];
-	        this.VaultMeta = this.convertValues(source["VaultMeta"], VaultMeta);
-	        this.KeyVersion = source["KeyVersion"];
-	        this.Keyring = this.convertValues(source["Keyring"], WrappedKey);
-	        this.avatar = source["avatar"];
-	        this.tx_hash = source["tx_hash"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class Index {
 	    byType: Record<string, Array<Link>>;
 	    byFolder: Record<string, Array<Link>>;
@@ -4638,30 +4591,46 @@ export namespace vaults_domain {
 		    return a;
 		}
 	}
-	export class VaultPayload {
-	    version: string;
+	export class Folder {
+	    id: string;
 	    name: string;
-	    folders: Folder[];
-	    // Go type: Entries
-	    entries: any;
-	    attachments?: Attachment[];
-	    // Go type: Index
-	    index?: any;
 	    created_at: string;
 	    updated_at: string;
+	    is_draft: boolean;
+	    is_dirty: boolean;
 	
 	    static createFrom(source: any = {}) {
-	        return new VaultPayload(source);
+	        return new Folder(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.version = source["version"];
+	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	}
+	export class BaseVaultContent {
+	    folders: Folder[];
+	    entries: Entries;
+	    attachments?: Attachment[];
+	    index?: Index;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BaseVaultContent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.folders = this.convertValues(source["folders"], Folder);
-	        this.entries = this.convertValues(source["entries"], null);
+	        this.entries = this.convertValues(source["entries"], Entries);
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
-	        this.index = this.convertValues(source["index"], null);
+	        this.index = this.convertValues(source["index"], Index);
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }
@@ -4684,6 +4653,841 @@ export namespace vaults_domain {
 		    return a;
 		}
 	}
+	export class TrustGroupsIndex {
+	    by_workspace: Record<string, Array<Link>>;
+	    by_member: Record<string, Array<Link>>;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroupsIndex(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by_workspace = this.convertValues(source["by_workspace"], Array<Link>, true);
+	        this.by_member = this.convertValues(source["by_member"], Array<Link>, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class FederationsIndex {
+	    by_vault: Record<string, Array<Link>>;
+	    by_trust_state: Record<string, Array<Link>>;
+	
+	    static createFrom(source: any = {}) {
+	        return new FederationsIndex(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by_vault = this.convertValues(source["by_vault"], Array<Link>, true);
+	        this.by_trust_state = this.convertValues(source["by_trust_state"], Array<Link>, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ThreadsIndex {
+	    by_channel: Record<string, Array<Link>>;
+	    by_status: Record<string, Array<Link>>;
+	
+	    static createFrom(source: any = {}) {
+	        return new ThreadsIndex(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by_channel = this.convertValues(source["by_channel"], Array<Link>, true);
+	        this.by_status = this.convertValues(source["by_status"], Array<Link>, true);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class IndexC3 {
+	    threads_index: ThreadsIndex;
+	    assets_index: AssetsIndex;
+	    federations_index: FederationsIndex;
+	    trust_groups_index: TrustGroupsIndex;
+	
+	    static createFrom(source: any = {}) {
+	        return new IndexC3(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.threads_index = this.convertValues(source["threads_index"], ThreadsIndex);
+	        this.assets_index = this.convertValues(source["assets_index"], AssetsIndex);
+	        this.federations_index = this.convertValues(source["federations_index"], FederationsIndex);
+	        this.trust_groups_index = this.convertValues(source["trust_groups_index"], TrustGroupsIndex);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Participant {
+	    channel_id: string;
+	    vault_id: string;
+	    public_key: string;
+	    direction: string;
+	    joined_at: number;
+	    role: string;
+	    permissions: string[];
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Participant(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.channel_id = source["channel_id"];
+	        this.vault_id = source["vault_id"];
+	        this.public_key = source["public_key"];
+	        this.direction = source["direction"];
+	        this.joined_at = source["joined_at"];
+	        this.role = source["role"];
+	        this.permissions = source["permissions"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	}
+	export class PendingSyncItem {
+	    exchange_id: string;
+	    status: string;
+	    cursor: number;
+	    retry_count: number;
+	    // Go type: time
+	    updatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new PendingSyncItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exchange_id = source["exchange_id"];
+	        this.status = source["status"];
+	        this.cursor = source["cursor"];
+	        this.retry_count = source["retry_count"];
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RemoteVault {
+	    vault_id: string;
+	    last_cursor: number;
+	    // Go type: time
+	    last_seen: any;
+	    endpoint: string;
+	    trust_state: string;
+	    pending: PendingSyncItem[];
+	    protocol_version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteVault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.vault_id = source["vault_id"];
+	        this.last_cursor = source["last_cursor"];
+	        this.last_seen = this.convertValues(source["last_seen"], null);
+	        this.endpoint = source["endpoint"];
+	        this.trust_state = source["trust_state"];
+	        this.pending = this.convertValues(source["pending"], PendingSyncItem);
+	        this.protocol_version = source["protocol_version"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class FederationSnapshot {
+	    remote_vaults: RemoteVault[];
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FederationSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remote_vaults = this.convertValues(source["remote_vaults"], RemoteVault);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class WrappedGroupKey {
+	    version: number;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WrappedGroupKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.value = source["value"];
+	    }
+	}
+	export class TrustGroupMember {
+	    id: string;
+	    vault_id: string;
+	    role: string;
+	    wrapped_kek?: WrappedGroupKey;
+	    // Go type: time
+	    joined_at: any;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroupMember(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.vault_id = source["vault_id"];
+	        this.role = source["role"];
+	        this.wrapped_kek = this.convertValues(source["wrapped_kek"], WrappedGroupKey);
+	        this.joined_at = this.convertValues(source["joined_at"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TrustGroup {
+	    id: string;
+	    workspace_id: string;
+	    name: string;
+	    kek_version: number;
+	    member_cids: string;
+	    created_at: string;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.workspace_id = source["workspace_id"];
+	        this.name = source["name"];
+	        this.kek_version = source["kek_version"];
+	        this.member_cids = source["member_cids"];
+	        this.created_at = source["created_at"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	}
+	export class ShareEntry {
+	    id: string;
+	    asset_cid: string;
+	    trust_group_id: string;
+	    wrapped_dek: string;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    metadata: Record<string, string>;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShareEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.asset_cid = source["asset_cid"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.wrapped_dek = source["wrapped_dek"];
+	        this.created_by = source["created_by"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.metadata = source["metadata"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Thread {
+	    id: string;
+	    channel_id: string;
+	    asset_type: string;
+	    title: string;
+	    subtitle: string;
+	    status: string;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    ClosedAt?: any;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Thread(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel_id = source["channel_id"];
+	        this.asset_type = source["asset_type"];
+	        this.title = source["title"];
+	        this.subtitle = source["subtitle"];
+	        this.status = source["status"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.ClosedAt = this.convertValues(source["ClosedAt"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ChannelProperty {
+	    key: string;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelProperty(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	    }
+	}
+	export class Slot {
+	    id: string;
+	    name: string;
+	    role: string;
+	    vault_id: string;
+	    gated: boolean;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Slot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.vault_id = source["vault_id"];
+	        this.gated = source["gated"];
+	        this.order = source["order"];
+	    }
+	}
+	export class Channel {
+	    id: string;
+	    template_id: string;
+	    title: string;
+	    status: string;
+	    slots: Slot[];
+	    assignments: Assignment[];
+	    properties: ChannelProperty[];
+	    policy: Record<string, any>;
+	    federation: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    // Go type: time
+	    revoked_at?: any;
+	    workspace_id: string;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Channel(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.template_id = source["template_id"];
+	        this.title = source["title"];
+	        this.status = source["status"];
+	        this.slots = this.convertValues(source["slots"], Slot);
+	        this.assignments = this.convertValues(source["assignments"], Assignment);
+	        this.properties = this.convertValues(source["properties"], ChannelProperty);
+	        this.policy = source["policy"];
+	        this.federation = source["federation"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.revoked_at = this.convertValues(source["revoked_at"], null);
+	        this.workspace_id = source["workspace_id"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Workspace {
+	    id: string;
+	    vault_id: string;
+	    name: string;
+	    description: string;
+	    status: string;
+	    owner_id: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Workspace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.vault_id = source["vault_id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.owner_id = source["owner_id"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class C3VaultContent {
+	    Workspaces: Workspace[];
+	    Channels: Channel[];
+	    Threads: Thread[];
+	    ShareEntries: ShareEntry[];
+	    TrustGroups: TrustGroup[];
+	    TrustGroupMembers: TrustGroupMember[];
+	    Federation: FederationSnapshot;
+	    Participants: Participant[];
+	    Assets: Asset[];
+	    Index: IndexC3;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new C3VaultContent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Workspaces = this.convertValues(source["Workspaces"], Workspace);
+	        this.Channels = this.convertValues(source["Channels"], Channel);
+	        this.Threads = this.convertValues(source["Threads"], Thread);
+	        this.ShareEntries = this.convertValues(source["ShareEntries"], ShareEntry);
+	        this.TrustGroups = this.convertValues(source["TrustGroups"], TrustGroup);
+	        this.TrustGroupMembers = this.convertValues(source["TrustGroupMembers"], TrustGroupMember);
+	        this.Federation = this.convertValues(source["Federation"], FederationSnapshot);
+	        this.Participants = this.convertValues(source["Participants"], Participant);
+	        this.Assets = this.convertValues(source["Assets"], Asset);
+	        this.Index = this.convertValues(source["Index"], IndexC3);
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	export class Link {
+	    "/": string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Link(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this["/"] = source["/"];
+	    }
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	export class WrappedKey {
+	    ID: string;
+	    Type: string;
+	    Data: number[];
+	    CreatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WrappedKey(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Type = source["Type"];
+	        this.Data = source["Data"];
+	        this.CreatedAt = source["CreatedAt"];
+	    }
+	}
+	export class VaultMeta {
+	    name: string;
+	    user_id: string;
+	    created_at: string;
+	    updated_at: string;
+	    last_synced: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultMeta(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.user_id = source["user_id"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.last_synced = source["last_synced"];
+	    }
+	}
+	export class Vault {
+	    id: string;
+	    version: string;
+	    name: string;
+	    type: string;
+	    user_id: string;
+	    user_subscription_id: string;
+	    cid: string;
+	    created_at: string;
+	    updated_at: string;
+	    VaultMeta: VaultMeta;
+	    KeyVersion: number;
+	    Keyring: WrappedKey[];
+	    avatar: string;
+	    tx_hash: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vault(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.version = source["version"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.user_id = source["user_id"];
+	        this.user_subscription_id = source["user_subscription_id"];
+	        this.cid = source["cid"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.VaultMeta = this.convertValues(source["VaultMeta"], VaultMeta);
+	        this.KeyVersion = source["KeyVersion"];
+	        this.Keyring = this.convertValues(source["Keyring"], WrappedKey);
+	        this.avatar = source["avatar"];
+	        this.tx_hash = source["tx_hash"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class VaultPayload {
+	    version: string;
+	    name: string;
+	    folders: Folder[];
+	    entries: Entries;
+	    attachments?: Attachment[];
+	    index?: Index;
+	    created_at: string;
+	    updated_at: string;
+	    Personal: BaseVaultContent;
+	    Collaborative: C3VaultContent;
+	
+	    static createFrom(source: any = {}) {
+	        return new VaultPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.name = source["name"];
+	        this.folders = this.convertValues(source["folders"], Folder);
+	        this.entries = this.convertValues(source["entries"], Entries);
+	        this.attachments = this.convertValues(source["attachments"], Attachment);
+	        this.index = this.convertValues(source["index"], Index);
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	        this.Personal = this.convertValues(source["Personal"], BaseVaultContent);
+	        this.Collaborative = this.convertValues(source["Collaborative"], C3VaultContent);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 
 }
 

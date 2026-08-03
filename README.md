@@ -1402,15 +1402,196 @@ C3
 
 
 
+My roadmap from here
+
+I'd implement these bounded contexts one by one:
+
+Workspace
+✅ Create
+✅ Get
+✅ List
+✅ Rename
+✅ Delete
+
+↓
+
+Channel
+✅ Create
+✅ Get
+✅ List
+✅ Update
+✅ Delete
+
+↓
+
+Thread
+✅ Create
+✅ Get
+✅ List
+✅ Close
+
+↓
+
+ShareEntry
+✅ Create
+✅ Get
+✅ List
+✅ Revoke
+
+↓
+
+TrustGroup
+✅ Create
+✅ Get
+✅ List
+✅ AddMember
+✅ RemoveMember
+✅ RotateKEK
+
+
+// - domains
+type WorkspaceUsecaseInterface interface {
+	CreateWorkspace(ctx context.Context, req *CreateWorkspaceRequest) (*workspace_domain.Workspace, error)
+	ListWorkspaces(ctx context.Context, req *ListWorkspacesRequest) (*workspace_domain.Workspace, error)
+	GetWorkspace(ctx context.Context, req *GetWorkspaceRequest) (*workspace_domain.Workspace, error)
+	DeleteWorkspace(ctx context.Context, req *DeleteWorkspaceRequest) (*workspace_domain.Workspace, error)
+  RenameWorkspace(ctx context.Context, req *RenameWorkspaceRequest) (*workspace_domain.Workspace, error)
+}
+
+type ChannelUsecaseInterface interface {
+	CreateChannel(ctx context.Context, req *CreateChannelRequest) (*channel_domain.Channel, error)
+	ListChannels(ctx context.Context, req *ListChannelsRequest) (*channel_domain.Channel, error)
+	GetChannel(ctx context.Context, req *GetChannelRequest) (*channel_domain.Channel, error)
+	UpdateChannel(ctx context.Context, req *UpdateChannelRequest) (*channel_domain.Channel, error)
+	CloseThread(ctx context.Context, req *CloseThreadRequest) (*channel_domain.Channel, error)
+}
+type ThreadUsecaseInterface interface {
+	CreateThread(ctx context.Context, req *CreateThreadRequest) (*thread_domain.Thread, error)
+	ListThreads(ctx context.Context, req *ListThreadsRequest) (*thread_domain.Thread, error)
+	GetThread(ctx context.Context, req *GetThreadRequest) (*thread_domain.Thread, error)
+	UpdateThread(ctx context.Context, req *UpdateThreadRequest) (*thread_domain.Thread, error)
+	DeleteThread(ctx context.Context, req *DeleteThreadRequest) (*thread_domain.Thread, error)
+}
+
+type ShareEntryUsecaseInterface interface {
+	CreateShareEntry(ctx context.Context, req *CreateShareEntryRequest) (*share_entry_domain.ShareEntry, error)
+	ListShareEntries(ctx context.Context, req *ListShareEntriesRequest) (*share_entry_domain.ShareEntry, error)
+	GetShareEntry(ctx context.Context, req *GetShareEntryRequest) (*share_entry_domain.ShareEntry, error)
+	RevokeShareEntry(ctx context.Context, req *RevokeShareEntryRequest) (*share_entry_domain.ShareEntry, error)
+}
+
+type TrustGroupUsecaseInterface interface {
+	CreateTrustGroup(ctx context.Context, req *CreateTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
+	ListTrustGroups(ctx context.Context, req *ListTrustGroupsRequest) (*trust_group_domain.TrustGroup, error)
+	GetTrustGroup(ctx context.Context, req *GetTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
+	AddMemberToTrustGroup(ctx context.Context, req *AddMemberToTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
+	RemoveMemberFromTrustGroup(ctx context.Context, req *RemoveMemberFromTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
+	RotateTrustGroupKEK(ctx context.Context, req *RotateTrustGroupKEKRequest) (*trust_group_domain.TrustGroup, error)
+} 
+
+// - application service (vault c3 service) 
+type VaultC3Service struct {
+	Workspace WorkspaceUsecaseInterface
+	Channel ChannelUsecaseInterface
+	Thread ThreadUsecaseInterface
+	ShareEntry ShareEntryUsecaseInterface
+	TrustGroup TrustGroupUsecaseInterface
+}
+
+func NewVaultC3Service() *VaultC3Service {
+	return &VaultC3Service{
+		Workspace: NewWorkspaceUsecase(),
+		Channel: NewChannelUsecase(),
+		Thread: NewThreadUsecase(),
+		ShareEntry: NewShareEntryUsecase(),
+		TrustGroup: NewTrustGroupUsecase(),
+	}
+}
+
+func (c *VaultC3Service) CreateChannel(ctx context.Context, req *CreateChannelRequest) (*channel_domain.Channel, error) {
+	ch, err := c.Channel.CreateChannel(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}	
+
+func (c *VaultC3Service) ListChannels(ctx context.Context, req *ListChannelsRequest) (*channel_domain.Channel, error) {
+	ch, err := c.Channel.ListChannels(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
+
+func (c *VaultC3Service) GetChannel(ctx context.Context, req *GetChannelRequest) (*channel_domain.Channel, error) {
+	ch, err := c.Channel.GetChannel(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
+
+func (c *VaultC3Service) UpdateChannel(ctx context.Context, req *UpdateChannelRequest) (*channel_domain.Channel, error) {
+	ch, err := c.Cha nnel.UpdateChannel(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
+
+func (c *VaultC3Service) CloseThread(ctx context.Context, req *CloseThreadRequest) (*channel_domain.Channel, error) {
+	ch, err := c.Channel.CloseThread(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}	
+		
+
+
+
+type ChannelUsecase struct {
+	Repo channel_repository.RepositoryInterface
+}
+
+func NewChannelUsecase(repo channel_repository.RepositoryInterface) *ChannelUsecase {
+	return &ChannelUsecase{
+		Repo: repo,
+	}
+}
+
+func (c *ChannelUsecase) CreateChannel(ctx context.Context, req *CreateChannelRequest) (*channel_domain.Channel, error) {
+  channel := channel_domain.NewChannel(req.UserID, req.Name)
+
+	ch, err := c.Repo.CreateChannel(ctx, channel_repository.NewCreateChannelRequest{
+    VaultID: req.VaultID,
+    Channel: channel,
+    Signature: req.Signature,
+  })
+	if err != nil {
+		return nil, err
+	}
+
+  eventBus.PublishChannelCreated(ctx, channel_events.ChannelCreated{
+    VaultID:     req.VaultID,
+    ChannelID:   ch.ID,
+    WorkspaceID: ch.WorkspaceID,
+  })
+
+	return ch, nil
+}
 
 
 
 
+type LeafSerializer interface {
+  BuildLeafBranch() (string, error)
+	serializeLeafModel()  []byte 
+  serializeLeafModelRoot() []byte
+	RotateLeafGraph() error
 
-
-
-
-
-
-
+	deserializeLeafModel(data []byte) error
+  deserializeLeafModelRoot([]byte) error
+}
 

@@ -262,6 +262,77 @@ func GetConfig(userID string, vaultName string) (*app_config_domain.Config, erro
 	return res, nil
 }
 
+
+
+
+
+
+func GetPersonalRoot() string {
+	return `{
+		"type":"personal_vault",
+		"version":"1.0.0",
+		"entries":{
+			"/":"cid-entries-root"
+		},
+		"folders":{
+			"/":"cid-folders-root"
+		},
+		"attachments":{
+			"/":"cid-attachments-root"
+		},
+		"index":{
+			"/":"cid-index"
+		}
+	}`
+}
+func GetCollaborativeRoot() string {
+	return `{
+		"type":"collaborative_vault",
+		"version":"1.0.0",
+		"workspaces":{
+			"\/":"cid-workspaces-root"
+		},
+		"participants":{
+			"\/":"cid-participants-root"
+		},
+		"channels":{
+			"\/":"cid-channels-root"
+		},
+		"threads":{
+			"\/":"cid-threads-root"
+		},
+		"slots":{
+			"\/":"cid-slots-root"
+		},
+		"share_entries":{
+			"\/":"cid-shareentries-root"
+		},
+		"assets":{
+			"\/":"cid-assets-root"
+		},
+		"trust_groups":{
+			"\/":"cid-trustgroups-root"
+		},
+		"trust_members":{
+			"\/":"cid-trustgroupmembers-root"
+		},
+		"federation":{
+			"\/":"cid-federation-root"
+		},
+		"index":{
+			"\/":"cid-index-c3-root"
+		}
+	}`
+}
+
+func GetPersonalindexRoot() string {
+	return `{
+		"items":[
+			{"/":"cid-index"}
+		]
+	}`
+}
+
 func GetCIDRoot(name string) string {
 	return "cid-" + name + "-root"
 }
@@ -273,7 +344,6 @@ func GetThread() string {
 		"status":"open"
 	}`
 }
-
 func GetThreadRoot() string {
 	return `{
 		"items":[
@@ -302,7 +372,6 @@ func GetTrustGroup(id string) string {
 	}
 	return ""
 }
-
 func GetTrustGroupRoot() string {
 	return `{
     "items":[
@@ -543,7 +612,6 @@ func GetShareEntries(id string) string {
 
 	return ""
 }
-
 func GetShareEntriesRoot() string {
 	return `{
 		"items":[
@@ -683,7 +751,6 @@ func GetChannel(id string) string {
 	}
 	return ""
 }
-
 func GetChannelsRoot() string {
 	return `{
 		"items":[
@@ -694,7 +761,6 @@ func GetChannelsRoot() string {
 		]
 	}`
 }
-
 func GetSlot(id string) string {
 	if id == "23" {
 		return `{
@@ -737,13 +803,6 @@ func GetFederationRoot() string {
     }
 }`
 }
-// func GetFederationRoot() string {
-// 	return `{
-// 		"federation":{
-// 			"/":"cid-federation-node"
-// 		}
-// 	}`
-// }
 func GetRemoteVault(id string) string {
 	if id == "1" {
 		return `{
@@ -802,7 +861,6 @@ func GetRemoteVaultRoot() string {
 		]
 	}`
 }
-
 func GetCollaborativeIndexRoot() string {
 	return `{
 		"threads_index":{
@@ -903,7 +961,6 @@ func GetTrustGroupIndex() string {
 		}
 	}`
 }
-
 func GetAttachments() string {
 	return `{
     "id":"cid-workspace-#18",
@@ -925,6 +982,17 @@ func GetAttachmentsRoot() string {
 }`
 }
 
+
+/*
+This is the foundation needed for the next layers:
+
+snapshot history
+vault diff
+sync engine
+federation replication
+conflict resolution
+TraceCore anchoring
+*/
 // ------------------------------------------------------------------------------------------------------------
 // TEST
 // ------------------------------------------------------------------------------------------------------------
@@ -939,104 +1007,8 @@ func TestVaultReconstructor_BuildFromRoot(t *testing.T) {
 		data: map[string][]byte{},
 	}
 
-	personalRoot := `{
-		"type":"personal_vault",
-		"version":"1.0.0",
-		"entries":{
-			"/":"cid-entries-root"
-		},
-		"folders":{
-			"/":"cid-folders-root"
-		},
-		"attachments":{
-			"/":"cid-attachments-root"
-		},
-		"index":{
-			"/":"cid-index"
-		}
-	}`
-
-	collaborativeRoot := `{
-		"type":"collaborative_vault",
-		"version":"1.0.0",
-		"workspaces":{
-			"\/":"cid-workspaces-root"
-		},
-		"participants":{
-			"\/":"cid-participants-root"
-		},
-		"channels":{
-			"\/":"cid-channels-root"
-		},
-		"threads":{
-			"\/":"cid-threads-root"
-		},
-		"slots":{
-			"\/":"cid-slots-root"
-		},
-		"share_entries":{
-			"\/":"cid-shareentries-root"
-		},
-		"assets":{
-			"\/":"cid-assets-root"
-		},
-		"trust_groups":{
-			"\/":"cid-trustgroups-root"
-		},
-		"trust_members":{
-			"\/":"cid-trustgroupmembers-root"
-		},
-		"federation":{
-			"\/":"cid-federation-root"
-		},
-		"index":{
-			"\/":"cid-index-c3-root"
-		}
-	}`
-
-	// // ---- Entry node (login)
-	// entry := `{
-	// 	"type": "login",
-	// 	"entry_name": "gmail",
-	// 	"username": "user",
-	// 	"password": "pass"
-	// }`
-
-	// // ---- EntriesRoot
-	// entriesRoot := `{
-	// 	"items": [
-	// 		{"/":"cid-entry-1"},
-	// 		{"/":"cid-entry-2"},
-	// 		{"/":"cid-entry-3"}
-	// 	]
-	// }`
-
-	attachment := `{
-		"cid":"Qm123",
-		"filename":"contract.pdf"
-	}`
-	attachmentsRoot := `{
-		"items":[
-			{"/":"cid-attachment-1"}
-		]
-	}`
-
-	// ---- FoldersRoot
-	// folder := `{
-	// 	"id":"folder1",
-	// 	"name":"Work"
-	// }`
-	// foldersRoot := `{
-	// 	"items":[
-	// 	{"/":"cid-folder-1"},
-	// 	{"/":"cid-folder-2"}
-	// 	]
-	// }`
-	// ---- indexsRoot
-	index := `{
-		"items": []
-	}`
-
+	personalRoot := GetPersonalRoot()
+	collaborativeRoot := GetCollaborativeRoot()
 	// ---- Root VaultNode
 	root := `{
 		"type":"vault",
@@ -1076,7 +1048,10 @@ func TestVaultReconstructor_BuildFromRoot(t *testing.T) {
 			}`, i, i)),
 		)
 	}
-	mock.AddData("cid-attachment-root", GetAttachmentsRoot())
+	mock.AddData("cid-attachments-root", GetAttachmentsRoot())
+
+	personalIndexRoot := GetPersonalindexRoot()
+	mock.AddData("cid-index", personalIndexRoot)
 
 	trustGroup1 := GetTrustGroup("1")
 	trustGroup2 := GetTrustGroup("2")
@@ -1159,7 +1134,6 @@ func TestVaultReconstructor_BuildFromRoot(t *testing.T) {
 
 	/// federation root
 	mock.AddData("cid-federation-root", GetFederationRoot())
-	// mock.AddData("cid-federation-node", GetFederationNode())
 
 	remoteVault1 := GetRemoteVault("1")
 	remoteVault2 := GetRemoteVault("2")
@@ -1182,15 +1156,6 @@ func TestVaultReconstructor_BuildFromRoot(t *testing.T) {
 
 	mock.data["cid-personal-root"] = []byte(personalRoot)
 	mock.data["cid-collaborative-root"] = []byte(collaborativeRoot)
-
-	// mock.data["cid-entries-root"] = []byte(entriesRoot)
-	// mock.data["cid-folders-root"] = []byte(foldersRoot)
-	mock.data["cid-attachments-root"] = []byte(attachmentsRoot)
-	// mock.data["cid-entry-1"] = []byte(entry)
-	mock.data["cid-index"] = []byte(index)
-	// mock.data["cid-folder-1"] = []byte(folder)
-	mock.data["cid-attachment-1"] = []byte(attachment)
-
 	mock.data["cid-empty"] = []byte(`{"items":[]}`)
 	// -----------------------------
 	// Reconstructor
@@ -1310,7 +1275,6 @@ func TestVaultReconstructor_BuildFromRoot(t *testing.T) {
 		t.Fatalf("expected 1 same ShareEntries, got %s", res.Collaborative.ShareEntries[0].AssetCID)
 	}
 
-	utils.LogPretty("RemoteVaults", res.Collaborative.Federation.RemoteVaults)
 	if len(res.Collaborative.Federation.RemoteVaults) != 2 {
 		t.Fatalf(
 			"expected 2 remote vaults, got %d",

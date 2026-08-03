@@ -111,7 +111,7 @@ func (s *VaultService) BuildThreadsRoot(links []vaults_domain.Link) (string, int
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateThreadBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
+func (s *VaultService) RotateThreadGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, error) {
 
 	for i := range vp.Collaborative.Threads {
 

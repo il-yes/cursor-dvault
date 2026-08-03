@@ -1,7 +1,12 @@
 package vaults_service
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+
 	"vault-app/internal/utils"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 )
@@ -18,6 +23,10 @@ type EntryNode struct {
 }
 
 
+
+// =======================================================================================
+// WRITE
+// =======================================================================================
 func (s *VaultService) CommitEntries(
 	session vault_session.Session,
 	vp vaults_domain.VaultPayload,
@@ -223,7 +232,7 @@ func sshKeyToInterfaces(list []vaults_domain.SSHKeyEntry) []vaults_domain.EntryI
 	return result
 }
 
-func (s *VaultService) RotateEntryKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, []EntryUpdate, error) {
+func (s *VaultService) RotateEntryGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, map[string][]vaults_domain.Link, map[string][]vaults_domain.Link, []EntryUpdate, error) {
 	// mark all entries by type dirty
 	for i := range vp.Entries.Login {
 		vp.Entries.Login[i].BaseEntry.IsDirty = true
@@ -242,4 +251,77 @@ func (s *VaultService) RotateEntryKeys(session vault_session.Session, vp vaults_
 	}
 	// 	↓
 	return s.BuildEntriesBranch(session, vp, mode)
+}
+
+// =======================================================================================
+// READ
+// =======================================================================================
+func (r *VaultReconstructor) resolveEntries(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	entriesRoot vaults_domain.EntriesRoot,
+) (vaults_domain.Entries, error) {
+
+	var result vaults_domain.Entries
+
+	for _, link := range entriesRoot.Items {
+
+		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+		if err != nil {
+			return result, err
+		}
+
+		// 1. Detect type first (light struct)
+		var meta struct {
+			Type string `json:"type"`
+		}
+
+		if err := json.Unmarshal(res.Raw, &meta); err != nil {
+			return result, err
+		}
+
+		// 2. Dispatch by type (like reverse BuildEntries)
+		switch meta.Type {
+
+		case "login":
+			var e vaults_domain.LoginEntry
+			if err := json.Unmarshal(res.Raw, &e); err != nil {
+				return result, err
+			}
+			result.Login = append(result.Login, e)
+
+		case "card":
+			var e vaults_domain.CardEntry
+			if err := json.Unmarshal(res.Raw, &e); err != nil {
+				return result, err
+			}
+			result.Card = append(result.Card, e)
+
+		case "identity":
+			var e vaults_domain.IdentityEntry
+			if err := json.Unmarshal(res.Raw, &e); err != nil {
+				return result, err
+			}
+			result.Identity = append(result.Identity, e)
+
+		case "note":
+			var e vaults_domain.NoteEntry
+			if err := json.Unmarshal(res.Raw, &e); err != nil {
+				return result, err
+			}
+			result.Note = append(result.Note, e)
+
+		case "sshkey":
+			var e vaults_domain.SSHKeyEntry
+			if err := json.Unmarshal(res.Raw, &e); err != nil {
+				return result, err
+			}
+			result.SSHKey = append(result.SSHKey, e)
+
+		default:
+			return result, fmt.Errorf("unknown entry type: %s", meta.Type)
+		}
+	}
+
+	return result, nil
 }

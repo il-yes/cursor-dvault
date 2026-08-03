@@ -1,7 +1,11 @@
 package vaults_service
 
 import (
+	"context"
+	"encoding/json"
+
 	"vault-app/internal/utils"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 )
@@ -40,6 +44,11 @@ func (s *VaultService) CommitAttachments(
 	)
 
 }
+
+
+// =======================================================================================
+// WRITE
+// =======================================================================================
 func (s *VaultService) BuildAttachmentsBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 	utils.LogPretty("VaultService - CommitVault - ", "starting....")
 
@@ -62,7 +71,6 @@ func (s *VaultService) BuildAttachmentsBranch(session vault_session.Session, vp 
 
 	return attachementCIDs, nil
 }
-
 
 func (s *VaultService) BuildAttachmentsRoot(links []vaults_domain.Link) (string, int, error) {
 	root := vaults_domain.AttachementsRoot{Items: links}
@@ -128,7 +136,7 @@ func (s *VaultService) GetAttachmentNodeLink(attachement vaults_domain.Attachmen
 }
 
 
-func (s *VaultService) RotateAttachmentKeys(
+func (s *VaultService) RotateAttachmentGraph(
 	session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode,
 ) {
 	// mark all attachments dirty
@@ -137,4 +145,34 @@ func (s *VaultService) RotateAttachmentKeys(
 	}
 	// 	↓
 	s.BuildAttachmentsBranch(session, vp, mode)
+}
+
+
+// =======================================================================================
+// READ
+// =======================================================================================
+func (r *VaultReconstructor) resolveAttachments(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+	attachmentsRoot vaults_domain.AttachementsRoot,
+) ([]vaults_domain.Attachment, error) {
+
+	var result []vaults_domain.Attachment
+
+	for _, link := range attachmentsRoot.Items {
+
+		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
+		if err != nil {
+			return result, err
+		}
+
+		var attachment vaults_domain.Attachment
+		if err := json.Unmarshal(res.Raw, &attachment); err != nil {
+			return result, err
+		}
+
+		result = append(result, attachment)
+	}
+
+	return result, nil
 }

@@ -15,13 +15,6 @@ import (
 // ============================================================
 // FEDERATION GRAPH NODES
 // ============================================================
-
-// type FederationNode struct {
-// 	Version string `json:"version"`
-
-//		RemoteVaults vaults_domain.Link `json:"remote_vaults"`
-//		Index        vaults_domain.Link
-//	}
 type FederationNode struct {
 	Version      string             `json:"version"`
 	RemoteVaults vaults_domain.Link `json:"remote_vaults"`
@@ -132,14 +125,6 @@ func (s *VaultService) BuildRemoteVaults(vaults []vaults_domain.RemoteVault) ([]
 
 	for _, remote := range vaults {
 
-		// pendingCID, err := s.BuildPendingSync(
-		// 	remote.Pending,
-		// )
-
-		// if err != nil {
-		// 	return nil, err
-		// }
-
 		node := RemoteVaultNode{
 			Version:     "1.0",
 			VaultID:     remote.VaultID,
@@ -187,7 +172,7 @@ func (s *VaultService) BuildPendingSync(items []vaults_domain.PendingSyncItem) (
 	return cid, nil
 }
 
-func (s *VaultService) RotateFederationBranch(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, string, error) {
+func (s *VaultService) RotateFederationGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, string, error) {
 	vp.Collaborative.Federation.IsDirty = true
 
 	return s.BuildFederationBranch(session, vp, mode)
@@ -203,23 +188,6 @@ func (r *VaultReconstructor) resolveFederation(
 ) (vaults_domain.FederationSnapshot, error) {
 	var snapshot vaults_domain.FederationSnapshot
 
-	// -----------------------------
-	// Load FederationNode
-	// -----------------------------
-	// res, err := r.Query.Execute(ctx, cmd.WithCID(remoteVaultLink.CID))
-	// if err != nil {
-	// 	return snapshot, err
-	// }
-
-	// utils.LogPretty(
-	// 	"FEDERATION RAW BEFORE UNMARSHAL",
-	// 	string(res.Raw),
-	// )
-
-	// var node FederationNode
-	// if err := json.Unmarshal(res.Raw, &node); err != nil {
-	// 	return snapshot, err
-	// }
 
 	fmt.Printf("FederationNode type: %+v\n", node)
 	utils.LogPretty(

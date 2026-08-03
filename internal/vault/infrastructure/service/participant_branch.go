@@ -76,7 +76,7 @@ func (s *VaultService) BuildParticipantsRoot(links []vaults_domain.Link) (string
 	return s.putNode(root)
 }
 
-func (s *VaultService) RotateParticipantKeys(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
+func (s *VaultService) RotateParticipantGraph(session vault_session.Session, vp vaults_domain.VaultPayload, mode SyncMode) (string, error) {
 
 	for i := range vp.Collaborative.Participants {
 		vp.Collaborative.Participants[i].IsDirty = true

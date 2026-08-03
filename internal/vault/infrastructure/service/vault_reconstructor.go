@@ -44,24 +44,31 @@ func (r *VaultReconstructor) BuildFromRoot(
 
 	root := rootRes.NodeBeta
 	utils.LogPretty("VaultReconstructor - BuildFromRoot - root", root)
-	cmd.CID = root.Personal.CID
 
+	
 	log.Println("RAW ROOT LENGTH", len(rootRes.Raw))
 	log.Println("RAW ROOT FIRST BYTES", rootRes.Raw[:20])
 
-	personalRes, err := r.Query.Execute(ctx, cmd)
+	// -----------------------------
+	// 2. PERSONAL
+	// -----------------------------
+	personalRes, err := r.Query.Execute(ctx, cmd.WithCID(root.Personal.CID))
 	if err != nil {
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail get ipfs query", err)
 		return vaults_domain.VaultPayload{}, err
 	}
+
 	var personalRoot vaults_domain.PersonalNode
 	if err := json.Unmarshal(personalRes.Raw, &personalRoot); err != nil {
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail to  convert ipfs data to VaultNode", err)
 		return vaults_domain.VaultPayload{}, err
 	}
 
-	cmd.CID = root.Collaborative.CID
-	collaborativeRes, err := r.Query.Execute(ctx, cmd)
+
+	// -----------------------------
+	// 3. COLLABORATIVE
+	// -----------------------------
+	collaborativeRes, err := r.Query.Execute(ctx, cmd.WithCID(root.Collaborative.CID))
 	if err != nil {
 		utils.LogPretty("VaultReconstructor - BuildFromRoot - fail get ipfs query", err)
 		return vaults_domain.VaultPayload{}, err
@@ -73,7 +80,7 @@ func (r *VaultReconstructor) BuildFromRoot(
 	}
 	// utils.LogPretty("collaborativeRoot after unmarshal", collaborativeRoot)
 
-	// TODO: change the condition
+	// Init Guard - TODO: change the condition
 	if root.Version == "" {
 		// FIRST SYNC CASE
 		emptyVp := emptyVaultPayload(cmd.VaultName, "1.0.0")
@@ -117,13 +124,6 @@ func (r *VaultReconstructor) BuildFromRoot(
 	return vaults_domain.VaultPayload{
 		Version: root.Version,
 		Name:    "reconstructed",
-
-		// BaseVaultContent: vaults_domain.BaseVaultContent{
-		// 	Entries:     entries,
-		// 	Folders:     folders,
-		// 	Attachments: attachments,
-		// 	Index:       index,
-		// },
 		Personal: vaults_domain.BaseVaultContent{
 			Entries:     personalVault.entries,
 			Folders:     personalVault.folders,
@@ -486,11 +486,6 @@ func (r *VaultReconstructor) resolveCollaborativePart(
 		return nil, err
 	}
 
-	// utils.LogPretty("threadRes.Raw", threadsRes.Raw)
-	// utils.LogPretty("assetRes.Raw", string(assetsRes.Raw))
-	// utils.LogPretty("federationRes.Raw", string(federationSnapshotsRes.Raw))
-	// utils.LogPretty("trustGroupRes.Raw", string(trustgroupsRes.Raw))
-
 	return &ResolveCollaborativeResponse{
 		Workspaces:        workspaces,
 		Channels:          channels,
@@ -503,146 +498,6 @@ func (r *VaultReconstructor) resolveCollaborativePart(
 		Assets:            assets,
 		Index:             *indexs,
 	}, nil
-}
-
-func (r *VaultReconstructor) resolveEntries(
-	ctx context.Context,
-	cmd vault_queries.GetIPFSDataQuerry,
-	entriesRoot vaults_domain.EntriesRoot,
-) (vaults_domain.Entries, error) {
-
-	var result vaults_domain.Entries
-
-	for _, link := range entriesRoot.Items {
-
-		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
-		if err != nil {
-			return result, err
-		}
-
-		// 1. Detect type first (light struct)
-		var meta struct {
-			Type string `json:"type"`
-		}
-
-		if err := json.Unmarshal(res.Raw, &meta); err != nil {
-			return result, err
-		}
-
-		// 2. Dispatch by type (like reverse BuildEntries)
-		switch meta.Type {
-
-		case "login":
-			var e vaults_domain.LoginEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
-				return result, err
-			}
-			result.Login = append(result.Login, e)
-
-		case "card":
-			var e vaults_domain.CardEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
-				return result, err
-			}
-			result.Card = append(result.Card, e)
-
-		case "identity":
-			var e vaults_domain.IdentityEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
-				return result, err
-			}
-			result.Identity = append(result.Identity, e)
-
-		case "note":
-			var e vaults_domain.NoteEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
-				return result, err
-			}
-			result.Note = append(result.Note, e)
-
-		case "sshkey":
-			var e vaults_domain.SSHKeyEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
-				return result, err
-			}
-			result.SSHKey = append(result.SSHKey, e)
-
-		default:
-			return result, fmt.Errorf("unknown entry type: %s", meta.Type)
-		}
-	}
-
-	return result, nil
-}
-
-func (r *VaultReconstructor) resolveFolders(
-	ctx context.Context,
-	cmd vault_queries.GetIPFSDataQuerry,
-	foldersRoot vaults_domain.FoldersRoot,
-) ([]vaults_domain.Folder, error) {
-
-	var result []vaults_domain.Folder
-
-	for _, link := range foldersRoot.Items {
-
-		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
-		if err != nil {
-			return result, err
-		}
-
-		var folder vaults_domain.Folder
-		if err := json.Unmarshal(res.Raw, &folder); err != nil {
-			return result, err
-		}
-
-		result = append(result, folder)
-	}
-
-	return result, nil
-}
-func (r *VaultReconstructor) resolveAttachments(
-	ctx context.Context,
-	cmd vault_queries.GetIPFSDataQuerry,
-	attachmentsRoot vaults_domain.AttachementsRoot,
-) ([]vaults_domain.Attachment, error) {
-
-	var result []vaults_domain.Attachment
-
-	for _, link := range attachmentsRoot.Items {
-
-		res, err := r.Query.Execute(ctx, cmd.WithCID(link.CID))
-		if err != nil {
-			return result, err
-		}
-
-		var attachment vaults_domain.Attachment
-		if err := json.Unmarshal(res.Raw, &attachment); err != nil {
-			return result, err
-		}
-
-		result = append(result, attachment)
-	}
-
-	return result, nil
-}
-
-func (r *VaultReconstructor) resolveIndex(
-	ctx context.Context,
-	cmd vault_queries.GetIPFSDataQuerry,
-	indexLink vaults_domain.Link,
-) (vaults_domain.Index, error) {
-
-	res, err := r.Query.Execute(ctx, cmd.WithCID(indexLink.CID))
-	if err != nil {
-		return vaults_domain.Index{}, err
-	}
-
-	var index vaults_domain.Index
-	if err := json.Unmarshal(res.Raw, &index); err != nil {
-		return vaults_domain.Index{}, err
-	}
-
-	return index, nil
 }
 
 func emptyVaultPayload(name string, version string) vaults_domain.VaultPayload {

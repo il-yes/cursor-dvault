@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
@@ -27,7 +28,7 @@ func (m *mockCrypto) Decrypt(data []byte, key []byte) ([]byte, error) {
 func (m *mockCrypto) DecryptSymKey(data []byte, key []byte) ([]byte, error) {
 	return data[len(key):], nil
 }
-func(m *mockCrypto) AsymetricDecrypt(privateKey string, encryptedKey string) ([]byte, error) {
+func (m *mockCrypto) AsymetricDecrypt(privateKey string, encryptedKey string) ([]byte, error) {
 	return nil, nil
 }
 
@@ -317,7 +318,7 @@ func TestKeyring_LoadHybrid_PasswordSuccess(t *testing.T) {
 
 	original := vaults_domain.VaultKeyring{
 		VaultID: "vault1",
-		UserID: userID,
+		UserID:  userID,
 	}
 
 	raw, _ := json.Marshal(original)
@@ -431,7 +432,6 @@ func TestKeyring_LoadHybrid_Fail(t *testing.T) {
 	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		t.Fatalf("write file failed: %v", err)
 	}
-
 
 	_, errLoad := service.LoadHybrid("user__1", "wrong-password", "")
 

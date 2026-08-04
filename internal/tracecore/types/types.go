@@ -161,10 +161,10 @@ type DecryptCryptoShareRequest struct {
 	RecipientPrivateKey string `json:"recipient_private_key"`
 }
 type DecryptCryptoShareResponse struct {
-	Payload     string            `json:"payload"` // decrypted vault payload
-	ExpiresIn   int64             `json:"expires_in,omitempty"`
-	Attachments map[string]string `json:"attachments"` // map[attachmentID]CID (cloud‑only)
-	EncryptedKey     string            `json:"encrypted_key,omitempty"`
+	Payload      string            `json:"payload"` // decrypted vault payload
+	ExpiresIn    int64             `json:"expires_in,omitempty"`
+	Attachments  map[string]string `json:"attachments"` // map[attachmentID]CID (cloud‑only)
+	EncryptedKey string            `json:"encrypted_key,omitempty"`
 }
 type AddPublicKeyToCustomerRequest struct {
 	PublicKey string `json:"public_key"`
@@ -189,42 +189,37 @@ type AddRecipientRequest struct {
 	Signature    string     `json:"signature"`
 }
 
-
 type PendingShareIntent struct {
-    ID         string `json:"id"`	
-    ShareID    string `json:"share_id"`
-    OwnerID    string `json:"owner_id"`
-    OwnerEmail string `json:"owner_email"`
+	ID         string `json:"id"`
+	ShareID    string `json:"share_id"`
+	OwnerID    string `json:"owner_id"`
+	OwnerEmail string `json:"owner_email"`
 
+	RecipientID    string `json:"recipient_id"`
+	RecipientEmail string `json:"recipient_email"`
 
-    RecipientID    string `json:"recipient_id"`
-    RecipientEmail string `json:"recipient_email"`
+	Status string `json:"status"`
 
+	InvitationSentAt     *time.Time `json:"invitation_sent_at"`
+	NotificationAttempts int        `json:"notification_attempts"`
+	AcceptedAt           *time.Time `json:"accepted_at"`
+	DeclinedAt           *time.Time `json:"declined_at"`
+	ExpiresAt            *time.Time `json:"expires_at"`
 
-    Status string `json:"status"`
-
-
-    InvitationSentAt     *time.Time `json:"invitation_sent_at"`
-    NotificationAttempts int `json:"notification_attempts"`
-    AcceptedAt           *time.Time `json:"accepted_at"`
-    DeclinedAt           *time.Time `json:"declined_at"`
-    ExpiresAt            *time.Time `json:"expires_at"`
-
-
-    CreatedAt             time.Time `json:"created_at"`
-    LastNotificationError string `json:"last_notification_error"`
+	CreatedAt             time.Time `json:"created_at"`
+	LastNotificationError string    `json:"last_notification_error"`
 }
 
 type ShareAcceptedPayload struct {
-    ShareID        string `json:"share_id"`
-    IntentID       string `json:"intent_id"`
-    RecipientEmail string `json:"recipient_email"`
+	ShareID        string `json:"share_id"`
+	IntentID       string `json:"intent_id"`
+	RecipientEmail string `json:"recipient_email"`
 }
 
 type ShareRejectedPayload struct {
-    ShareID        string `json:"share_id"`
-    IntentID       string `json:"intent_id"`
-    RecipientEmail string `json:"recipient_email"`
+	ShareID        string `json:"share_id"`
+	IntentID       string `json:"intent_id"`
+	RecipientEmail string `json:"recipient_email"`
 }
 type RevokeShareRequest struct {
 	ShareID   string `json:"share_id"`
@@ -305,5 +300,24 @@ type StorageUsageResponse struct {
 	UserID     string `json:"user_id"`
 }
 
+type NewCreateWorkspaceRequest struct {
+	UserID    string
+	VaultID   string
+	Workspace Workspace
+	Signature string
+}
+type Workspace struct {
+	ID      string `json:"id"`
+	VaultID string `json:"vault_id"`
 
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Status      string `json:"status"`
 
+	OwnerID string `json:"owner_id"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	IsDraft   bool      `json:"is_draft"`
+	IsDirty   bool      `json:"is_dirty" gorm:"boolean"`
+}

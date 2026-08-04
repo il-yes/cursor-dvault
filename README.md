@@ -1581,6 +1581,6 @@ func (c *ChannelUsecase) CreateChannel(ctx context.Context, req *CreateChannelRe
 
 	return ch, nil
 }
-
+Vous pouvez fermer cette fenêtre et revenir à Google Antigravity
 
 

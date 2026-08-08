@@ -56,7 +56,7 @@ import (
 	"vault-app/internal/logger/logger"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
-	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	// onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	"vault-app/internal/registry"
 	shared_realtime "vault-app/internal/shared/realtime"
@@ -313,9 +313,9 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	// Legacy - Vault Handler
 	// -------------------------------------------------------------------------------------------------
-	vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tracecoreClient, *runtimeCtxLegacy)
-	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
-	auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tracecoreClient, cfg.auth, onboardingUserRepo)
+	// vaults := handlers.NewVaultHandler(*db, ipfs, reg, sessions, appLogger, tracecoreClient, *runtimeCtxLegacy)
+	// onboardingUserRepo := onboarding_persistence.NewGormUserRepository(db.DB)
+	// auth := handlers.NewAuthHandler(*db, vaults, ipfs, appLogger, tracecoreClient, cfg.auth, onboardingUserRepo)
 
 	stellarService := blockchain.NewStellarService(appLogger)
 
@@ -475,11 +475,11 @@ func NewApp() *App {
 		for _, s := range storedSessions {
 			sessionsV2[s.UserID] = s
 			if len(s.PendingCommits) > 0 {
-				for _, commit := range s.PendingCommits {
-					if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
-						appLogger.Error("❌ Failed to queue commit for user %d: %v", s.UserID, err)
-					}
-				}
+				// for _, commit := range s.PendingCommits {
+				// 	// if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
+				// 	// 	appLogger.Error("❌ Failed to queue commit for user %d: %v", s.UserID, err)
+				// 	// }
+				// }
 			}
 		}
 		appLogger.Info("✅ Restored %d sessions from DB", len(storedSessions))
@@ -511,7 +511,7 @@ func NewApp() *App {
 	appConfigHandler.ApplyOnboardingPacksWorker = packWorker
 
 	// Start pending commit worker
-	vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
+	// vaults.StartPendingCommitWorker(ctx, 2*time.Minute)
 
 	elapsed := time.Since(startTime)
 	appLogger.Info("✅ D-Vault initialized successfully in %v", elapsed)
@@ -521,7 +521,7 @@ func NewApp() *App {
 
 	application := &App{
 		AppConfigHandler:          appConfigHandler,
-		Auth:                      auth,
+		Auth:                      nil, // auth,
 		BillingHandler:            billingHandler,
 		AuthHandler:               authHandler,
 		cancel:                    cancel,
@@ -543,7 +543,7 @@ func NewApp() *App {
 		SubscriptionHandler:       subscriptionHandler,
 		RuntimeContext:            runtimeCtxLegacy,
 		Vault:                     vaultHandler, // internal/vault/ui/vault_handler.go
-		Vaults:                    vaults,       // internal/handlers/vault_handler.go legacy
+		Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
 		version:                   version,
 	}
 

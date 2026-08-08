@@ -1,6 +1,7 @@
 package channel_domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,9 +10,10 @@ import (
 type ChannelStatus string
 
 const (
-	StatusPending ChannelStatus = "pending"
-	StatusActive  ChannelStatus = "active"
-	StatusRevoked ChannelStatus = "revoked"
+	StatusPending  ChannelStatus = "pending"
+	StatusActive   ChannelStatus = "active"
+	StatusRevoked  ChannelStatus = "revoked"
+	StatusArchived ChannelStatus = "archived"
 )
 
 type Channel struct {
@@ -27,6 +29,7 @@ type Channel struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 	RevokedAt   *time.Time        `json:"revoked_at,omitempty"`
+	ArchivedAt  *time.Time        `json:"archived_at,omitempty"`
 	WorkspaceID string            `json:"workspace_id"`
 	IsDraft     bool              `json:"is_draft"`
 	IsDirty     bool              `json:"is_dirty" gorm:"boolean"`
@@ -68,6 +71,27 @@ func NewChannel(tplID string, title string, workspaceID string) Channel {
 		IsDraft:     true,
 		IsDirty:     false,
 	}
+}
+
+// ==============================================================================
+// Lifecycle
+// ==============================================================================
+
+// Archive transitions a Channel from active to archived.
+// Only active channels can be archived. The aggregate enforces this invariant.
+// NOTE: ChannelArchived is a candidate for promotion to integration event
+// when TraceCore lifecycle recording is integrated.
+func (c *Channel) Archive() error {
+	if c.Status != StatusActive {
+		return errors.New(ErrChannelNotArchivable)
+	}
+
+	now := time.Now().UTC()
+	c.Status = StatusArchived
+	c.ArchivedAt = &now
+	c.UpdatedAt = now
+
+	return nil
 }
 
 // ==============================================================================

@@ -20,4 +20,7 @@ type ChannelEventBus interface {
 
 	PublishChannelDeleted(ctx context.Context, event channel_domain.ChannelDeleted) error
 	SubscribeToChannelDeleted(handler func(ctx context.Context, event channel_domain.ChannelDeleted)) error
+
+	PublishChannelArchived(ctx context.Context, event channel_domain.ChannelArchived) error
+	SubscribeToChannelArchived(handler func(ctx context.Context, event channel_domain.ChannelArchived)) error
 }

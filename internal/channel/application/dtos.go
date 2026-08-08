@@ -1,4 +1,4 @@
-package channel_usecase
+package channel_application
 
 
 type CreateChannelRequest struct {
@@ -13,5 +13,13 @@ type ListChannelsRequest struct {
 
 type ArchiveChannelRequest struct {
 	ChannelID   string
-	WorkspaceID string
+	WorkspaceID string	
+}
+
+type GetChannelRequest struct {
+	ChannelID string
+}
+
+type DeleteChannelRequest struct {
+	ChannelID string
 }

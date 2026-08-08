@@ -12,4 +12,6 @@ var (
 	ErrChannelBusRequired = "Event bus is nil"
 	ErrRequestRequired = "Request is nil"
 	ErrRepositoryResponse = "channel repository returned nil response"
+	ErrWorkspaceIDRequired = "workspace id is required"
+	ErrChannelNotArchivable = "only active channels can be archived"
 )

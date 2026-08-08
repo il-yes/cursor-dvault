@@ -6,3 +6,12 @@ type CreateChannelRequest struct {
 	Title       string
 	WorkspaceID string
 }
+
+type ListChannelsRequest struct {
+	WorkspaceID string
+}
+
+type ArchiveChannelRequest struct {
+	ChannelID   string
+	WorkspaceID string
+}

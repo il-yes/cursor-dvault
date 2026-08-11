@@ -341,7 +341,9 @@ Completed:
 * Initial TrustGroup / ShareEntry integration
 * Identity Device aggregate, use cases, and persistence repositories
 * Device ↔ TrustGroup KeyEnvelope cross-context application integration (`AddTrustGroupKeyEnvelopeUseCase`)
-* Desktop Cryptographic Orchestration (`TrustGroupCryptoOrchestrator`) with local KEK/DEK generation, multi-device wrapping, and local unwrapping verification
+* Desktop Cryptographic Orchestrator (`TrustGroupCryptoOrchestrator`)
+* Collaborative `ShareEntry` / CID Workflow Integration (`CreateCollaborativeShareUseCase`)
+* Production-Hardened V1 KEK Rotation (`RotateTrustGroupKEKUseCase`) with atomicity, idempotency, stale client rejection, and concurrency safety
 
 ### Current Focus
 
@@ -351,7 +353,10 @@ Move from domain implementation toward:
 
 Immediate priority:
 
-**KEK rotation → TrustGroup asset sharing → API integration**
+**API & Wails Handler Integration**
+
+
+
 
 
 

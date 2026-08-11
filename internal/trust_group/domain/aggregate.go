@@ -76,6 +76,56 @@ func (g *TrustGroup) AddMember(member TrustGroupMember) error {
 	return nil
 }
 
+func (g *TrustGroup) RemoveMember(vaultID string) error {
+	if vaultID == "" {
+		return ErrVaultIDRequired
+	}
+	found := false
+	updatedCIDs := make([]string, 0, len(g.MemberCIDs))
+	for _, cid := range g.MemberCIDs {
+		if cid == vaultID {
+			found = true
+			continue
+		}
+		updatedCIDs = append(updatedCIDs, cid)
+	}
+	if !found {
+		return ErrTrustGroupMemberNotFound
+	}
+	g.MemberCIDs = updatedCIDs
+	g.IsDirty = true
+	return nil
+}
+
+func (g *TrustGroup) RotateKEK(newVersion uint64, newEnvelopes []TrustGroupKeyEnvelope) error {
+	if newVersion != g.KEKVersion+1 {
+		return ErrInvalidKEKVersionIncrement
+	}
+	now := time.Now()
+	// Mark all existing active envelopes as revoked
+	for i := range g.KeyEnvelopes {
+		if g.KeyEnvelopes[i].RevokedAt == nil {
+			g.KeyEnvelopes[i].RevokedAt = &now
+		}
+	}
+	g.KEKVersion = newVersion
+	for _, env := range newEnvelopes {
+		if env.KEKVersion != g.KEKVersion {
+			return ErrStaleKEKVersion
+		}
+		if env.ID == "" {
+			env.ID = uuid.NewString()
+		}
+		env.TrustGroupID = g.ID
+		if env.CreatedAt.IsZero() {
+			env.CreatedAt = now
+		}
+		g.KeyEnvelopes = append(g.KeyEnvelopes, env)
+	}
+	g.IsDirty = true
+	return nil
+}
+
 func (g *TrustGroup) AddEnvelope(env TrustGroupKeyEnvelope) error {
 	if env.MemberID == "" {
 		return ErrMemberIDRequired
@@ -107,6 +157,7 @@ func (g *TrustGroup) AddEnvelope(env TrustGroupKeyEnvelope) error {
 	g.IsDirty = true
 	return nil
 }
+
 
 type TrustGroupKeyEnvelope struct {
 	ID           string     `json:"id"`

@@ -724,3 +724,39 @@ These are immutable string constants used with `errors.New()`.
 Recommendation:
 
 Change to `const` block.
+
+
+## Architectural Implementation Gaps
+
+### Client / Backend / Cloud Integration
+
+**Status:** OPEN — architecture approved, implementation pending.
+
+The following components are required before the encrypted Desktop → Backend → Cloud workflow is complete:
+
+| Gap                                    | Priority | Status |
+| -------------------------------------- | -------- | ------ |
+| Device domain model                    | HIGH     | OPEN   |
+| Multi-device TrustGroup key envelopes  | HIGH     | OPEN   |
+| Versioned WrappedKEK model             | HIGH     | OPEN   |
+| TrustGroup KEK rotation use case       | HIGH     | OPEN   |
+| Eager DEK re-wrapping                  | HIGH     | OPEN   |
+| TrustGroup-level ShareEntry workflow   | HIGH     | OPEN   |
+| Desktop cryptographic engine           | HIGH     | OPEN   |
+| Desktop/Wails crypto bridge            | HIGH     | OPEN   |
+| Desktop → Backend command contracts    | HIGH     | OPEN   |
+| Backend → Cloud integration validation | HIGH     | OPEN   |
+
+### Architectural Constraint
+
+Do NOT move domain authorization or business invariants to the Desktop.
+
+Do NOT move plaintext asset handling, raw DEK handling, or raw KEK handling to the Backend.
+
+The responsibility boundary is defined by the approved Client / Backend / Cloud ADR.
+
+### Deferred
+
+Lazy DEK re-wrapping is deferred to V2.
+
+Federation-specific cryptographic workflows remain subject to the Federation architecture.

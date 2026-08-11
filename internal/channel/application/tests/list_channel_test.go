@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	tracecore_types "vault-app/internal/tracecore/types"
 	channel_application "vault-app/internal/channel/application"
+	channel_usecase "vault-app/internal/channel/application/channel_lifecycle_usecases"
 	channel_events "vault-app/internal/channel/application/events"
-	channel_usecase "vault-app/internal/channel/application/usecases"
 	channel_domain "vault-app/internal/channel/domain"
+	tracecore_types "vault-app/internal/tracecore/types"
 )
 
 // ------------------------------------------------------------------------------------------------------------
@@ -365,7 +365,7 @@ func TestListChannelUsecase_Execute_NilRepository(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, result)
-	require.EqualError(t, err, channel_domain.ErrRepositoryNil)
+	require.EqualError(t, err, channel_domain.ErrRepositoryNil.Error())
 }
 
 func TestListChannelUsecase_Execute_NilRequest(t *testing.T) {
@@ -379,7 +379,7 @@ func TestListChannelUsecase_Execute_NilRequest(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, result)
-	require.EqualError(t, err, channel_domain.ErrRequestRequired)
+	require.EqualError(t, err, channel_domain.ErrRequestRequired.Error())
 }
 
 func TestListChannelUsecase_Execute_MissingWorkspaceID(t *testing.T) {
@@ -397,7 +397,7 @@ func TestListChannelUsecase_Execute_MissingWorkspaceID(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, result)
-	require.EqualError(t, err, channel_domain.ErrWorkspaceIDRequired)
+	require.EqualError(t, err, channel_domain.ErrWorkspaceIDRequired.Error())
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -417,14 +417,14 @@ func TestListChannelUsecase_ValidateRequest(t *testing.T) {
 		{
 			name:          "nil request",
 			request:       nil,
-			expectedError: channel_domain.ErrRequestRequired,
+			expectedError: channel_domain.ErrRequestRequired.Error(),
 		},
 		{
 			name: "missing workspace id",
 			request: &channel_application.ListChannelsRequest{
 				WorkspaceID: "",
 			},
-			expectedError: channel_domain.ErrWorkspaceIDRequired,
+			expectedError: channel_domain.ErrWorkspaceIDRequired.Error(),
 		},
 		{
 			name: "valid request",
@@ -461,7 +461,7 @@ func TestListChannelUsecase_ValidateDependencies(t *testing.T) {
 		{
 			name:          "nil repository",
 			repo:          nil,
-			expectedError: channel_domain.ErrRepositoryNil,
+			expectedError: channel_domain.ErrRepositoryNil.Error(),
 		},
 		{
 			name: "valid repository",

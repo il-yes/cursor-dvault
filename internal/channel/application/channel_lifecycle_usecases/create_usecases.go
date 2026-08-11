@@ -2,7 +2,6 @@ package channel_usecase
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,7 +41,7 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 		return nil, err
 	}
 	if created == nil {
-		return nil, errors.New(channel_domain.ErrRepositoryResponse)
+		return nil, channel_domain.ErrRepositoryResponse
 	}
 
 	errEvent := c.DomainBus.PublishChannelCreated(
@@ -62,11 +61,11 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 
 func (c *CreateChannelUsecase) ValidateDependencies() error {
 	if c.Repo == nil {
-		return errors.New(channel_domain.ErrRepositoryNil)
+		return channel_domain.ErrRepositoryNil
 	}
 
 	if c.DomainBus == nil {
-		return errors.New(channel_domain.ErrChannelBusRequired)
+		return channel_domain.ErrChannelBusRequired
 	}
 
 	return nil
@@ -74,19 +73,19 @@ func (c *CreateChannelUsecase) ValidateDependencies() error {
 
 func (c *CreateChannelUsecase) ValidateRequest(req *channel_application.CreateChannelRequest) error {
 	if req == nil {
-		return errors.New(channel_domain.ErrRequestRequired)
+		return channel_domain.ErrRequestRequired
 	}
 
 	if req.TemplateID == "" {
-		return errors.New(channel_domain.ErrVaultIDRequired)
+		return channel_domain.ErrVaultIDRequired
 	}
 
 	if req.Title == "" {
-		return errors.New(channel_domain.ErrChannelOwnerRequired)
+		return channel_domain.ErrChannelOwnerRequired
 	}
 
 	if req.WorkspaceID == "" {
-		return errors.New(channel_domain.ErrChannelNameRequired)
+		return channel_domain.ErrChannelNameRequired
 	}
 	return nil
 }

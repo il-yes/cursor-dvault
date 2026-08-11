@@ -30,10 +30,6 @@ export function Archive(arg1, arg2) {
   return window['go']['main']['App']['Archive'](arg1, arg2);
 }
 
-export function AuthVerify(arg1) {
-  return window['go']['main']['App']['AuthVerify'](arg1);
-}
-
 export function CancelSubscription(arg1, arg2) {
   return window['go']['main']['App']['CancelSubscription'](arg1, arg2);
 }
@@ -90,10 +86,6 @@ export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
 }
 
-export function CreateStellarCommit(arg1, arg2) {
-  return window['go']['main']['App']['CreateStellarCommit'](arg1, arg2);
-}
-
 export function DecryptAttachment(arg1, arg2, arg3) {
   return window['go']['main']['App']['DecryptAttachment'](arg1, arg2, arg3);
 }
@@ -136,14 +128,6 @@ export function EditUserInfos(arg1, arg2) {
 
 export function EncryptAttachment(arg1, arg2, arg3) {
   return window['go']['main']['App']['EncryptAttachment'](arg1, arg2, arg3);
-}
-
-export function EncryptFile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['EncryptFile'](arg1, arg2, arg3);
-}
-
-export function EncryptVault(arg1, arg2) {
-  return window['go']['main']['App']['EncryptVault'](arg1, arg2);
 }
 
 export function FetchUsers() {
@@ -338,10 +322,6 @@ export function RejectShare(arg1, arg2, arg3) {
   return window['go']['main']['App']['RejectShare'](arg1, arg2, arg3);
 }
 
-export function RequestChallenge(arg1) {
-  return window['go']['main']['App']['RequestChallenge'](arg1);
-}
-
 export function RequireAuth(arg1) {
   return window['go']['main']['App']['RequireAuth'](arg1);
 }
@@ -374,10 +354,6 @@ export function SetupPaymentAndActivate(arg1) {
   return window['go']['main']['App']['SetupPaymentAndActivate'](arg1);
 }
 
-export function Sign(arg1) {
-  return window['go']['main']['App']['Sign'](arg1);
-}
-
 export function SignIn(arg1) {
   return window['go']['main']['App']['SignIn'](arg1);
 }
@@ -392,10 +368,6 @@ export function SignInWithStellar(arg1) {
 
 export function SignOut(arg1) {
   return window['go']['main']['App']['SignOut'](arg1);
-}
-
-export function SignUp(arg1) {
-  return window['go']['main']['App']['SignUp'](arg1);
 }
 
 export function SimulatePackWorker(arg1, arg2) {

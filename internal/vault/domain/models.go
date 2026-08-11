@@ -1160,10 +1160,11 @@ type WrappedKey struct {
 type KeyType string
 
 const (
-	KeyTypeEntry      KeyType = "entry"
-	KeyTypeAttachment KeyType = "attachment"
-	KeyTypeIndex      KeyType = "index"
-	KeyTypeVault      KeyType = "vault"
+	KeyTypeEntry         KeyType = "entry"
+	KeyTypeAttachment    KeyType = "attachment"
+	KeyTypeIndex         KeyType = "index"
+	KeyTypeVault         KeyType = "vault"
+	KeyTypeTrustGroupKEK KeyType = "trust_group_kek"
 )
 const (
 	KeyWrapperPassword string = "password"
@@ -1176,9 +1177,10 @@ type VaultKey struct {
 }
 
 type EncryptedKey struct {
-	ID      string
-	Type    KeyType
-	Version int
+	ID           string
+	Type         KeyType
+	Version      int
+	TrustGroupID string `json:"trust_group_id,omitempty"`
 
 	// encrypted DEK
 	Ciphertext []byte
@@ -1213,6 +1215,17 @@ func (kr *VaultKeyring) GetLatestKey(t KeyType) *EncryptedKey {
 
 	return latest
 }
+
+func (kr *VaultKeyring) GetTrustGroupKEK(trustGroupID string, version uint64) *EncryptedKey {
+	for i := range kr.Keys {
+		k := &kr.Keys[i]
+		if k.Type == KeyTypeTrustGroupKEK && k.TrustGroupID == trustGroupID && uint64(k.Version) == version {
+			return k
+		}
+	}
+	return nil
+}
+
 
 type JSONMapAny map[string]any
 

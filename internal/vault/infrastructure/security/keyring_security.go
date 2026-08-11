@@ -19,6 +19,20 @@ type KeyringLoader interface {
 	LoadHybrid(userID string, password, stellar string) (*vaults_domain.VaultKeyring, error)
 }
 
+type KeyringServiceInterface interface {
+	KeyringLoader
+	LoadWithPassword(userID string, password string) (*vaults_domain.VaultKeyring, error)
+	SaveHybrid(kr *vaults_domain.VaultKeyring, userID string, password string, stellarSecret string	) error
+	AddKey(kr *vaults_domain.VaultKeyring, keyType vaults_domain.KeyType) (*vaults_domain.EncryptedKey, error)
+	GetKey(key vaults_domain.EncryptedKey) ([]byte, error)
+	GetKeyByType(kr *vaults_domain.VaultKeyring, keyType vaults_domain.KeyType) ([]byte, error)
+	GetEntryKey(kr *vaults_domain.VaultKeyring) ([]byte, error)
+	GetTrustGroupKEK(kr *vaults_domain.VaultKeyring, trustGroupID string, version uint64) ([]byte, error)
+	StoreTrustGroupKEK(kr *vaults_domain.VaultKeyring, trustGroupID string, version uint64, kek []byte) (*vaults_domain.EncryptedKey, error)
+	GenerateVaultKey() ([]byte, error)
+}
+
+
 type KeyringService struct {
 	vaultCrypto vaults_domain.VaultCrypto   // encrypt entries
 	keyEnc      vaults_domain.KeyEncryption // wrap/unwrap keyring
@@ -263,6 +277,31 @@ func (s *KeyringService) GetEntryKey(kr *vaults_domain.VaultKeyring) ([]byte, er
 	return key.Ciphertext, nil
 }
 
+func (s *KeyringService) GetTrustGroupKEK(kr *vaults_domain.VaultKeyring, trustGroupID string, version uint64) ([]byte, error) {
+	key := kr.GetTrustGroupKEK(trustGroupID, version)
+	if key == nil {
+		return nil, fmt.Errorf("no trust group KEK found for trustGroupID %s version %d", trustGroupID, version)
+	}
+	return key.Ciphertext, nil
+}
+
+func (s *KeyringService) StoreTrustGroupKEK(kr *vaults_domain.VaultKeyring, trustGroupID string, version uint64, kek []byte) (*vaults_domain.EncryptedKey, error) {
+	if len(kek) != 32 {
+		return nil, errors.New("KEK must be 32 bytes")
+	}
+	key := vaults_domain.EncryptedKey{
+		ID:           fmt.Sprintf("tg-kek-%s-v%d", trustGroupID, version),
+		Type:         vaults_domain.KeyTypeTrustGroupKEK,
+		Version:      int(version),
+		TrustGroupID: trustGroupID,
+		Ciphertext:   kek,
+		CreatedAt:    time.Now().Unix(),
+	}
+	kr.Keys = append(kr.Keys, key)
+	return &key, nil
+}
+
+
 func (s *KeyringService) nextVersion(
 	kr *vaults_domain.VaultKeyring,
 	keyType vaults_domain.KeyType,
@@ -285,3 +324,5 @@ func (s *KeyringService) GenerateVaultKey() ([]byte, error) {
 func (k *KeyringService) pathFor(userID string) string {
 	return filepath.Join(k.basePath, fmt.Sprintf("%s.json", userID))
 }
+
+var _ KeyringServiceInterface = (*KeyringService)(nil)

@@ -14,6 +14,8 @@ type MemoryEventBus struct {
 	byUser                 map[string]*identity_eventbus.UserRegistered
 	userRegisteredHandlers []identity_eventbus.UserRegisteredHandler
 	userLoggedInHandlers   []identity_eventbus.UserLoggedInHandler
+	deviceCreatedHandlers  []identity_eventbus.DeviceCreatedHandler
+	deviceRevokedHandlers  []identity_eventbus.DeviceRevokedHandler
 }
 
 func NewMemoryEventBus() *MemoryEventBus {
@@ -64,8 +66,43 @@ func (r *MemoryEventBus) SubscribeToUserLoggedIn(handler identity_eventbus.UserL
 	return nil
 }
 
+func (r *MemoryEventBus) PublishDeviceCreated(ctx context.Context, e identity_eventbus.DeviceCreated) error {
+	r.mu.RLock()
+	handlers := r.deviceCreatedHandlers
+	r.mu.RUnlock()
+
+	for _, handler := range handlers {
+		go handler(ctx, e)
+	}
+	return nil
+}
+
+func (r *MemoryEventBus) SubscribeToDeviceCreated(handler identity_eventbus.DeviceCreatedHandler) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deviceCreatedHandlers = append(r.deviceCreatedHandlers, handler)
+	return nil
+}
+
+func (r *MemoryEventBus) PublishDeviceRevoked(ctx context.Context, e identity_eventbus.DeviceRevoked) error {
+	r.mu.RLock()
+	handlers := r.deviceRevokedHandlers
+	r.mu.RUnlock()
+
+	for _, handler := range handlers {
+		go handler(ctx, e)
+	}
+	return nil
+}
+
+func (r *MemoryEventBus) SubscribeToDeviceRevoked(handler identity_eventbus.DeviceRevokedHandler) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deviceRevokedHandlers = append(r.deviceRevokedHandlers, handler)
+	return nil
+}
+
 // Keep these for backward compatibility/testing if needed, or remove if unused.
-// Since they were public methods, I'll keep them but attached to the new struct name.
 func (r *MemoryEventBus) Save(ctx context.Context, s *identity_eventbus.UserRegistered) error {
 	return r.PublishUserRegistered(ctx, *s)
 }

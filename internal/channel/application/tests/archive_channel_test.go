@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	tracecore_types "vault-app/internal/tracecore/types"
 	channel_application "vault-app/internal/channel/application"
+	channel_usecase "vault-app/internal/channel/application/channel_lifecycle_usecases"
 	channel_events "vault-app/internal/channel/application/events"
-	channel_usecase "vault-app/internal/channel/application/usecases"
 	channel_domain "vault-app/internal/channel/domain"
+	tracecore_types "vault-app/internal/tracecore/types"
 )
 
 // ------------------------------------------------------------------------------------------------------------
@@ -133,7 +133,7 @@ func TestArchiveChannelUsecase_Execute_RevokedChannelNotArchivable(t *testing.T)
 	err := uc.Execute(ctx, validArchiveRequest())
 
 	require.Error(t, err)
-	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable)
+	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable.Error())
 	require.Empty(t, bus.publishedArchivedEvents)
 }
 
@@ -159,7 +159,7 @@ func TestArchiveChannelUsecase_Execute_PendingChannelNotArchivable(t *testing.T)
 	err := uc.Execute(ctx, validArchiveRequest())
 
 	require.Error(t, err)
-	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable)
+	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable.Error())
 	require.Empty(t, bus.publishedArchivedEvents)
 }
 
@@ -191,7 +191,7 @@ func TestArchiveChannelUsecase_Execute_AlreadyArchivedNotArchivable(t *testing.T
 	err := uc.Execute(ctx, validArchiveRequest())
 
 	require.Error(t, err)
-	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable)
+	require.EqualError(t, err, channel_domain.ErrChannelNotArchivable.Error())
 	require.Empty(t, bus.publishedArchivedEvents)
 }
 
@@ -238,7 +238,7 @@ func TestArchiveChannelUsecase_Execute_GetChannelNilResponse(t *testing.T) {
 	err := uc.Execute(ctx, validArchiveRequest())
 
 	require.Error(t, err)
-	require.EqualError(t, err, channel_domain.ErrRepositoryResponse)
+	require.EqualError(t, err, channel_domain.ErrRepositoryResponse.Error())
 }
 
 func TestArchiveChannelUsecase_Execute_UpdateChannelError(t *testing.T) {
@@ -333,7 +333,7 @@ func TestArchiveChannelUsecase_ValidateRequest(t *testing.T) {
 		{
 			name:          "nil request",
 			request:       nil,
-			expectedError: channel_domain.ErrRequestRequired,
+			expectedError: channel_domain.ErrRequestRequired.Error(),
 		},
 		{
 			name: "missing channel id",
@@ -341,7 +341,7 @@ func TestArchiveChannelUsecase_ValidateRequest(t *testing.T) {
 				ChannelID:   "",
 				WorkspaceID: "workspace-001",
 			},
-			expectedError: channel_domain.ErrChannelIDRequired,
+			expectedError: channel_domain.ErrChannelIDRequired.Error(),
 		},
 		{
 			name: "missing workspace id",
@@ -349,7 +349,7 @@ func TestArchiveChannelUsecase_ValidateRequest(t *testing.T) {
 				ChannelID:   "channel-001",
 				WorkspaceID: "",
 			},
-			expectedError: channel_domain.ErrWorkspaceIDRequired,
+			expectedError: channel_domain.ErrWorkspaceIDRequired.Error(),
 		},
 		{
 			name: "valid request",
@@ -389,13 +389,13 @@ func TestArchiveChannelUsecase_ValidateDependencies(t *testing.T) {
 			name:          "nil repository",
 			repo:          nil,
 			bus:           &channelEventBusMock{},
-			expectedError: channel_domain.ErrRepositoryNil,
+			expectedError: channel_domain.ErrRepositoryNil.Error(),
 		},
 		{
 			name:          "nil event bus",
 			repo:          &channelRepositoryMock{},
 			bus:           nil,
-			expectedError: channel_domain.ErrChannelBusRequired,
+			expectedError: channel_domain.ErrChannelBusRequired.Error(),
 		},
 		{
 			name: "valid dependencies",

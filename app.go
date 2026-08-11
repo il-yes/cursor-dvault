@@ -155,7 +155,7 @@ type App struct {
 
 	// Core handlers
 	AppConfigHandler          *app_config_ui.AppConfigHandler
-	Auth                      *handlers.AuthHandler
+	// Auth                      *handlers.AuthHandler
 	AuthHandler               *auth_ui.AuthHandler
 	BillingHandler            *billing_ui.BillingHandler
 	ConnectWithStellarHandler *stellar_recovery_ui_api.StellarRecoveryHandler
@@ -170,7 +170,7 @@ type App struct {
 	StellarRecoveryHandler    *stellar_recovery_ui_api.StellarRecoveryHandler
 	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
 	Vault                     *vault_ui.VaultHandler
-	Vaults                    *handlers.VaultHandler
+	// Vaults                    *handlers.VaultHandler
 
 	// New: Global state
 	RuntimeContext *vault_session.RuntimeContext
@@ -521,7 +521,7 @@ func NewApp() *App {
 
 	application := &App{
 		AppConfigHandler:          appConfigHandler,
-		Auth:                      nil, // auth,
+		// Auth:                      nil, // auth,
 		BillingHandler:            billingHandler,
 		AuthHandler:               authHandler,
 		cancel:                    cancel,
@@ -543,7 +543,7 @@ func NewApp() *App {
 		SubscriptionHandler:       subscriptionHandler,
 		RuntimeContext:            runtimeCtxLegacy,
 		Vault:                     vaultHandler, // internal/vault/ui/vault_handler.go
-		Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
+		// Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
 		version:                   version,
 	}
 
@@ -791,12 +791,12 @@ func (a *App) OnPaymentConfirmation(sessionID string, email string, plainPasswor
 // -----------------------------
 // Connexion Legagcy
 // -----------------------------
-func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
-	return a.Auth.Login(req)
-}
-func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
-	return a.Auth.OnBoarding(setup)
-}
+// func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
+// 	return a.Auth.Login(req)
+// }
+// func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
+// 	return a.Auth.OnBoarding(setup)
+// }
 func (a *App) SignOut(userID string) error {
 	a.Logger.Info("App - SignOut userID", userID)
 	if err := a.Vault.LogoutUser(userID); err != nil {
@@ -816,16 +816,59 @@ func (a *App) CheckSession(userID string) (*auth.TokenPairs, error) {
 	return tokenPair.ToFormerModel(), nil
 	// return a.Auth.RefreshToken(userID) // same logic you already wrote
 }
-func (a *App) CheckEmail(email string) (*handlers.CheckEmailResponse, error) {
-	return a.Auth.CheckEmail(email)
+
+type CheckEmailResponse struct {
+	Status      string   `json:"status"`
+	AuthMethods []string `json:"auth_methods,omitempty"`
 }
-func (a *App) CheckUserEmail(jwtToken string, email string) (*tracecore_types.User, error) {
-	claims, err := a.RequireAuth(jwtToken)
+func (a *App) CheckEmail(email string) (*CheckEmailResponse, error) {
+
+	/* user, err := ah.TracecoreClient.GetUserByEmail(ctx, email)
+	user, err := ah.DB.GetUserByEmail(email)
+	utils.LogPretty("user in checkemail", user)
+	// ----------------------------
+	// Case 1: User does NOT exist
+	// ----------------------------
 	if err != nil {
-		a.Logger.Error("❌ App - CheckUserEmail - failed to require auth %s: %v", claims.UserID, err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &CheckEmailResponse{
+				Status:      "NEW_USER",
+				AuthMethods: []string{},
+			}, nil
+		}
+
+		// real error -> bubble up
+		return &CheckEmailResponse{}, err
+	}
+
+	// ----------------------------
+	// Case 2: User exists
+	// ----------------------------
+	*/
+	authMethods := []string{"password"}
+
+	// if user.PublicKey != "" {
+	// 	authMethods = append(authMethods, "stellar")
+	// }
+	
+
+	return &CheckEmailResponse{
+		Status:      "EXISTS",
+		AuthMethods: authMethods,
+	}, nil
+}
+
+func (a *App) CheckUserEmail(email string, token string) (*tracecore_types.User, error) {
+
+	user, err := a.Vault.TracecoreClient.GetUserByEmail(context.Background(), email)
+	if err != nil {
+		a.Logger.Error("❌ Vault - CheckUserEmail Failed to get user by email: %v", err)
 		return nil, err
 	}
-	return a.Auth.CheckUserEmail(email, "token")
+	// user, err := ah.DB.GetUserByEmail(email)
+	utils.LogPretty("user in checkemail", user)
+
+	return user, nil
 }
 func (a *App) SaveSessionTest(jwtToken string) error {
 	claims, err := a.RequireAuth(jwtToken)
@@ -1055,12 +1098,12 @@ func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	}
 	return claims.ToFormerModel(), nil
 }
-func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
-	return a.Auth.RequestChallenge(req)
-}
-func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
-	return a.Auth.AuthVerify(&req)
-}
+// func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
+// 	return a.Auth.RequestChallenge(req)
+// }
+// func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
+// 	return a.Auth.AuthVerify(&req)
+// }
 
 // -----------------------------
 // Vault Crud
@@ -1184,7 +1227,7 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 // -----------------------------
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
 	utils.LogPretty("App - SynchronizeVault - jwtToken", jwtToken) // ✅ log
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - SynchronizeVault - error: %v", err)
 		return "", err
@@ -1221,9 +1264,9 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 		UserOnboarding: userOnboarding.ID,
 		Configs:        *cfgs,
 	}
-	a.Vaults.Ctx = a.ctx
+	a.Vault.Ctx = a.ctx
 
-	res, err := a.Vault.SyncVault(a.ctx, input, *a.Auth.TracecoreClient)
+	res, err := a.Vault.SyncVault(a.ctx, input, *&a.Vault.TracecoreClient)
 	if err != nil {
 		a.Logger.Error("App - SynchronizeVault - error: %v", err)
 		return "", err
@@ -1231,36 +1274,36 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 	utils.LogPretty("App - SynchronizeVault - res", res)
 	return res, err
 }
-func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
-	if err != nil {
-		a.Logger.Error("App - EncryptFile - error: %v", err)
-		return "", err
-	}
+// func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
+// 	claims, err := a.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		a.Logger.Error("App - EncryptFile - error: %v", err)
+// 		return "", err
+// 	}
 
-	// Emit start progress
-	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-		"percent": 0,
-		"stage":   "encrypting",
-	})
-	a.Logger.LogPretty("App - EncryptFile - fileData", fileData)
+// 	// Emit start progress
+// 	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+// 		"percent": 0,
+// 		"stage":   "encrypting",
+// 	})
+// 	a.Logger.LogPretty("App - EncryptFile - fileData", fileData)
 
-	// Real AES-256-GCM encryption with progress
-	encryptedPath, err := a.Vaults.EncryptFile(claims.UserID, []byte(fileData), password)
-	if err != nil {
-		a.Logger.Error("App - EncryptFile - error: %v", err)
-		return "", err
-	}
+// 	// Real AES-256-GCM encryption with progress
+// 	encryptedPath, err := a.Vault.EncryptFile(claims.UserID, []byte(fileData), password)
+// 	if err != nil {
+// 		a.Logger.Error("App - EncryptFile - error: %v", err)
+// 		return "", err
+// 	}
 
-	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-		"percent": 70,
-		"stage":   "encrypted",
-	})
+// 	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+// 		"percent": 70,
+// 		"stage":   "encrypted",
+// 	})
 
-	return encryptedPath, nil
-}
+// 	return encryptedPath, nil
+// }
 func (a *App) EncryptAttachment(jwtToken string, data []byte, password string) ([]byte, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
@@ -1268,7 +1311,7 @@ func (a *App) EncryptAttachment(jwtToken string, data []byte, password string) (
 	return a.Vault.EncryptAttachment(data, password)
 }
 func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) ([]byte, error) {
-	_, err := a.Auth.RequireAuth(jwtToken)
+	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
@@ -1278,7 +1321,7 @@ func (a *App) DecryptAttachment(jwtToken string, data []byte, password string) (
 }
 
 func (a *App) GetIPFSFile(jwtToken string, cid string, password string, vaultName string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return "", err
 	}
@@ -1312,7 +1355,7 @@ func (a *App) GetIPFSFile(jwtToken string, cid string, password string, vaultNam
 	return base64.StdEncoding.EncodeToString(ipfsQuery), nil
 }
 func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadToIPFS - error: %v", err)
 		return "", err
@@ -1337,7 +1380,7 @@ func (a *App) UploadToIPFS(jwtToken string, filePath string) (string, error) {
 
 // From IPFS
 func (a *App) DownloadAttachment(jwtToken string, password string, cid string, ext string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
@@ -1380,7 +1423,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 
 	// 1. Access encrypted entry ==============================
 	entry.IPAddress = GetLocalIP()
-	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *a.Auth.TracecoreClient)
+	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *&a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1400,7 +1443,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
 
-	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *a.Auth.TracecoreClient)
+	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *&a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1487,7 +1530,7 @@ func (a *App) DownloadShareAttachement(req vault_dto.DownloadShareAttachmentRequ
 }
 
 func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8, password string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
@@ -1520,7 +1563,7 @@ func (a *App) UploadAttachmentToIPFS(jwtToken string, data []uint8, password str
 	return filePath, nil
 }
 func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []uint8, password string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachmentToIPFS - error: %v", err)
 		return "", err
@@ -1571,7 +1614,7 @@ func (a *App) UploadAttachmentToIPFSWithEncryption(jwtToken string, data []uint8
 }
 
 func (a *App) AddAttachements(jwtToken string, req vault_dto.AddAttachementsRequest) ([]*vaults_domain.Attachment, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - AddAttachement - error: %v", err)
 		return nil, err
@@ -1618,7 +1661,7 @@ func (a *App) AddAttachements(jwtToken string, req vault_dto.AddAttachementsRequ
 	return AddAttachementsResponse, nil
 }
 func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachment) (*vaults_domain.Attachment, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UpdateAttachment - error: %v", err)
 		return nil, err
@@ -1633,46 +1676,46 @@ func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachm
 	a.Logger.LogPretty("App - UpdateAttachment - res", res)
 	return res, nil
 }
-func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
-	if err != nil {
-		a.Logger.Error("App - CreateStellarCommit - error: %v", err)
-		return "", err
-	}
+// func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
+// 	claims, err := a.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		a.Logger.Error("App - CreateStellarCommit - error: %v", err)
+// 		return "", err
+// 	}
 
-	// Quick commit with final progress
-	runtime.EventsEmit(a.ctx, "progress-update", 100)
-	return a.Vaults.CreateStellarCommit(claims.UserID, cid)
-}
-func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
-	if err != nil {
-		a.Logger.Error("App - EncryptVault - error: %v", err)
-		return "", err
-	}
+// 	// Quick commit with final progress
+// 	runtime.EventsEmit(a.ctx, "progress-update", 100)
+// 	return a.Vaults.CreateStellarCommit(claims.UserID, cid)
+// }
+// func (a *App) EncryptVault(jwtToken string, password string) (string, error) {
+// 	claims, err := a.RequireAuth(jwtToken)
+// 	if err != nil {
+// 		a.Logger.Error("App - EncryptVault - error: %v", err)
+// 		return "", err
+// 	}
 
-	// Emit start progress
-	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-		"percent": 0,
-		"stage":   "encrypting",
-	})
+// 	// Emit start progress
+// 	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+// 		"percent": 0,
+// 		"stage":   "encrypting",
+// 	})
 
-	// Real AES-256-GCM encryption with progress
-	encryptedPath, err := a.Vaults.EncryptVault(claims.UserID, password)
-	if err != nil {
-		a.Logger.Error("App - EncryptVault - error: %v", err)
-		return "", err
-	}
+// 	// Real AES-256-GCM encryption with progress
+// 	encryptedPath, err := a.Vaults.EncryptVault(claims.UserID, password)
+// 	if err != nil {
+// 		a.Logger.Error("App - EncryptVault - error: %v", err)
+// 		return "", err
+// 	}
 
-	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
-		"percent": 70,
-		"stage":   "encrypted",
-	})
+// 	runtime.EventsEmit(a.ctx, "progress-update", map[string]interface{}{
+// 		"percent": 70,
+// 		"stage":   "encrypted",
+// 	})
 
-	return encryptedPath, nil
-}
+// 	return encryptedPath, nil
+// }
 func (a *App) UploadAvatar(jwtToken string, vaultName string, avatar []byte) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAvatar - error: %v", err)
 		return "", err
@@ -1682,7 +1725,7 @@ func (a *App) UploadAvatar(jwtToken string, vaultName string, avatar []byte) (st
 }
 
 func (a *App) GetPacks(packID string) (*app_config_worker.PackDTO, error) {
-	res, err := a.Auth.TracecoreClient.GetPack(context.Background(), packID)
+	res, err := a.Vault.TracecoreClient.GetPack(context.Background(), packID)
 	if err != nil {
 		a.Logger.LogPretty("GetPacks - res", err)
 		return nil, err
@@ -1691,7 +1734,7 @@ func (a *App) GetPacks(packID string) (*app_config_worker.PackDTO, error) {
 	return res, nil
 }
 func (a *App) GetTemplate(templateID string) (*app_config_worker.TemplateDTO, error) {
-	res, err := a.Auth.TracecoreClient.GetTemplate(context.Background(), templateID)
+	res, err := a.Vault.TracecoreClient.GetTemplate(context.Background(), templateID)
 	if err != nil {
 		a.Logger.LogPretty("GetGetTemplatePacks - res", err)
 		return nil, err
@@ -1700,7 +1743,7 @@ func (a *App) GetTemplate(templateID string) (*app_config_worker.TemplateDTO, er
 	return res, nil
 }
 func (a *App) SimulatePackWorker(jwtToken string, vaultName string) error {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - SimulatePackWorker - Auth error: %v", err)
 		return err
@@ -1721,7 +1764,7 @@ func (a *App) SimulatePackWorker(jwtToken string, vaultName string) error {
 // Vault Avatar - Vault Attachments
 // -----------------------------
 func (a *App) GetVaultAvatar(jwtToken string, vaultName string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - GetVaultAvatar - error: %v", err)
 		return "", err
@@ -1735,7 +1778,7 @@ func (a *App) GetVaultAvatar(jwtToken string, vaultName string) (string, error) 
 	return vault.Avatar, nil
 }
 func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - LoadAvatar - error: %v", err)
 		return "", err
@@ -1751,7 +1794,7 @@ func (a *App) LoadAvatar(jwtToken string, vaultName string) (string, error) {
 
 // upload First local (then ipfs)
 func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType string, raw json.RawMessage, attachments vault_dto.SelectedAttachments) (*vaults_domain.VaultEntry, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UploadAttachment - error: %v", err)
 		return nil, err
@@ -1766,7 +1809,7 @@ func (a *App) UploadAttachments(jwtToken string, vaultName string, entryType str
 	return ve, nil
 }
 func (a *App) LoadAttachment(jwtToken string, vaultName string, hash string) (string, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - LoadAttachment - error: %v", err)
 		return "", err
@@ -2003,7 +2046,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_entry_domain.ShareEntr
 		a.AppConfigHandler,
 		a.config.ANCHORA_SECRET,
 		a.Vault,
-		a.Auth.TracecoreClient,
+		&a.Vault.TracecoreClient,
 		userOnboarding.ID,
 		*configs,
 		subscription.UserID,
@@ -2051,7 +2094,7 @@ func (a *App) ListReceivedShares(jwtToken string) (*[]share_entry_domain.ShareEn
 	return &entries, nil // Wails wants pointer
 }
 func (a *App) GetShareForAccept(jwt, shareID string) (*share_entry_domain.ShareAcceptData, error) {
-	claims, err := a.Auth.RequireAuth(jwt)
+	claims, err := a.RequireAuth(jwt)
 	if err != nil {
 		a.Logger.Error("App - GetShareForAccept - error: %v", err)
 		return nil, err
@@ -2064,7 +2107,7 @@ func (a *App) GetShareForAccept(jwt, shareID string) (*share_entry_domain.ShareA
 	)
 }
 func (a *App) AddReceiver(jwtToken string, inputReceiver share_entry_use_cases.AddReceiverInput) (*share_entry_use_cases.AddReceiverResult, error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - AddReceiver - error: %v", err)
 		return nil, err
@@ -2074,7 +2117,7 @@ func (a *App) AddReceiver(jwtToken string, inputReceiver share_entry_use_cases.A
 }
 
 func (a *App) AddRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - AddRecipient - error: %v", err)
 		return nil, err
@@ -2095,7 +2138,7 @@ func (a *App) AddRecipient(jwtToken string, raw json.RawMessage) (*tracecore_typ
 }
 
 func (a *App) UpdateRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - UpdateRecipient - error: %v", err)
 		return nil, err
@@ -2110,7 +2153,7 @@ func (a *App) UpdateRecipient(jwtToken string, raw json.RawMessage) (*tracecore_
 }
 
 func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - RevokeRecipient - error: %v", err)
 		return nil, err
@@ -2125,7 +2168,7 @@ func (a *App) RevokeRecipient(jwtToken string, raw json.RawMessage) (*tracecore_
 	return a.CryptographicShareHandler.RevokeRecipient(context.Background(), claims.UserID, revokeRecipRequest)
 }
 func (a *App) AcceptShare(jwtToken string, shareID string, intentID string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - AcceptShare - error: %v", err)
 		return nil, err
@@ -2133,7 +2176,7 @@ func (a *App) AcceptShare(jwtToken string, shareID string, intentID string) (*tr
 	return a.CryptographicShareHandler.AcceptShare(context.Background(), shareID, intentID, claims.Email)
 }
 func (a *App) RejectShare(jwtToken string, shareID string, intentID string) (*tracecore_types.CloudResponse[tracecore_types.PendingShareIntent], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - RejectShare - error: %v", err)
 		return nil, err
@@ -2142,7 +2185,7 @@ func (a *App) RejectShare(jwtToken string, shareID string, intentID string) (*tr
 	return a.CryptographicShareHandler.RejectShare(context.Background(), shareID, intentID, claims.Email)
 }
 func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_types.CloudResponse[tracecore.CloudCryptographicShare], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - RevokeShare - error: %v", err)
 		return nil, err
@@ -2158,7 +2201,7 @@ func (a *App) RevokeShare(jwtToken string, raw json.RawMessage) (*tracecore_type
 }
 
 func (a *App) ListPendingIntentSharesByMe(jwtToken string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - ListPendingIntentSharesByMe - error: %v", err)
 		return nil, err
@@ -2172,7 +2215,7 @@ func (a *App) ListPendingIntentSharesByMe(jwtToken string) (*tracecore_types.Clo
 	return res, nil
 }
 func (a *App) ListPendingIntentSharesWithMe(jwtToken string) (*tracecore_types.CloudResponse[[]tracecore_types.PendingShareIntent], error) {
-	claims, err := a.Auth.RequireAuth(jwtToken)
+	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		a.Logger.Error("App - ListPendingIntentSharesWithMe - error: %v", err)
 		return nil, err
@@ -2198,7 +2241,7 @@ type GenerateApiKeyOutput struct {
 }
 
 func (a *App) GenerateApiKey(input GenerateApiKeyInput) (*GenerateApiKeyOutput, error) {
-	claims, err := a.Auth.RequireAuth(input.JwtToken)
+	claims, err := a.RequireAuth(input.JwtToken)
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 		return nil, err
@@ -2709,7 +2752,7 @@ func ResetAndMigrate(db *gorm.DB) error {
 	)
 }
 func (a *App) SetStorageMode(JwtToken string, mode string) {
-	claims, err := a.Auth.RequireAuth(JwtToken)
+	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		a.Logger.Error("❌ GenerateApiKey - Failed to authenticate user: %v", err)
 	}

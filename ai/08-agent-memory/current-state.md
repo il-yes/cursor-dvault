@@ -289,3 +289,93 @@ Update this document when:
 - architecture evolves
 - a milestone is completed
 
+
+
+## Current Architecture State
+
+### Client / Backend / Cloud Boundary
+
+The architecture has been approved.
+
+```text
+Desktop
+  └── Cryptographic execution authority
+
+Backend
+  └── Domain + authorization authority
+
+Cloud
+  └── Untrusted encrypted persistence
+```
+
+The Desktop may handle plaintext and raw cryptographic material locally.
+
+The Backend MUST NOT receive, process, log, or persist:
+
+* plaintext asset payloads
+* raw DEKs
+* raw KEKs
+
+The Backend remains authoritative for:
+
+* authentication
+* authorization
+* aggregate invariants
+* state transitions
+* persistence
+* domain events
+
+### Current C3 State
+
+Completed:
+
+* Workspace creation
+* Channel creation
+* Thread creation
+* Channel lifecycle
+* Channel Slot lifecycle
+* TrustGroup creation
+* TrustGroup membership structures
+* Asset creation
+* ShareEntry creation
+* Initial TrustGroup / ShareEntry integration
+* Identity Device aggregate, use cases, and persistence repositories
+* Device ↔ TrustGroup KeyEnvelope cross-context application integration (`AddTrustGroupKeyEnvelopeUseCase`)
+* Desktop Cryptographic Orchestration (`TrustGroupCryptoOrchestrator`) with local KEK/DEK generation, multi-device wrapping, and local unwrapping verification
+
+### Current Focus
+
+Move from domain implementation toward:
+
+**Desktop ↔ Backend ↔ Cloud integration**
+
+Immediate priority:
+
+**KEK rotation → TrustGroup asset sharing → API integration**
+
+
+
+### Key Management
+
+TrustGroup owns the conceptual KEK.
+
+Devices receive versioned WrappedKEK envelopes.
+
+V1 uses **eager DEK re-wrapping** during KEK rotation.
+
+Lazy re-wrapping is deferred to V2.
+
+
+
+V1 Multi-Device Key Model — APPROVED
+
+- Device is owned by Identity BC.
+- TrustGroup owns TrustGroupMember.
+- TrustGroup owns TrustGroupKeyEnvelope.
+- TrustGroupKeyEnvelope targets a specific Device.
+- Multiple devices may belong to one TrustGroupMember.
+- Device addition does not rotate KEK.
+- Member removal/security breach triggers KEK rotation.
+- V1 KEK rotation uses eager DEK re-wrapping.
+- ShareEntry tracks KEKVersion.
+- Raw KEK/DEK never crosses Desktop → Backend boundary.

@@ -321,3 +321,53 @@ type Workspace struct {
 	IsDraft   bool      `json:"is_draft"`
 	IsDirty   bool      `json:"is_dirty" gorm:"boolean"`
 }
+
+type ChannelDTO struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Title       string    `json:"title"`
+	TemplateID  string    `json:"template_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ThreadDTO struct {
+	ID        string    `json:"id"`
+	ChannelID string    `json:"channel_id"`
+	AssetType string    `json:"asset_type"`
+	Title     string    `json:"title"`
+	Subtitle  string    `json:"subtitle"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ThreadEventDTO struct {
+	ID              string            `json:"id"`
+	ThreadID        string            `json:"thread_id"`
+	PreviousEventID *string           `json:"previous_event_id,omitempty"`
+	Type            string            `json:"type"`
+	Payload         map[string]any    `json:"payload,omitempty"`
+	IdempotencyKey  string            `json:"idempotency_key,omitempty"`
+	Cursor          uint64            `json:"cursor"`
+	Headers         map[string]string `json:"headers,omitempty"`
+	Signature       string            `json:"signature,omitempty"`
+	CreatedAt       time.Time         `json:"created_at"`
+}
+
+type PayloadRefDTO struct {
+	CID         string `json:"cid"`
+	ContentHash string `json:"content_hash"`
+	Size        int64  `json:"size"`
+	AssetType   string `json:"asset_type"`
+	Name        string `json:"name,omitempty"`
+}
+
+type ShareEntryRefDTO struct {
+	ShareEntryID string `json:"share_entry_id"`
+	TrustGroupID string `json:"trust_group_id,omitempty"`
+	AssetCID     string `json:"asset_cid,omitempty"`
+	CreatedBy    string `json:"created_by,omitempty"`
+	Status       string `json:"status,omitempty"`
+	CreatedAt    string `json:"created_at,omitempty"`
+}

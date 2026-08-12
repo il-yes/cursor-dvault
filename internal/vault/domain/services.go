@@ -37,3 +37,4 @@ type KeyEncryption interface {
 type AsymmetricCrypto interface {
 	EncryptForRecipient(pubKey string, data []byte) ([]byte, error)
 }
+

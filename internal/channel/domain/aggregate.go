@@ -1,7 +1,6 @@
 package channel_domain
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,8 +20,8 @@ type Channel struct {
 	TemplateID  string            `json:"template_id"`
 	Title       string            `json:"title"`
 	Status      ChannelStatus     `json:"status"`
-	Slots       []Slot            `json:"slots"`
-	Assignments []Assignment      `json:"assignments"`
+	Slots       []Slot            `json:"slots"`	// "roles that exist"
+	Assignments []Assignment      `json:"assignments"`	// "who occupies those roles"
 	Properties  []ChannelProperty `json:"properties"`
 	Policy      Policy            `json:"policy"`
 	Federation  string            `json:"federation"`
@@ -73,6 +72,58 @@ func NewChannel(tplID string, title string, workspaceID string) Channel {
 	}
 }
 
+
+type TrustState string
+
+var (
+	Trusted = "trusted"
+)
+
+type FederationSnapshot struct {
+	RemoteVaults []RemoteVault `json:"remote_vaults"`
+	IsDraft      bool `json:"is_draft"`
+	IsDirty      bool `json:"is_dirty" gorm:"boolean"`
+}
+type RemoteVault struct {
+	VaultID         string	`json:"vault_id"`
+	LastCursor      uint64	`json:"last_cursor"`
+	LastSeen        time.Time	`json:"last_seen"`
+	Endpoint        string	`json:"endpoint"`
+	TrustState      TrustState	`json:"trust_state"`
+	Pending         []PendingSyncItem	`json:"pending"`
+	ProtocolVersion string	`json:"protocol_version"`
+}
+
+type SyncStatus string
+
+const (
+	SyncPending    SyncStatus = "pending"
+	SyncSending    SyncStatus = "sending"
+	SyncWaitingAck SyncStatus = "waiting_ack"
+	SyncCompleted  SyncStatus = "completed"
+	SyncFailed     SyncStatus = "failed"
+	SyncDeadLetter SyncStatus = "dead_letter"
+)
+
+type PendingSyncItem struct {
+	ExchangeID string `json:"exchange_id"`
+	Status     SyncStatus `json:"status"`
+	Cursor     uint64 `json:"cursor"`
+	RetryCount int `json:"retry_count"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Participant struct {
+	ChannelID   string  `json:"channel_id"`
+	VaultID     string `json:"vault_id"`
+	PublicKey   string `json:"public_key"`
+	Direction   string `json:"direction"` // inbound | outbound | bidirectional
+	JoinedAt    int64 `json:"joined_at"`
+	Role        string `json:"role"`
+	Permissions []string `json:"permissions"`
+	IsDraft     bool `json:"is_draft"`
+	IsDirty     bool `json:"is_dirty" gorm:"boolean"`
+}
 // ==============================================================================
 // Lifecycle
 // ==============================================================================
@@ -83,7 +134,7 @@ func NewChannel(tplID string, title string, workspaceID string) Channel {
 // when TraceCore lifecycle recording is integrated.
 func (c *Channel) Archive() error {
 	if c.Status != StatusActive {
-		return errors.New(ErrChannelNotArchivable)
+		return ErrChannelNotArchivable
 	}
 
 	now := time.Now().UTC()
@@ -98,21 +149,106 @@ func (c *Channel) Archive() error {
 // Slot CRUD
 // ==============================================================================
 
-func (c *Channel) AddSlot(slot Slot) Channel {
+func (c *Channel) canModify() bool {
+	return c.Status == StatusPending ||
+		c.Status == StatusActive
+}
+
+func (c *Channel) AddSlot(slot Slot) error {
+	if !c.canModify() {
+		return ErrChannelNotModifiable
+	}
+
+	if slot.ID == "" {
+		return ErrSlotNotFound
+	}
+
+	if _, exists := c.GetSlotByID(slot.ID); exists {
+		return ErrSlotAlreadyExists
+	}
+
 	c.Slots = append(c.Slots, slot)
 	c.UpdatedAt = time.Now().UTC()
 
-	return *c
+	return nil
 }
 
-func (c *Channel) GetSlotByID(id string) (*Slot, bool) {
+func (c *Channel) UpdateSlot(updated Slot) error {
+	if !c.canModify() {
+		return ErrChannelNotModifiable
+	}
+
 	for i := range c.Slots {
-		if c.Slots[i].ID == id {
-			return &c.Slots[i], true
+		if c.Slots[i].ID != updated.ID {
+			continue
+		}
+
+		// Slot identity is immutable.
+		if c.Slots[i].ID != updated.ID {
+			return ErrSlotIdentityMismatch
+		}
+
+		c.Slots[i] = updated
+		c.UpdatedAt = time.Now().UTC()
+
+		return nil
+	}
+
+	return ErrSlotNotFound
+}
+
+func (c *Channel) RemoveSlotByID(id string) error {
+	if !c.canModify() {
+		return ErrChannelNotModifiable
+	}
+
+	for i := range c.Slots {
+		if c.Slots[i].ID != id {
+			continue
+		}
+
+		// Removing a Slot also removes its Assignment(s).
+		c.removeAssignmentsBySlotID(id)
+
+		c.Slots = append(
+			c.Slots[:i],
+			c.Slots[i+1:]...,
+		)
+
+		c.UpdatedAt = time.Now().UTC()
+
+		return nil
+	}
+
+	return ErrSlotNotFound
+}
+
+func (c *Channel) removeAssignmentsBySlotID(slotID string) {
+	filtered := c.Assignments[:0]
+
+	for _, assignment := range c.Assignments {
+		if assignment.SlotID != slotID {
+			filtered = append(filtered, assignment)
 		}
 	}
 
-	return nil, false
+	c.Assignments = filtered
+}
+// func (c *Channel) AddSlot(slot Slot) Channel {
+// 	c.Slots = append(c.Slots, slot)
+// 	c.UpdatedAt = time.Now().UTC()
+
+// 	return *c
+// }
+
+func (c *Channel) GetSlotByID(id string) (Slot, bool) {
+	for i := range c.Slots {
+		if c.Slots[i].ID == id {
+			return c.Slots[i], true
+		}
+	}
+
+	return Slot{}, false
 }
 
 func (c *Channel) GetSlotByVaultID(vaultID string) (*Slot, bool) {
@@ -149,35 +285,35 @@ func (c *Channel) GetGatedSlots() []Slot {
 	return slots
 }
 
-func (c *Channel) UpdateSlot(updated Slot) bool {
-	for i := range c.Slots {
-		if c.Slots[i].ID == updated.ID {
-			c.Slots[i] = updated
-			c.UpdatedAt = time.Now().UTC()
+// func (c *Channel) UpdateSlot(updated Slot) bool {
+// 	for i := range c.Slots {
+// 		if c.Slots[i].ID == updated.ID {
+// 			c.Slots[i] = updated
+// 			c.UpdatedAt = time.Now().UTC()
 
-			return true
-		}
-	}
+// 			return true
+// 		}
+// 	}
 
-	return false
-}
+// 	return false
+// }
 
-func (c *Channel) RemoveSlotByID(id string) bool {
-	for i := range c.Slots {
-		if c.Slots[i].ID == id {
-			c.Slots = append(
-				c.Slots[:i],
-				c.Slots[i+1:]...,
-			)
+// func (c *Channel) RemoveSlotByID(id string) bool {
+// 	for i := range c.Slots {
+// 		if c.Slots[i].ID == id {
+// 			c.Slots = append(
+// 				c.Slots[:i],
+// 				c.Slots[i+1:]...,
+// 			)
 
-			c.UpdatedAt = time.Now().UTC()
+// 			c.UpdatedAt = time.Now().UTC()
 
-			return true
-		}
-	}
+// 			return true
+// 		}
+// 	}
 
-	return false
-}
+// 	return false
+// }
 
 func (c *Channel) RemoveSlotByVaultID(vaultID string) bool {
 	for i := range c.Slots {
@@ -498,4 +634,275 @@ func (c *Channel) AddChannelPropertyIfAbsent(
 	c.UpdatedAt = time.Now().UTC()
 
 	return true
+}
+
+// ==============================================================================
+// RemoteVault CRUD
+// ==============================================================================
+
+func (f *FederationSnapshot) AddRemoteVault(remote RemoteVault) FederationSnapshot {
+	f.RemoteVaults = append(f.RemoteVaults, remote)
+	f.IsDirty = true
+
+	return *f
+}
+
+func (f *FederationSnapshot) GetRemoteVaultByID(
+	vaultID string,
+) (*RemoteVault, bool) {
+	for i := range f.RemoteVaults {
+		if f.RemoteVaults[i].VaultID == vaultID {
+			return &f.RemoteVaults[i], true
+		}
+	}
+
+	return nil, false
+}
+
+func (f *FederationSnapshot) UpdateRemoteVault(
+	updated RemoteVault,
+) bool {
+	for i := range f.RemoteVaults {
+		if f.RemoteVaults[i].VaultID == updated.VaultID {
+			f.RemoteVaults[i] = updated
+			f.IsDirty = true
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *FederationSnapshot) RemoveRemoteVaultByID(
+	vaultID string,
+) bool {
+	for i := range f.RemoteVaults {
+		if f.RemoteVaults[i].VaultID == vaultID {
+			f.RemoteVaults = append(
+				f.RemoteVaults[:i],
+				f.RemoteVaults[i+1:]...,
+			)
+			f.IsDirty = true
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *FederationSnapshot) ListRemoteVaults() []RemoteVault {
+	remoteVaults := make(
+		[]RemoteVault,
+		len(f.RemoteVaults),
+	)
+
+	copy(remoteVaults, f.RemoteVaults)
+
+	return remoteVaults
+}
+
+func (f *FederationSnapshot) GetRemoteVaultsByTrustState(state TrustState) []RemoteVault {
+	remoteVaults := make([]RemoteVault, 0)
+
+	for _, remote := range f.RemoteVaults {
+		if remote.TrustState == state {
+			remoteVaults = append(remoteVaults, remote)
+		}
+	}
+
+	return remoteVaults
+}
+
+func (f *FederationSnapshot) GetTrustedRemoteVaults() []RemoteVault {
+	return f.GetRemoteVaultsByTrustState(TrustState(Trusted))
+}
+
+func (f *FederationSnapshot) GetRemoteVaultsWithPendingSync() []RemoteVault {
+	remoteVaults := make([]RemoteVault, 0)
+
+	for _, remote := range f.RemoteVaults {
+		if len(remote.Pending) > 0 {
+			remoteVaults = append(remoteVaults, remote)
+		}
+	}
+
+	return remoteVaults
+}
+func (f *FederationSnapshot) SetRemoteVaultTrustState(
+	vaultID string,
+	state TrustState,
+) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	remote.TrustState = state
+	remote.LastSeen = time.Now().UTC()
+	f.IsDirty = true
+
+	return true
+}
+
+func (f *FederationSnapshot) UpdateRemoteVaultCursor(
+	vaultID string,
+	cursor uint64,
+) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	remote.LastCursor = cursor
+	remote.LastSeen = time.Now().UTC()
+	f.IsDirty = true
+
+	return true
+}
+
+func (f *FederationSnapshot) UpdateRemoteVaultEndpoint(
+	vaultID string,
+	endpoint string,
+) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	remote.Endpoint = endpoint
+	remote.LastSeen = time.Now().UTC()
+	f.IsDirty = true
+
+	return true
+}
+// ==============================================================================
+// PendingSyncItem CRUD
+// ==============================================================================
+
+func (r *RemoteVault) AddPendingSyncItem(item PendingSyncItem) RemoteVault {
+	if item.UpdatedAt.IsZero() {
+		item.UpdatedAt = time.Now().UTC()
+	}
+
+	r.Pending = append(r.Pending, item)
+
+	return *r
+}
+
+func (r *RemoteVault) GetPendingSyncItemByID(exchangeID string) (*PendingSyncItem, bool) {
+	for i := range r.Pending {
+		if r.Pending[i].ExchangeID == exchangeID {
+			return &r.Pending[i], true
+		}
+	}
+
+	return nil, false
+}
+
+func (r *RemoteVault) UpdatePendingSyncItem(updated PendingSyncItem) bool {
+	for i := range r.Pending {
+		if r.Pending[i].ExchangeID == updated.ExchangeID {
+			updated.UpdatedAt = time.Now().UTC()
+			r.Pending[i] = updated
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *RemoteVault) RemovePendingSyncItem(exchangeID string) bool {
+	for i := range r.Pending {
+		if r.Pending[i].ExchangeID == exchangeID {
+			r.Pending = append(
+				r.Pending[:i],
+				r.Pending[i+1:]...,
+			)
+
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *RemoteVault) ListPendingSyncItems() []PendingSyncItem {
+	items := make([]PendingSyncItem, len(r.Pending))
+	copy(items, r.Pending)
+
+	return items
+}
+func (r *RemoteVault) GetPendingSyncItemsByStatus(status SyncStatus) []PendingSyncItem {
+	items := make([]PendingSyncItem, 0)
+
+	for _, item := range r.Pending {
+		if item.Status == status {
+			items = append(items, item)
+		}
+	}
+
+	return items
+}
+
+func (r *RemoteVault) GetFailedSyncItems() []PendingSyncItem {
+	return r.GetPendingSyncItemsByStatus(SyncFailed)
+}
+
+func (r *RemoteVault) GetDeadLetterSyncItems() []PendingSyncItem {
+	return r.GetPendingSyncItemsByStatus(SyncDeadLetter)
+}
+
+func (r *RemoteVault) HasPendingSyncItems() bool {
+	return len(r.Pending) > 0
+}
+func (f *FederationSnapshot) GetPendingSyncItem(vaultID string, exchangeID string) (*PendingSyncItem, bool) {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return nil, false
+	}
+
+	return remote.GetPendingSyncItemByID(exchangeID)
+}
+
+func (f *FederationSnapshot) AddPendingSyncItem(vaultID string, item PendingSyncItem) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	remote.AddPendingSyncItem(item)
+	f.IsDirty = true
+
+	return true
+}
+
+func (f *FederationSnapshot) UpdatePendingSyncItem(vaultID string, item PendingSyncItem) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	updated := remote.UpdatePendingSyncItem(item)
+	if updated {
+		f.IsDirty = true
+	}
+
+	return updated
+}
+
+func (f *FederationSnapshot) RemovePendingSyncItem(vaultID string, exchangeID string) bool {
+	remote, found := f.GetRemoteVaultByID(vaultID)
+	if !found {
+		return false
+	}
+
+	removed := remote.RemovePendingSyncItem(exchangeID)
+	if removed {
+		f.IsDirty = true
+	}
+
+	return removed
 }

@@ -2,7 +2,6 @@ package channel_usecase
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,7 +40,7 @@ func (c *ArchiveChannelUsecase) Execute(ctx context.Context, req *channel_applic
 		return err
 	}
 	if getResp == nil {
-		return errors.New(channel_domain.ErrRepositoryResponse)
+		return channel_domain.ErrRepositoryResponse
 	}
 
 	// 2. Apply domain behavior — aggregate enforces invariants
@@ -77,11 +76,11 @@ func (c *ArchiveChannelUsecase) Execute(ctx context.Context, req *channel_applic
 
 func (c *ArchiveChannelUsecase) ValidateDependencies() error {
 	if c.Repo == nil {
-		return errors.New(channel_domain.ErrRepositoryNil)
+		return channel_domain.ErrRepositoryNil
 	}
 
 	if c.DomainBus == nil {
-		return errors.New(channel_domain.ErrChannelBusRequired)
+		return channel_domain.ErrChannelBusRequired
 	}
 
 	return nil
@@ -89,15 +88,15 @@ func (c *ArchiveChannelUsecase) ValidateDependencies() error {
 
 func (c *ArchiveChannelUsecase) ValidateRequest(req *channel_application.ArchiveChannelRequest) error {
 	if req == nil {
-		return errors.New(channel_domain.ErrRequestRequired)
+		return channel_domain.ErrRequestRequired
 	}
 
 	if req.ChannelID == "" {
-		return errors.New(channel_domain.ErrChannelIDRequired)
+		return channel_domain.ErrChannelIDRequired
 	}
 
 	if req.WorkspaceID == "" {
-		return errors.New(channel_domain.ErrWorkspaceIDRequired)
+		return channel_domain.ErrWorkspaceIDRequired
 	}
 
 	return nil

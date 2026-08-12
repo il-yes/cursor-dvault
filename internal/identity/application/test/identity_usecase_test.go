@@ -62,6 +62,19 @@ func (f *fakeBusHandler) SubscribeToUserRegistered(handler identity_eventbus.Use
 func (f *fakeBusHandler) SubscribeToUserLoggedIn(handler identity_eventbus.UserLoggedInHandler) error {
 	return nil
 }
+func (f *fakeBusHandler) PublishDeviceCreated(ctx context.Context, e identity_eventbus.DeviceCreated) error {
+	return nil
+}
+func (f *fakeBusHandler) SubscribeToDeviceCreated(handler identity_eventbus.DeviceCreatedHandler) error {
+	return nil
+}
+func (f *fakeBusHandler) PublishDeviceRevoked(ctx context.Context, e identity_eventbus.DeviceRevoked) error {
+	return nil
+}
+func (f *fakeBusHandler) SubscribeToDeviceRevoked(handler identity_eventbus.DeviceRevokedHandler) error {
+	return nil
+}
+
 //
 // -------- TESTS --------
 //

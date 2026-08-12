@@ -2,7 +2,6 @@ package channel_usecase
 
 import (
 	"context"
-	"errors"
 
 	channel_application "vault-app/internal/channel/application"
 	channel_domain "vault-app/internal/channel/domain"
@@ -39,7 +38,7 @@ func (c *DeleteChannelUsecase) Execute(ctx context.Context, req *channel_applica
 
 func (c *DeleteChannelUsecase) ValidateDependencies() error {
 	if c.Repo == nil {
-		return errors.New(channel_domain.ErrRepositoryNil)
+		return channel_domain.ErrRepositoryNil
 	}
 
 	return nil
@@ -47,11 +46,11 @@ func (c *DeleteChannelUsecase) ValidateDependencies() error {
 
 func (c *DeleteChannelUsecase) ValidateRequest(req *channel_application.DeleteChannelRequest) error {
 	if req == nil {
-		return errors.New(channel_domain.ErrRequestRequired)
+		return channel_domain.ErrRequestRequired
 	}
 
 	if req.ChannelID == "" {
-		return errors.New(channel_domain.ErrChannelIDRequired)
+		return channel_domain.ErrChannelIDRequired
 	}
 
 	return nil

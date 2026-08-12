@@ -5,11 +5,10 @@ import {vault_dto} from '../models';
 import {vaults_domain} from '../models';
 import {json} from '../models';
 import {share_entry_use_cases} from '../models';
-import {blockchain} from '../models';
-import {handlers} from '../models';
-import {auth} from '../models';
 import {main} from '../models';
+import {auth} from '../models';
 import {identity_domain} from '../models';
+import {handlers} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
 import {share_entry_application_dto} from '../models';
@@ -40,11 +39,9 @@ export function AddRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore
 
 export function Archive(arg1:string,arg2:string):Promise<void>;
 
-export function AuthVerify(arg1:blockchain.SignatureVerification):Promise<string>;
-
 export function CancelSubscription(arg1:string,arg2:string):Promise<void>;
 
-export function CheckEmail(arg1:string):Promise<handlers.CheckEmailResponse>;
+export function CheckEmail(arg1:string):Promise<main.CheckEmailResponse>;
 
 export function CheckPaymentOnResume():Promise<void>;
 
@@ -70,8 +67,6 @@ export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreate
 
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_entry_domain.ShareEntry>;
 
-export function CreateStellarCommit(arg1:string,arg2:string):Promise<string>;
-
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
 
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
@@ -93,10 +88,6 @@ export function EditEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<
 export function EditUserInfos(arg1:string,arg2:identity_dtos.EditUserInfosRequest):Promise<void>;
 
 export function EncryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
-
-export function EncryptFile(arg1:string,arg2:string,arg3:string):Promise<string>;
-
-export function EncryptVault(arg1:string,arg2:string):Promise<string>;
 
 export function FetchUsers():Promise<Array<models.UserDTO>>;
 
@@ -194,8 +185,6 @@ export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 
 export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
-export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
-
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
@@ -212,8 +201,6 @@ export function SetupFreeAndActivate(arg1:onboarding_usecase.FreeSetupRequest):P
 
 export function SetupPaymentAndActivate(arg1:onboarding_usecase.PaymentSetupRequest):Promise<subscription_domain.Subscription>;
 
-export function Sign(arg1:handlers.LoginRequest):Promise<handlers.LoginResponse>;
-
 export function SignIn(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
 
 export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
@@ -221,8 +208,6 @@ export function SignInWithIdentity(arg1:handlers.LoginRequest):Promise<vault_dto
 export function SignInWithStellar(arg1:handlers.LoginRequest):Promise<vault_dto.LoginResponse>;
 
 export function SignOut(arg1:string):Promise<void>;
-
-export function SignUp(arg1:handlers.OnBoarding):Promise<handlers.OnBoardingResponse>;
 
 export function SimulatePackWorker(arg1:string,arg2:string):Promise<void>;
 

@@ -79,6 +79,20 @@ func (b *fakeEventBus) SubscribeToUserLoggedIn(handler identity_app.UserLoggedIn
 	return nil
 }
 
+func (b *fakeEventBus) PublishDeviceCreated(ctx context.Context, e identity_app.DeviceCreated) error {
+	return nil
+}
+func (b *fakeEventBus) SubscribeToDeviceCreated(handler identity_app.DeviceCreatedHandler) error {
+	return nil
+}
+func (b *fakeEventBus) PublishDeviceRevoked(ctx context.Context, e identity_app.DeviceRevoked) error {
+	return nil
+}
+func (b *fakeEventBus) SubscribeToDeviceRevoked(handler identity_app.DeviceRevokedHandler) error {
+	return nil
+}
+
+
 /* ------------------------------
    Fake ID Generator
 --------------------------------*/

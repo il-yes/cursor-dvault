@@ -479,3 +479,207 @@ Thread lifecycle
 
 ```
 
+## Current Work
+
+### Client / Backend / Cloud Integration
+
+**Status:**
+
+ARCHITECTURE APPROVED — IMPLEMENTATION PENDING
+
+**Architectural boundary:**
+
+* Desktop is the cryptographic execution authority.
+* Backend is the domain and access-control authority.
+* Cloud is untrusted persistence and relay infrastructure.
+* Backend MUST remain zero-knowledge with respect to plaintext assets, raw DEKs, and raw KEKs.
+
+**Desktop responsibilities:**
+
+* Plaintext asset processing
+* Asset encryption/decryption
+* DEK generation
+* KEK generation during TrustGroup creation/rotation
+* WrappedKEK generation
+* WrappedDEK generation
+* Private-key management
+* Local cryptographic state
+
+**Backend responsibilities:**
+
+* Authentication verification
+* Authorization
+* Domain invariants
+* Aggregate mutations
+* Persistence orchestration
+* Domain events
+* Cross-context workflows
+
+**Cloud responsibilities:**
+
+* Persist encrypted assets
+* Persist domain records
+* Persist WrappedDEK / WrappedKEK envelopes
+* Persist public keys
+* Persist event/audit data
+* Never receive plaintext assets, raw DEKs, or raw KEKs
+
+**Architectural source:**
+
+* ADR: Client / Backend / Cloud Responsibility Boundary
+
+---
+
+## Current Implementation Phase
+
+### Phase: Cryptographic Identity + TrustGroup Integration
+
+Implementation order:
+
+1. Formalize Device entity in `internal/identity`
+2. Extend TrustGroupMember for multi-device key envelopes
+3. Extend WrappedGroupKey for key versioning
+4. Implement TrustGroup KEK rotation
+5. Refactor ShareEntry asset sharing to TrustGroup-level sharing
+6. Implement Desktop Cryptographic Engine / Wails bridge
+7. Define Desktop → Backend command contracts
+8. Connect Backend → Cloud persistence
+9. Validate end-to-end encrypted asset sharing
+
+---
+
+## Cryptographic Rotation Policy
+
+**V1:** Eager DEK re-wrapping.
+
+When a TrustGroup KEK rotates:
+
+```text
+KEK v1
+  ↓
+generate KEK v2
+  ↓
+unwrap existing DEKs using KEK v1
+  ↓
+wrap DEKs using KEK v2
+  ↓
+create WrappedKEK v2 for authorized devices
+  ↓
+persist new envelopes
+```
+
+Lazy DEK re-wrapping is explicitly deferred to V2.
+
+---
+
+## Completed Work
+
+* Workspace creation
+* Channel creation
+* Thread creation
+* Channel lifecycle
+* Channel Slot lifecycle use cases
+* TrustGroup creation
+* TrustGroup member model
+* Asset creation
+* ShareEntry creation
+* Initial TrustGroup / ShareEntry integration
+
+---
+
+## Next
+
+### Step 1 — Device Model
+
+Completed:
+
+* Created `internal/identity/domain/device.go` (Device aggregate, Status, KeyType, IsActive(), Revoke())
+* Implemented Device repositories (`MemoryDeviceRepository`, `GormDeviceRepository`)
+* Implemented Device application use cases (`CreateDeviceUseCase`, `GetDeviceUseCase`, `ListDevicesUseCase`, `RevokeDeviceUseCase`)
+* Published `DeviceCreated` and `DeviceRevoked` domain/application events
+
+---
+
+### Step 2 — Identity Device ↔ TrustGroup KeyEnvelope Integration
+
+Completed:
+
+* Created `DeviceResolver` port in `internal/trust_group/application/ports/device_resolver.go`
+* Created `IdentityDeviceAdapter` in `internal/trust_group/infrastructure/adapters/identity_device_adapter.go`
+* Created `AddTrustGroupKeyEnvelopeUseCase` in `internal/trust_group/application/usecases/envelope/add_envelope_usecase.go`
+* Implemented cross-context validation (TrustGroup existence, member check, active device check, vault ownership check, KEKVersion check, duplicate active envelope rejection)
+* Verified tests in `trust_group/application/usecases/envelope` and `trust_group/infrastructure/adapters`
+
+---
+
+### Step 3 — Desktop Cryptographic Orchestration
+
+Completed:
+
+* Extended `VaultKeyring` and `KeyringService` with `KeyTypeTrustGroupKEK` and `GetTrustGroupKEK(kr, trustGroupID, version)` / `StoreTrustGroupKEK(...)`
+* Implemented `TrustGroupCryptoOrchestrator` in `internal/trust_group/application/orchestrator/crypto_orchestrator.go`
+* Implemented local KEK/DEK generation, AES-256-GCM payload encryption, DEK wrapping, multi-device asymmetric KEK wrapping (`EncryptPayload`), and opaque DTO envelope building
+* Verified end-to-end device unwrapping test, active vs revoked device envelope filtering, multi-device envelope distinction, and zero-knowledge boundary in `crypto_orchestrator_test.go`
+
+---
+
+### Step 4 — KEK Rotation
+
+Next focus:
+
+Create:
+
+`internal/trust_group/application/usecases/rotate_kek.go`
+
+V1 uses eager DEK re-wrapping.
+
+
+
+---
+
+### Step 4 — ShareEntry Refactoring
+
+Refactor asset sharing from member-level targeting to TrustGroup-level sharing.
+
+---
+
+### Step 5 — Desktop Cryptographic Engine
+
+Implement the cryptographic execution boundary in the Desktop/Wails layer.
+
+Backend must receive only encrypted payloads and cryptographic envelopes.
+
+---
+
+### Step 6 — Communication Layer
+
+Connect:
+
+```text
+Desktop
+    ↓
+Backend API / Commands
+    ↓
+Application Usecases
+    ↓
+Domain
+    ↓
+Cloud Repository
+```
+
+Do not bypass the Backend domain/application layer from the Desktop.
+
+
+
+V1 Multi-Device Key Model — APPROVED
+
+- Device is owned by Identity BC.
+- TrustGroup owns TrustGroupMember.
+- TrustGroup owns TrustGroupKeyEnvelope.
+- TrustGroupKeyEnvelope targets a specific Device.
+- Multiple devices may belong to one TrustGroupMember.
+- Device addition does not rotate KEK.
+- Member removal/security breach triggers KEK rotation.
+- V1 KEK rotation uses eager DEK re-wrapping.
+- ShareEntry tracks KEKVersion.
+- Raw KEK/DEK never crosses Desktop → Backend boundary.

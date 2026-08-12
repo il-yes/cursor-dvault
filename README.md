@@ -1507,3 +1507,17 @@ func NewVaultC3Service() *VaultC3Service {
 		TrustGroup: NewTrustGroupUsecase(),
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

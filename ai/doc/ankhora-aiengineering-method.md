@@ -21,6 +21,8 @@ It contains the objective, participants, context, decisions, etc.
 
 ---
 
+
+
 ### 2. Open your AI terminal
 
 Instead of a generic prompt like:

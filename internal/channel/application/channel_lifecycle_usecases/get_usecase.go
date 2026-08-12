@@ -2,7 +2,6 @@ package channel_usecase
 
 import (
 	"context"
-	"errors"
 
 	channel_application "vault-app/internal/channel/application"
 	channel_domain "vault-app/internal/channel/domain"
@@ -39,7 +38,7 @@ func (c *GetChannelUsecase) Execute(ctx context.Context, req *channel_applicatio
 
 func (c *GetChannelUsecase) ValidateDependencies() error {
 	if c.Repo == nil {
-		return errors.New(channel_domain.ErrRepositoryNil)
+		return channel_domain.ErrRepositoryNil
 	}
 
 	return nil
@@ -47,11 +46,11 @@ func (c *GetChannelUsecase) ValidateDependencies() error {
 
 func (c *GetChannelUsecase) ValidateRequest(req *channel_application.GetChannelRequest) error {
 	if req == nil {
-		return errors.New(channel_domain.ErrRequestRequired)
+		return channel_domain.ErrRequestRequired
 	}
 
 	if req.ChannelID == "" {
-		return errors.New(channel_domain.ErrChannelIDRequired)
+		return channel_domain.ErrChannelIDRequired
 	}
 
 	return nil

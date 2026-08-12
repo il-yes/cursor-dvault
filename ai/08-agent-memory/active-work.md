@@ -623,15 +623,41 @@ Completed:
 
 ---
 
-### Step 4 — KEK Rotation
+### Step 4 — Collaborative ShareEntry / CID Workflow Integration
 
-Next focus:
+Completed:
 
-Create:
+* Created DTOs `CreateCollaborativeShareRequest` and `CreateCollaborativeShareResponse` in `internal/collaboration/application/dtos/dto.go`
+* Created `CreateCollaborativeShareUseCase` in `internal/collaboration/application/usecases/create_collaborative_share_usecase.go`
+* Integrated desktop crypto orchestration, CID payload reference generation, `ShareEntry` creation, and `TrustGroupKeyEnvelope` attachment
+* Verified end-to-end integration test (`encrypted payload → CID → ShareEntry → WrappedDEK → WrappedKEK → device decrypts original payload`) in `create_collaborative_share_test.go`
 
-`internal/trust_group/application/usecases/rotate_kek.go`
+---
 
-V1 uses eager DEK re-wrapping.
+### Step 5 — V1 KEK Rotation (Eager DEK Re-wrapping & Hardening)
+
+Completed:
+
+* Added `RemoveMember` and `RotateKEK(newVersion, newEnvelopes)` methods on `TrustGroup` domain aggregate in `internal/trust_group/domain/aggregate.go`
+* Implemented `RotateTrustGroupKEK` on `TrustGroupCryptoOrchestrator` in `internal/trust_group/application/orchestrator/crypto_orchestrator.go` for local KEK v(N+1) generation, asset DEK unwrapping with KEK vN, DEK re-wrapping under KEK v(N+1), and multi-device asymmetric KEK wrapping
+* Implemented `RotateTrustGroupKEKUseCase` in `internal/collaboration/application/usecases/rotate_kek_usecase.go` with request idempotency caching (`RequestID`), stale client validation (`tg.KEKVersion != req.OldVersion`), and transactional Unit-of-Work execution
+* Created `TransactionManager` port in `internal/collaboration/application/ports/tx_manager.go`
+* Implemented 16-point integration and crypto test suite in `rotate_kek_test.go`, verifying:
+  - Member removal & KEKVersion increment (N -> N+1)
+  - Key Invariant Proof: Asset payloads and CIDs remain 100% unchanged (`SAME CID`)
+  - DEKs unwrapped with old KEK vN and re-wrapped with new KEK v(N+1)
+  - Remaining active devices unwrap KEK v(N+1) and decrypt SAME CID assets
+  - Removed/revoked devices receive NO envelope for KEK v(N+1) and cannot unwrap new KEK
+* Implemented failure injection and concurrency test suite in `rotate_kek_hardening_test.go`, verifying:
+  - Failure A: TrustGroup update failure causes zero ShareEntry changes and zero mutation
+  - Failure B: ShareEntry update failure rolls back transaction cleanly
+  - Failure D: Idempotent network retry returns cached response without version jump (no `v2 -> v3`) or duplicate envelopes
+  - Failure E: Stale client attempt rejected with `ErrStaleKEKVersion`
+  - Failure F: Concurrent rotations handled safely with exactly one winning and second rejected cleanly
+  - Zero-Knowledge boundary enforced (backend receives zero raw KEK/DEK/private key material)
+
+
+
 
 
 

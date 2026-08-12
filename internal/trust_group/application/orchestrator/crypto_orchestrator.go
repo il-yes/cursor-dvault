@@ -139,3 +139,119 @@ func (o *TrustGroupCryptoOrchestrator) PrepareCollaborativeAsset(
 		Envelopes:     envelopes,
 	}, nil
 }
+
+type RotateCollaborativeAssetInput struct {
+	ShareEntryID string
+	WrappedDEK   []byte // WrappedDEK under KEK vN
+}
+
+type RotateCollaborativeAssetOutput struct {
+	ShareEntryID string
+	ReWrappedDEK []byte // Re-wrapped DEK under KEK v(N+1)
+}
+
+type RotateTrustGroupKEKPayload struct {
+	TrustGroupID  string
+	OldVersion    uint64
+	NewVersion    uint64
+	ActiveDevices []ActiveDevice
+	Assets        []RotateCollaborativeAssetInput
+	Keyring       *vaults_domain.VaultKeyring
+}
+
+type RotateTrustGroupKEKResult struct {
+	TrustGroupID  string
+	NewVersion    uint64
+	RotatedAssets []RotateCollaborativeAssetOutput
+	NewEnvelopes  []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest
+}
+
+func (o *TrustGroupCryptoOrchestrator) RotateTrustGroupKEK(
+	ctx context.Context,
+	req RotateTrustGroupKEKPayload,
+) (*RotateTrustGroupKEKResult, error) {
+	if req.TrustGroupID == "" {
+		return nil, errors.New("trust group ID is required")
+	}
+	if req.OldVersion == 0 {
+		return nil, errors.New("old version is required")
+	}
+	if req.NewVersion != req.OldVersion+1 {
+		return nil, errors.New("new version must be old version + 1")
+	}
+	if req.Keyring == nil || o.keyringService == nil {
+		return nil, errors.New("keyring and keyring service are required")
+	}
+
+	// 1. Retrieve old KEK vN from local VaultKeyring
+	oldKEK, err := o.keyringService.GetTrustGroupKEK(req.Keyring, req.TrustGroupID, req.OldVersion)
+	if err != nil || len(oldKEK) != 32 {
+		return nil, fmt.Errorf("failed to retrieve old KEK v%d from keyring: %w", req.OldVersion, err)
+	}
+
+	// 2. Generate new KEK v(N+1) (32 bytes)
+	newKEK := o.asymService.GenerateSymmetricKey()
+
+	// 3. Store new KEK v(N+1) in local VaultKeyring
+	_, err = o.keyringService.StoreTrustGroupKEK(req.Keyring, req.TrustGroupID, req.NewVersion, newKEK)
+	if err != nil {
+		return nil, fmt.Errorf("failed to store new KEK v%d in keyring: %w", req.NewVersion, err)
+	}
+
+	// 4. Re-wrap DEKs for every collaborative asset (KEK vN -> DEK -> KEK vN+1)
+	rotatedAssets := make([]RotateCollaborativeAssetOutput, 0, len(req.Assets))
+	for _, asset := range req.Assets {
+		if len(asset.WrappedDEK) == 0 {
+			continue
+		}
+		// Unwrap DEK using old KEK vN
+		dek, err := o.aesService.Decrypt(asset.WrappedDEK, oldKEK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unwrap DEK for asset %s with old KEK v%d: %w", asset.ShareEntryID, req.OldVersion, err)
+		}
+
+		// Re-wrap DEK using new KEK v(N+1)
+		reWrappedDEK, err := o.aesService.Encrypt(dek, newKEK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to re-wrap DEK for asset %s with new KEK v%d: %w", asset.ShareEntryID, req.NewVersion, err)
+		}
+
+		rotatedAssets = append(rotatedAssets, RotateCollaborativeAssetOutput{
+			ShareEntryID: asset.ShareEntryID,
+			ReWrappedDEK: reWrappedDEK,
+		})
+	}
+
+	// 5. Wrap new KEK v(N+1) for each remaining active device
+	newEnvelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0, len(req.ActiveDevices))
+	for _, dev := range req.ActiveDevices {
+		if !dev.IsActive {
+			// Revoked/inactive devices receive NO envelope for the new version
+			continue
+		}
+		if dev.PublicKey == "" || dev.DeviceID == "" || dev.MemberID == "" {
+			continue
+		}
+
+		wrappedKEKPayload, err := o.aesService.EncryptPayload(dev.PublicKey, newKEK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to wrap new KEK for device %s: %w", dev.DeviceID, err)
+		}
+
+		newEnvelopes = append(newEnvelopes, trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
+			TrustGroupID: req.TrustGroupID,
+			MemberID:     dev.MemberID,
+			DeviceID:     dev.DeviceID,
+			KEKVersion:   req.NewVersion,
+			WrappedKEK:   wrappedKEKPayload.ToString(),
+		})
+	}
+
+	return &RotateTrustGroupKEKResult{
+		TrustGroupID:  req.TrustGroupID,
+		NewVersion:    req.NewVersion,
+		RotatedAssets: rotatedAssets,
+		NewEnvelopes:  newEnvelopes,
+	}, nil
+}
+

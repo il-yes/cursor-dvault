@@ -26,6 +26,8 @@ var (
 	ErrDeviceRevoked = errors.New("device is revoked")
 	ErrDeviceMemberMismatch = errors.New("device does not belong to expected member or vault")
 	ErrMemberNotInTrustGroup = errors.New("member does not belong to trust group")
+	ErrInvalidKEKVersionIncrement = errors.New("invalid KEK version increment: must be N+1")
 )
+
 
 

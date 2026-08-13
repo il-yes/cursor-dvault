@@ -1399,3 +1399,194 @@ export const revokeShare = async (shareId: string) => {
 	}
 	return AppAPI.RevokeShare(jwtToken, payload);
 };
+
+// C3 AppAPI Integration
+
+export interface CreateWorkspacePayload {
+	vault_id?: string;
+	name: string;
+	description?: string;
+}
+
+export interface WorkspaceResponse {
+	id: string;
+	vault_id?: string;
+	name: string;
+	description?: string;
+	status?: string;
+	owner_id?: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export async function createWorkspace(payload: CreateWorkspacePayload): Promise<WorkspaceResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateWorkspace(
+		jwtToken,
+		payload.name.trim(),
+		(payload.description || '').trim()
+	);
+	return result as WorkspaceResponse;
+}
+
+export async function listWorkspaces(): Promise<WorkspaceResponse[]> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListWorkspaces(jwtToken);
+	return (result || []) as WorkspaceResponse[];
+}
+
+export interface CreateChannelPayload {
+	title: string;
+	workspace_id: string;
+	template_id?: string;
+}
+
+export interface ChannelResponse {
+	id: string;
+	workspace_id: string;
+	title: string;
+	template_id?: string;
+	status?: string;
+	created_at?: string;
+	updated_at?: string;
+	participants?: any[];
+	asset_count?: number;
+	last_event?: string;
+}
+
+export async function createChannel(payload: CreateChannelPayload): Promise<ChannelResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateChannel(
+		jwtToken,
+		payload.workspace_id,
+		payload.title.trim(),
+		payload.template_id || 'default'
+	);
+	return result as ChannelResponse;
+}
+
+export async function listChannels(workspaceId: string): Promise<ChannelResponse[]> {
+	if (!workspaceId) return [];
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListChannels(jwtToken, workspaceId);
+	return (result || []) as ChannelResponse[];
+}
+
+export interface CreateThreadPayload {
+	channel_id: string;
+	title: string;
+	subtitle?: string;
+	asset_type?: string;
+}
+
+export interface ThreadResponse {
+	id: string;
+	channel_id: string;
+	title: string;
+	subtitle?: string;
+	asset_type?: string;
+	status?: string;
+	created_at?: string;
+}
+
+export async function createThread(payload: CreateThreadPayload): Promise<ThreadResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateThread(
+		jwtToken,
+		payload.channel_id,
+		payload.title.trim(),
+		(payload.subtitle || '').trim(),
+		payload.asset_type || 'note'
+	);
+	return result as ThreadResponse;
+}
+
+export async function listThreads(channelId: string): Promise<ThreadResponse[]> {
+	if (!channelId) return [];
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListThreads(jwtToken, channelId);
+	return (result || []) as ThreadResponse[];
+}
+
+export interface AppendThreadEventPayload {
+	thread_id: string;
+	type: string;
+	payload?: Record<string, any>;
+}
+
+export interface PayloadRefResponse {
+	cid: string;
+	content_hash: string;
+	size: number;
+	asset_type: string;
+	name?: string;
+}
+
+export interface ShareEntryRefResponse {
+	share_entry_id: string;
+	trust_group_id?: string;
+	asset_cid?: string;
+	created_by?: string;
+	status?: string;
+	created_at?: string;
+}
+
+export interface ThreadEventResponse {
+	id: string;
+	thread_id: string;
+	previous_event_id?: string;
+	type: string;
+	payload?: Record<string, any>;
+	payload_ref?: PayloadRefResponse;
+	share_entry_ref?: ShareEntryRefResponse;
+	idempotency_key?: string;
+	cursor: number;
+	headers?: Record<string, string>;
+	signature?: string;
+	created_at?: string;
+}
+
+export async function listThreadEvents(threadId: string): Promise<ThreadEventResponse[]> {
+	if (!threadId) return [];
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListThreadEvents(jwtToken, threadId);
+	return (result || []) as ThreadEventResponse[];
+}
+
+export async function appendThreadEvent(payload: AppendThreadEventPayload): Promise<ThreadEventResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.AppendThreadEvent(
+		jwtToken,
+		payload.thread_id,
+		payload.type.trim(),
+		JSON.stringify(payload.payload || {})
+	);
+	return result as ThreadEventResponse;
+}

@@ -26,6 +26,10 @@ export function AddRecipient(arg1, arg2) {
   return window['go']['main']['App']['AddRecipient'](arg1, arg2);
 }
 
+export function AppendThreadEvent(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['AppendThreadEvent'](arg1, arg2, arg3, arg4);
+}
+
 export function Archive(arg1, arg2) {
   return window['go']['main']['App']['Archive'](arg1, arg2);
 }
@@ -74,6 +78,10 @@ export function CreateAccount(arg1) {
   return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
+export function CreateChannel(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4);
+}
+
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -84,6 +92,14 @@ export function CreateLinkShare(arg1, arg2) {
 
 export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
+}
+
+export function CreateThread(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CreateThread'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CreateWorkspace(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateWorkspace'](arg1, arg2, arg3);
 }
 
 export function DecryptAttachment(arg1, arg2, arg3) {
@@ -238,6 +254,10 @@ export function ListByUser(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListByUser'](arg1, arg2, arg3);
 }
 
+export function ListChannels(arg1, arg2) {
+  return window['go']['main']['App']['ListChannels'](arg1, arg2);
+}
+
 export function ListLinkSharesByMe(arg1) {
   return window['go']['main']['App']['ListLinkSharesByMe'](arg1);
 }
@@ -260,6 +280,18 @@ export function ListReceivedShares(arg1) {
 
 export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
+}
+
+export function ListThreadEvents(arg1, arg2) {
+  return window['go']['main']['App']['ListThreadEvents'](arg1, arg2);
+}
+
+export function ListThreads(arg1, arg2) {
+  return window['go']['main']['App']['ListThreads'](arg1, arg2);
+}
+
+export function ListWorkspaces(arg1) {
+  return window['go']['main']['App']['ListWorkspaces'](arg1);
 }
 
 export function LoadAttachment(arg1, arg2, arg3) {

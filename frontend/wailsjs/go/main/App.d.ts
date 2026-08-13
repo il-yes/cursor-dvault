@@ -37,6 +37,8 @@ export function AddReceiver(arg1:string,arg2:share_entry_use_cases.AddReceiverIn
 
 export function AddRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
 
+export function AppendThreadEvent(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ThreadEventDTO>;
+
 export function Archive(arg1:string,arg2:string):Promise<void>;
 
 export function CancelSubscription(arg1:string,arg2:string):Promise<void>;
@@ -61,11 +63,17 @@ export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
+export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelDTO>;
+
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
 
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_entry_domain.ShareEntry>;
+
+export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ThreadDTO>;
+
+export function CreateWorkspace(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.Workspace>;
 
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
 
@@ -143,6 +151,8 @@ export function IsVaultDirty(arg1:string):Promise<boolean>;
 
 export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<notification_center_domain.Notification>>;
 
+export function ListChannels(arg1:string,arg2:string):Promise<Array<tracecore_types.ChannelDTO>>;
+
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 
 export function ListLinkSharesWithMe(arg1:string):Promise<any>;
@@ -154,6 +164,12 @@ export function ListPendingIntentSharesWithMe(arg1:string):Promise<tracecore_typ
 export function ListReceivedShares(arg1:string):Promise<any>;
 
 export function ListSharedEntries(arg1:string):Promise<any>;
+
+export function ListThreadEvents(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadEventDTO>>;
+
+export function ListThreads(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadDTO>>;
+
+export function ListWorkspaces(arg1:string):Promise<Array<tracecore_types.Workspace>>;
 
 export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 

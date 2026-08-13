@@ -2771,3 +2771,84 @@ func (a *App) SetStorageMode(JwtToken string, mode string) {
 	}
 	utils.LogPretty("appCfgUpdated", appCfgUpdated)
 }
+
+// C3 Wails App Methods
+
+func (a *App) CreateWorkspace(JwtToken string, name string, description string) (*tracecore_types.Workspace, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.CreateWorkspaceDirect(a.ctx, claims.UserID, name, description)
+}
+
+func (a *App) ListWorkspaces(JwtToken string) ([]tracecore_types.Workspace, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.ListWorkspacesDirect(a.ctx, claims.UserID)
+}
+
+func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string) (*tracecore_types.ChannelDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.CreateChannelDirect(a.ctx, claims.UserID, workspaceID, title, templateID)
+}
+
+func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_types.ChannelDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.ListChannelsDirect(a.ctx, claims.UserID, workspaceID)
+}
+
+func (a *App) CreateThread(JwtToken string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.CreateThreadDirect(a.ctx, claims.UserID, channelID, title, subtitle, assetType)
+}
+
+func (a *App) ListThreads(JwtToken string, channelID string) ([]tracecore_types.ThreadDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.ListThreadsDirect(a.ctx, claims.UserID, channelID)
+}
+
+func (a *App) ListThreadEvents(JwtToken string, threadID string) ([]tracecore_types.ThreadEventDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.ListThreadEventsDirect(a.ctx, claims.UserID, threadID)
+}
+
+func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType string, payloadJson string) (*tracecore_types.ThreadEventDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	var payload map[string]interface{}
+	if payloadJson != "" {
+		_ = json.Unmarshal([]byte(payloadJson), &payload)
+	}
+	if payload == nil {
+		payload = make(map[string]interface{})
+	}
+	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
+	return client.AppendThreadEventDirect(a.ctx, claims.UserID, threadID, eventType, payload)
+}

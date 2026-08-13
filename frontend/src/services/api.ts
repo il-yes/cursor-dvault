@@ -1399,3 +1399,147 @@ export const revokeShare = async (shareId: string) => {
 	}
 	return AppAPI.RevokeShare(jwtToken, payload);
 };
+
+export interface CreateWorkspacePayload {
+	name: string;
+	description?: string;
+	vault_id?: string;
+}
+
+export interface WorkspaceResponse {
+	id: string;
+	vault_id?: string;
+	name: string;
+	description?: string;
+				status?: string;
+	owner_id?: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
+/**
+ * Create a new C3 Workspace via Wails AppAPI binding
+ */
+export async function createWorkspace(payload: CreateWorkspacePayload): Promise<WorkspaceResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateWorkspace(
+		jwtToken,
+		payload.name.trim(),
+		(payload.description || '').trim()
+	);
+	return result as WorkspaceResponse;
+}
+
+/**
+ * List user C3 workspaces via Wails AppAPI binding
+ */
+export async function listWorkspaces(): Promise<WorkspaceResponse[]> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListWorkspaces(jwtToken);
+	return (result || []) as WorkspaceResponse[];
+}
+
+export interface CreateChannelPayload {
+	title: string;
+	workspace_id: string;
+	template_id?: string;
+}
+
+export interface ChannelResponse {
+	id: string;
+	workspace_id: string;
+	title: string;
+	template_id?: string;
+	status?: string;
+	created_at?: string;
+	updated_at?: string;
+	participants?: any[];
+	asset_count?: number;
+	last_event?: string;
+}
+
+/**
+ * Create a new C3 Channel under a Workspace via Wails AppAPI binding
+ */
+export async function createChannel(payload: CreateChannelPayload): Promise<ChannelResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateChannel(
+		jwtToken,
+		payload.workspace_id,
+		payload.title.trim(),
+		payload.template_id || 'default'
+	);
+	return result as ChannelResponse;
+}
+
+/**
+ * List C3 channels for a specific Workspace via Wails AppAPI binding
+ */
+export async function listChannels(workspaceId: string): Promise<ChannelResponse[]> {
+	if (!workspaceId) return [];
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListChannels(jwtToken, workspaceId);
+	return (result || []) as ChannelResponse[];
+}
+
+export interface CreateThreadPayload {
+	channel_id: string;
+	title: string;
+	subtitle?: string;
+	asset_type?: string;
+}
+
+export interface ThreadResponse {
+	id: string;
+	channel_id: string;
+	title: string;
+	subtitle?: string;
+	asset_type?: string;
+	status?: string;
+	created_at?: string;
+}
+
+/**
+ * Create a new C3 Thread under a Channel via Wails AppAPI binding
+ */
+export async function createThread(payload: CreateThreadPayload): Promise<ThreadResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateThread(
+		jwtToken,
+		payload.channel_id,
+		payload.title.trim(),
+		(payload.subtitle || '').trim(),
+		payload.asset_type || 'note'
+	);
+	return result as ThreadResponse;
+}
+
+/**
+ * List C3 threads for a specific Channel via Wails AppAPI binding
+ */
+export async function listThreads(channelId: string): Promise<ThreadResponse[]> {
+	if (!channelId) return [];
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListThreads(jwtToken, channelId);
+	return (result || []) as ThreadResponse[];
+}

@@ -61,11 +61,17 @@ export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
+export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelDTO>;
+
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
 
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_entry_domain.ShareEntry>;
+
+export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ThreadDTO>;
+
+export function CreateWorkspace(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.Workspace>;
 
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
 
@@ -143,6 +149,8 @@ export function IsVaultDirty(arg1:string):Promise<boolean>;
 
 export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<notification_center_domain.Notification>>;
 
+export function ListChannels(arg1:string,arg2:string):Promise<Array<tracecore_types.ChannelDTO>>;
+
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 
 export function ListLinkSharesWithMe(arg1:string):Promise<any>;
@@ -154,6 +162,10 @@ export function ListPendingIntentSharesWithMe(arg1:string):Promise<tracecore_typ
 export function ListReceivedShares(arg1:string):Promise<any>;
 
 export function ListSharedEntries(arg1:string):Promise<any>;
+
+export function ListThreads(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadDTO>>;
+
+export function ListWorkspaces(arg1:string):Promise<Array<tracecore_types.Workspace>>;
 
 export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 

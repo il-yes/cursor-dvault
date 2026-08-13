@@ -321,3 +321,27 @@ type Workspace struct {
 	IsDraft   bool      `json:"is_draft"`
 	IsDirty   bool      `json:"is_dirty" gorm:"boolean"`
 }
+
+type ChannelDTO struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Title       string    `json:"title"`
+	TemplateID  string    `json:"template_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	AssetCount  int       `json:"asset_count,omitempty"`
+	LastEvent   string    `json:"last_event,omitempty"`
+}
+
+type ThreadDTO struct {
+	ID        string     `json:"id"`
+	ChannelID string     `json:"channel_id"`
+	AssetType string     `json:"asset_type"`
+	Title     string     `json:"title"`
+	Subtitle  string     `json:"subtitle"`
+	Status    string     `json:"status"`
+	CreatedAt time.Time  `json:"created_at"`
+	ClosedAt  *time.Time `json:"closed_at,omitempty"`
+}
+

@@ -2840,6 +2840,54 @@ export namespace tracecore_types {
 	        this.ip_address = source["ip_address"];
 	    }
 	}
+	export class ChannelDTO {
+	    id: string;
+	    workspace_id: string;
+	    title: string;
+	    template_id: string;
+	    status: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    asset_count?: number;
+	    last_event?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.workspace_id = source["workspace_id"];
+	        this.title = source["title"];
+	        this.template_id = source["template_id"];
+	        this.status = source["status"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.asset_count = source["asset_count"];
+	        this.last_event = source["last_event"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PaymentHistory {
 	    id: string;
 	    user_id: string;
@@ -3204,6 +3252,52 @@ export namespace tracecore_types {
 	
 	
 	
+	export class ThreadDTO {
+	    id: string;
+	    channel_id: string;
+	    asset_type: string;
+	    title: string;
+	    subtitle: string;
+	    status: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    closed_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new ThreadDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel_id = source["channel_id"];
+	        this.asset_type = source["asset_type"];
+	        this.title = source["title"];
+	        this.subtitle = source["subtitle"];
+	        this.status = source["status"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.closed_at = this.convertValues(source["closed_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class User {
 	    id: number;
 	    first_name: string;
@@ -3286,6 +3380,57 @@ export namespace tracecore_types {
 	        this.PinataPinID = source["PinataPinID"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Workspace {
+	    id: string;
+	    vault_id: string;
+	    name: string;
+	    description: string;
+	    status: string;
+	    owner_id: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    updated_at: any;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Workspace(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.vault_id = source["vault_id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.status = source["status"];
+	        this.owner_id = source["owner_id"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

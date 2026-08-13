@@ -1,51 +1,55 @@
+import React from "react";
 import { Global, css } from "@emotion/react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import Main from "@/components/C3/Main";
 import { C3BaseStyles, C3styles } from "@/components/C3/styles/styles";
 import { C3MenuStyles } from "@/components/C3/styles/menu";
 import { C3LedgerStyles } from "@/components/C3/styles/ledger";
 import { C3SharedStyles } from "@/components/C3/styles/shared";
 import { LedgerTable } from "./LedgerTable";
-import { useEffect, useState } from "react";
 import { LedgerLayout } from "../LedgerLayout";
 import { useNavigate, useParams } from "react-router-dom";
-import { Dialog, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogTitle } from "@radix-ui/react-dialog";
-import { DialogHeader } from "@/components/ui/dialog";
-import { useC3DialogStore } from "../../infrastructure/store/c3DialogStore";
+import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { useC3WorkspaceStore } from "../../infrastructure/store/useC3WorkspaceStore";
 import { ChannelRow } from "../../domain/channel/channel.types";
-import { fetchChannelRows } from "../../domain/channel/channel.repository";
 import * as ROUTES from '@/constants/routes';
-// import '../styles/ledger-style.css'
-
 
 export const c3BaseStyles = css`
-  /* your global C3 styles here */
+  /* global C3 styles */
 `;
 
 export const C3GlobalStyles = () => <Global styles={C3BaseStyles} />;
 
 const LedgerPage = () => {
-  const [isNewShareOpen, setIsNewShareOpen] = useState(false);
+  const [isNewShareOpen, setIsNewShareOpen] = React.useState(false);
   const navigate = useNavigate();
-  const { channelId } = useParams()
-  const [open, setOpen] = useState(false)
-  const [channels, setChannels] = useState<ChannelRow[]>([])
+  const { channelId } = useParams();
 
-  console.log({ channelId })
+  const { activeWorkspace } = useC3WorkspaceStore();
+  const { channels, activeChannelId, selectChannel, isLoading, error } = useC3ChannelStore();
 
-  const onOpen = (id: string) => {
+  const onOpenChannel = (id: string) => {
+    selectChannel(id);
     navigate(ROUTES.CHANNEL.replace(':channelId', id));
   };
 
-  const fetchChannels = async () => {
-    const data = await fetchChannelRows()
-    setChannels(data)
-  }
-
-  useEffect(() => {
-    fetchChannels()
-  }, [])
-
+  // Map backend channel responses to C3 ChannelRow presentation model
+  const channelRows: ChannelRow[] = channels.map((c) => ({
+    id: c.id,
+    status: c.status === 'revoked' ? 'pending' : 'active',
+    type: 'Governance',
+    title: c.title,
+    subtitle: `Workspace: ${activeWorkspace?.name || 'C3 Substrate'}`,
+    participants: [
+      { label: 'Substrate', color: '#2563EB' },
+      { label: 'Vault', color: '#059669' },
+    ],
+    assetCount: c.asset_count || 0,
+    lastEvent: c.last_event || 'channel.created',
+    lastActivity: c.updated_at ? new Date(c.updated_at).toLocaleDateString() : 'Just now',
+    stellarTx: 'tx_anchored…',
+    c3Status: 'active',
+    c3Label: '⛓✓',
+  }));
 
   return (
     <DashboardLayout>
@@ -56,13 +60,29 @@ const LedgerPage = () => {
 
       {/* Main layout */}
       <LedgerLayout isNewShareOpen={isNewShareOpen}>
-        <LedgerTable ledgerRow={channels} newCreated={false} hasConflict={false} onOpenChannel={onOpen} />
+        {isLoading ? (
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '60px 20px',
+            color: '#6B7280',
+            fontSize: '14px',
+          }}>
+            <span>Loading channels for workspace…</span>
+          </div>
+        ) : (
+          <LedgerTable
+            ledgerRow={channelRows}
+            newCreated={false}
+            hasConflict={false}
+            onOpenChannel={onOpenChannel}
+          />
+        )}
       </LedgerLayout>
     </DashboardLayout>
-
   );
 };
 
 export default LedgerPage;
-
-

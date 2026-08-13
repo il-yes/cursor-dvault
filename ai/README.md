@@ -625,5 +625,41 @@ Together they allow humans and AI to evolve the system consistently over time.
 
 ---
 
+## Cross-Repository Engineering
+
+The Ankhora platform is implemented across multiple repositories, with a strict separation between Desktop/Client responsibilities and Cloud/Backend responsibilities.
+
+Cross-repository architecture, contracts, workflows, ownership boundaries, and synchronization decisions are documented in:
+
+`ai/09-cross-repo/`
+
+AI engineers working on features that cross repository boundaries **MUST read the relevant documents in `ai/09-cross-repo/` before making architectural or implementation decisions**.
+
+### Cross-Repository Rules
+
+* `ankhora-vault` is the **Desktop / Wails client** and owns client-side cryptographic execution.
+* `ankhora-cloud` is the **Cloud / Backend** and owns persistence, authorization, domain validation, federation, and backend orchestration.
+* Raw cryptographic secrets such as private keys, raw DEKs, and raw KEKs **MUST NOT cross the Desktop → Cloud boundary**.
+* Cross-repository communication MUST use explicitly defined contracts and opaque cryptographic payloads where applicable.
+* A change in one repository that affects a contract, DTO, workflow, domain responsibility, or security boundary MUST be reflected in `ai/09-cross-repo/`.
+* Engineers MUST NOT duplicate domain ownership across repositories merely to simplify implementation.
+* When a workflow spans both repositories, the engineer MUST first identify:
+
+  1. Which repository owns the business responsibility.
+  2. Which repository performs the cryptographic operation.
+  3. Which data crosses the repository boundary.
+  4. Which repository persists the resulting state.
+  5. Which contract synchronizes the two sides.
+
+### Before Cross-Repository Work
+
+Read:
+
+1. `ai/README.md`
+2. `ai/09-cross-repo/`
+3. The relevant architecture and bounded-context documentation.
+4. The relevant security / zero-knowledge decisions.
+
+The `09-cross-repo` documentation is the **source of truth for repository-to-repository responsibilities and contracts**.
 
 

@@ -12,10 +12,12 @@ interface Step4Props {
   onCreate: (
     values: Partial<CreateChannelDraft>
   ) => void;
+  isLoading?: boolean;
+  error?: string | null;
 
 }
 
-export const C3Step4 = ({ data, onBack, onCreate }: Step4Props) => {
+export const C3Step4 = ({ data, onBack, onCreate, isLoading, error }: Step4Props) => {
   const getAssignment = (vault: string) => {
     return data.assignments?.find(
       a => a.vault === vault
@@ -42,6 +44,23 @@ export const C3Step4 = ({ data, onBack, onCreate }: Step4Props) => {
         </div>
       </div>
       <div className="modal-body">
+        {error && (
+          <div style={{
+            backgroundColor: "rgba(239, 68, 68, 0.15)",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            borderRadius: "6px",
+            padding: "10px 12px",
+            color: "#F87171",
+            fontSize: "13px",
+            marginBottom: "12px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}>
+            <span>⚠️</span>
+            <div>{error}</div>
+          </div>
+        )}
         {/* Summary block */}
         <div className="summary-block">
           <div className="summary-row">
@@ -165,8 +184,10 @@ export const C3Step4 = ({ data, onBack, onCreate }: Step4Props) => {
         </div>
       </div>
       <div className="modal-footer">
-        <button className="btn " onClick={() => onBack()}>← Back</button>
-        <button className="btn-activate" onClick={() => onCreate(data)}>⚡ Start Channel</button>
+        <button className="btn " onClick={() => onBack()} disabled={isLoading}>← Back</button>
+        <button className="btn-activate" onClick={() => onCreate(data)} disabled={isLoading}>
+          {isLoading ? "⚡ Starting Channel..." : "⚡ Start Channel"}
+        </button>
       </div>
     </div>
   );

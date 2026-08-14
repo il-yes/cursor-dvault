@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"vault-app/internal/utils"
 	workspace_application "vault-app/internal/workspace/application"
 	workspace_events "vault-app/internal/workspace/application/events"
 	workspace_domain "vault-app/internal/workspace/domain"
@@ -34,9 +35,11 @@ func (c *ListWorkspaceUsecase) Execute(ctx context.Context, req *workspace_appli
 		VaultID:   req.VaultID,
 	})
 	if err != nil {
+		utils.LogPretty("🚫 [Workspace] ListWorkspaceUsecase.Execute error", err)
 		return nil, err
 	}
 
+	utils.LogPretty("[Workspace] ListWorkspaceUsecase.Execute result", collection)
 	return collection, nil
 }
 

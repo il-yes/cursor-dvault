@@ -21,7 +21,7 @@ func (u *ChannelSlotUsecase) AddSlot(ctx context.Context, req channel_applicatio
 		return nil, err
 	}
 
-	if channel == nil {
+	if channel == nil || channel.Data.ID == "" {
 		return nil, channel_domain.ErrChannelNotFound
 	}
 

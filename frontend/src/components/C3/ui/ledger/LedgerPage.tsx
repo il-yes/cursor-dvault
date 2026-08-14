@@ -43,7 +43,7 @@ const LedgerPage = () => {
   }
 
   useEffect(() => {
-    fetchChannels()
+    // fetchChannels()
   }, [])
 
 

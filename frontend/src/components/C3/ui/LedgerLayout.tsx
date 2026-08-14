@@ -3,8 +3,9 @@ import { NewThreadAssetDrawer } from "./thread/NewThreadAssetDrawer";
 import { TopToolbar } from "./top_toolbar";
 import { CreateWorkspaceModal } from "../CreateWorkspaceModal";
 import { CreateChannelModal } from "../CreateChannelModal";
-import { CreateThreadModal } from "../CreateThreadModal";
-import { AppendThreadEventModal } from "../AppendThreadEventModal";
+import { ThreadSlidingView } from "../CreateThreadModal";
+import { AppendThreadEventSlidingView } from "../AppendThreadEventModal";
+import { CreateCollaborativeShareModal } from "../CreateCollaborativeShareModal";
 import { WorkspaceResponse, ChannelResponse, ThreadResponse, ThreadEventResponse } from "@/services/api";
 import { useC3WorkspaceStore } from "@/components/C3/infrastructure/store/useC3WorkspaceStore";
 import { useC3ChannelStore } from "@/components/C3/infrastructure/store/useC3ChannelStore";
@@ -22,6 +23,7 @@ export const LedgerLayout = ({
     const [openCreateWorkspace, setOpenCreateWorkspace] = useState(false);
     const [openCreateChannel, setOpenCreateChannel] = useState(false);
     const [openAppendEvent, setOpenAppendEvent] = useState(false);
+    const [openCreateShare, setOpenCreateShare] = useState(false);
 
     const {
         workspaces,
@@ -92,6 +94,12 @@ export const LedgerLayout = ({
             clearEvents();
         }
     }, [activeThreadId, fetchEvents, clearEvents]);
+
+    useEffect(() => {
+        if (isNewShareOpen) {
+            setOpenCreateShare(true);
+        }
+    }, [isNewShareOpen]);
 
     const handleWorkspaceCreated = (workspace: WorkspaceResponse) => {
         addWorkspace(workspace);
@@ -230,8 +238,8 @@ export const LedgerLayout = ({
                 onChannelCreated={handleChannelCreated}
             />
 
-            {/* Create Thread Modal */}
-            <CreateThreadModal
+            {/* Thread Sliding View */}
+            <ThreadSlidingView
                 isOpen={openNewThread}
                 activeWorkspaceName={activeWorkspace?.name}
                 activeChannelId={activeChannelId}
@@ -240,8 +248,8 @@ export const LedgerLayout = ({
                 onThreadCreated={handleThreadCreated}
             />
 
-            {/* Append ThreadEvent Modal */}
-            <AppendThreadEventModal
+            {/* Append ThreadEvent Sliding View */}
+            <AppendThreadEventSlidingView
                 isOpen={openAppendEvent}
                 activeWorkspaceName={activeWorkspace?.name}
                 activeChannelTitle={activeChannel?.title}
@@ -249,6 +257,17 @@ export const LedgerLayout = ({
                 activeThreadTitle={activeThread?.title}
                 onClose={() => setOpenAppendEvent(false)}
                 onEventAppended={handleEventAppended}
+            />
+
+            {/* Create Collaborative Share Modal */}
+            <CreateCollaborativeShareModal
+                isOpen={openCreateShare}
+                onClose={() => setOpenCreateShare(false)}
+                onShareCreated={() => {
+                    if (activeThreadId) {
+                        fetchEvents(activeThreadId);
+                    }
+                }}
             />
         </>
     );

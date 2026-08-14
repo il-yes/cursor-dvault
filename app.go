@@ -33,18 +33,6 @@ import (
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_worker "vault-app/internal/config/application/worker"
 	app_config_domain "vault-app/internal/config/domain"
-	notification_center_usecases "vault-app/internal/notification_center/application/use_cases"
-	notification_center_domain "vault-app/internal/notification_center/domain"
-	notification_center_ui "vault-app/internal/notification_center/ui"
-	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
-	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
-	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
-	share_entry_application_dto "vault-app/internal/share_entry/application"
-	share_entry_use_cases "vault-app/internal/share_entry/application/use_cases"
-	share_entry_domain "vault-app/internal/share_entry/domain"
-	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
-	sahre_entry_ui_wails "vault-app/internal/share_entry/ui/wails"
-	// "vault-app/internal/config/infrastructure/persistence"
 	app_config_ui "vault-app/internal/config/ui"
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
@@ -54,9 +42,19 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
+	notification_center_usecases "vault-app/internal/notification_center/application/use_cases"
+	notification_center_domain "vault-app/internal/notification_center/domain"
+	notification_center_ui "vault-app/internal/notification_center/ui"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
-	// onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
+	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
+	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
+	share_entry_application_dto "vault-app/internal/share_entry/application"
+	share_entry_use_cases "vault-app/internal/share_entry/application/use_cases"
+	share_entry_domain "vault-app/internal/share_entry/domain"
+	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
+	sahre_entry_ui_wails "vault-app/internal/share_entry/ui/wails"
 	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	"vault-app/internal/registry"
 	shared_realtime "vault-app/internal/shared/realtime"
@@ -82,7 +80,17 @@ import (
 	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 	vault_ui "vault-app/internal/vault/ui"
 	// "vault-app/internal/logger/logger"
+	channel_usecase "vault-app/internal/channel/application/channel_lifecycle_usecases"
+	channel_eventbus "vault-app/internal/channel/infrastructure/eventbus"
+	channel_ui "vault-app/internal/channel/ui"
+	collaboration_ui "vault-app/internal/collaboration/ui"
 	"vault-app/internal/models"
+	thread_usecase "vault-app/internal/thread/application/usecases"
+	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
+	thread_ui "vault-app/internal/thread/ui"
+	workspace_usecase "vault-app/internal/workspace/application/usecases"
+	workspace_infrastructure_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
+	workspace_ui "vault-app/internal/workspace/ui"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -154,7 +162,7 @@ type App struct {
 	NowUTC   func() string
 
 	// Core handlers
-	AppConfigHandler          *app_config_ui.AppConfigHandler
+	AppConfigHandler *app_config_ui.AppConfigHandler
 	// Auth                      *handlers.AuthHandler
 	AuthHandler               *auth_ui.AuthHandler
 	BillingHandler            *billing_ui.BillingHandler
@@ -171,6 +179,12 @@ type App struct {
 	SubscriptionHandler       *subscription_ui_wails.SubscriptionHandler
 	Vault                     *vault_ui.VaultHandler
 	// Vaults                    *handlers.VaultHandler
+
+	// C3 Handlers
+	WorkspaceHandler     *workspace_ui.WorkspaceHandler
+	ChannelHandler       *channel_ui.ChannelHandler
+	ThreadHandler        *thread_ui.ThreadHandler
+	CollaborationHandler *collaboration_ui.CollaborationHandler
 
 	// New: Global state
 	RuntimeContext *vault_session.RuntimeContext
@@ -519,8 +533,30 @@ func NewApp() *App {
 	// Startup:
 	// ResetAndMigrate(db.DB) // Run ONCE on prod startup
 
+	// -------------------------------------------------------------------------------------------------
+	// C3 Handlers Initialization
+	// -------------------------------------------------------------------------------------------------
+	workspaceBus := workspace_infrastructure_eventbus.NewMemoryBus()
+	createWorkspaceUC := workspace_usecase.NewCreateWorkspaceUsecase(tracecoreClient, workspaceBus)
+	listWorkspaceUC := workspace_usecase.NewListWorkspaceUsecase(tracecoreClient, workspaceBus)
+	workspaceHandler := workspace_ui.NewWorkspaceHandler(createWorkspaceUC, listWorkspaceUC)
+
+	channelBus := channel_eventbus.NewMemoryEventBus()
+	createChannelUC := channel_usecase.NewCreateChannelUsecase(tracecoreClient, channelBus)
+	listChannelUC := channel_usecase.NewListChannelUsecase(tracecoreClient)
+	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC)
+
+	threadBus := thread_infrastructure_eventbus.NewMemoryBus()
+	createThreadUC := thread_usecase.NewCreateThreadUsecase(tracecoreClient, threadBus)
+	listThreadsUC := thread_usecase.NewListThreadsUsecase(tracecoreClient)
+	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(tracecoreClient)
+	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(tracecoreClient)
+	threadHandler := thread_ui.NewThreadHandler(createThreadUC, listThreadsUC, listThreadEventsUC, appendThreadEventUC)
+
+	collaborationHandler := collaboration_ui.NewCollaborationHandler(nil, appendThreadEventUC)
+
 	application := &App{
-		AppConfigHandler:          appConfigHandler,
+		AppConfigHandler: appConfigHandler,
 		// Auth:                      nil, // auth,
 		BillingHandler:            billingHandler,
 		AuthHandler:               authHandler,
@@ -543,8 +579,12 @@ func NewApp() *App {
 		SubscriptionHandler:       subscriptionHandler,
 		RuntimeContext:            runtimeCtxLegacy,
 		Vault:                     vaultHandler, // internal/vault/ui/vault_handler.go
+		WorkspaceHandler:          workspaceHandler,
+		ChannelHandler:            channelHandler,
+		ThreadHandler:             threadHandler,
+		CollaborationHandler:      collaborationHandler,
 		// Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
-		version:                   version,
+		version: version,
 	}
 
 	// ===== New: vault share created =====
@@ -791,12 +831,14 @@ func (a *App) OnPaymentConfirmation(sessionID string, email string, plainPasswor
 // -----------------------------
 // Connexion Legagcy
 // -----------------------------
-// func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
-// 	return a.Auth.Login(req)
-// }
-// func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
-// 	return a.Auth.OnBoarding(setup)
-// }
+//
+//	func (a *App) Sign(req handlers.LoginRequest) (*handlers.LoginResponse, error) {
+//		return a.Auth.Login(req)
+//	}
+//
+//	func (a *App) SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error) {
+//		return a.Auth.OnBoarding(setup)
+//	}
 func (a *App) SignOut(userID string) error {
 	a.Logger.Info("App - SignOut userID", userID)
 	if err := a.Vault.LogoutUser(userID); err != nil {
@@ -821,6 +863,7 @@ type CheckEmailResponse struct {
 	Status      string   `json:"status"`
 	AuthMethods []string `json:"auth_methods,omitempty"`
 }
+
 func (a *App) CheckEmail(email string) (*CheckEmailResponse, error) {
 
 	/* user, err := ah.TracecoreClient.GetUserByEmail(ctx, email)
@@ -850,7 +893,6 @@ func (a *App) CheckEmail(email string) (*CheckEmailResponse, error) {
 	// if user.PublicKey != "" {
 	// 	authMethods = append(authMethods, "stellar")
 	// }
-	
 
 	return &CheckEmailResponse{
 		Status:      "EXISTS",
@@ -1098,6 +1140,7 @@ func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	}
 	return claims.ToFormerModel(), nil
 }
+
 // func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
 // 	return a.Auth.RequestChallenge(req)
 // }
@@ -1218,10 +1261,6 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 	return fmt.Sprintf("Folder deleted %s successfuly", id), nil
 }
 
-
-
-
-
 // -----------------------------
 // Cloud Services
 // -----------------------------
@@ -1274,6 +1313,7 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 	utils.LogPretty("App - SynchronizeVault - res", res)
 	return res, err
 }
+
 // func (a *App) EncryptFile(jwtToken string, fileData string, password string) (string, error) {
 // 	claims, err := a.RequireAuth(jwtToken)
 // 	if err != nil {
@@ -1300,8 +1340,8 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 // 		"stage":   "encrypted",
 // 	})
 
-// 	return encryptedPath, nil
-// }
+//		return encryptedPath, nil
+//	}
 func (a *App) EncryptAttachment(jwtToken string, data []byte, password string) ([]byte, error) {
 	_, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -1676,6 +1716,7 @@ func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachm
 	a.Logger.LogPretty("App - UpdateAttachment - res", res)
 	return res, nil
 }
+
 // func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
 // 	claims, err := a.RequireAuth(jwtToken)
 // 	if err != nil {
@@ -1712,8 +1753,8 @@ func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachm
 // 		"stage":   "encrypted",
 // 	})
 
-// 	return encryptedPath, nil
-// }
+//		return encryptedPath, nil
+//	}
 func (a *App) UploadAvatar(jwtToken string, vaultName string, avatar []byte) (string, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
@@ -2053,7 +2094,6 @@ func (a *App) CreateShare(input CreateShareInput) (*share_entry_domain.ShareEntr
 	)
 }
 
-
 // Cryptographic share by me
 func (a *App) ListSharedEntries(jwtToken string) (*[]share_entry_domain.ShareEntry, error) {
 	claims, err := a.RequireAuth(jwtToken)
@@ -2228,6 +2268,7 @@ func (a *App) ListPendingIntentSharesWithMe(jwtToken string) (*tracecore_types.C
 	a.Logger.LogPretty("App - ListPendingIntentSharesWithMe - res", res)
 	return res, nil
 }
+
 // -----------------------------
 // Vault Config
 // -----------------------------
@@ -2774,22 +2815,34 @@ func (a *App) SetStorageMode(JwtToken string, mode string) {
 
 // C3 Wails App Methods
 
-func (a *App) CreateWorkspace(JwtToken string, name string, description string) (*tracecore_types.Workspace, error) {
+func (a *App) CreateWorkspace(JwtToken string, vaultId string, name string, description string) (*tracecore_types.Workspace, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.CreateWorkspaceDirect(a.ctx, claims.UserID, name, description)
+	if a.WorkspaceHandler == nil {
+		return nil, fmt.Errorf("workspace handler is not initialized")
+	}
+	return a.WorkspaceHandler.CreateWorkspace(a.ctx, claims.UserID, vaultId, name, description)
 }
 
-func (a *App) ListWorkspaces(JwtToken string) ([]tracecore_types.Workspace, error) {
+func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types.Workspace, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.ListWorkspacesDirect(a.ctx, claims.UserID)
+	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, vaultId)
+	if a.WorkspaceHandler == nil {
+		return nil, fmt.Errorf("workspace handler is not initialized")
+	}
+
+	res, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, vaultId)
+	if err != nil {
+		a.Logger.Error("App.ListWorkspaces error: %v", err)
+		return nil, err
+	}
+	utils.LogPretty("[Workspace] App.ListWorkspaces final result", res)
+	return res, nil
 }
 
 func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string) (*tracecore_types.ChannelDTO, error) {
@@ -2797,8 +2850,10 @@ func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, t
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.CreateChannelDirect(a.ctx, claims.UserID, workspaceID, title, templateID)
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.CreateChannel(a.ctx, claims.UserID, workspaceID, title, templateID)
 }
 
 func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_types.ChannelDTO, error) {
@@ -2806,8 +2861,10 @@ func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_typ
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.ListChannelsDirect(a.ctx, claims.UserID, workspaceID)
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.ListChannels(a.ctx, claims.UserID, workspaceID)
 }
 
 func (a *App) CreateThread(JwtToken string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {
@@ -2815,8 +2872,10 @@ func (a *App) CreateThread(JwtToken string, channelID string, title string, subt
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.CreateThreadDirect(a.ctx, claims.UserID, channelID, title, subtitle, assetType)
+	if a.ThreadHandler == nil {
+		return nil, fmt.Errorf("thread handler is not initialized")
+	}
+	return a.ThreadHandler.CreateThread(a.ctx, claims.UserID, channelID, title, subtitle, assetType)
 }
 
 func (a *App) ListThreads(JwtToken string, channelID string) ([]tracecore_types.ThreadDTO, error) {
@@ -2824,8 +2883,10 @@ func (a *App) ListThreads(JwtToken string, channelID string) ([]tracecore_types.
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.ListThreadsDirect(a.ctx, claims.UserID, channelID)
+	if a.ThreadHandler == nil {
+		return nil, fmt.Errorf("thread handler is not initialized")
+	}
+	return a.ThreadHandler.ListThreads(a.ctx, claims.UserID, channelID)
 }
 
 func (a *App) ListThreadEvents(JwtToken string, threadID string) ([]tracecore_types.ThreadEventDTO, error) {
@@ -2833,8 +2894,10 @@ func (a *App) ListThreadEvents(JwtToken string, threadID string) ([]tracecore_ty
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.ListThreadEventsDirect(a.ctx, claims.UserID, threadID)
+	if a.ThreadHandler == nil {
+		return nil, fmt.Errorf("thread handler is not initialized")
+	}
+	return a.ThreadHandler.ListThreadEvents(a.ctx, claims.UserID, threadID)
 }
 
 func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType string, payloadJson string) (*tracecore_types.ThreadEventDTO, error) {
@@ -2849,6 +2912,19 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	if payload == nil {
 		payload = make(map[string]interface{})
 	}
-	client := tracecore.NewTracecoreClient(a.config.CloudBackURL, a.config.TracecoreToken, a.config.CloudFrontURL, a.config.CloudBackURL)
-	return client.AppendThreadEventDirect(a.ctx, claims.UserID, threadID, eventType, payload)
+	if a.ThreadHandler == nil {
+		return nil, fmt.Errorf("thread handler is not initialized")
+	}
+	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, payload)
+}
+
+func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string) (*tracecore_types.ShareEntryRefDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes)
 }

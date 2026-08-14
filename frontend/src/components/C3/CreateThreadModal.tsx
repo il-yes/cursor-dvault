@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createThread, ThreadResponse } from "@/services/api";
 
-interface CreateThreadModalProps {
+export interface ThreadSlidingViewProps {
 	isOpen: boolean;
 	activeWorkspaceName?: string;
 	activeChannelId: string | null;
@@ -10,11 +10,11 @@ interface CreateThreadModalProps {
 	onThreadCreated?: (thread: ThreadResponse) => void;
 }
 
-export const CreateThreadModal: React.FC<CreateThreadModalProps> = ({
+export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 	isOpen,
 	activeWorkspaceName = "Active Workspace",
 	activeChannelId,
-	activeChannelTitle = "Active Channel",
+	activeChannelTitle = "Contract Execution",
 	onClose,
 	onThreadCreated,
 }) => {
@@ -81,335 +81,229 @@ export const CreateThreadModal: React.FC<CreateThreadModalProps> = ({
 		}
 	};
 
+	const channelDisplayName = activeChannelTitle || "Contract Execution";
+	const channelSlug = channelDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
 	return (
-		<div
-			className="modal-overlay"
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				backgroundColor: "rgba(0, 0, 0, 0.65)",
-				backdropFilter: "blur(4px)",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				zIndex: 1000,
-			}}
-		>
-			<div
-				className="modal"
-				style={{
-					width: "100%",
-					maxWidth: "500px",
-					backgroundColor: "#161B22",
-					borderRadius: "8px",
-					border: "1px solid rgba(255, 255, 255, 0.1)",
-					boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)",
-					color: "#F0F6FC",
-					fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-					overflow: "hidden",
-				}}
-			>
-				{/* Modal Header */}
-				<div
-					className="modal-header"
-					style={{
-						padding: "16px 20px",
-						borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-between",
-					}}
-				>
-					<div>
-						<div
-							className="mh-title"
-							style={{
-								fontSize: "16px",
-								fontWeight: 600,
-								color: "#F0F6FC",
-							}}
-						>
-							Create C3 Thread
-						</div>
-						<div
-							className="mh-sub"
-							style={{
-								fontSize: "12px",
-								color: "#8B949E",
-								marginTop: "2px",
-							}}
-						>
-							Start a new collaborative thread under your active channel
+		<>
+			{/* Static Backdrop Layer */}
+			<div className="c3-sliding-view-backdrop" onClick={handleClose} />
+
+			{/* Fixed Right-Side 460px Panel */}
+			<div className="c3-sliding-view-container">
+				<div className="slide-panel">
+					{/* Header */}
+					<div className="sp-header">
+						<div className="sp-header-row">
+							<div>
+								<div className="sp-title">New Thread</div>
+								<div className="sp-subtitle">
+									Instantiate a channel into a new thread
+								</div>
+							</div>
+							<div
+								className="sp-close"
+								onClick={handleClose}
+								role="button"
+								tabIndex={0}
+							>
+								✕
+							</div>
 						</div>
 					</div>
-					<button
-						type="button"
-						className="mh-close"
-						onClick={handleClose}
-						disabled={isLoading}
-						style={{
-							background: "none",
-							border: "none",
-							color: "#8B949E",
-							fontSize: "16px",
-							cursor: isLoading ? "not-allowed" : "pointer",
-							padding: "4px",
-						}}
-					>
-						✕
-					</button>
-				</div>
 
-				{/* Modal Body */}
-				<form onSubmit={handleSubmit}>
-					<div
-						className="modal-body"
-						style={{
-							padding: "20px",
-							display: "flex",
-							flexDirection: "column",
-							gap: "16px",
-						}}
-					>
-						{/* Error Alert */}
-						{error && (
-							<div
-								style={{
-									backgroundColor: "rgba(239, 68, 68, 0.15)",
-									border: "1px solid rgba(239, 68, 68, 0.4)",
-									borderRadius: "6px",
-									padding: "10px 12px",
-									color: "#F87171",
-									fontSize: "13px",
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-								}}
-							>
-								<span>⚠️</span>
-								<div style={{ flex: 1 }}>{error}</div>
-							</div>
-						)}
-
-						{/* Read-only Context */}
-						<div
-							style={{
-								padding: "10px 12px",
-								backgroundColor: "rgba(255, 255, 255, 0.04)",
-								border: "1px solid rgba(255, 255, 255, 0.08)",
-								borderRadius: "6px",
-								fontSize: "13px",
-								display: "flex",
-								flexDirection: "column",
-								gap: "4px",
-							}}
-						>
-							<div style={{ display: "flex", justifyContent: "space-between", color: "#8B949E" }}>
-								<span>Workspace:</span>
-								<strong style={{ color: "#C9D1D9", fontWeight: 600 }}>{activeWorkspaceName}</strong>
-							</div>
-							<div style={{ display: "flex", justifyContent: "space-between", color: "#8B949E" }}>
-								<span>Target Channel:</span>
-								<strong style={{ color: "#2563EB", fontWeight: 600 }}>{activeChannelTitle}</strong>
-							</div>
-						</div>
-
-						{/* Thread Title Input */}
-						<div>
-							<label
-								htmlFor="thread-title-input"
-								style={{
-									display: "block",
-									fontSize: "12px",
-									fontWeight: 600,
-									color: "#C9D1D9",
-									marginBottom: "6px",
-									textTransform: "uppercase",
-									letterSpacing: "0.5px",
-								}}
-							>
-								Thread Title <span style={{ color: "#EF4444" }}>*</span>
-							</label>
-							<input
-								id="thread-title-input"
-								type="text"
-								placeholder="e.g. Accenture Partnership Contract Execution"
-								value={title}
-								onChange={(e) => {
-									setTitle(e.target.value);
-									if (validationError) setValidationError(null);
-								}}
-								disabled={isLoading}
-								autoFocus
-								style={{
-									width: "100%",
-									padding: "10px 12px",
-									backgroundColor: "#0D1117",
-									border: validationError ? "1px solid #EF4444" : "1px solid #30363D",
-									borderRadius: "6px",
-									color: "#F0F6FC",
-									fontSize: "14px",
-									outline: "none",
-									boxSizing: "border-box",
-								}}
-							/>
-							{validationError && (
-								<div style={{ color: "#EF4444", fontSize: "12px", marginTop: "4px" }}>
-									{validationError}
+					{/* Form Body */}
+					<form onSubmit={handleSubmit} style={{ display: "contents" }}>
+						<div className="sp-body">
+							{/* Error Alert */}
+							{error && (
+								<div
+									style={{
+										backgroundColor: "rgba(239, 68, 68, 0.08)",
+										border: "1px solid rgba(239, 68, 68, 0.3)",
+										borderRadius: "6px",
+										padding: "10px 12px",
+										color: "#DC2626",
+										fontSize: "13px",
+										display: "flex",
+										alignItems: "flex-start",
+										gap: "8px",
+									}}
+								>
+									<span>⚠️</span>
+									<div style={{ flex: 1 }}>{error}</div>
 								</div>
 							)}
-						</div>
 
-						{/* Thread Subtitle Input */}
-						<div>
-							<label
-								htmlFor="thread-subtitle-input"
-								style={{
-									display: "block",
-									fontSize: "12px",
-									fontWeight: 600,
-									color: "#C9D1D9",
-									marginBottom: "6px",
-									textTransform: "uppercase",
-									letterSpacing: "0.5px",
-								}}
-							>
-								Subtitle / Summary
-							</label>
-							<input
-								id="thread-subtitle-input"
-								type="text"
-								placeholder="e.g. Master Services Agreement & Statement of Work #4"
-								value={subtitle}
-								onChange={(e) => setSubtitle(e.target.value)}
-								disabled={isLoading}
-								style={{
-									width: "100%",
-									padding: "10px 12px",
-									backgroundColor: "#0D1117",
-									border: "1px solid #30363D",
-									borderRadius: "6px",
-									color: "#F0F6FC",
-									fontSize: "14px",
-									outline: "none",
-									boxSizing: "border-box",
-								}}
-							/>
-						</div>
+							{/* 1. Channel Display */}
+							<div>
+								<div className="fl">
+									Channel{" "}
+									<span className="fl-hint">defines slots, gates, vault flow</span>
+								</div>
+								<div className="channel-selected">
+									<div className="cs-icon-wrap">📄</div>
+									<div className="cs-content">
+										<div className="cs-name">{channelDisplayName}</div>
+										<div className="cs-desc">
+											{channelSlug || "contract-execution"} · workspace: {activeWorkspaceName}
+										</div>
+									</div>
+								</div>
+							</div>
 
-						{/* Asset Type Input */}
-						<div>
-							<label
-								htmlFor="thread-asset-type-select"
-								style={{
-									display: "block",
-									fontSize: "12px",
-									fontWeight: 600,
-									color: "#C9D1D9",
-									marginBottom: "6px",
-									textTransform: "uppercase",
-									letterSpacing: "0.5px",
-								}}
-							>
-								Asset Type
-							</label>
-							<select
-								id="thread-asset-type-select"
-								value={assetType}
-								onChange={(e) => setAssetType(e.target.value)}
-								disabled={isLoading}
-								style={{
-									width: "100%",
-									padding: "10px 12px",
-									backgroundColor: "#0D1117",
-									border: "1px solid #30363D",
-									borderRadius: "6px",
-									color: "#F0F6FC",
-									fontSize: "14px",
-									outline: "none",
-									boxSizing: "border-box",
-								}}
-							>
-								<option value="note">Note / Document</option>
-								<option value="login">Login / Identity Credentials</option>
-								<option value="card">Card / Payment Instrument</option>
-								<option value="ssh_key">SSH Key / Access Key</option>
-							</select>
-						</div>
-					</div>
+							{/* 2. Channel Flow Preview */}
+							<div>
+								<div className="fl">Flow</div>
+								<div className="channel-flow-box">
+									<div className="cfb-row">
+										<div className="cfb-vault">
+											<div className="cfb-dot" style={{ background: "#7C3AED" }} />
+											vault_legal
+										</div>
+										<div className="cfb-arrow">→</div>
+										<div className="cfb-vault">
+											<div className="cfb-dot" style={{ background: "#2563EB" }} />
+											vault_finance
+										</div>
+										<div className="cfb-arrow">→</div>
+										<div className="cfb-vault">
+											<div className="cfb-dot" style={{ background: "#444" }} />
+											vault_direction
+										</div>
+									</div>
+									<div className="cfb-meta">
+										<div className="cfb-metaitem">
+											<strong>3</strong> slots
+										</div>
+										<div className="cfb-metaitem">
+											<strong>2</strong> gated
+										</div>
+										<div className="cfb-metaitem">
+											first slot: <strong>contract_draft</strong>
+										</div>
+									</div>
+								</div>
+							</div>
 
-					{/* Modal Footer */}
-					<div
-						className="modal-footer"
-						style={{
-							padding: "12px 20px",
-							borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "flex-end",
-							gap: "10px",
-						}}
-					>
-						<button
-							type="button"
-							className="btn btn-ghost"
-							onClick={handleClose}
-							disabled={isLoading}
-							style={{
-								padding: "8px 16px",
-								borderRadius: "6px",
-								background: "transparent",
-								border: "1px solid rgba(255, 255, 255, 0.15)",
-								color: "#C9D1D9",
-								fontSize: "13px",
-								cursor: isLoading ? "not-allowed" : "pointer",
-							}}
-						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							className="btn btn-primary"
-							disabled={isLoading || !title.trim()}
-							style={{
-								padding: "8px 18px",
-								borderRadius: "6px",
-								background: isLoading || !title.trim() ? "#238636a0" : "#238636",
-								border: "none",
-								color: "#FFFFFF",
-								fontSize: "13px",
-								fontWeight: 600,
-								cursor: isLoading || !title.trim() ? "not-allowed" : "pointer",
-								display: "flex",
-								alignItems: "center",
-								gap: "6px",
-							}}
-						>
-							{isLoading ? (
-								<>
-									<span
-										style={{
-											display: "inline-block",
-											width: "12px",
-											height: "12px",
-											border: "2px solid #ffffff",
-											borderTopColor: "transparent",
-											borderRadius: "50%",
-											animation: "spin 0.8s linear infinite",
+							{/* 3. Thread Name Input */}
+							<div>
+								<div className="fl">
+									Thread Name <span style={{ color: "#EF4444" }}>*</span>
+								</div>
+								<div className="thread-name-wrap">
+									<div className="thread-name-prefix">{channelSlug || "contract"} —</div>
+									<input
+										className="thread-name-input"
+										type="text"
+										placeholder="e.g. Accenture Partnership"
+										value={title}
+										onChange={(e) => {
+											setTitle(e.target.value);
+											if (validationError) setValidationError(null);
 										}}
+										disabled={isLoading}
+										autoFocus
 									/>
-									<span>Creating…</span>
-								</>
-							) : (
-								"Create Thread"
-							)}
-						</button>
-					</div>
-				</form>
+								</div>
+								{validationError && (
+									<div style={{ color: "#EF4444", fontSize: "12px", marginTop: "4px" }}>
+										{validationError}
+									</div>
+								)}
+							</div>
+
+							{/* 4. Subtitle / Summary */}
+							<div>
+								<div className="fl">
+									Subtitle / Summary{" "}
+									<span className="fl-hint">optional descriptor</span>
+								</div>
+								<input
+									className="prop-input"
+									type="text"
+									placeholder="e.g. Master Services Agreement & SOW #4"
+									value={subtitle}
+									onChange={(e) => setSubtitle(e.target.value)}
+									disabled={isLoading}
+								/>
+							</div>
+
+							{/* 5. Asset Type */}
+							<div>
+								<div className="fl">Asset Type</div>
+								<select
+									className="prop-input"
+									value={assetType}
+									onChange={(e) => setAssetType(e.target.value)}
+									disabled={isLoading}
+									style={{ height: "38px" }}
+								>
+									<option value="note">Note / Document</option>
+									<option value="login">Login / Identity Credentials</option>
+									<option value="card">Card / Payment Instrument</option>
+									<option value="ssh_key">SSH Key / Access Key</option>
+								</select>
+							</div>
+
+							{/* Stellar Anchor Info */}
+							<div className="stellar-info">
+								<span className="si-icon">✦</span>
+								<span className="si-text">
+									A <strong>genesis transaction</strong> will be anchored on Stellar
+									the moment this thread starts. Every subsequent commit is
+									automatically anchored.
+								</span>
+								<div className="si-status">
+									<div className="si-dot" />
+									<span className="si-label">Active</span>
+								</div>
+							</div>
+						</div>
+
+						{/* Footer */}
+						<div className="sp-footer">
+							<button
+								type="submit"
+								className="start-btn"
+								disabled={isLoading || !title.trim()}
+								style={{
+									opacity: isLoading || !title.trim() ? 0.6 : 1,
+									cursor: isLoading || !title.trim() ? "not-allowed" : "pointer",
+								}}
+							>
+								{isLoading ? (
+									<>
+										<span
+											style={{
+												display: "inline-block",
+												width: "14px",
+												height: "14px",
+												border: "2px solid #fff",
+												borderTopColor: "transparent",
+												borderRadius: "50%",
+												animation: "spin 0.8s linear infinite",
+											}}
+										/>
+										<span>Starting Thread…</span>
+									</>
+								) : (
+									"▶ Start Thread"
+								)}
+							</button>
+							<div className="footer-note">
+								Thread appears in the ledger immediately.{" "}
+								<strong>vault_legal</strong> can commit{" "}
+								<strong>contract_draft</strong> right away. C3 extension can be
+								added at any time.
+							</div>
+						</div>
+					</form>
+				</div>
 			</div>
-		</div>
+		</>
 	);
 };
+
+export const CreateThreadSlidingView = ThreadSlidingView;
+export const CreateThreadModal = ThreadSlidingView;

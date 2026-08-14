@@ -75,7 +75,7 @@ func TestChannel_GetSlotByID_NotFound(t *testing.T) {
 	found, ok := channel.GetSlotByID("unknown-slot")
 
 	require.False(t, ok)
-	require.Nil(t, found)
+	require.Equal(t, channel_domain.Slot{}, found)
 }
 func TestChannel_GetSlotByVaultID_NotFound(t *testing.T) {
 	channel := newTestChannel()
@@ -285,7 +285,7 @@ func TestChannel_SlotCRUD_EmptyChannel(t *testing.T) {
 
 	slotByID, foundByID := channel.GetSlotByID("slot-001")
 	require.False(t, foundByID)
-	require.Nil(t, slotByID)
+	require.Equal(t, channel_domain.Slot{}, slotByID)
 
 	slotByVault, foundByVault := channel.GetSlotByVaultID("vault-oem")
 	require.False(t, foundByVault)

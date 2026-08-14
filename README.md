@@ -1518,6 +1518,14 @@ func NewVaultC3Service() *VaultC3Service {
 
 
 
+curl -X POST http://localhost:4001/api/workspaces \
+  -H "Content-Type: application/json" \
+  -d '{
+    "VaultID": "3",
+    "Name": "test_name",
+    "Description": "USER_MESSAGE",
+    "OwnerID": "GDP33HCI3D253ZY3KIXHMFQ2TMMDDXCSFHS6GWSGE6D5ONUTFNGKAHVG",
 
+  }'
 
 

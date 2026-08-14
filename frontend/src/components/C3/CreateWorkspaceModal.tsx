@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { createWorkspace, WorkspaceResponse } from "@/services/api";
+import { useVaultStore } from "@/store/vaultStore";
 
 interface CreateWorkspaceModalProps {
 	isOpen: boolean;
@@ -17,6 +18,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [validationError, setValidationError] = useState<string | null>(null);
+	const { vault } = useVaultStore();
 
 	if (!isOpen) return null;
 
@@ -49,6 +51,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
 
 		try {
 			const createdWorkspace = await createWorkspace({
+				vault_id: vault?.vault_runtime_context?.VaultID,
 				name: trimmedName,
 				description: description.trim(),
 			});

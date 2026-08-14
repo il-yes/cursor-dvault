@@ -5,18 +5,65 @@ import { ChannelSlot, Department, VaultAssignment } from "@/components/C3/domain
 import { CreateChannelDraft } from "../types";
 
 interface Step3Props {
-
     data: CreateChannelDraft;
     onBack: () => void;
     onNext: (
         values: Partial<CreateChannelDraft>
     ) => void;
-
 }
 
+interface VaultRowItemProps {
+    slot: ChannelSlot;
+    departments: Department[];
+    updateAssignedUser: (vaultName: string, userId: string) => void;
+    updateAssignedPublicKey: (vaultName: string, publicKey: string) => void;
+    setAssignmentColor: (vaultName: string, color: string) => void;
+}
+
+const VaultRowItem = ({
+    slot,
+    departments,
+    updateAssignedUser,
+    updateAssignedPublicKey,
+    setAssignmentColor,
+}: VaultRowItemProps) => {
+    const [user, setUser] = useState<string | undefined>(undefined);
+    const [publicKey, setPublicKey] = useState<string | undefined>(undefined);
+    const department = departments.find((v: Department) => v.id === slot?.vault);
+    const color = department?.color;
+
+    const updateUser = (update: string) => {
+        setUser(update);
+        updateAssignedUser(slot.vault, update);
+    };
+
+    const updatePub = (update: string) => {
+        setPublicKey(update);
+        updateAssignedPublicKey(slot.vault, update);
+    };
+
+    useEffect(() => {
+        if (department && color) {
+            setAssignmentColor(slot.vault, color);
+        }
+    }, [department, color, slot.vault, setAssignmentColor]);
+
+    return (
+        <div className="vault-select-wrap">
+            <div className="vs-dot" style={{ background: color }} />
+            <div className="vs-name">{department?.name || slot.vault}</div>
+            <div className="vs-arrow">▾</div>
+            <div className="vs-inputs flex w-full flex-col gap-y-3 p-2">
+                <input type="text" value={user || ""} onChange={(v) => updateUser(v.target.value)} placeholder="User ID / Name" />
+                <input type="text" value={publicKey || ""} onChange={(v) => updatePub(v.target.value)} placeholder="Public Key" />
+            </div>
+        </div>
+    );
+};
+
 export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
-    console.log({ data })
-    const [departments, setDepartments] = useState<Department[]>([])
+    console.log({ data });
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [assignments, setAssignments] = useState<VaultAssignment[]>(() => {
         if (data.assignments && data.assignments.length > 0) {
             return data.assignments;
@@ -33,21 +80,19 @@ export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
     });
 
     useEffect(() => {
-        getDepartments()
-    }, [])
+        getDepartments();
+    }, []);
 
     const getDepartments = async () => {
         try {
-            const res = await fetchDepartments()
-            console.log({ res })
-            setDepartments(res)
+            const res = await fetchDepartments();
+            setDepartments(res);
         } catch (err) {
-            console.error("Failed to fetch departments", err)
+            console.error("Failed to fetch departments", err);
         }
-    }
+    };
 
     const updateAssignedUser = (vaultName: string, userId: string) => {
-        console.log({ vaultName, userId })
         setAssignments((prev) =>
             prev.map((assignment) =>
                 assignment.vault === vaultName
@@ -58,7 +103,6 @@ export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
     };
 
     const updateAssignedPublicKey = (vaultName: string, publicKey: string) => {
-        console.log({ vaultName, publicKey })
         setAssignments((prev) =>
             prev.map((assignment) =>
                 assignment.vault === vaultName
@@ -78,48 +122,9 @@ export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
         );
     };
 
-
-    const assignmentToVaultRow = (slot: ChannelSlot, i: number) => {
-        const [user, setUser] = useState<string | undefined>(undefined)
-        const [publicKey, setPublicKey] = useState<string | undefined>(undefined)
-        const department = departments.find((v: Department) => v.id === slot?.vault)
-        const color = department?.color
-        console.log({departments, slot})
-        
-
-        const updateUser = (update) => {
-            setUser(update)
-            updateAssignedUser(slot.vault, update)
-        }
-
-        const updatePub = (update) => {
-            setPublicKey(update)
-            updateAssignedPublicKey(slot.vault, update)
-        }
-
-        useEffect(() => {
-            if (department && color) {
-                setAssignmentColor(slot.vault, color)
-            }
-        }, [department])
-
-        return (
-            <div className="vault-select-wrap">
-                <div className="vs-dot" style={{ background: color }} />
-                <div className="vs-name">{department?.name}</div>
-                <div className="vs-arrow">▾</div>
-                <div className="vs-inputs flex w-full flex-col gap-y-3 p-2">
-                    <input type="text" value={user} onChange={(v) => updateUser(v.target.value)} />
-                    <input type="text" value={publicKey} onChange={(v) => updatePub(v.target.value)} />
-                </div>
-            </div>
-        )
-    }
-
-
+    const slotsToRender = data?.slots?.length ? data.slots : data?.template?.slots ?? [];
 
     return (
-
         <div className="modal">
             <C3styles />
             <div className="modal-header">
@@ -152,24 +157,24 @@ export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {data?.template?.slots?.map((slot, i) => (
-                            <tr key={slot.id}>
+                        {slotsToRender.map((slot, i) => (
+                            <tr key={slot.id || i}>
                                 <td>
                                     <div className="role-name">{slot.role}</div>
                                 </td>
                                 <td>
-                                    {assignmentToVaultRow(slot, i)}
-                                    {/* <div className="vault-select-wrap">
-                                        <div className="vs-dot" style={{ background: departments.find((v: Department) => v.id === slot.assignedTo)?.color }} />
-                                        <div className="vs-name">{departments.find((v: Department) => v.id === slot.assignedTo)?.name}</div>
-                                        <div className="vs-arrow">▾</div>
-                                    </div> */}
+                                    <VaultRowItem
+                                        slot={slot}
+                                        departments={departments}
+                                        updateAssignedUser={updateAssignedUser}
+                                        updateAssignedPublicKey={updateAssignedPublicKey}
+                                        setAssignmentColor={setAssignmentColor}
+                                    />
                                 </td>
                                 <td>
                                     <span className="role-access">Write</span>
                                 </td>
                             </tr>
-
                         ))}
                     </tbody>
                 </table>
@@ -216,6 +221,5 @@ export const Step3 = ({ data, onBack, onNext }: Step3Props) => {
                 }>Next →</button>
             </div>
         </div>
-    )
-}
-
+    );
+};

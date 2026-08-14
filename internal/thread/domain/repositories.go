@@ -21,10 +21,21 @@ type UpdateThreadRequest struct {
 	Thread Thread
 }
 
+type ListThreadEventsRequest struct {
+	ThreadID string
+}
+
+type AppendThreadEventRequest struct {
+	ThreadID  string
+	EventType string
+	Payload   map[string]interface{}
+}
 
 type ThreadRepository interface {
 	CreateThread(ctx context.Context, req *CreateThreadRequest) (*tracecore_types.CloudResponse[Thread], error)
 	ListThreads(ctx context.Context, req *ListThreadsRequest) (*tracecore_types.CloudResponse[[]Thread], error)
 	GetThread(ctx context.Context, req *GetThreadRequest) (*tracecore_types.CloudResponse[Thread], error)
 	UpdateThread(ctx context.Context, req *UpdateThreadRequest) (*tracecore_types.CloudResponse[Thread], error)
+	ListThreadEvents(ctx context.Context, req *ListThreadEventsRequest) (*tracecore_types.CloudResponse[[]ThreadEvent], error)
+	AppendThreadEvent(ctx context.Context, req *AppendThreadEventRequest) (*tracecore_types.CloudResponse[ThreadEvent], error)
 }

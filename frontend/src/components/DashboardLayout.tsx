@@ -480,6 +480,7 @@ function AppSidebar() {
 	const [avatar, setAvatar] = useState<string | null>(null);
 	const [attachments, setAttachments] = useState<File[]>([]);
 
+
 	const handleTabChange = (type) => {
 		setSearchParams({ ...Object.fromEntries(searchParams), type });
 	};

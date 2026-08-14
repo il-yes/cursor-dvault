@@ -303,8 +303,11 @@ type StorageUsageResponse struct {
 type NewCreateWorkspaceRequest struct {
 	UserID    string
 	VaultID   string
-	Workspace Workspace
 	Signature string
+
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	OwnerID     string `json:"owner_id"`
 }
 type Workspace struct {
 	ID      string `json:"id"`
@@ -370,4 +373,33 @@ type ShareEntryRefDTO struct {
 	CreatedBy    string `json:"created_by,omitempty"`
 	Status       string `json:"status,omitempty"`
 	CreatedAt    string `json:"created_at,omitempty"`
+}
+
+type TrustGroupMemberRefDTO struct {
+	VaultID  string `json:"vault_id"`
+	Role     string `json:"role,omitempty"`
+	JoinedAt string `json:"joined_at,omitempty"`
+}
+
+type TrustGroupRefDTO struct {
+	ID          string                  `json:"id"`
+	ChannelID   string                  `json:"channel_id,omitempty"`
+	Name        string                  `json:"name"`
+	Status      string                  `json:"status,omitempty"`
+	MemberCount int                     `json:"member_count"`
+	Members     []TrustGroupMemberRefDTO `json:"members,omitempty"`
+	CreatedAt   string                  `json:"created_at,omitempty"`
+}
+
+type CreateCollaborativeShareRequestDTO struct {
+	ThreadID     string `json:"thread_id"`
+	TrustGroupID string `json:"trust_group_id"`
+	AssetCID     string `json:"asset_cid"`
+	TargetVaultID string `json:"target_vault_id"`
+	Notes        string `json:"notes,omitempty"`
+}
+
+type CreateCollaborativeShareResponseDTO struct {
+	ShareEntryRef ShareEntryRefDTO `json:"share_entry_ref"`
+	ThreadEvent   ThreadEventDTO   `json:"thread_event"`
 }

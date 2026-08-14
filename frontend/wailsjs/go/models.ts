@@ -3247,6 +3247,28 @@ export namespace tracecore_types {
 	
 	
 	
+	export class ShareEntryRefDTO {
+	    share_entry_id: string;
+	    trust_group_id?: string;
+	    asset_cid?: string;
+	    created_by?: string;
+	    status?: string;
+	    created_at?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShareEntryRefDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.share_entry_id = source["share_entry_id"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.asset_cid = source["asset_cid"];
+	        this.created_by = source["created_by"];
+	        this.status = source["status"];
+	        this.created_at = source["created_at"];
+	    }
+	}
 	
 	export class ThreadDTO {
 	    id: string;

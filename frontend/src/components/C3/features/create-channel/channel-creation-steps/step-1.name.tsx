@@ -122,17 +122,19 @@ export const Step1 = ({ templates, data, onNext }: Step1Props) => {
                 <div className="blank-hint">Or type any name to start blank.</div>
             </div>
             <div className="modal-footer">
-                <button className="btn btn-primary" onClick={() =>
+                <button className="btn btn-primary" onClick={() => {
+                    const selectedTpl = template || templates.find(t => t.id === channelTemplate) || templates[0];
+                    const nameToUse = channelName || selectedTpl?.title || "contract-execution";
                     onNext({
-                        template: template,
-                        channelName: template.title,
-                        slots: template.slots,
-                        properties: template.defaultProperties.map(p => ({
+                        template: selectedTpl,
+                        channelName: nameToUse,
+                        slots: selectedTpl?.slots ?? [],
+                        properties: (selectedTpl?.defaultProperties ?? []).map(p => ({
                             key: p.key,
                             value: p.defaultValue ?? ""
                         }))
-                    })
-                }>Next →</button>
+                    });
+                }}>Next →</button>
             </div>
         </div>
 

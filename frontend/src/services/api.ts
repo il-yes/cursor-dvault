@@ -1426,6 +1426,7 @@ export async function createWorkspace(payload: CreateWorkspacePayload): Promise<
 	}
 	const result = await AppAPI.CreateWorkspace(
 		jwtToken,
+		payload.vault_id,
 		payload.name.trim(),
 		(payload.description || '').trim()
 	);
@@ -1437,7 +1438,14 @@ export async function listWorkspaces(): Promise<WorkspaceResponse[]> {
 	if (!jwtToken) {
 		return [];
 	}
-	const result = await AppAPI.ListWorkspaces(jwtToken);
+
+	const vaultId = useVaultStore.getState().vault?.vault_runtime_context?.VaultID;
+	if (!vaultId) {
+		console.warn("Cannot list workspaces: VaultID is missing from runtime context");
+		return [];
+	}
+
+	const result = await AppAPI.ListWorkspaces(jwtToken, vaultId);
 	return (result || []) as WorkspaceResponse[];
 }
 
@@ -1551,6 +1559,22 @@ export interface ShareEntryRefResponse {
 	created_at?: string;
 }
 
+export interface TrustGroupMemberRefResponse {
+	vault_id: string;
+	role?: string;
+	joined_at?: string;
+}
+
+export interface TrustGroupRefResponse {
+	id: string;
+	channel_id?: string;
+	name: string;
+	status?: string;
+	member_count?: number;
+	members?: TrustGroupMemberRefResponse[];
+	created_at?: string;
+}
+
 export interface ThreadEventResponse {
 	id: string;
 	thread_id: string;
@@ -1559,6 +1583,7 @@ export interface ThreadEventResponse {
 	payload?: Record<string, any>;
 	payload_ref?: PayloadRefResponse;
 	share_entry_ref?: ShareEntryRefResponse;
+	trust_group_ref?: TrustGroupRefResponse;
 	idempotency_key?: string;
 	cursor: number;
 	headers?: Record<string, string>;
@@ -1589,4 +1614,28 @@ export async function appendThreadEvent(payload: AppendThreadEventPayload): Prom
 		JSON.stringify(payload.payload || {})
 	);
 	return result as ThreadEventResponse;
+}
+
+export interface CreateCollaborativeSharePayload {
+	thread_id: string;
+	trust_group_id: string;
+	asset_cid: string;
+	target_vault_id: string;
+	notes?: string;
+}
+
+export async function createCollaborativeShare(payload: CreateCollaborativeSharePayload): Promise<ShareEntryRefResponse> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.CreateCollaborativeShare(
+		jwtToken,
+		payload.thread_id,
+		payload.trust_group_id,
+		payload.asset_cid,
+		payload.target_vault_id,
+		payload.notes || ""
+	);
+	return result as ShareEntryRefResponse;
 }

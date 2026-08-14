@@ -308,6 +308,50 @@ export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 												</div>
 											);
 										})()}
+
+										{/* Safe TrustGroup Governance Context Card */}
+										{(evt.payload.trust_group_ref || evt.trust_group_ref || evt.payload.trust_group_id) && (() => {
+											const tgRef = evt.payload.trust_group_ref || evt.trust_group_ref || {
+												id: evt.payload.trust_group_id,
+												name: evt.payload.trust_group_name || "TrustGroup Governance",
+												status: evt.payload.status || "active",
+												member_count: evt.payload.member_count || (evt.payload.members ? evt.payload.members.length : 1),
+												members: evt.payload.members,
+											};
+
+											return (
+												<div
+													style={{
+														marginTop: "4px",
+														padding: "8px",
+														backgroundColor: "rgba(124, 58, 237, 0.08)",
+														border: "1px solid rgba(124, 58, 237, 0.2)",
+														borderRadius: "4px",
+														display: "flex",
+														flexDirection: "column",
+														gap: "4px",
+														fontSize: "11px",
+													}}
+												>
+													<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+														<strong style={{ color: "#A78BFA" }}>
+															🛡️ TrustGroup: {tgRef.name || tgRef.id}
+														</strong>
+														<span style={{ color: "#8B949E", fontSize: "10px" }}>
+															{tgRef.member_count || 1} Member(s)
+														</span>
+													</div>
+													<div style={{ fontFamily: "monospace", color: "#C9D1D9" }}>
+														<span style={{ color: "#8B949E" }}>ID:</span> {tgRef.id}
+													</div>
+													{tgRef.members && tgRef.members.length > 0 && (
+														<div style={{ color: "#8B949E", fontSize: "10px", marginTop: "2px" }}>
+															Vaults: {tgRef.members.map((m: any) => m.vault_id || m).join(", ")}
+														</div>
+													)}
+												</div>
+											);
+										})()}
 									</div>
 								)}
 							</div>

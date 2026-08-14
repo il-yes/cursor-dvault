@@ -56,7 +56,7 @@ func (c *TracecoreClient) GetUserByEmail(ctx context.Context, email string) (*tr
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		fmt.Println("TracecoreClient - failed to create request: %s", err)
+		fmt.Printf("TracecoreClient - failed to create request: %v\n", err)
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
@@ -1664,7 +1664,7 @@ func (c *TracecoreClient) ListLinkSharesWithMe(ctx context.Context, email string
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp LinkShareResponse
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("invalid cloud response: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("ListLinkSharesWithMe - cloud response", cloudResp)
@@ -1837,7 +1837,7 @@ func (c *TracecoreClient) SyncVaultToIPFS(ctx context.Context, req tracecore_typ
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("invalid cloud response: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("SyncVaultToIPFS - cloud response", cloudResp)
@@ -1941,7 +1941,7 @@ func (c *TracecoreClient) AddPublicKeyToCustomer(ctx context.Context, req tracec
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.AddPublicKeyToCustomerResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("invalid cloud response: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("AddPublicKeyToCustomer - cloud response", cloudResp)

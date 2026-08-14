@@ -217,7 +217,7 @@ func (c *CryptoService) Decrypt(encrypted []byte, password string) ([]byte, erro
 	if testErr != nil {
 		log.Fatalf("GCM roundtrip failed: %v", testErr)
 	}
-	log.Printf("✅ GCM roundtrip OK", testDecrypt)
+	log.Printf("✅ GCM roundtrip OK: %s", string(testDecrypt))
 
 	// 2. Show first bytes of real ciphertext
 	log.Printf("Ciphertext first 16: %x", ciphertext[:16])
@@ -621,7 +621,7 @@ func Decrypt(encrypted []byte, password string) ([]byte, error) {
 	log.Printf("SALT: %x", salt)
 	log.Printf("NONCE: %x", nonce)
 	log.Printf("CIPHERTEXT LEN: %d", len(ciphertext))
-	log.Printf("PASSWORD: %d", password)
+	log.Printf("PASSWORD: %s", password)
 
 	// 6. Decrypt
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)

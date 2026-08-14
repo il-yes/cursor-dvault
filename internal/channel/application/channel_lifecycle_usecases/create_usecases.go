@@ -35,7 +35,7 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 	channel := channel_domain.NewChannel(req.TemplateID, req.Title, req.WorkspaceID)
 
 	created, err := c.Repo.CreateChannel(ctx, &channel_domain.CreateChannelRequest{
-		Channel  : channel,
+		Channel: channel,
 	})
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 		channel_domain.ChannelCreated{
 			EventID:        uuid.NewString(),
 			EventTimestamp: time.Now(),
-			ChannelID:    channel.ID,
+			ChannelID:      channel.ID,
 		},
 	)
 	if errEvent != nil {

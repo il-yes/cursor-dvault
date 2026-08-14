@@ -65,6 +65,8 @@ export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Pr
 
 export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelDTO>;
 
+export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<tracecore_types.ShareEntryRefDTO>;
+
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
@@ -73,7 +75,7 @@ export function CreateShare(arg1:main.CreateShareInput):Promise<share_entry_doma
 
 export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ThreadDTO>;
 
-export function CreateWorkspace(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.Workspace>;
+export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
 
@@ -169,7 +171,7 @@ export function ListThreadEvents(arg1:string,arg2:string):Promise<Array<tracecor
 
 export function ListThreads(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadDTO>>;
 
-export function ListWorkspaces(arg1:string):Promise<Array<tracecore_types.Workspace>>;
+export function ListWorkspaces(arg1:string,arg2:string):Promise<Array<tracecore_types.Workspace>>;
 
 export function LoadAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { appendThreadEvent, ThreadEventResponse } from "@/services/api";
 
-interface AppendThreadEventModalProps {
+export interface AppendThreadEventSlidingViewProps {
 	isOpen: boolean;
 	activeWorkspaceName?: string;
 	activeChannelTitle?: string;
@@ -11,7 +11,7 @@ interface AppendThreadEventModalProps {
 	onEventAppended?: (event: ThreadEventResponse) => void;
 }
 
-export const AppendThreadEventModal: React.FC<AppendThreadEventModalProps> = ({
+export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingViewProps> = ({
 	isOpen,
 	activeWorkspaceName = "Active Workspace",
 	activeChannelTitle = "Active Channel",
@@ -23,15 +23,23 @@ export const AppendThreadEventModal: React.FC<AppendThreadEventModalProps> = ({
 	const [eventType, setEventType] = useState("entry.shared");
 	const [customType, setCustomType] = useState("");
 	const [notes, setNotes] = useState("");
+
+	// PayloadRef state
 	const [attachPayloadRef, setAttachPayloadRef] = useState(false);
 	const [cid, setCid] = useState("");
 	const [contentHash, setContentHash] = useState("");
 	const [sizeBytes, setSizeBytes] = useState<number | "">(1048576);
 	const [assetName, setAssetName] = useState("");
 
+	// ShareEntryRef state
 	const [attachShareEntryRef, setAttachShareEntryRef] = useState(false);
 	const [shareEntryId, setShareEntryId] = useState("");
 	const [trustGroupId, setTrustGroupId] = useState("");
+
+	// TrustGroupRef state
+	const [attachTrustGroupRef, setAttachTrustGroupRef] = useState(false);
+	const [tgName, setTgName] = useState("");
+	const [memberVaults, setMemberVaults] = useState("vault_legal_01, vault_finance_02");
 
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -50,6 +58,9 @@ export const AppendThreadEventModal: React.FC<AppendThreadEventModalProps> = ({
 		setAttachShareEntryRef(false);
 		setShareEntryId("");
 		setTrustGroupId("");
+		setAttachTrustGroupRef(false);
+		setTgName("");
+		setMemberVaults("vault_legal_01, vault_finance_02");
 		setError(null);
 		setIsLoading(false);
 	};
@@ -104,6 +115,23 @@ export const AppendThreadEventModal: React.FC<AppendThreadEventModalProps> = ({
 				};
 			}
 
+			if (attachTrustGroupRef) {
+				const membersList = memberVaults
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean)
+					.map((vId) => ({ vault_id: vId, role: "Member", joined_at: new Date().toISOString() }));
+
+				payloadData.trust_group_ref = {
+					id: trustGroupId.trim() || `tg_${Date.now()}`,
+					name: tgName.trim() || "Legal & Compliance Trust Group",
+					status: "active",
+					member_count: membersList.length,
+					members: membersList,
+					created_at: new Date().toISOString(),
+				};
+			}
+
 			const newEvent = await appendThreadEvent({
 				thread_id: activeThreadId,
 				type: finalType,
@@ -123,511 +151,317 @@ export const AppendThreadEventModal: React.FC<AppendThreadEventModalProps> = ({
 		}
 	};
 
+	const sectionBoxStyle: React.CSSProperties = {
+		padding: "12px 14px",
+		backgroundColor: "#fafafa",
+		border: "1px solid #ebebeb",
+		borderRadius: "8px",
+		display: "flex",
+		flexDirection: "column",
+		gap: "10px",
+	};
+
 	return (
-		<div
-			className="modal-overlay"
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				backgroundColor: "rgba(0, 0, 0, 0.65)",
-				backdropFilter: "blur(4px)",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				zIndex: 1000,
-			}}
-		>
-			<div
-				className="modal"
-				style={{
-					width: "100%",
-					maxWidth: "500px",
-					backgroundColor: "#161B22",
-					borderRadius: "8px",
-					border: "1px solid rgba(255, 255, 255, 0.1)",
-					boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)",
-					color: "#F0F6FC",
-					fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-					overflow: "hidden",
-				}}
-			>
-				{/* Modal Header */}
-				<div
-					className="modal-header"
-					style={{
-						padding: "16px 20px",
-						borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-between",
-					}}
-				>
-					<div>
-						<div
-							className="mh-title"
-							style={{
-								fontSize: "16px",
-								fontWeight: 600,
-								color: "#F0F6FC",
-							}}
-						>
-							Append Thread Event
-						</div>
-						<div
-							className="mh-sub"
-							style={{
-								fontSize: "12px",
-								color: "#8B949E",
-								marginTop: "2px",
-							}}
-						>
-							Append an event to the authoritative thread timeline
+		<>
+			{/* Backdrop */}
+			<div className="c3-sliding-view-backdrop" onClick={handleClose} />
+
+			{/* Fixed Right-Side 460px Panel */}
+			<div className="c3-sliding-view-container">
+				<div className="slide-panel">
+					{/* Header */}
+					<div className="sp-header">
+						<div className="sp-header-row">
+							<div>
+								<div className="sp-title">Append Thread Event</div>
+								<div className="sp-subtitle">
+									Append an event to the authoritative thread timeline
+								</div>
+							</div>
+							<div
+								className="sp-close"
+								onClick={handleClose}
+								role="button"
+								tabIndex={0}
+							>
+								✕
+							</div>
 						</div>
 					</div>
-					<button
-						type="button"
-						className="mh-close"
-						onClick={handleClose}
-						disabled={isLoading}
-						style={{
-							background: "none",
-							border: "none",
-							color: "#8B949E",
-							fontSize: "16px",
-							cursor: isLoading ? "not-allowed" : "pointer",
-							padding: "4px",
-						}}
-					>
-						✕
-					</button>
-				</div>
 
-				{/* Modal Body */}
-				<form onSubmit={handleSubmit}>
-					<div
-						className="modal-body"
-						style={{
-							padding: "20px",
-							display: "flex",
-							flexDirection: "column",
-							gap: "16px",
-						}}
-					>
-						{/* Error Alert */}
-						{error && (
-							<div
-								style={{
-									backgroundColor: "rgba(239, 68, 68, 0.15)",
-									border: "1px solid rgba(239, 68, 68, 0.4)",
-									borderRadius: "6px",
-									padding: "10px 12px",
-									color: "#F87171",
-									fontSize: "13px",
-									display: "flex",
-									alignItems: "flex-start",
-									gap: "8px",
-								}}
-							>
-								<span>⚠️</span>
-								<div style={{ flex: 1 }}>{error}</div>
-							</div>
-						)}
-
-						{/* Read-only Context */}
-						<div
-							style={{
-								padding: "12px",
-								backgroundColor: "rgba(255, 255, 255, 0.04)",
-								border: "1px solid rgba(255, 255, 255, 0.08)",
-								borderRadius: "6px",
-								fontSize: "13px",
-								display: "flex",
-								flexDirection: "column",
-								gap: "6px",
-							}}
-						>
-							<div style={{ display: "flex", justifyContent: "space-between", color: "#8B949E" }}>
-								<span>Workspace:</span>
-								<strong style={{ color: "#C9D1D9", fontWeight: 600 }}>{activeWorkspaceName}</strong>
-							</div>
-							<div style={{ display: "flex", justifyContent: "space-between", color: "#8B949E" }}>
-								<span>Channel:</span>
-								<strong style={{ color: "#C9D1D9", fontWeight: 600 }}>{activeChannelTitle}</strong>
-							</div>
-							<div style={{ display: "flex", justifyContent: "space-between", color: "#8B949E" }}>
-								<span>Target Thread:</span>
-								<strong style={{ color: "#2563EB", fontWeight: 600 }}>{activeThreadTitle}</strong>
-							</div>
-						</div>
-
-						{/* Event Type Selection */}
-						<div>
-							<label
-								htmlFor="event-type-select"
-								style={{
-									display: "block",
-									fontSize: "12px",
-									fontWeight: 600,
-									color: "#C9D1D9",
-									marginBottom: "6px",
-									textTransform: "uppercase",
-									letterSpacing: "0.5px",
-								}}
-							>
-								Event Type <span style={{ color: "#EF4444" }}>*</span>
-							</label>
-							<select
-								id="event-type-select"
-								value={eventType}
-								onChange={(e) => setEventType(e.target.value)}
-								disabled={isLoading}
-								style={{
-									width: "100%",
-									padding: "10px 12px",
-									backgroundColor: "#0D1117",
-									border: "1px solid #30363D",
-									borderRadius: "6px",
-									color: "#F0F6FC",
-									fontSize: "14px",
-									outline: "none",
-									boxSizing: "border-box",
-								}}
-							>
-								<option value="entry.shared">entry.shared</option>
-								<option value="invoice.created">invoice.created</option>
-								<option value="finance.approved">finance.approved</option>
-								<option value="payment.released">payment.released</option>
-								<option value="receipt.issued">receipt.issued</option>
-								<option value="thread.event.appended">thread.event.appended</option>
-								<option value="custom">Custom Event Type…</option>
-							</select>
-						</div>
-
-						{/* Custom Event Type Input */}
-						{eventType === "custom" && (
-							<div>
-								<label
-									htmlFor="custom-event-type-input"
+					{/* Form Body */}
+					<form onSubmit={handleSubmit} style={{ display: "contents" }}>
+						<div className="sp-body">
+							{/* Error Alert */}
+							{error && (
+								<div
 									style={{
-										display: "block",
-										fontSize: "12px",
-										fontWeight: 600,
-										color: "#C9D1D9",
-										marginBottom: "6px",
-										textTransform: "uppercase",
-										letterSpacing: "0.5px",
+										backgroundColor: "rgba(239, 68, 68, 0.08)",
+										border: "1px solid rgba(239, 68, 68, 0.3)",
+										borderRadius: "6px",
+										padding: "10px 12px",
+										color: "#DC2626",
+										fontSize: "13px",
+										display: "flex",
+										alignItems: "flex-start",
+										gap: "8px",
 									}}
 								>
-									Custom Type Identifier
-								</label>
-								<input
-									id="custom-event-type-input"
-									type="text"
-									placeholder="e.g. audit.completed"
-									value={customType}
-									onChange={(e) => setCustomType(e.target.value)}
-									disabled={isLoading}
-									autoFocus
-									style={{
-										width: "100%",
-										padding: "10px 12px",
-										backgroundColor: "#0D1117",
-										border: "1px solid #30363D",
-										borderRadius: "6px",
-										color: "#F0F6FC",
-										fontSize: "14px",
-										outline: "none",
-										boxSizing: "border-box",
-									}}
-								/>
-							</div>
-						)}
-
-						{/* Event Notes / Summary Input */}
-						<div>
-							<label
-								htmlFor="event-notes-input"
-								style={{
-									display: "block",
-									fontSize: "12px",
-									fontWeight: 600,
-									color: "#C9D1D9",
-									marginBottom: "6px",
-									textTransform: "uppercase",
-									letterSpacing: "0.5px",
-								}}
-							>
-								Notes / Non-Sensitive Summary
-							</label>
-							<textarea
-								id="event-notes-input"
-								placeholder="e.g. Countersigned contract draft committed to vault."
-								value={notes}
-								onChange={(e) => setNotes(e.target.value)}
-								disabled={isLoading}
-								rows={2}
-								style={{
-									width: "100%",
-									padding: "10px 12px",
-									backgroundColor: "#0D1117",
-									border: "1px solid #30363D",
-									borderRadius: "6px",
-									color: "#F0F6FC",
-									fontSize: "14px",
-									outline: "none",
-									boxSizing: "border-box",
-									resize: "vertical",
-								}}
-							/>
-						</div>
-
-						{/* PayloadRef Toggle & Inputs */}
-						<div
-							style={{
-								padding: "12px",
-								backgroundColor: "rgba(255, 255, 255, 0.02)",
-								border: "1px solid rgba(255, 255, 255, 0.08)",
-								borderRadius: "6px",
-								display: "flex",
-								flexDirection: "column",
-								gap: "10px",
-							}}
-						>
-							<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", color: "#C9D1D9", fontWeight: 600 }}>
-								<input
-									type="checkbox"
-									checked={attachPayloadRef}
-									onChange={(e) => setAttachPayloadRef(e.target.checked)}
-									disabled={isLoading}
-								/>
-								<span>Attach Safe Asset Reference (PayloadRef)</span>
-							</label>
-
-							{attachPayloadRef && (
-								<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
-									<div>
-										<label style={{ display: "block", fontSize: "11px", color: "#8B949E", marginBottom: "4px" }}>
-											Asset CID (IPFS / Storage Reference) *
-										</label>
-										<input
-											type="text"
-											placeholder="e.g. QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco"
-											value={cid}
-											onChange={(e) => setCid(e.target.value)}
-											disabled={isLoading}
-											style={{
-												width: "100%",
-												padding: "8px 10px",
-												backgroundColor: "#0D1117",
-												border: "1px solid #30363D",
-												borderRadius: "4px",
-												color: "#F0F6FC",
-												fontSize: "13px",
-												fontFamily: "monospace",
-												boxSizing: "border-box",
-											}}
-										/>
-									</div>
-
-									<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-										<div>
-											<label style={{ display: "block", fontSize: "11px", color: "#8B949E", marginBottom: "4px" }}>
-												File Name (Optional)
-											</label>
-											<input
-												type="text"
-												placeholder="contract_draft.pdf"
-												value={assetName}
-												onChange={(e) => setAssetName(e.target.value)}
-												disabled={isLoading}
-												style={{
-													width: "100%",
-													padding: "8px 10px",
-													backgroundColor: "#0D1117",
-													border: "1px solid #30363D",
-													borderRadius: "4px",
-													color: "#F0F6FC",
-													fontSize: "13px",
-													boxSizing: "border-box",
-												}}
-											/>
-										</div>
-										<div>
-											<label style={{ display: "block", fontSize: "11px", color: "#8B949E", marginBottom: "4px" }}>
-												Size (Bytes)
-											</label>
-											<input
-												type="number"
-												placeholder="1048576"
-												value={sizeBytes}
-												onChange={(e) => setSizeBytes(e.target.value === "" ? "" : Number(e.target.value))}
-												disabled={isLoading}
-												style={{
-													width: "100%",
-													padding: "8px 10px",
-													backgroundColor: "#0D1117",
-													border: "1px solid #30363D",
-													borderRadius: "4px",
-													color: "#F0F6FC",
-													fontSize: "13px",
-													boxSizing: "border-box",
-												}}
-											/>
-										</div>
-									</div>
+									<span>⚠️</span>
+									<div style={{ flex: 1 }}>{error}</div>
 								</div>
 							)}
-						</div>
 
-						{/* ShareEntryRef Toggle & Inputs */}
-						<div
-							style={{
-								padding: "12px",
-								backgroundColor: "rgba(255, 255, 255, 0.02)",
-								border: "1px solid rgba(255, 255, 255, 0.08)",
-								borderRadius: "6px",
-								display: "flex",
-								flexDirection: "column",
-								gap: "10px",
-							}}
-						>
-							<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "13px", color: "#C9D1D9", fontWeight: 600 }}>
-								<input
-									type="checkbox"
-									checked={attachShareEntryRef}
-									onChange={(e) => setAttachShareEntryRef(e.target.checked)}
+							{/* Hierarchy Context Display */}
+							<div>
+								<div className="fl">Target Thread Context</div>
+								<div className="channel-flow-box">
+									<div className="cfb-row" style={{ fontSize: "12px", color: "#333" }}>
+										<span style={{ color: "#888" }}>Workspace:</span>
+										<strong>{activeWorkspaceName}</strong>
+										<span style={{ color: "#ccc" }}>→</span>
+										<span style={{ color: "#888" }}>Channel:</span>
+										<strong>{activeChannelTitle}</strong>
+									</div>
+									<div style={{ marginTop: "6px", fontSize: "13px", fontWeight: 600, color: "#C8922A" }}>
+										Thread: {activeThreadTitle}
+									</div>
+								</div>
+							</div>
+
+							{/* Event Type Select */}
+							<div>
+								<div className="fl">
+									Event Type <span style={{ color: "#EF4444" }}>*</span>
+								</div>
+								<select
+									className="prop-input"
+									value={eventType}
+									onChange={(e) => setEventType(e.target.value)}
 									disabled={isLoading}
-								/>
-								<span>Attach ShareEntry Collaboration Reference</span>
-							</label>
+									style={{ height: "38px" }}
+								>
+									<option value="entry.shared">entry.shared</option>
+									<option value="invoice.created">invoice.created</option>
+									<option value="finance.approved">finance.approved</option>
+									<option value="payment.released">payment.released</option>
+									<option value="receipt.issued">receipt.issued</option>
+									<option value="thread.event.appended">thread.event.appended</option>
+									<option value="custom">Custom Event Type…</option>
+								</select>
+							</div>
 
-							{attachShareEntryRef && (
-								<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
-									<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+							{/* Custom Event Type Input */}
+							{eventType === "custom" && (
+								<div>
+									<div className="fl">Custom Type Identifier</div>
+									<input
+										className="prop-input"
+										type="text"
+										placeholder="e.g. audit.completed"
+										value={customType}
+										onChange={(e) => setCustomType(e.target.value)}
+										disabled={isLoading}
+										autoFocus
+									/>
+								</div>
+							)}
+
+							{/* Notes Input */}
+							<div>
+								<div className="fl">
+									Notes / Non-Sensitive Summary
+								</div>
+								<textarea
+									className="prop-input"
+									placeholder="e.g. Countersigned contract draft committed to vault."
+									value={notes}
+									onChange={(e) => setNotes(e.target.value)}
+									disabled={isLoading}
+									rows={3}
+									style={{ resize: "vertical" }}
+								/>
+							</div>
+
+							{/* PayloadRef Toggle & Section */}
+							<div style={sectionBoxStyle}>
+								<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", color: "#333", fontWeight: 600 }}>
+									<input
+										type="checkbox"
+										checked={attachPayloadRef}
+										onChange={(e) => setAttachPayloadRef(e.target.checked)}
+										disabled={isLoading}
+									/>
+									<span>Attach Safe Asset Reference (PayloadRef)</span>
+								</label>
+
+								{attachPayloadRef && (
+									<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
 										<div>
-											<label style={{ display: "block", fontSize: "11px", color: "#8B949E", marginBottom: "4px" }}>
-												ShareEntry ID (Optional)
-											</label>
+											<div className="prop-label">Asset CID (IPFS / Storage Ref) *</div>
 											<input
+												className="prop-input"
+												type="text"
+												placeholder="e.g. QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco"
+												value={cid}
+												onChange={(e) => setCid(e.target.value)}
+												disabled={isLoading}
+												style={{ fontFamily: "SF Mono, monospace" }}
+											/>
+										</div>
+
+										<div style={{ display: "flex", gap: "10px" }}>
+											<div style={{ flex: 1 }}>
+												<div className="prop-label">File Name (Optional)</div>
+												<input
+													className="prop-input"
+													type="text"
+													placeholder="contract_draft.pdf"
+													value={assetName}
+													onChange={(e) => setAssetName(e.target.value)}
+													disabled={isLoading}
+												/>
+											</div>
+											<div style={{ flex: 1 }}>
+												<div className="prop-label">Size (Bytes)</div>
+												<input
+													className="prop-input"
+													type="number"
+													placeholder="1048576"
+													value={sizeBytes}
+													onChange={(e) => setSizeBytes(e.target.value === "" ? "" : Number(e.target.value))}
+													disabled={isLoading}
+												/>
+											</div>
+										</div>
+									</div>
+								)}
+							</div>
+
+							{/* ShareEntryRef Toggle & Section */}
+							<div style={sectionBoxStyle}>
+								<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", color: "#333", fontWeight: 600 }}>
+									<input
+										type="checkbox"
+										checked={attachShareEntryRef}
+										onChange={(e) => setAttachShareEntryRef(e.target.checked)}
+										disabled={isLoading}
+									/>
+									<span>Attach ShareEntry Collaboration Reference</span>
+								</label>
+
+								{attachShareEntryRef && (
+									<div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+										<div style={{ flex: 1 }}>
+											<div className="prop-label">ShareEntry ID (Optional)</div>
+											<input
+												className="prop-input"
 												type="text"
 												placeholder="se_contract_01"
 												value={shareEntryId}
 												onChange={(e) => setShareEntryId(e.target.value)}
 												disabled={isLoading}
-												style={{
-													width: "100%",
-													padding: "8px 10px",
-													backgroundColor: "#0D1117",
-													border: "1px solid #30363D",
-													borderRadius: "4px",
-													color: "#F0F6FC",
-													fontSize: "13px",
-													fontFamily: "monospace",
-													boxSizing: "border-box",
-												}}
+												style={{ fontFamily: "SF Mono, monospace" }}
 											/>
 										</div>
-										<div>
-											<label style={{ display: "block", fontSize: "11px", color: "#8B949E", marginBottom: "4px" }}>
-												TrustGroup ID (Optional)
-											</label>
+										<div style={{ flex: 1 }}>
+											<div className="prop-label">TrustGroup ID (Optional)</div>
 											<input
+												className="prop-input"
 												type="text"
 												placeholder="tg_legal_counsel"
 												value={trustGroupId}
 												onChange={(e) => setTrustGroupId(e.target.value)}
 												disabled={isLoading}
-												style={{
-													width: "100%",
-													padding: "8px 10px",
-													backgroundColor: "#0D1117",
-													border: "1px solid #30363D",
-													borderRadius: "4px",
-													color: "#F0F6FC",
-													fontSize: "13px",
-													fontFamily: "monospace",
-													boxSizing: "border-box",
-												}}
+												style={{ fontFamily: "SF Mono, monospace" }}
 											/>
 										</div>
 									</div>
-								</div>
-							)}
-						</div>
-					</div>
+								)}
+							</div>
 
-					{/* Modal Footer */}
-					<div
-						className="modal-footer"
-						style={{
-							padding: "12px 20px",
-							borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "flex-end",
-							gap: "10px",
-						}}
-					>
-						<button
-							type="button"
-							className="btn btn-ghost"
-							onClick={handleClose}
-							disabled={isLoading}
-							style={{
-								padding: "8px 16px",
-								borderRadius: "6px",
-								background: "transparent",
-								border: "1px solid rgba(255, 255, 255, 0.15)",
-								color: "#C9D1D9",
-								fontSize: "13px",
-								cursor: isLoading ? "not-allowed" : "pointer",
-							}}
-						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							className="btn btn-primary"
-							disabled={isLoading}
-							style={{
-								padding: "8px 18px",
-								borderRadius: "6px",
-								background: isLoading ? "#238636a0" : "#238636",
-								border: "none",
-								color: "#FFFFFF",
-								fontSize: "13px",
-								fontWeight: 600,
-								cursor: isLoading ? "not-allowed" : "pointer",
-								display: "flex",
-								alignItems: "center",
-								gap: "6px",
-							}}
-						>
-							{isLoading ? (
-								<>
-									<span
-										style={{
-											display: "inline-block",
-											width: "12px",
-											height: "12px",
-											border: "2px solid #ffffff",
-											borderTopColor: "transparent",
-											borderRadius: "50%",
-											animation: "spin 0.8s linear infinite",
-										}}
+							{/* TrustGroupRef Toggle & Section */}
+							<div style={sectionBoxStyle}>
+								<label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "12px", color: "#333", fontWeight: 600 }}>
+									<input
+										type="checkbox"
+										checked={attachTrustGroupRef}
+										onChange={(e) => setAttachTrustGroupRef(e.target.checked)}
+										disabled={isLoading}
 									/>
-									<span>Appending…</span>
-								</>
-							) : (
-								"Append Event"
-							)}
-						</button>
-					</div>
-				</form>
+									<span>Attach TrustGroup Governance Context</span>
+								</label>
+
+								{attachTrustGroupRef && (
+									<div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+										<div>
+											<div className="prop-label">TrustGroup Name</div>
+											<input
+												className="prop-input"
+												type="text"
+												placeholder="Legal & Compliance Trust Group"
+												value={tgName}
+												onChange={(e) => setTgName(e.target.value)}
+												disabled={isLoading}
+											/>
+										</div>
+
+										<div>
+											<div className="prop-label">Member Vault IDs (Comma Separated)</div>
+											<input
+												className="prop-input"
+												type="text"
+												placeholder="vault_legal_01, vault_finance_02"
+												value={memberVaults}
+												onChange={(e) => setMemberVaults(e.target.value)}
+												disabled={isLoading}
+												style={{ fontFamily: "SF Mono, monospace" }}
+											/>
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+
+						{/* Footer */}
+						<div className="sp-footer">
+							<button
+								type="submit"
+								className="start-btn"
+								disabled={isLoading}
+								style={{
+									opacity: isLoading ? 0.6 : 1,
+									cursor: isLoading ? "not-allowed" : "pointer",
+								}}
+							>
+								{isLoading ? (
+									<>
+										<span
+											style={{
+												display: "inline-block",
+												width: "14px",
+												height: "14px",
+												border: "2px solid #fff",
+												borderTopColor: "transparent",
+												borderRadius: "50%",
+												animation: "spin 0.8s linear infinite",
+											}}
+										/>
+										<span>Appending Event…</span>
+									</>
+								) : (
+									"▶ Append Event"
+								)}
+							</button>
+							<div className="footer-note">
+								Event will be appended to the thread timeline in cursor order.
+							</div>
+						</div>
+					</form>
+				</div>
 			</div>
-		</div>
+		</>
 	);
 };
+
+export const AppendThreadEventModal = AppendThreadEventSlidingView;

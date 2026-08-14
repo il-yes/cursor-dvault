@@ -19,7 +19,7 @@ export const C3SidebarMenu = () => {
 	const isC3ContextInbox = location.pathname.startsWith(ROUTES.INBOX);
 
 	useEffect(() => {
-		getDepartments()
+		 getDepartments()
 	}, [])
 
 	const getDepartments = async () => {

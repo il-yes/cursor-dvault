@@ -23,9 +23,12 @@ export const useC3WorkspaceStore = create<C3WorkspaceState>((set, get) => ({
 	fetchWorkspaces: async () => {
 		set({ isLoading: true, error: null });
 		try {
+			console.log('fetching........................................')
 			const fetched = await listWorkspaces();
 			const currentActiveId = get().activeWorkspaceId;
 			let active = fetched.find((w) => w.id === currentActiveId) || null;
+			console.log('result fetching........................................')
+			console.log({fetched})
 
 			if (!active && fetched.length > 0) {
 				active = fetched[0];

@@ -31,7 +31,7 @@ func (c *TracecoreClient) AddToS3(ctx context.Context, req tracecore_types.SyncV
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("invalid cloud response: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("AddToS3 - cloud response", cloudResp)	
@@ -57,7 +57,7 @@ func (c *TracecoreClient) GetDataFromS3(ctx context.Context, req tracecore_types
 	respBytes, _ := io.ReadAll(resp.Body)
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.IpfsCidResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
-		log.Printf("invalid cloud response: %w", err)
+		log.Printf("invalid cloud response: %v", err)
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("GetDataFromS3 - cloud response", cloudResp)	

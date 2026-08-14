@@ -82,6 +82,10 @@ export function CreateChannel(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4);
 }
 
+export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -98,8 +102,8 @@ export function CreateThread(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateThread'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function CreateWorkspace(arg1, arg2, arg3) {
-  return window['go']['main']['App']['CreateWorkspace'](arg1, arg2, arg3);
+export function CreateWorkspace(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CreateWorkspace'](arg1, arg2, arg3, arg4);
 }
 
 export function DecryptAttachment(arg1, arg2, arg3) {
@@ -290,8 +294,8 @@ export function ListThreads(arg1, arg2) {
   return window['go']['main']['App']['ListThreads'](arg1, arg2);
 }
 
-export function ListWorkspaces(arg1) {
-  return window['go']['main']['App']['ListWorkspaces'](arg1);
+export function ListWorkspaces(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkspaces'](arg1, arg2);
 }
 
 export function LoadAttachment(arg1, arg2, arg3) {

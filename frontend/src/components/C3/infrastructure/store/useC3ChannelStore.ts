@@ -79,9 +79,11 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 
 	addChannel: (newChannel: ChannelResponse) => {
 		const currentWorkspaceId = get().activeWorkspaceId;
-		if (currentWorkspaceId && newChannel.workspace_id === currentWorkspaceId) {
+
+		if (!currentWorkspaceId || newChannel.workspace_id === currentWorkspaceId) {
 			set((state) => ({
-				channels: [newChannel, ...state.channels],
+				activeWorkspaceId: newChannel.workspace_id || currentWorkspaceId,
+				channels: [newChannel, ...state.channels.filter((c) => c.id !== newChannel.id)],
 				activeChannel: newChannel,
 				activeChannelId: newChannel.id,
 			}));

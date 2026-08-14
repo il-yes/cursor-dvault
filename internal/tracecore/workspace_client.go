@@ -20,19 +20,21 @@ import (
 func (c *TracecoreClient) CreateWorkspace(ctx context.Context, req workspace_domain.CreateRequest) (*tracecore_types.CloudResponse[workspace_domain.Workspace], error) {
 
 	payload := tracecore_types.NewCreateWorkspaceRequest{
-		UserID:    req.UserID,
-		VaultID:   req.VaultID,
-		Workspace: tracecore_types.Workspace{
-			ID:      req.Workspace.ID,
-			VaultID: req.Workspace.VaultID,
-			Name:        req.Workspace.Name,
-			Description: req.Workspace.Description,
-			Status:      string(req.Workspace.Status),
-			OwnerID: req.Workspace.OwnerID,
-			CreatedAt: req.Workspace.CreatedAt,
-			UpdatedAt: req.Workspace.UpdatedAt,
-		},
-		Signature: req.Signature,
+		VaultID: req.VaultID,
+		// Workspace: tracecore_types.Workspace{
+		// 	ID:          req.Workspace.ID,
+		// 	VaultID:     req.Workspace.VaultID,
+		// 	Name:        req.Workspace.Name,
+		// 	Description: req.Workspace.Description,
+		// 	Status:      string(req.Workspace.Status),
+		// 	OwnerID:     req.Workspace.OwnerID,
+		// 	CreatedAt:   req.Workspace.CreatedAt,
+		// 	UpdatedAt:   req.Workspace.UpdatedAt,
+		// },
+		// Signature: req.Signature,
+		Name:        req.Workspace.Name,
+		Description: req.Workspace.Description,
+		OwnerID:     req.Workspace.OwnerID,
 	}
 
 	// Step 1: build JSON body
@@ -42,7 +44,7 @@ func (c *TracecoreClient) CreateWorkspace(ctx context.Context, req workspace_dom
 	}
 
 	// Step 2: build URL and request
-	url := c.BaseURL + "/c3/" + payload.UserID + "/workspace/"
+	url := c.AnkhoraCloudUrl + "/workspaces"
 	utils.LogPretty("TracecoreClient - CreateWorkspace - URL", url)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -92,21 +94,25 @@ func (c *TracecoreClient) CreateWorkspace(ctx context.Context, req workspace_dom
 	return &cloudResp, nil
 }
 
-func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, userID string, name string, description string) (*tracecore_types.Workspace, error) {
+func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID string, userID string, name string, description string) (*tracecore_types.Workspace, error) {
 	payload := map[string]interface{}{
-		"user_id": userID,
-		"workspace": map[string]interface{}{
-			"name":        name,
-			"description": description,
-			"status":      "active",
-			"owner_id":    userID,
-		},
+		// "user_id": userID,
+		// "workspace": map[string]interface{}{
+		// 	"name":        name,
+		// 	"description": description,
+		// 	"vault_id":    "active",
+		// 	"owner_id":    userID,
+		// },
+		"VaultID":     vaultID,
+		"Name":        name,
+		"Description": description,
+		"OwnerID":     userID,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	url := c.BaseURL + "/c3/" + userID + "/workspace/"
+	url := c.BaseURL + "/workspaces/"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -151,8 +157,10 @@ func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, userID stri
 	}, nil
 }
 
-func (c *TracecoreClient) ListWorkspacesDirect(ctx context.Context, userID string) ([]tracecore_types.Workspace, error) {
-	url := c.BaseURL + "/c3/" + userID + "/workspace/"
+func (c *TracecoreClient) ListWorkspaces(ctx context.Context, vaultID string) ([]tracecore_types.Workspace, error) {
+	url := c.AnkhoraCloudUrl + "/workspaces?vault_id=" + vaultID
+	utils.LogPretty("[Workspace] Cloud GET URL", url)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -163,126 +171,36 @@ func (c *TracecoreClient) ListWorkspacesDirect(ctx context.Context, userID strin
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		utils.LogPretty("🚫 [Workspace] TracecoreClient.ListWorkspaces HTTP Do error", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	utils.LogPretty("[Workspace] Cloud HTTP Status", resp.StatusCode)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	utils.LogPretty("[Workspace] Cloud Raw Response Body", string(respBytes))
+
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.Workspace]
 	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data != nil {
+		utils.LogPretty("[Workspace] Decoded cloudResp.Data", cloudResp.Data)
 		return cloudResp.Data, nil
 	}
 
 	var workspaces []tracecore_types.Workspace
 	if err := json.Unmarshal(respBytes, &workspaces); err == nil {
+		utils.LogPretty("[Workspace] Decoded workspaces array", workspaces)
 		return workspaces, nil
 	}
-
+	utils.LogPretty("[Workspace] TracecoreClient - ListWorkspaces empty fallback", workspaces)
 	return []tracecore_types.Workspace{}, nil
-}
-
-func (c *TracecoreClient) CreateChannelDirect(ctx context.Context, userID string, workspaceID string, title string, templateID string) (*tracecore_types.ChannelDTO, error) {
-	payload := map[string]interface{}{
-		"user_id":      userID,
-		"workspace_id": workspaceID,
-		"channel": map[string]interface{}{
-			"title":        title,
-			"template_id":  templateID,
-			"workspace_id": workspaceID,
-			"status":       "active",
-		},
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	url := c.BaseURL + "/c3/" + userID + "/workspace/" + workspaceID + "/channel/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
-	}
-
-	var cloudResp tracecore_types.CloudResponse[tracecore_types.ChannelDTO]
-	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data.ID != "" {
-		return &cloudResp.Data, nil
-	}
-
-	var channel tracecore_types.ChannelDTO
-	if err := json.Unmarshal(respBytes, &channel); err == nil && channel.ID != "" {
-		return &channel, nil
-	}
-
-	now := time.Now()
-	return &tracecore_types.ChannelDTO{
-		ID:          uuid.NewString(),
-		WorkspaceID: workspaceID,
-		Title:       title,
-		TemplateID:  templateID,
-		Status:      "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}, nil
-}
-
-func (c *TracecoreClient) ListChannelsDirect(ctx context.Context, userID string, workspaceID string) ([]tracecore_types.ChannelDTO, error) {
-	url := c.BaseURL + "/c3/" + userID + "/workspace/" + workspaceID + "/channel/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
-	}
-
-	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.ChannelDTO]
-	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data != nil {
-		return cloudResp.Data, nil
-	}
-
-	var channels []tracecore_types.ChannelDTO
-	if err := json.Unmarshal(respBytes, &channels); err == nil {
-		return channels, nil
-	}
-
-	return []tracecore_types.ChannelDTO{}, nil
 }
 
 func (c *TracecoreClient) CreateThreadDirect(ctx context.Context, userID string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {
@@ -476,4 +394,31 @@ func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID st
 		Cursor:    1,
 		CreatedAt: now,
 	}, nil
+}
+
+func (c *TracecoreClient) CreateCollaborativeShareDirect(ctx context.Context, userID string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string) (*tracecore_types.ShareEntryRefDTO, error) {
+	shareID := "se_" + uuid.NewString()[:12]
+	nowStr := time.Now().Format(time.RFC3339)
+
+	shareRef := tracecore_types.ShareEntryRefDTO{
+		ShareEntryID: shareID,
+		TrustGroupID: trustGroupID,
+		AssetCID:     assetCID,
+		CreatedBy:    userID,
+		Status:       "active",
+		CreatedAt:    nowStr,
+	}
+
+	payload := map[string]interface{}{
+		"notes":           notes,
+		"target_vault_id": targetVaultID,
+		"share_entry_ref": shareRef,
+	}
+
+	_, err := c.AppendThreadEventDirect(ctx, userID, threadID, "share.created", payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to record collaborative share thread event: %w", err)
+	}
+
+	return &shareRef, nil
 }

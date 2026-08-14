@@ -92,7 +92,7 @@ export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: b
         </div>
 
         <div className="empty-area">
-            <div className="empty-headline">Start your first thread</div>
+            <div className="empty-headline">Start your first channel</div>
             <div className="empty-subtext">
                 Choose a template to create your vault network and first auditable workflow.
                 Every thread is cryptographically anchored on Stellar.

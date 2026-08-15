@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { listChannels, ChannelResponse } from "@/services/api";
+import { listChannels, activateChannel as apiActivateChannel, ChannelResponse } from "@/services/api";
 
 export interface C3ChannelState {
 	channels: ChannelResponse[];
@@ -12,6 +12,8 @@ export interface C3ChannelState {
 	fetchChannels: (workspaceId: string) => Promise<void>;
 	selectChannel: (channelId: string) => void;
 	addChannel: (channel: ChannelResponse) => void;
+	updateChannel: (channel: ChannelResponse) => void;
+	activateChannel: (channelId: string) => Promise<ChannelResponse>;
 	clearChannels: () => void;
 }
 
@@ -50,7 +52,7 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 			const fetched = await listChannels(workspaceId);
 			if (get().activeWorkspaceId !== workspaceId) return;
 
-			let active = fetched.length > 0 ? fetched[0] : null;
+			const active = fetched.length > 0 ? fetched[0] : null;
 			set({
 				channels: fetched,
 				activeChannel: active,
@@ -58,13 +60,13 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 				isLoading: false,
 				error: null,
 			});
-		} catch (err: any) {
+		} catch (err: unknown) {
 			if (get().activeWorkspaceId !== workspaceId) return;
 			console.error(`Failed to fetch channels for workspace ${workspaceId}:`, err);
 			set({
 				channels: [],
 				isLoading: false,
-				error: err?.message || "Failed to load channels.",
+				error: err instanceof Error ? err.message : "Failed to load channels.",
 			});
 		}
 	},
@@ -88,6 +90,36 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 				activeChannelId: newChannel.id,
 			}));
 		}
+	},
+
+	updateChannel: (updated: ChannelResponse) => {
+		set((state) => {
+			const channels = state.channels.map((c) => (c.id === updated.id ? { ...c, ...updated } : c));
+
+			return {
+				channels,
+				activeChannel:
+					state.activeChannel?.id === updated.id
+						? { ...state.activeChannel, ...updated }
+						: state.activeChannel,
+			};
+		});
+	},
+
+	activateChannel: async (channelId: string) => {
+		const updated = await apiActivateChannel(channelId);
+		set((state) => {
+			const channels = state.channels.map((c) => (c.id === updated.id ? { ...c, ...updated } : c));
+
+			return {
+				channels,
+				activeChannel:
+					state.activeChannel?.id === updated.id
+						? { ...state.activeChannel, ...updated }
+						: state.activeChannel,
+			};
+		});
+		return updated;
 	},
 
 	clearChannels: () => {

@@ -10,6 +10,10 @@ export function AccessDecryptVaultEntry(arg1, arg2) {
   return window['go']['main']['App']['AccessDecryptVaultEntry'](arg1, arg2);
 }
 
+export function ActivateChannel(arg1, arg2) {
+  return window['go']['main']['App']['ActivateChannel'](arg1, arg2);
+}
+
 export function AddAttachements(arg1, arg2) {
   return window['go']['main']['App']['AddAttachements'](arg1, arg2);
 }
@@ -78,8 +82,8 @@ export function CreateAccount(arg1) {
   return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
-export function CreateChannel(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4);
+export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6) {

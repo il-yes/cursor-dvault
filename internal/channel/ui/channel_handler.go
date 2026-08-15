@@ -11,21 +11,24 @@ import (
 )
 
 type ChannelHandler struct {
-	createUseCase *channel_usecase.CreateChannelUsecase
-	listUseCase   *channel_usecase.ListChannelUsecase
+	createUseCase    *channel_usecase.CreateChannelUsecase
+	listUseCase      *channel_usecase.ListChannelUsecase
+	activateUseCase  *channel_usecase.ActivateChannelUsecase
 }
 
 func NewChannelHandler(
 	createUC *channel_usecase.CreateChannelUsecase,
 	listUC *channel_usecase.ListChannelUsecase,
+	activateUC *channel_usecase.ActivateChannelUsecase,
 ) *ChannelHandler {
 	return &ChannelHandler{
-		createUseCase: createUC,
-		listUseCase:   listUC,
+		createUseCase:   createUC,
+		listUseCase:     listUC,
+		activateUseCase: activateUC,
 	}
 }
 
-func (h *ChannelHandler) CreateChannel(ctx context.Context, userID string, workspaceID string, title string, templateID string) (*tracecore_types.ChannelDTO, error) {
+func (h *ChannelHandler) CreateChannel(ctx context.Context, userID string, workspaceID string, title string, templateID string, slots []channel_domain.Slot, assignments []channel_domain.Assignment) (*tracecore_types.ChannelDTO, error) {
 	if h.createUseCase == nil {
 		return nil, fmt.Errorf("create channel use case is not initialized")
 	}
@@ -34,9 +37,28 @@ func (h *ChannelHandler) CreateChannel(ctx context.Context, userID string, works
 		TemplateID:  templateID,
 		Title:       title,
 		WorkspaceID: workspaceID,
+		Slots:       slots,
+		Assignments: assignments,
 	}
 
 	ch, err := h.createUseCase.Execute(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return toTracecoreChannelDTO(ch), nil
+}
+
+func (h *ChannelHandler) ActivateChannel(ctx context.Context, userID string, channelID string) (*tracecore_types.ChannelDTO, error) {
+	if h.activateUseCase == nil {
+		return nil, fmt.Errorf("activate channel use case is not initialized")
+	}
+
+	req := &channel_application.ActivateChannelRequest{
+		ChannelID: channelID,
+	}
+
+	ch, err := h.activateUseCase.Execute(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +92,37 @@ func toTracecoreChannelDTO(ch *channel_domain.Channel) *tracecore_types.ChannelD
 	if ch == nil {
 		return nil
 	}
+
+	slots := make([]tracecore_types.ChannelSlotDTO, 0, len(ch.Slots))
+	for _, s := range ch.Slots {
+		slots = append(slots, tracecore_types.ChannelSlotDTO{
+			ID:      s.ID,
+			Name:    s.Name,
+			Role:    s.Role,
+			VaultID: s.VaultID,
+			Gated:   s.Gated,
+			Order:   s.Order,
+		})
+	}
+
+	assignments := make([]tracecore_types.ChannelAssignmentDTO, 0, len(ch.Assignments))
+	for _, a := range ch.Assignments {
+		assignments = append(assignments, tracecore_types.ChannelAssignmentDTO{
+			SlotID:       a.SlotID,
+			OwnerID:      a.OwnerID,
+			PublicKey:    a.PublicKey,
+			VaultAddress: a.VaultAddress,
+		})
+	}
+
 	return &tracecore_types.ChannelDTO{
 		ID:          ch.ID,
 		WorkspaceID: ch.WorkspaceID,
 		Title:       ch.Title,
 		TemplateID:  ch.TemplateID,
 		Status:      string(ch.Status),
+		Slots:       slots,
+		Assignments: assignments,
 		CreatedAt:   ch.CreatedAt,
 		UpdatedAt:   ch.UpdatedAt,
 	}

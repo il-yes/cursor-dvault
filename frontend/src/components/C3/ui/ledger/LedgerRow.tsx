@@ -1,4 +1,5 @@
 import { ChannelRow } from "../../domain/channel/channel.types";
+import { toRowStatusView } from "../../domain/channel/channel.mapper";
 
 export const ChannelRowView = ({
     row,
@@ -6,14 +7,17 @@ export const ChannelRowView = ({
 }: {
     row: ChannelRow,
     onClick: (id: string) => void;
-}) => (
+}) => {
+    const statusView = toRowStatusView(row.status);
 
+    return (
     <tr onClick={() => { onClick(row.id) }}>
 
         <td>
-            <span
-                className={`sdot s-${row.status}`}
-            />
+            <span className={`sdot ${statusView.dotClass}`} />
+            <span className={`c3-status-badge ${statusView.dotClass}`}>
+                {statusView.label}
+            </span>
         </td>
 
 
@@ -170,7 +174,8 @@ export const ChannelRowView = ({
 
     </tr>
 
-);
+    );
+};
 
 
 
@@ -180,8 +185,10 @@ export const LedgerRowView = ({
 }: {
     row: ChannelRow;
     onClick: (id: string) => void;
-}) => (
+}) => {
+    const statusView = toRowStatusView(row.status);
 
+    return (
     <tr
         className="ledger-row"
         onClick={() => onClick(row.id)}
@@ -189,7 +196,10 @@ export const LedgerRowView = ({
 
 
         <td>
-            <span className={`sdot s-${row.status}`} />
+            <span className={`sdot ${statusView.dotClass}`} />
+            <span className={`c3-status-badge ${statusView.dotClass}`}>
+                {statusView.label}
+            </span>
         </td>
 
 
@@ -323,7 +333,8 @@ export const LedgerRowView = ({
 
     </tr>
 
-);
+    );
+};
 
 export const DisputeRow = () => (
     <tr className="row-sel row-new-left-border">
@@ -377,4 +388,4 @@ export const DisputeRow = () => (
             <button className="c3b c3-active">⛓+</button>
         </td>
     </tr>
-);
+    );

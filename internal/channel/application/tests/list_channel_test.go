@@ -47,8 +47,8 @@ type channelRepositoryMock struct {
 
 	activateFn func(
 		ctx context.Context,
-		req *channel_domain.AcceptInvitationRequest,
-	) error
+		req *channel_domain.ActivateChannelRequest,
+	) (*tracecore_types.CloudResponse[channel_domain.Channel], error)
 
 	revokeFn func(
 		ctx context.Context,
@@ -117,13 +117,13 @@ func (m *channelRepositoryMock) UpdateChannel(
 
 func (m *channelRepositoryMock) ActivateChannel(
 	ctx context.Context,
-	req *channel_domain.AcceptInvitationRequest,
-) error {
+	req *channel_domain.ActivateChannelRequest,
+) (*tracecore_types.CloudResponse[channel_domain.Channel], error) {
 	if m.activateFn != nil {
 		return m.activateFn(ctx, req)
 	}
 
-	return nil
+	return &tracecore_types.CloudResponse[channel_domain.Channel]{}, nil
 }
 
 func (m *channelRepositoryMock) RevokeChannel(

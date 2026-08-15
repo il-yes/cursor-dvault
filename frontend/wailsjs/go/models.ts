@@ -928,6 +928,51 @@ export namespace billing_domain {
 
 }
 
+export namespace channel_domain {
+	
+	export class Assignment {
+	    slot_id: string;
+	    owner_id: string;
+	    public_key: string;
+	    vault_address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Assignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slot_id = source["slot_id"];
+	        this.owner_id = source["owner_id"];
+	        this.public_key = source["public_key"];
+	        this.vault_address = source["vault_address"];
+	    }
+	}
+	export class Slot {
+	    id: string;
+	    name: string;
+	    role: string;
+	    vault_id: string;
+	    gated: boolean;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Slot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.vault_id = source["vault_id"];
+	        this.gated = source["gated"];
+	        this.order = source["order"];
+	    }
+	}
+
+}
+
 export namespace handlers {
 	
 	export class LoginRequest {
@@ -2840,12 +2885,54 @@ export namespace tracecore_types {
 	        this.ip_address = source["ip_address"];
 	    }
 	}
+	export class ChannelAssignmentDTO {
+	    slot_id: string;
+	    owner_id: string;
+	    public_key: string;
+	    vault_address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelAssignmentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.slot_id = source["slot_id"];
+	        this.owner_id = source["owner_id"];
+	        this.public_key = source["public_key"];
+	        this.vault_address = source["vault_address"];
+	    }
+	}
+	export class ChannelSlotDTO {
+	    id: string;
+	    name: string;
+	    role: string;
+	    vault_id: string;
+	    gated: boolean;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelSlotDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.vault_id = source["vault_id"];
+	        this.gated = source["gated"];
+	        this.order = source["order"];
+	    }
+	}
 	export class ChannelDTO {
 	    id: string;
 	    workspace_id: string;
 	    title: string;
 	    template_id: string;
 	    status: string;
+	    slots: ChannelSlotDTO[];
+	    assignments: ChannelAssignmentDTO[];
 	    // Go type: time
 	    created_at: any;
 	    // Go type: time
@@ -2862,6 +2949,8 @@ export namespace tracecore_types {
 	        this.title = source["title"];
 	        this.template_id = source["template_id"];
 	        this.status = source["status"];
+	        this.slots = this.convertValues(source["slots"], ChannelSlotDTO);
+	        this.assignments = this.convertValues(source["assignments"], ChannelAssignmentDTO);
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
 	    }
@@ -2884,6 +2973,7 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	
 	export class PaymentHistory {
 	    id: string;
 	    user_id: string;

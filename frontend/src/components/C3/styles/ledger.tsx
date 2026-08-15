@@ -475,7 +475,39 @@ rgba(255,255,255,0.03);
       text-align: center;
       flex-shrink: 0;
     }
-   
+
+    /* Channel status badge */
+    .c3-status-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .c3-status-badge.s-ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; }
+    .c3-status-badge.s-pend { background: #fffbeb; border: 1px solid #fde68a; color: #b45309; }
+    .c3-status-badge.s-dispute { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+    /* Real action controls must stay clickable (legacy mockup styles disable ctrl-btn) */
+    .ledger-controls .ctrl-btn.activate-btn {
+      pointer-events: auto;
+      cursor: pointer;
+      color: var(--c3-gold);
+      border-color: var(--c3-gold-border);
+    }
+    .ledger-controls .ctrl-btn.activate-btn:hover {
+      border-color: var(--c3-gold);
+    }
+    .ledger-controls .ctrl-btn.activate-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
 `;
 
 export const C3LedgerStyles = () => <Global styles={c3LedgerStyles} />;

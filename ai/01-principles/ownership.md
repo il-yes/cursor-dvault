@@ -165,3 +165,69 @@ Who owns this?
 Who controls this?
 
 Who is responsible for this?
+
+
+## Desktop vs Cloud Ownership
+
+### Desktop
+
+Owns:
+
+- presentation
+- local UI state
+- user interaction
+- Wails orchestration
+- Cloud client integration
+
+### TraceCore client
+
+Owns:
+
+- Cloud HTTP transport
+- authentication headers
+- Cloud DTOs
+- Cloud → domain mapping
+- response validation
+
+### Cloud
+
+Owns:
+
+- authoritative Channel state
+- persistence
+- lifecycle invariants
+- participant/assignment persistence
+- distribution
+- federation
+
+Desktop must not compensate for Cloud persistence bugs.
+
+Cloud must not leak persistence concerns into Desktop domain models.
+````
+
+---
+
+### The key thing for your AI engineers
+
+I would make sure they understand this hierarchy:
+
+```text
+                  ANKHORA
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+       Desktop                Cloud
+          │                     │
+       TraceCore           Channel BC
+          │                     │
+  channel_client.go       Repository
+          │                     │
+  Cloud DTO / Mapper          MySQL
+          │
+   Desktop Channel
+       Domain
+```
+
+And the most important rule from this entire episode is:
+
+> **When a Cloud-backed feature already exists in Workspace, do not invent another integration pattern for Channel. Clone the architectural pattern, not the code.**

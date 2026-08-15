@@ -355,7 +355,113 @@ Immediate priority:
 
 **API & Wails Handler Integration**
 
+# 3. Update `ai/08-agent-memory/current-state.md`
 
+This is particularly important because this is the file an AI engineer should consult before touching the code.
+
+Add:
+
+```md
+## Channel Desktop → Cloud Status — 2026-08-15
+
+### Completed
+
+Channel Create/List/Display is operational.
+
+Desktop → Cloud path:
+
+```text
+React
+→ Wails
+→ App
+→ ChannelHandler
+→ ChannelUseCase
+→ TracecoreClient
+→ Cloud REST API
+````
+
+Dedicated client:
+
+```text
+internal/tracecore/channel_client.go
+```
+
+Cloud wire-format DTO:
+
+```text
+internal/tracecore/types/channel_cloud_dto.go
+```
+
+The Cloud Channel response uses Go-default JSON field names. It MUST be mapped through TraceCore DTOs rather than unmarshaled directly into the domain.
+
+### Create
+
+Working against Cloud.
+
+### List
+
+Working against Cloud.
+
+Endpoint:
+
+```text
+GET /channels/workspace/{workspace_id}
+```
+
+### Display
+
+Working.
+
+The C3 ledger and Channel detail consume the real Channel store populated from Cloud.
+
+Mocks are not part of the production Channel list/detail workflow.
+
+### Channel persistence
+
+Cloud persistence was corrected on 2026-08-15.
+
+Slots:
+
+```text
+PRIMARY KEY (channel_id, id)
+```
+
+Assignments:
+
+```text
+PRIMARY KEY (channel_id, slot_id)
+```
+
+This prevents cross-channel corruption when multiple Channels use identical template slot IDs.
+
+Cloud Create now returns the persisted representation.
+
+### Federation
+
+`channel.created` with zero recipients is a valid no-op.
+
+Do not treat:
+
+```text
+federation: no target recipients found
+```
+
+as a Channel creation failure when no remote participants exist.
+
+### Next lifecycle work
+
+Before implementing activation on Desktop:
+
+1. Persist Channel wizard slots.
+2. Persist assignments.
+3. Verify the persisted representation through GET.
+4. Then implement Desktop activation.
+
+Do not implement activation as an isolated UI feature while the prerequisites are not persisted.
+
+````
+
+---
 
 
 

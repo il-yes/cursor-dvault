@@ -34,6 +34,16 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 
 	channel := channel_domain.NewChannel(req.TemplateID, req.Title, req.WorkspaceID)
 
+	for _, slot := range req.Slots {
+		if err := channel.AddSlot(slot); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, assignment := range req.Assignments {
+		channel.AddAssignment(assignment)
+	}
+
 	created, err := c.Repo.CreateChannel(ctx, &channel_domain.CreateChannelRequest{
 		Channel: channel,
 	})

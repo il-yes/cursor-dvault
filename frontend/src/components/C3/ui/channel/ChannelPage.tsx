@@ -4,17 +4,15 @@ import { C3BaseStyles, C3styles, PanelStyles } from "@/components/C3/styles/styl
 import { C3MenuStyles } from "@/components/C3/styles/menu";
 import { C3LedgerStyles } from "@/components/C3/styles/ledger";
 import { C3SharedStyles } from "@/components/C3/styles/shared";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { LedgerLayout } from "../LedgerLayout";
 import { ChannelTable } from "./ChannelTable";
-import { fetchChannel } from "../../domain/channel/channel.repository";
 import { useEffect, useState } from "react";
-import { ThreadAssetDrawer } from "../thread/ThreadAssetDrawer";
 import { ThreadAssetViewInterface } from "../../domain/thread/asset.types";
-import { fetchThreadAsset } from "../../domain/thread/asset.repository";
-import { NewThreadAssetDrawer } from "../thread/NewThreadAssetDrawer";
 import { ChannelView } from "../../domain/channel/channel.types";
 import { ThreadAssetSingleDrawer } from "../thread/ThreadAssetSingleDrawer";
+import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { toChannelView } from "../../domain/channel/channel.mapper";
 
 
 export const c3BaseStyles = css`
@@ -27,16 +25,35 @@ const ChannelPage = () => {
     const { channelId } = useParams();
     const [channel, setChannel] = useState<ChannelView | null>(null);
     const [selectedAsset, setSelectedAsset] = useState<ThreadAssetViewInterface | null>(null);
-
+    const [activating, setActivating] = useState(false);
+    const [activateError, setActivateError] = useState<string | null>(null);
+    const { channels, selectChannel, activateChannel: activateStoreChannel } = useC3ChannelStore();
 
     useEffect(() => {
-        const load = async () => {
-            const result = await fetchChannel(channelId || "");
-            setChannel(result);
-        };
+        const found = channels.find((c) => c.id === channelId);
+        if (found) {
+            setChannel(toChannelView(found));
+            selectChannel(found.id);
+        } else {
+            setChannel(null);
+        }
+    }, [channelId, channels, selectChannel]);
 
-        load();
-    }, [channelId]);
+    const handleActivate = async () => {
+        if (!channel || activating) return;
+
+        setActivating(true);
+        setActivateError(null);
+        try {
+            const updated = await activateStoreChannel(channel.id);
+            setChannel(toChannelView(updated));
+        } catch (err: any) {
+            console.error("Failed to activate channel:", err);
+            setActivateError(err?.message || "Activation failed.");
+        } finally {
+            setActivating(false);
+        }
+    };
 
     return (
         <DashboardLayout>
@@ -49,7 +66,7 @@ const ChannelPage = () => {
 
 
             <LedgerLayout isNewShareOpen={false}>
-                <ChannelTable channel={channel} onOpenAsset={(asset) => { setSelectedAsset(asset); }} />
+                <ChannelTable channel={channel} onOpenAsset={(asset) => { setSelectedAsset(asset); }} onActivate={handleActivate} activating={activating} activateError={activateError} />
 
                 {/* <ThreadAssetDrawer
 

@@ -1,24 +1,61 @@
+import { ArrowLeftIcon, Link } from "lucide-react";
 import { ChannelView } from "../../domain/channel/channel.types"
 import { ThreadAssetViewInterface } from "../../domain/thread/asset.types";
+import * as ROUTES from '@/constants/routes';
+import { useNavigate } from "react-router-dom";
 
 export const ChannelTable = ({
     channel,
-    onOpenAsset
+    onOpenAsset,
+    onActivate,
+    activating,
+    activateError,
 }: {
     channel: ChannelView,
     onOpenAsset: (asset:ThreadAssetViewInterface) => void,
+    onActivate: () => void,
+    activating: boolean,
+    activateError: string | null,
 }) => {
+    const navigate = useNavigate();
+
+    const statusView = (() => {
+        switch (channel?.status) {
+            case "active":
+                return { dotClass: "s-ok", label: "Active" };
+            case "revoked":
+                return { dotClass: "s-dispute", label: "Revoked" };
+            case "closed":
+            case "open":
+            case "pending":
+            default:
+                return { dotClass: "s-pend", label: "Pending" };
+        }
+    })();
 
     
     return (
         <div className="ledger-area">
+            <p onClick={() => navigate(ROUTES.LEDGER)} style={{cursor: "pointer", fontSize: "10px", margin: "10px", fontWeight: 600}}>
+                <ArrowLeftIcon size={12}/> <em>Back</em>
+            </p>
             <div className="ledger-topbar">
-
+                
                 <div className="ledger-title">
                     CHANNEL
                 </div>
 
                 <div className="ledger-controls">
+
+                    {channel?.status === 'pending' && (
+                        <button
+                            className="ctrl-btn activate-btn"
+                            onClick={onActivate}
+                            disabled={activating}
+                        >
+                            {activating ? 'Activating…' : 'Activate'}
+                        </button>
+                    )}
 
                     <button className="ctrl-btn">
                         Assets {channel?.assets?.total}
@@ -31,6 +68,18 @@ export const ChannelTable = ({
                 </div>
 
             </div>
+
+            {activateError && (
+                <div style={{
+                    padding: '8px 20px',
+                    fontSize: '13px',
+                    color: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                }}>
+                    ⚠️ Activation failed: {activateError}
+                </div>
+            )}
             <table className="ledger-table">
 
                 <thead>
@@ -72,9 +121,13 @@ export const ChannelTable = ({
 
                             <div className="th-line1">
 
-                                <span className="sdot s-active" />
+                                <span className={`sdot ${statusView.dotClass}`} />
 
                                 {channel?.title}
+
+                                <span className={`c3-status-badge ${statusView.dotClass}`}>
+                                    {statusView.label}
+                                </span>
 
                             </div>
 

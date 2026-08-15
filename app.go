@@ -81,6 +81,7 @@ import (
 	vault_ui "vault-app/internal/vault/ui"
 	// "vault-app/internal/logger/logger"
 	channel_usecase "vault-app/internal/channel/application/channel_lifecycle_usecases"
+	channel_domain "vault-app/internal/channel/domain"
 	channel_eventbus "vault-app/internal/channel/infrastructure/eventbus"
 	channel_ui "vault-app/internal/channel/ui"
 	collaboration_ui "vault-app/internal/collaboration/ui"
@@ -544,7 +545,8 @@ func NewApp() *App {
 	channelBus := channel_eventbus.NewMemoryEventBus()
 	createChannelUC := channel_usecase.NewCreateChannelUsecase(tracecoreClient, channelBus)
 	listChannelUC := channel_usecase.NewListChannelUsecase(tracecoreClient)
-	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC)
+	activateChannelUC := channel_usecase.NewActivateChannelUsecase(tracecoreClient)
+	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC, activateChannelUC)
 
 	threadBus := thread_infrastructure_eventbus.NewMemoryBus()
 	createThreadUC := thread_usecase.NewCreateThreadUsecase(tracecoreClient, threadBus)
@@ -2845,7 +2847,7 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 	return res, nil
 }
 
-func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string) (*tracecore_types.ChannelDTO, error) {
+func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string, slots []channel_domain.Slot, assignments []channel_domain.Assignment) (*tracecore_types.ChannelDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -2853,7 +2855,7 @@ func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, t
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
-	return a.ChannelHandler.CreateChannel(a.ctx, claims.UserID, workspaceID, title, templateID)
+	return a.ChannelHandler.CreateChannel(a.ctx, claims.UserID, workspaceID, title, templateID, slots, assignments)
 }
 
 func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_types.ChannelDTO, error) {
@@ -2865,6 +2867,17 @@ func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_typ
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
 	return a.ChannelHandler.ListChannels(a.ctx, claims.UserID, workspaceID)
+}
+
+func (a *App) ActivateChannel(JwtToken string, channelID string) (*tracecore_types.ChannelDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.ActivateChannel(a.ctx, claims.UserID, channelID)
 }
 
 func (a *App) CreateThread(JwtToken string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {

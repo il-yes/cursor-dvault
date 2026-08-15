@@ -326,13 +326,31 @@ type Workspace struct {
 }
 
 type ChannelDTO struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	Title       string    `json:"title"`
-	TemplateID  string    `json:"template_id"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string                 `json:"id"`
+	WorkspaceID string                 `json:"workspace_id"`
+	Title       string                 `json:"title"`
+	TemplateID  string                 `json:"template_id"`
+	Status      string                 `json:"status"`
+	Slots       []ChannelSlotDTO       `json:"slots"`
+	Assignments []ChannelAssignmentDTO `json:"assignments"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+type ChannelSlotDTO struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Role    string `json:"role"`
+	VaultID string `json:"vault_id"`
+	Gated   bool   `json:"gated"`
+	Order   int    `json:"order"`
+}
+
+type ChannelAssignmentDTO struct {
+	SlotID       string `json:"slot_id"`
+	OwnerID      string `json:"owner_id"`
+	PublicKey    string `json:"public_key"`
+	VaultAddress string `json:"vault_address"`
 }
 
 type ThreadDTO struct {

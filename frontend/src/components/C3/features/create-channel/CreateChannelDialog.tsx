@@ -74,6 +74,8 @@ export function CreateChannelDialog({ open, onClose }: Props) {
                 workspace_id: workspaceId,
                 title: title,
                 template_id: data.template?.id || "default",
+                slots: data.slots,
+                assignments: data.assignments,
             });
 
             // Update C3 channel store with real server-created entity

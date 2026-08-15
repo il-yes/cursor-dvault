@@ -11,6 +11,7 @@ import {identity_domain} from '../models';
 import {handlers} from '../models';
 import {onboarding_usecase} from '../models';
 import {onboarding_ui_wails} from '../models';
+import {channel_domain} from '../models';
 import {share_entry_application_dto} from '../models';
 import {share_entry_domain} from '../models';
 import {models} from '../models';
@@ -28,6 +29,8 @@ import {tracecore} from '../models';
 export function AcceptShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
+
+export function ActivateChannel(arg1:string,arg2:string):Promise<tracecore_types.ChannelDTO>;
 
 export function AddAttachements(arg1:string,arg2:vault_dto.AddAttachementsRequest):Promise<Array<vaults_domain.Attachment>>;
 
@@ -63,7 +66,7 @@ export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
-export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelDTO>;
+export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>):Promise<tracecore_types.ChannelDTO>;
 
 export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<tracecore_types.ShareEntryRefDTO>;
 

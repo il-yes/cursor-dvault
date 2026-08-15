@@ -28,6 +28,7 @@ import { handlers, main, subscription_domain, share_entry_application_dto, vault
 import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { buildEntrySnapshot } from "@/lib/utils";
+import { ChannelSlot, VaultAssignment } from "@/components/C3/domain/channel/channel.types";
 import { Keypair } from "stellar-sdk";
 import { Buffer } from "buffer";
 import { AccessCryptoShareRequest, CreateLinkShareEntryPayload, LinkShareEntry } from "@/types/sharing";
@@ -1453,6 +1454,24 @@ export interface CreateChannelPayload {
 	title: string;
 	workspace_id: string;
 	template_id?: string;
+	slots?: ChannelSlot[];
+	assignments?: VaultAssignment[];
+}
+
+export interface ChannelSlotResponse {
+	id: string;
+	name: string;
+	role: string;
+	vault_id: string;
+	gated: boolean;
+	order: number;
+}
+
+export interface ChannelAssignmentResponse {
+	slot_id: string;
+	owner_id: string;
+	public_key: string;
+	vault_address: string;
 }
 
 export interface ChannelResponse {
@@ -1461,6 +1480,8 @@ export interface ChannelResponse {
 	title: string;
 	template_id?: string;
 	status?: string;
+	slots?: ChannelSlotResponse[];
+	assignments?: ChannelAssignmentResponse[];
 	created_at?: string;
 	updated_at?: string;
 	participants?: any[];
@@ -1473,11 +1494,35 @@ export async function createChannel(payload: CreateChannelPayload): Promise<Chan
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
+
+	const slots = (payload.slots ?? []).map((slot, order) => ({
+		id: slot.id,
+		name: slot.name,
+		role: slot.role,
+		vault_id: slot.vault ?? '',
+		gated: slot.gated,
+		order,
+	}));
+
+	const assignments = (payload.assignments ?? []).map((assignment, index) => {
+		const slot =
+			payload.slots?.find((s) => s.vault === assignment.vault) ??
+			payload.slots?.[index];
+		return {
+			slot_id: slot?.id ?? '',
+			owner_id: assignment.owner.id,
+			public_key: assignment.owner.publicKey,
+			vault_address: assignment.vault,
+		};
+	});
+
 	const result = await AppAPI.CreateChannel(
 		jwtToken,
 		payload.workspace_id,
 		payload.title.trim(),
-		payload.template_id || 'default'
+		payload.template_id || 'default',
+		slots,
+		assignments,
 	);
 	return result as ChannelResponse;
 }
@@ -1491,6 +1536,20 @@ export async function listChannels(workspaceId: string): Promise<ChannelResponse
 	}
 	const result = await AppAPI.ListChannels(jwtToken, workspaceId);
 	return (result || []) as ChannelResponse[];
+}
+
+export async function activateChannel(channelId: string): Promise<ChannelResponse> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const result = await AppAPI.ActivateChannel(jwtToken, channelId);
+	return result as ChannelResponse;
 }
 
 export interface CreateThreadPayload {

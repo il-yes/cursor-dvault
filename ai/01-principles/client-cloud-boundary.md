@@ -29,3 +29,38 @@ Client:
 
 Backend:
     determines how that intent is fulfilled.
+
+
+## Cloud Wire Format Is an Integration Concern
+
+Cloud persistence/domain serialization is not necessarily identical to Desktop domain serialization.
+
+The Desktop MUST NOT assume that:
+
+```text
+Cloud JSON == Desktop domain JSON
+````
+
+Instead:
+
+```text
+Cloud API
+    ↓
+Cloud DTO
+    ↓
+TraceCore mapper
+    ↓
+Desktop domain
+```
+
+The TraceCore boundary is responsible for absorbing transport-format differences.
+
+If Cloud uses Go-default JSON serialization while Desktop uses explicit snake_case JSON tags, introduce a dedicated Cloud DTO rather than modifying the domain solely to match the wire format.
+
+### Rule
+
+> Never contaminate the domain model with transport-specific serialization requirements.
+
+````
+
+---

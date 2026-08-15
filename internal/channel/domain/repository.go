@@ -53,6 +53,10 @@ type ListChannelsRequest struct {
 	WorkspaceID string
 }
 
+type ActivateChannelRequest struct {
+	ChannelID string
+}
+
 type JoinChannelRequest struct {
 	ChannelID string
 
@@ -102,6 +106,6 @@ type ChannelRepository interface {
 	GetChannel(ctx context.Context, req *GetChannelRequest) (*tracecore_types.CloudResponse[Channel], error)
 	DeleteChannel(ctx context.Context, req *DeleteChannelRequest) error
 	UpdateChannel(ctx context.Context, req *UpdateChannelRequest) (*tracecore_types.CloudResponse[Channel], error)
-	ActivateChannel(ctx context.Context, req *AcceptInvitationRequest) error
+	ActivateChannel(ctx context.Context, req *ActivateChannelRequest) (*tracecore_types.CloudResponse[Channel], error)
 	RevokeChannel(ctx context.Context, req *RevokeInvitationRequest)  error
 }

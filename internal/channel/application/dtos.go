@@ -7,6 +7,8 @@ type CreateChannelRequest struct {
 	TemplateID  string
 	Title       string
 	WorkspaceID string
+	Slots       []channel_domain.Slot
+	Assignments []channel_domain.Assignment
 }
 
 type ListChannelsRequest struct {
@@ -23,6 +25,10 @@ type GetChannelRequest struct {
 }
 
 type DeleteChannelRequest struct {
+	ChannelID string
+}
+
+type ActivateChannelRequest struct {
 	ChannelID string
 }
 

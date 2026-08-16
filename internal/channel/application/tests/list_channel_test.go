@@ -52,8 +52,28 @@ type channelRepositoryMock struct {
 
 	revokeFn func(
 		ctx context.Context,
-		req *channel_domain.RevokeInvitationRequest,
+		req *channel_domain.RevokeChannelRequest,
 	) error
+
+	addParticipantFn func(
+		ctx context.Context,
+		req *channel_domain.JoinChannelRequest,
+	) (*tracecore_types.CloudResponse[channel_domain.Participant], error)
+
+	listParticipantsFn func(
+		ctx context.Context,
+		req *channel_domain.ListParticipantsRequest,
+	) (*tracecore_types.CloudResponse[[]channel_domain.Participant], error)
+
+	inviteToChannelFn func(
+		ctx context.Context,
+		req *channel_domain.InviteToChannelRequest,
+	) (*tracecore_types.CloudResponse[channel_domain.Invitation], error)
+
+	acceptChannelInvitationFn func(
+		ctx context.Context,
+		req *channel_domain.AcceptInvitationRequest,
+	) (*tracecore_types.CloudResponse[channel_domain.Invitation], error)
 }
 
 func (m *channelRepositoryMock) CreateChannel(
@@ -128,13 +148,77 @@ func (m *channelRepositoryMock) ActivateChannel(
 
 func (m *channelRepositoryMock) RevokeChannel(
 	ctx context.Context,
-	req *channel_domain.RevokeInvitationRequest,
+	req *channel_domain.RevokeChannelRequest,
 ) error {
 	if m.revokeFn != nil {
 		return m.revokeFn(ctx, req)
 	}
 
 	return nil
+}
+
+func (m *channelRepositoryMock) AddParticipant(
+	ctx context.Context,
+	req *channel_domain.JoinChannelRequest,
+) (*tracecore_types.CloudResponse[channel_domain.Participant], error) {
+	if m.addParticipantFn != nil {
+		return m.addParticipantFn(ctx, req)
+	}
+
+	return &tracecore_types.CloudResponse[channel_domain.Participant]{
+		Data: channel_domain.Participant{
+			ChannelID: req.ChannelID,
+			VaultID:   req.VaultID,
+		},
+	}, nil
+}
+
+func (m *channelRepositoryMock) ListParticipants(
+	ctx context.Context,
+	req *channel_domain.ListParticipantsRequest,
+) (*tracecore_types.CloudResponse[[]channel_domain.Participant], error) {
+	if m.listParticipantsFn != nil {
+		return m.listParticipantsFn(ctx, req)
+	}
+
+	return &tracecore_types.CloudResponse[[]channel_domain.Participant]{
+		Data: []channel_domain.Participant{},
+	}, nil
+}
+
+func (m *channelRepositoryMock) InviteToChannel(
+	ctx context.Context,
+	req *channel_domain.InviteToChannelRequest,
+) (*tracecore_types.CloudResponse[channel_domain.Invitation], error) {
+	if m.inviteToChannelFn != nil {
+		return m.inviteToChannelFn(ctx, req)
+	}
+
+	return &tracecore_types.CloudResponse[channel_domain.Invitation]{
+		Data: channel_domain.Invitation{
+			ID:             "inv-00000000-0000-0000-0000-000000000000",
+			ChannelID:      req.ChannelID,
+			InviterVaultID: req.InviterVaultID,
+			InviteeVaultID: req.InviteeVaultID,
+			Status:         channel_domain.InvitationStatusPending,
+		},
+	}, nil
+}
+
+func (m *channelRepositoryMock) AcceptChannelInvitation(
+	ctx context.Context,
+	req *channel_domain.AcceptInvitationRequest,
+) (*tracecore_types.CloudResponse[channel_domain.Invitation], error) {
+	if m.acceptChannelInvitationFn != nil {
+		return m.acceptChannelInvitationFn(ctx, req)
+	}
+
+	return &tracecore_types.CloudResponse[channel_domain.Invitation]{
+		Data: channel_domain.Invitation{
+			ID:     req.InvitationID,
+			Status: channel_domain.InvitationStatusAccepted,
+		},
+	}, nil
 }
 
 type channelEventBusMock struct {

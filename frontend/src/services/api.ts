@@ -1456,6 +1456,9 @@ export interface CreateChannelPayload {
 	template_id?: string;
 	slots?: ChannelSlot[];
 	assignments?: VaultAssignment[];
+	properties?: { key: string; value: string }[];
+	policy?: Record<string, any>;
+	federation?: string;
 }
 
 export interface ChannelSlotResponse {
@@ -1474,6 +1477,11 @@ export interface ChannelAssignmentResponse {
 	vault_address: string;
 }
 
+export interface ChannelPropertyResponse {
+	key: string;
+	value: string;
+}
+
 export interface ChannelResponse {
 	id: string;
 	workspace_id: string;
@@ -1482,6 +1490,10 @@ export interface ChannelResponse {
 	status?: string;
 	slots?: ChannelSlotResponse[];
 	assignments?: ChannelAssignmentResponse[];
+	properties?: ChannelPropertyResponse[];
+	policy?: Record<string, any>;
+	federation?: string;
+	revoked_at?: string;
 	created_at?: string;
 	updated_at?: string;
 	participants?: any[];
@@ -1523,6 +1535,9 @@ export async function createChannel(payload: CreateChannelPayload): Promise<Chan
 		payload.template_id || 'default',
 		slots,
 		assignments,
+		payload.properties ?? [],
+		payload.policy ?? {},
+		payload.federation ?? '',
 	);
 	return result as ChannelResponse;
 }
@@ -1550,6 +1565,251 @@ export async function activateChannel(channelId: string): Promise<ChannelRespons
 
 	const result = await AppAPI.ActivateChannel(jwtToken, channelId);
 	return result as ChannelResponse;
+}
+
+// Revoke an active Channel through the authoritative Cloud backend. The Cloud
+// revoke response carries no Channel data, so the caller must refresh the
+// workspace channel list to observe the revoked status. Backend errors (e.g.
+// "channel already revoked") are surfaced verbatim.
+export async function revokeChannel(channelId: string): Promise<void> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	await AppAPI.RevokeChannel(jwtToken, channelId);
+}
+
+// Fetch a single Channel from the authoritative Cloud backend (GET
+// /channels/{id}). The backend is the single source of truth for channel
+// existence; a 404 is surfaced as an error, never fabricated locally.
+export async function getChannel(channelId: string): Promise<ChannelResponse> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const result = await AppAPI.GetChannel(jwtToken, channelId);
+	return result as ChannelResponse;
+}
+
+export interface UpdateChannelPayload {
+	channel_id: string;
+	title: string;
+	slots?: { id: string; name: string; role: string; vault_id: string; gated: boolean; order: number }[];
+	assignments?: { slot_id: string; owner_id: string; public_key: string; vault_address: string }[];
+	properties?: { key: string; value: string }[];
+	policy?: Record<string, any>;
+}
+
+// Update an existing Channel through the authoritative Cloud backend
+// (PUT /channels/{id}). The payload carries exactly the fields the Cloud
+// UpdateChannelRequest contract supports; the returned Cloud Channel (which is
+// authoritative for what was actually applied) replaces the local copy.
+export async function updateChannel(payload: UpdateChannelPayload): Promise<ChannelResponse> {
+	if (!payload.channel_id) {
+		throw new Error('Channel id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const result = await AppAPI.UpdateChannel(
+		jwtToken,
+		payload.channel_id,
+		payload.title,
+		payload.slots ?? [],
+		payload.assignments ?? [],
+		payload.properties ?? [],
+		payload.policy ?? {},
+	);
+	return result as ChannelResponse;
+}
+
+// Delete a Channel through the authoritative Cloud backend (DELETE
+// /channels/{id}). The Cloud delete response carries no Channel data, so the
+// caller must remove the channel from local state. Backend errors (e.g. a
+// missing channel) are surfaced verbatim.
+export async function deleteChannel(channelId: string): Promise<void> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	await AppAPI.DeleteChannel(jwtToken, channelId);
+}
+
+export interface ChannelParticipantResponse {
+	channel_id: string;
+	vault_id: string;
+	public_key: string;
+	direction: string;
+	joined_at: number;
+	role: string;
+	permissions: string[];
+}
+
+export interface AddParticipantPayload {
+	vault_id: string;
+	public_key?: string;
+	direction?: string;
+	slot_id?: string;
+	role?: string;
+}
+
+// AddParticipant joins an external vault to a Channel through the authoritative
+// Cloud backend. Cloud validates the join (revoked checks, slot existence, role
+// derivation) and persists the participant; this client never decides locally
+// whether a vault may join. Cloud is idempotent: joining an already-joined vault
+// returns the persisted participant.
+export async function addParticipant(
+	channelId: string,
+	payload: AddParticipantPayload,
+): Promise<ChannelParticipantResponse> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+	if (!payload?.vault_id) {
+		throw new Error('Vault id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const result = await AppAPI.AddParticipant(
+		jwtToken,
+		channelId,
+		payload.vault_id,
+		payload.public_key || '',
+		payload.direction || 'bidirectional',
+		payload.slot_id || '',
+		payload.role || '',
+	);
+	return result as ChannelParticipantResponse;
+}
+
+// ListParticipants returns the vaults Cloud has persisted as participants for
+// the Channel. An empty result is valid.
+export async function listParticipants(channelId: string): Promise<ChannelParticipantResponse[]> {
+	if (!channelId) {
+		return [];
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		return [];
+	}
+	const result = await AppAPI.ListParticipants(jwtToken, channelId);
+	return (result || []) as ChannelParticipantResponse[];
+}
+
+// ChannelInvitationResponse mirrors the Cloud Invitation aggregate. An
+// invitation carries no slot or role information; role semantics are a channel
+// participant concern.
+export interface ChannelInvitationResponse {
+	id: string;
+	channel_id: string;
+	inviter_vault_id: string;
+	invitee_vault_id: string;
+	status: string;
+	created_at: string;
+	accepted_at?: string | null;
+}
+
+export interface InviteToChannelPayload {
+	invitee_vault_id: string;
+}
+
+// The inviter is the Desktop user's own vault (the current runtime vault).
+function currentVaultIdentity(): { vaultId: string; publicKey: string } | null {
+	const vault = useVaultStore.getState().vault;
+	const vaultId = vault?.vault_runtime_context?.VaultID as string | undefined;
+	const publicKey = vault?.vault_runtime_context?.UserConfig?.stellar_account?.public_key as string | undefined;
+	if (!vaultId) {
+		return null;
+	}
+	return { vaultId, publicKey: publicKey || '' };
+}
+
+// InviteToChannel creates a channel invitation through the authoritative Cloud
+// backend (POST /channels/{id}/invitations). The inviter is the Desktop user's
+// own vault. Cloud persists the pending invitation and dedupes pending
+// invitations for the same channel + invitee.
+export async function inviteToChannel(
+	channelId: string,
+	payload: InviteToChannelPayload,
+): Promise<ChannelInvitationResponse> {
+	if (!channelId) {
+		throw new Error('Channel id is required');
+	}
+	if (!payload?.invitee_vault_id) {
+		throw new Error('Invitee vault id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const identity = currentVaultIdentity();
+	if (!identity) {
+		throw new Error('Vault identity is required to send an invitation');
+	}
+
+	const result = await AppAPI.InviteToChannel(
+		jwtToken,
+		channelId,
+		identity.vaultId,
+		payload.invitee_vault_id,
+	);
+	return result as ChannelInvitationResponse;
+}
+
+// AcceptChannelInvitation accepts a pending channel invitation through the
+// authoritative Cloud backend (POST /channels/invitations/{id}/accept). The
+// accepting vault is the Desktop user's own vault; Cloud validates that it is
+// the invitation's invitee and persists the resulting participant. The response
+// carries the accepted Invitation, not the participant — participants are
+// observed through listParticipants. Cloud is idempotent: accepting an
+// already-accepted invitation returns the accepted invitation.
+export async function acceptChannelInvitation(invitationId: string): Promise<ChannelInvitationResponse> {
+	if (!invitationId) {
+		throw new Error('Invitation id is required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	const identity = currentVaultIdentity();
+	if (!identity) {
+		throw new Error('Vault identity is required to accept an invitation');
+	}
+
+	const result = await AppAPI.AcceptChannelInvitation(
+		jwtToken,
+		invitationId,
+		identity.vaultId,
+		identity.publicKey,
+	);
+	return result as ChannelInvitationResponse;
 }
 
 export interface CreateThreadPayload {

@@ -58,8 +58,11 @@ const formatDate = (value?: string): string => {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
-const mapRowStatus = (status?: string): ChannelRow["status"] =>
-    status === "active" ? "active" : "pending";
+const mapRowStatus = (status?: string): ChannelRow["status"] => {
+    if (status === "active") return "active";
+    if (status === "revoked") return "revoked";
+    return "pending";
+};
 
 const mapC3Status = (status?: string): ChannelRow["c3Status"] => {
     if (status === "active") return "active";
@@ -120,12 +123,12 @@ const STATUS_VIEW: Record<ChannelView["status"], StatusView> = {
 export const toChannelStatusView = (status: ChannelView["status"]): StatusView =>
     STATUS_VIEW[status] || { dotClass: "s-pend", label: "Pending" };
 
-export const toRowStatusView = (status: ChannelRow["status"]): StatusView =>
-    status === "active"
-        ? { dotClass: "s-ok", label: "Active" }
-        : status === "dispute"
-            ? { dotClass: "s-dispute", label: "Dispute" }
-            : { dotClass: "s-pend", label: "Pending" };
+export const toRowStatusView = (status: ChannelRow["status"]): StatusView => {
+    if (status === "active") return { dotClass: "s-ok", label: "Active" };
+    if (status === "revoked") return { dotClass: "s-dispute", label: "Revoked" };
+    if (status === "dispute") return { dotClass: "s-dispute", label: "Dispute" };
+    return { dotClass: "s-pend", label: "Pending" };
+};
 
 
 export const toChannelView = (channel: ChannelResponse): ChannelView => {

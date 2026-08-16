@@ -26,16 +26,35 @@ export const c3LedgerStyles = css`
   }
 
   .ledger-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    overflow: hidden;
     font-size: 17px;
     font-weight: 700;
     letter-spacing: 0.06em;
     color: var(--c3-text);
   }
 
+  .ledger-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ledger-title .c3-status-badge {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
   .ledger-controls {
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
   }
 
   .ctrl-btn {
@@ -48,6 +67,15 @@ export const c3LedgerStyles = css`
     border-radius: 10px;
     font-size: 12px;
     color: #555;
+  }
+
+  /* Channel content panels (Participants / Invitations) */
+  .channel-panel {
+    margin: 0 24px 20px;
+    padding: 14px 16px 18px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid var(--c3-border-soft);
+    border-radius: 14px;
   }
 
   .table-wrap {
@@ -504,6 +532,19 @@ rgba(255,255,255,0.03);
       border-color: var(--c3-gold);
     }
     .ledger-controls .ctrl-btn.activate-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .ledger-controls .ctrl-btn.revoke-btn {
+      pointer-events: auto;
+      cursor: pointer;
+      color: #DC2626;
+      border-color: #FECACA;
+    }
+    .ledger-controls .ctrl-btn.revoke-btn:hover {
+      border-color: #DC2626;
+    }
+    .ledger-controls .ctrl-btn.revoke-btn:disabled {
       opacity: 0.5;
       cursor: default;
     }

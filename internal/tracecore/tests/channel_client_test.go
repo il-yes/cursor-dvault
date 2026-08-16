@@ -409,6 +409,10 @@ const createdChannelJSON = `{
       { "SlotID": "draft", "OwnerID": "alice", "PublicKey": "GAALICE", "VaultAddress": "vault_legal" },
       { "SlotID": "finance", "OwnerID": "bob", "PublicKey": "GBBOB", "VaultAddress": "vault_finance" }
     ],
+    "Properties": [
+      { "Key": "jurisdiction", "Value": "EU" }
+    ],
+    "Policy": { "max_signatures": 2 },
     "Federation": {
       "VaultAID": "vault_001",
       "VaultBID": "vault_002",
@@ -467,6 +471,9 @@ func TestCreateChannel_SendsSlotsAndAssignments(t *testing.T) {
 	})
 
 	ch := channelWithConfig(t)
+	ch.Properties = []channel_domain.ChannelProperty{{Key: "jurisdiction", Value: "EU"}}
+	ch.Policy = channel_domain.Policy{"max_signatures": 2}
+	ch.Federation = `{"VaultAID":"vault_001","VaultBID":"vault_002","AllowedEventTypes":["entry.shared"],"AllowedPaths":null,"AllowedDirections":"bidirectional"}`
 	resp, err := client.CreateChannel(context.Background(), &channel_domain.CreateChannelRequest{Channel: ch})
 	if err != nil {
 		t.Fatalf("CreateChannel returned error: %v", err)
@@ -489,12 +496,42 @@ func TestCreateChannel_SendsSlotsAndAssignments(t *testing.T) {
 	if body["template_id"] != "contract-execution" {
 		t.Errorf("template_id = %v, want contract-execution", body["template_id"])
 	}
-	if body["status"] != "active" {
-		t.Errorf("status = %v, want active (Desktop aggregate status)", body["status"])
+	if _, hasStatus := body["status"]; hasStatus {
+		t.Error("payload must NOT contain status: Cloud CreateChannelRequest has no status field")
 	}
 
-	if _, hasProps := body["properties"]; hasProps {
-		t.Error("payload must NOT contain properties (deferred in this task)")
+	rawProps, ok := body["properties"].([]interface{})
+	if !ok {
+		t.Fatalf("properties missing from payload: %s", string(reqBody))
+	}
+	if len(rawProps) != 1 {
+		t.Fatalf("expected 1 property, got %d", len(rawProps))
+	}
+	prop, ok := rawProps[0].(map[string]interface{})
+	if !ok || prop["key"] != "jurisdiction" || prop["value"] != "EU" {
+		t.Errorf("property mismatch: %v", prop)
+	}
+
+	rawPolicy, ok := body["policy"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("policy missing from payload: %s", string(reqBody))
+	}
+	if rawPolicy["max_signatures"] != float64(2) {
+		t.Errorf("policy.max_signatures = %v, want 2", rawPolicy["max_signatures"])
+	}
+
+	rawFed, ok := body["federation"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("federation missing from payload: %s", string(reqBody))
+	}
+	if rawFed["vault_a_id"] != "vault_001" || rawFed["vault_b_id"] != "vault_002" {
+		t.Errorf("federation vault ids mismatch: %v", rawFed)
+	}
+	if got, ok := rawFed["allowed_directions"]; !ok || got != "bidirectional" {
+		t.Errorf("federation.allowed_directions = %v, want bidirectional", rawFed["allowed_directions"])
+	}
+	if got, ok := rawFed["allowed_event_types"].([]interface{}); !ok || len(got) != 1 || got[0] != "entry.shared" {
+		t.Errorf("federation.allowed_event_types = %v, want [entry.shared]", rawFed["allowed_event_types"])
 	}
 
 	rawSlots, ok := body["slots"].([]interface{})
@@ -587,6 +624,16 @@ func TestCreateChannel_MapsSlotsAndAssignments(t *testing.T) {
 	}
 	if ch.Assignments[1].SlotID != "finance" {
 		t.Errorf("assignment[1].SlotID = %q, want finance", ch.Assignments[1].SlotID)
+	}
+
+	if len(ch.Properties) != 1 {
+		t.Fatalf("expected 1 property mapped from Cloud, got %d", len(ch.Properties))
+	}
+	if ch.Properties[0].Key != "jurisdiction" || ch.Properties[0].Value != "EU" {
+		t.Errorf("properties not preserved: %+v", ch.Properties)
+	}
+	if ch.Policy["max_signatures"] != float64(2) {
+		t.Errorf("policy not preserved: %+v", ch.Policy)
 	}
 
 	var fed tracecore_types.CloudChannelFederation
@@ -849,6 +896,465 @@ func TestActivateChannel_MissingChannelID(t *testing.T) {
 	})
 
 	_, err := client.ActivateChannel(context.Background(), &channel_domain.ActivateChannelRequest{})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel id, got nil")
+	}
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// RevokeChannel
+// ------------------------------------------------------------------------------------------------------------
+
+// The Cloud revoke response is an envelope without Channel data:
+// { "status": 200, "code": "RECORD_UPDATED", "message": "...", "success": true }.
+const channelRevokedJSON = `{
+  "status": 200,
+  "code": "RECORD_UPDATED",
+  "message": "channel revoked",
+  "success": true
+}`
+
+func TestRevokeChannel_PostsToRevokePathWithoutBody(t *testing.T) {
+	var reqBody []byte
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/channels/ch_rev1/revoke" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("missing Bearer token: %q", r.Header.Get("Authorization"))
+		}
+		var err error
+		reqBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, channelRevokedJSON)
+	})
+
+	err := client.RevokeChannel(context.Background(), &channel_domain.RevokeChannelRequest{
+		ChannelID: "ch_rev1",
+	})
+	if err != nil {
+		t.Fatalf("RevokeChannel returned error: %v", err)
+	}
+	// The revocation request contains only the channel id; there is no body.
+	if len(reqBody) != 0 {
+		t.Errorf("expected empty request body, got %q", string(reqBody))
+	}
+}
+
+func TestRevokeChannel_HTTP200WithNilDataSucceeds(t *testing.T) {
+	// The Cloud revoke response carries no Channel data. A 200 must still be
+	// treated as success without requiring or fabricating a Channel.
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, channelRevokedJSON)
+	})
+
+	err := client.RevokeChannel(context.Background(), &channel_domain.RevokeChannelRequest{
+		ChannelID: "ch_rev1",
+	})
+	if err != nil {
+		t.Fatalf("RevokeChannel with a data-less 200 must not error: %v", err)
+	}
+}
+
+func TestRevokeChannel_HTTPErrorSurfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `channel already revoked`)
+	})
+
+	err := client.RevokeChannel(context.Background(), &channel_domain.RevokeChannelRequest{
+		ChannelID: "ch_rev_already",
+	})
+	if err == nil {
+		t.Fatal("expected an error for HTTP 400, got nil")
+	}
+	if got := err.Error(); got != "Cloud backend returned status 400: channel already revoked" {
+		t.Errorf("Cloud error not surfaced cleanly: %s", got)
+	}
+}
+
+func TestRevokeChannel_HTTP500Surfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{ "status": 500, "message": "boom" }`)
+	})
+
+	err := client.RevokeChannel(context.Background(), &channel_domain.RevokeChannelRequest{
+		ChannelID: "ch_rev_5xx",
+	})
+	if err == nil {
+		t.Fatal("expected an error for HTTP 500, got nil")
+	}
+	if got := err.Error(); got != "Cloud backend returned status 500: { \"status\": 500, \"message\": \"boom\" }" {
+		t.Errorf("Cloud error not surfaced cleanly: %s", got)
+	}
+}
+
+func TestRevokeChannel_MissingChannelID(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server should not be called for a missing channel id")
+	})
+
+	err := client.RevokeChannel(context.Background(), &channel_domain.RevokeChannelRequest{})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel id, got nil")
+	}
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// GetChannel
+// ------------------------------------------------------------------------------------------------------------
+
+const fetchedChannelJSON = `{
+  "status": 200,
+  "data": {
+    "ID": "ch_get1",
+    "TemplateID": "contract-execution",
+    "Title": "Channel A",
+    "Status": "revoked",
+    "Slots": [
+      { "ID": "draft", "Name": "contract_draft", "Role": "Author", "VaultID": "vault_legal", "Gated": false, "Order": 0 }
+    ],
+    "Assignments": [
+      { "SlotID": "draft", "OwnerID": "alice", "PublicKey": "GAALICE", "VaultAddress": "vault_legal" }
+    ],
+    "Properties": [
+      { "Key": "jurisdiction", "Value": "EU" }
+    ],
+    "Policy": { "retention_days": 30 },
+    "Federation": {
+      "VaultAID": "vault_001",
+      "VaultBID": "vault_002",
+      "AllowedEventTypes": null,
+      "AllowedPaths": null,
+      "AllowedDirections": "unidirectional"
+    },
+    "CreatedAt": "2026-08-15T09:00:00.000Z",
+    "UpdatedAt": "2026-08-15T09:00:00.000Z",
+    "RevokedAt": "2026-08-15T12:00:00.000Z",
+    "WorkspaceID": "ws_1"
+  }
+}`
+
+func TestGetChannel_GetsFromCloudPath(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/channels/ch_get1" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("missing Bearer token: %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, fetchedChannelJSON)
+	})
+
+	resp, err := client.GetChannel(context.Background(), &channel_domain.GetChannelRequest{ChannelID: "ch_get1"})
+	if err != nil {
+		t.Fatalf("GetChannel returned error: %v", err)
+	}
+	if resp == nil || resp.Data.ID == "" {
+		t.Fatal("expected a valid response with channel data")
+	}
+	ch := resp.Data
+	if ch.ID != "ch_get1" {
+		t.Errorf("ID = %q, want ch_get1", ch.ID)
+	}
+	if ch.Status != channel_domain.StatusRevoked {
+		t.Errorf("Status = %q, want revoked", ch.Status)
+	}
+	if ch.RevokedAt == nil || ch.RevokedAt.IsZero() {
+		t.Error("RevokedAt must be preserved from Cloud")
+	}
+	if len(ch.Properties) != 1 || ch.Properties[0].Key != "jurisdiction" || ch.Properties[0].Value != "EU" {
+		t.Errorf("Properties not preserved: %+v", ch.Properties)
+	}
+	if ch.Policy["retention_days"] != float64(30) {
+		t.Errorf("Policy not preserved: %+v", ch.Policy)
+	}
+	var fed tracecore_types.CloudChannelFederation
+	if err := json.Unmarshal([]byte(ch.Federation), &fed); err != nil {
+		t.Fatalf("Federation is not valid JSON: %v (raw: %s)", err, ch.Federation)
+	}
+	if fed.AllowedDirections != "unidirectional" {
+		t.Errorf("Federation.AllowedDirections = %q, want unidirectional", fed.AllowedDirections)
+	}
+}
+
+func TestGetChannel_HTTP404Surfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `record not found`)
+	})
+
+	_, err := client.GetChannel(context.Background(), &channel_domain.GetChannelRequest{ChannelID: "ch_missing"})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel, got nil")
+	}
+	if got := err.Error(); got != "Cloud backend returned status 404: record not found" {
+		t.Errorf("Cloud 404 not surfaced verbatim: %s", got)
+	}
+}
+
+func TestGetChannel_UnexpectedShapeReturnsError(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{ "status": 200, "message": "no channel data" }`)
+	})
+
+	_, err := client.GetChannel(context.Background(), &channel_domain.GetChannelRequest{ChannelID: "ch_malformed"})
+	if err == nil {
+		t.Fatal("expected an error when Cloud omits channel data, got nil")
+	}
+}
+
+func TestGetChannel_MissingChannelID(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server should not be called for a missing channel id")
+	})
+
+	_, err := client.GetChannel(context.Background(), &channel_domain.GetChannelRequest{})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel id, got nil")
+	}
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// UpdateChannel
+// ------------------------------------------------------------------------------------------------------------
+
+const updatedChannelJSON = `{
+  "status": 200,
+  "data": {
+    "ID": "ch_upd1",
+    "TemplateID": "contract-execution",
+    "Title": "Channel A (renamed)",
+    "Status": "active",
+    "Slots": [
+      { "ID": "draft", "Name": "contract_draft", "Role": "Author", "VaultID": "vault_legal", "Gated": false, "Order": 0 }
+    ],
+    "Assignments": [
+      { "SlotID": "draft", "OwnerID": "alice", "PublicKey": "GAALICE", "VaultAddress": "vault_legal" }
+    ],
+    "Properties": [
+      { "Key": "jurisdiction", "Value": "EU" }
+    ],
+    "Policy": { "retention_days": 30 },
+    "Federation": {
+      "VaultAID": "vault_001",
+      "VaultBID": "vault_002",
+      "AllowedEventTypes": null,
+      "AllowedPaths": null,
+      "AllowedDirections": "unidirectional"
+    },
+    "CreatedAt": "2026-08-15T09:00:00.000Z",
+    "UpdatedAt": "2026-08-15T10:00:00.000Z",
+    "WorkspaceID": "ws_1"
+  }
+}`
+
+func TestUpdateChannel_PutsExactContractPayload(t *testing.T) {
+	var reqBody []byte
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("expected PUT, got %s", r.Method)
+		}
+		if r.URL.Path != "/channels/ch_upd1" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("missing Bearer token: %q", r.Header.Get("Authorization"))
+		}
+		var err error
+		reqBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, updatedChannelJSON)
+	})
+
+	ch := channel_domain.Channel{
+		ID:         "ch_upd1",
+		TemplateID: "contract-execution",
+		Title:      "Channel A (renamed)",
+		Status:     channel_domain.StatusActive,
+		Slots: []channel_domain.Slot{
+			{ID: "draft", Name: "contract_draft", Role: "Author", VaultID: "vault_legal", Gated: false, Order: 0},
+		},
+		Assignments: []channel_domain.Assignment{
+			{SlotID: "draft", OwnerID: "alice", PublicKey: "GAALICE", VaultAddress: "vault_legal"},
+		},
+		Properties:  []channel_domain.ChannelProperty{{Key: "jurisdiction", Value: "EU"}},
+		Policy:      channel_domain.Policy{"retention_days": 30},
+		WorkspaceID: "ws_1",
+	}
+	resp, err := client.UpdateChannel(context.Background(), &channel_domain.UpdateChannelRequest{Channel: ch})
+	if err != nil {
+		t.Fatalf("UpdateChannel returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected a non-nil response")
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(reqBody, &body); err != nil {
+		t.Fatalf("request body is not valid JSON: %v (raw: %s)", err, string(reqBody))
+	}
+
+	if body["id"] != "ch_upd1" {
+		t.Errorf("id = %v, want ch_upd1", body["id"])
+	}
+	if body["title"] != "Channel A (renamed)" {
+		t.Errorf("title = %v, want Channel A (renamed)", body["title"])
+	}
+	if rawPolicy, ok := body["policy"].(map[string]interface{}); !ok || rawPolicy["retention_days"] != float64(30) {
+		t.Errorf("policy not preserved: %v", body["policy"])
+	}
+	if rawProps, ok := body["properties"].([]interface{}); !ok || len(rawProps) != 1 {
+		t.Errorf("properties not preserved: %v", body["properties"])
+	}
+	if rawSlots, ok := body["slots"].([]interface{}); !ok || len(rawSlots) != 1 {
+		t.Errorf("slots not preserved: %v", body["slots"])
+	}
+	if rawAssign, ok := body["assignments"].([]interface{}); !ok || len(rawAssign) != 1 {
+		t.Errorf("assignments not preserved: %v", body["assignments"])
+	}
+
+	// Cloud UpdateChannelRequest supports only id/title/slots/properties/
+	// assignments/policy. Fields outside that contract must not leak through.
+	for _, forbidden := range []string{"template_id", "status", "federation", "workspace_id", "created_at", "updated_at"} {
+		if _, has := body[forbidden]; has {
+			t.Errorf("payload must NOT contain %s: %s", forbidden, string(reqBody))
+		}
+	}
+}
+
+func TestUpdateChannel_MapsUpdatedChannel(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, updatedChannelJSON)
+	})
+
+	resp, err := client.UpdateChannel(context.Background(), &channel_domain.UpdateChannelRequest{
+		Channel: channel_domain.Channel{ID: "ch_upd1", Title: "Channel A (renamed)"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateChannel returned error: %v", err)
+	}
+	ch := resp.Data
+	if ch.ID != "ch_upd1" {
+		t.Errorf("ID = %q, want ch_upd1", ch.ID)
+	}
+	if ch.Title != "Channel A (renamed)" {
+		t.Errorf("Title = %q, want Channel A (renamed)", ch.Title)
+	}
+	if ch.Status != channel_domain.StatusActive {
+		t.Errorf("Status = %q, want active", ch.Status)
+	}
+	if len(ch.Properties) != 1 || ch.Properties[0].Value != "EU" {
+		t.Errorf("Properties not preserved: %+v", ch.Properties)
+	}
+	if ch.Policy["retention_days"] != float64(30) {
+		t.Errorf("Policy not preserved: %+v", ch.Policy)
+	}
+}
+
+func TestUpdateChannel_HTTPErrorSurfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `channel revoked`)
+	})
+
+	_, err := client.UpdateChannel(context.Background(), &channel_domain.UpdateChannelRequest{
+		Channel: channel_domain.Channel{ID: "ch_revoked", Title: "x"},
+	})
+	if err == nil {
+		t.Fatal("expected an error for HTTP 400, got nil")
+	}
+	if got := err.Error(); got != "Cloud backend returned status 400: channel revoked" {
+		t.Errorf("Cloud error not surfaced cleanly: %s", got)
+	}
+}
+
+func TestUpdateChannel_MissingChannelID(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server should not be called for a missing channel id")
+	})
+
+	_, err := client.UpdateChannel(context.Background(), &channel_domain.UpdateChannelRequest{})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel id, got nil")
+	}
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// DeleteChannel
+// ------------------------------------------------------------------------------------------------------------
+
+func TestDeleteChannel_DeletesFromCloudPath(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		if r.URL.Path != "/channels/ch_del1" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("missing Bearer token: %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{ "status": 200, "code": "RECORD_DELETED", "message": "channel deleted", "success": true }`)
+	})
+
+	err := client.DeleteChannel(context.Background(), &channel_domain.DeleteChannelRequest{ChannelID: "ch_del1"})
+	if err != nil {
+		t.Fatalf("DeleteChannel returned error: %v", err)
+	}
+}
+
+func TestDeleteChannel_HTTPErrorSurfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `record not found`)
+	})
+
+	err := client.DeleteChannel(context.Background(), &channel_domain.DeleteChannelRequest{ChannelID: "ch_missing"})
+	if err == nil {
+		t.Fatal("expected an error for a missing channel, got nil")
+	}
+	if got := err.Error(); got != "Cloud backend returned status 404: record not found" {
+		t.Errorf("Cloud 404 not surfaced verbatim: %s", got)
+	}
+}
+
+func TestDeleteChannel_HTTP500Surfaced(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{ "status": 500, "message": "boom" }`)
+	})
+
+	err := client.DeleteChannel(context.Background(), &channel_domain.DeleteChannelRequest{ChannelID: "ch_5xx"})
+	if err == nil {
+		t.Fatal("expected an error for HTTP 500, got nil")
+	}
+}
+
+func TestDeleteChannel_MissingChannelID(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server should not be called for a missing channel id")
+	})
+
+	err := client.DeleteChannel(context.Background(), &channel_domain.DeleteChannelRequest{})
 	if err == nil {
 		t.Fatal("expected an error for a missing channel id, got nil")
 	}

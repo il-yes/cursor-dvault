@@ -52,6 +52,7 @@ import { useNotificationsEvents } from "@/hooks/useNotificationSocket";
 import { NotificationBell } from "./Notification/NotificationBell";
 import { C3SidebarMenu } from "./C3/ui/Sidebar/SidebarMenu";
 import { useC3DialogStore } from "./C3/infrastructure/store/c3DialogStore";
+import { useC3ChannelStore } from "./C3/infrastructure/store/useC3ChannelStore";
 import { CreateChannelDialog } from "./C3/features/create-channel/CreateChannelDialog";
 
 
@@ -223,9 +224,10 @@ function DashboardNavbar() {
 
 	const handleLogout = () => {
 		// Clear all stores and state
-		clearVaultStore();                   // Clear vault store (entries, vault data)
-		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-		useAppStore.getState().reset();      // Clear app store (session)
+		clearVaultStore();                       // Clear vault store (entries, vault data)
+		useAuthStore.getState().clearAll();      // Clear auth store (user, tokens)
+		useAppStore.getState().reset();          // Clear app store (session)
+		useC3ChannelStore.getState().clearChannels(); // Clear C3 channel-scoped state (workspace, channels, participants, invitations)
 
 		// Clear specific localStorage items (not all, to preserve settings)
 		localStorage.removeItem('userId');

@@ -32,9 +32,8 @@ func (r *CloudRepository) DeleteChannel( ctx context.Context, req channel_domain
 	err := r.client.DeleteChannel(ctx, &req)
 	return nil, err
 }
-func (r *CloudRepository) RevokeChannel( ctx context.Context, req channel_domain.RevokeInvitationRequest) (*channel_domain.Channel, error) {
-	err := r.client.RevokeChannel(ctx, &req)
-	return nil, err
+func (r *CloudRepository) RevokeChannel(ctx context.Context, req channel_domain.RevokeChannelRequest) error {
+	return r.client.RevokeChannel(ctx, &req)
 }
 
 func (r *CloudRepository) GetChannel( ctx context.Context, req channel_domain.GetChannelRequest) (*channel_domain.Channel, error) {

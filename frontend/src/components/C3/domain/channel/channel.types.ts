@@ -259,7 +259,7 @@ export function createEmptyChannelDraft() {
 export type ChannelRow = {
     id: string;
 
-    status: 'active' | 'pending' | 'dispute';
+    status: 'active' | 'pending' | 'dispute' | 'revoked';
 
     type:
     | 'Contract'

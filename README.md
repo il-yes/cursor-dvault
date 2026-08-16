@@ -1449,74 +1449,6 @@ TrustGroup
 ✅ RotateKEK
 
 
-// - domains
-type WorkspaceUsecaseInterface interface {
-	CreateWorkspace(ctx context.Context, req *CreateWorkspaceRequest) (*workspace_domain.Workspace, error)
-	ListWorkspaces(ctx context.Context, req *ListWorkspacesRequest) (*workspace_domain.Workspace, error)
-	GetWorkspace(ctx context.Context, req *GetWorkspaceRequest) (*workspace_domain.Workspace, error)
-	DeleteWorkspace(ctx context.Context, req *DeleteWorkspaceRequest) (*workspace_domain.Workspace, error)
-  RenameWorkspace(ctx context.Context, req *RenameWorkspaceRequest) (*workspace_domain.Workspace, error)
-}
-
-type ChannelUsecaseInterface interface {
-	CreateChannel(ctx context.Context, req *CreateChannelRequest) (*channel_domain.Channel, error)
-	ListChannels(ctx context.Context, req *ListChannelsRequest) (*channel_domain.Channel, error)
-	GetChannel(ctx context.Context, req *GetChannelRequest) (*channel_domain.Channel, error)
-	UpdateChannel(ctx context.Context, req *UpdateChannelRequest) (*channel_domain.Channel, error)
-	CloseThread(ctx context.Context, req *CloseThreadRequest) (*channel_domain.Channel, error)
-}
-type ThreadUsecaseInterface interface {
-	CreateThread(ctx context.Context, req *CreateThreadRequest) (*thread_domain.Thread, error)
-	ListThreads(ctx context.Context, req *ListThreadsRequest) (*thread_domain.Thread, error)
-	GetThread(ctx context.Context, req *GetThreadRequest) (*thread_domain.Thread, error)
-	UpdateThread(ctx context.Context, req *UpdateThreadRequest) (*thread_domain.Thread, error)
-	DeleteThread(ctx context.Context, req *DeleteThreadRequest) (*thread_domain.Thread, error)
-}
-
-type ShareEntryUsecaseInterface interface {
-	CreateShareEntry(ctx context.Context, req *CreateShareEntryRequest) (*share_entry_domain.ShareEntry, error)
-	ListShareEntries(ctx context.Context, req *ListShareEntriesRequest) (*share_entry_domain.ShareEntry, error)
-	GetShareEntry(ctx context.Context, req *GetShareEntryRequest) (*share_entry_domain.ShareEntry, error)
-	RevokeShareEntry(ctx context.Context, req *RevokeShareEntryRequest) (*share_entry_domain.ShareEntry, error)
-}
-
-type TrustGroupUsecaseInterface interface {
-	CreateTrustGroup(ctx context.Context, req *CreateTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
-	ListTrustGroups(ctx context.Context, req *ListTrustGroupsRequest) (*trust_group_domain.TrustGroup, error)
-	GetTrustGroup(ctx context.Context, req *GetTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
-	AddMemberToTrustGroup(ctx context.Context, req *AddMemberToTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
-	RemoveMemberFromTrustGroup(ctx context.Context, req *RemoveMemberFromTrustGroupRequest) (*trust_group_domain.TrustGroup, error)
-	RotateTrustGroupKEK(ctx context.Context, req *RotateTrustGroupKEKRequest) (*trust_group_domain.TrustGroup, error)
-} 
-
-// - application service (vault c3 service) 
-type VaultC3Service struct {
-	Workspace WorkspaceUsecaseInterface
-	Channel ChannelUsecaseInterface
-	Thread ThreadUsecaseInterface
-	ShareEntry ShareEntryUsecaseInterface
-	TrustGroup TrustGroupUsecaseInterface
-}
-
-func NewVaultC3Service() *VaultC3Service {
-	return &VaultC3Service{
-		Workspace: NewWorkspaceUsecase(),
-		Channel: NewChannelUsecase(),
-		Thread: NewThreadUsecase(),
-		ShareEntry: NewShareEntryUsecase(),
-		TrustGroup: NewTrustGroupUsecase(),
-	}
-}
-
-
-
-
-
-
-
-
-
-
 
 curl -X POST http://localhost:4001/api/workspaces \
   -H "Content-Type: application/json" \
@@ -1527,5 +1459,7 @@ curl -X POST http://localhost:4001/api/workspaces \
     "OwnerID": "GDP33HCI3D253ZY3KIXHMFQ2TMMDDXCSFHS6GWSGE6D5ONUTFNGKAHVG",
 
   }'
+
+
 
 

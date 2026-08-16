@@ -26,6 +26,8 @@ import {stellar_recovery_domain} from '../models';
 import {notification_center_domain} from '../models';
 import {tracecore} from '../models';
 
+export function AcceptChannelInvitation(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
+
 export function AcceptShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function AccessDecryptVaultEntry(arg1:string,arg2:tracecore_types.AccessCryptoShareRequest):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_DecryptCryptoShareResponse_>;
@@ -35,6 +37,8 @@ export function ActivateChannel(arg1:string,arg2:string):Promise<tracecore_types
 export function AddAttachements(arg1:string,arg2:vault_dto.AddAttachementsRequest):Promise<Array<vaults_domain.Attachment>>;
 
 export function AddEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
+
+export function AddParticipant(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<tracecore_types.ChannelParticipantDTO>;
 
 export function AddReceiver(arg1:string,arg2:share_entry_use_cases.AddReceiverInput):Promise<share_entry_use_cases.AddReceiverResult>;
 
@@ -66,7 +70,7 @@ export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
-export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>):Promise<tracecore_types.ChannelDTO>;
+export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>,arg7:Array<channel_domain.ChannelProperty>,arg8:Record<string, any>,arg9:string):Promise<tracecore_types.ChannelDTO>;
 
 export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<tracecore_types.ShareEntryRefDTO>;
 
@@ -81,6 +85,8 @@ export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg
 export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
+
+export function DeleteChannel(arg1:string,arg2:string):Promise<void>;
 
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
@@ -113,6 +119,8 @@ export function GetAllConfigs(arg1:string,arg2:string):Promise<subscription_doma
 export function GetAppState():Promise<onboarding_domain.AppState>;
 
 export function GetBillingHistory(arg1:string,arg2:number):Promise<tracecore_types.CloudResponse___vault_app_internal_tracecore_types_PaymentHistory_>;
+
+export function GetChannel(arg1:string,arg2:string):Promise<tracecore_types.ChannelDTO>;
 
 export function GetCheckoutURL(arg1:main.CheckoutContext):Promise<main.CreateCheckoutResponse>;
 
@@ -152,6 +160,8 @@ export function GetVaultFromCloud(arg1:string,arg2:string):Promise<tracecore_typ
 
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
+export function InviteToChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
+
 export function IsVaultDirty(arg1:string):Promise<boolean>;
 
 export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<notification_center_domain.Notification>>;
@@ -161,6 +171,8 @@ export function ListChannels(arg1:string,arg2:string):Promise<Array<tracecore_ty
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 
 export function ListLinkSharesWithMe(arg1:string):Promise<any>;
+
+export function ListParticipants(arg1:string,arg2:string):Promise<Array<tracecore_types.ChannelParticipantDTO>>;
 
 export function ListPendingIntentSharesByMe(arg1:string):Promise<tracecore_types.CloudResponse___vault_app_internal_tracecore_types_PendingShareIntent_>;
 
@@ -210,6 +222,8 @@ export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
+export function RevokeChannel(arg1:string,arg2:string):Promise<void>;
+
 export function RevokeRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
 
 export function RevokeShare(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
@@ -237,6 +251,8 @@ export function SynchronizeVault(arg1:string,arg2:string):Promise<string>;
 export function TrashEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function UpdateAttachment(arg1:string,arg2:vaults_domain.Attachment):Promise<vaults_domain.Attachment>;
+
+export function UpdateChannel(arg1:string,arg2:string,arg3:string,arg4:Array<channel_domain.Slot>,arg5:Array<channel_domain.Assignment>,arg6:Array<channel_domain.ChannelProperty>,arg7:Record<string, any>):Promise<tracecore_types.ChannelDTO>;
 
 export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<vaults_domain.Folder>;
 

@@ -20,8 +20,8 @@ type Channel struct {
 	TemplateID  string            `json:"template_id"`
 	Title       string            `json:"title"`
 	Status      ChannelStatus     `json:"status"`
-	Slots       []Slot            `json:"slots"`	// "roles that exist"
-	Assignments []Assignment      `json:"assignments"`	// "who occupies those roles"
+	Slots       []Slot            `json:"slots"`       // "roles that exist"
+	Assignments []Assignment      `json:"assignments"` // "who occupies those roles"
 	Properties  []ChannelProperty `json:"properties"`
 	Policy      Policy            `json:"policy"`
 	Federation  string            `json:"federation"`
@@ -72,7 +72,6 @@ func NewChannel(tplID string, title string, workspaceID string) Channel {
 	}
 }
 
-
 type TrustState string
 
 var (
@@ -81,17 +80,17 @@ var (
 
 type FederationSnapshot struct {
 	RemoteVaults []RemoteVault `json:"remote_vaults"`
-	IsDraft      bool `json:"is_draft"`
-	IsDirty      bool `json:"is_dirty" gorm:"boolean"`
+	IsDraft      bool          `json:"is_draft"`
+	IsDirty      bool          `json:"is_dirty" gorm:"boolean"`
 }
 type RemoteVault struct {
-	VaultID         string	`json:"vault_id"`
-	LastCursor      uint64	`json:"last_cursor"`
-	LastSeen        time.Time	`json:"last_seen"`
-	Endpoint        string	`json:"endpoint"`
-	TrustState      TrustState	`json:"trust_state"`
-	Pending         []PendingSyncItem	`json:"pending"`
-	ProtocolVersion string	`json:"protocol_version"`
+	VaultID         string            `json:"vault_id"`
+	LastCursor      uint64            `json:"last_cursor"`
+	LastSeen        time.Time         `json:"last_seen"`
+	Endpoint        string            `json:"endpoint"`
+	TrustState      TrustState        `json:"trust_state"`
+	Pending         []PendingSyncItem `json:"pending"`
+	ProtocolVersion string            `json:"protocol_version"`
 }
 
 type SyncStatus string
@@ -106,24 +105,49 @@ const (
 )
 
 type PendingSyncItem struct {
-	ExchangeID string `json:"exchange_id"`
+	ExchangeID string     `json:"exchange_id"`
 	Status     SyncStatus `json:"status"`
-	Cursor     uint64 `json:"cursor"`
-	RetryCount int `json:"retry_count"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	Cursor     uint64     `json:"cursor"`
+	RetryCount int        `json:"retry_count"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
 type Participant struct {
-	ChannelID   string  `json:"channel_id"`
-	VaultID     string `json:"vault_id"`
-	PublicKey   string `json:"public_key"`
-	Direction   string `json:"direction"` // inbound | outbound | bidirectional
-	JoinedAt    int64 `json:"joined_at"`
-	Role        string `json:"role"`
+	ChannelID   string   `json:"channel_id"`
+	VaultID     string   `json:"vault_id"`
+	PublicKey   string   `json:"public_key"`
+	Direction   string   `json:"direction"` // inbound | outbound | bidirectional
+	JoinedAt    int64    `json:"joined_at"`
+	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
-	IsDraft     bool `json:"is_draft"`
-	IsDirty     bool `json:"is_dirty" gorm:"boolean"`
+	IsDraft     bool     `json:"is_draft"`
+	IsDirty     bool     `json:"is_dirty" gorm:"boolean"`
 }
+
+// InvitationStatus mirrors the Cloud invitation lifecycle.
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "pending"
+	InvitationStatusAccepted InvitationStatus = "accepted"
+	InvitationStatusRejected InvitationStatus = "rejected"
+	InvitationStatusRevoked  InvitationStatus = "revoked"
+)
+
+// Invitation mirrors the Cloud Invitation aggregate. The Cloud is the single
+// source of truth: the Desktop never fabricates an invitation and never mutates
+// its lifecycle locally. An invitation carries no slot or role information; role
+// semantics are a channel participant concern, not an invitation concern.
+type Invitation struct {
+	ID             string           `json:"id"`
+	ChannelID      string           `json:"channel_id"`
+	InviterVaultID string           `json:"inviter_vault_id"`
+	InviteeVaultID string           `json:"invitee_vault_id"`
+	Status         InvitationStatus `json:"status"`
+	CreatedAt      time.Time        `json:"created_at"`
+	AcceptedAt     *time.Time       `json:"accepted_at,omitempty"`
+}
+
 // ==============================================================================
 // Lifecycle
 // ==============================================================================
@@ -234,6 +258,7 @@ func (c *Channel) removeAssignmentsBySlotID(slotID string) {
 
 	c.Assignments = filtered
 }
+
 // func (c *Channel) AddSlot(slot Slot) Channel {
 // 	c.Slots = append(c.Slots, slot)
 // 	c.UpdatedAt = time.Now().UTC()
@@ -777,6 +802,7 @@ func (f *FederationSnapshot) UpdateRemoteVaultEndpoint(
 
 	return true
 }
+
 // ==============================================================================
 // PendingSyncItem CRUD
 // ==============================================================================

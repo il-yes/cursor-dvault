@@ -948,6 +948,20 @@ export namespace channel_domain {
 	        this.vault_address = source["vault_address"];
 	    }
 	}
+	export class ChannelProperty {
+	    key: string;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelProperty(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	    }
+	}
 	export class Slot {
 	    id: string;
 	    name: string;
@@ -2903,6 +2917,20 @@ export namespace tracecore_types {
 	        this.vault_address = source["vault_address"];
 	    }
 	}
+	export class ChannelPropertyDTO {
+	    key: string;
+	    value: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelPropertyDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	    }
+	}
 	export class ChannelSlotDTO {
 	    id: string;
 	    name: string;
@@ -2933,10 +2961,15 @@ export namespace tracecore_types {
 	    status: string;
 	    slots: ChannelSlotDTO[];
 	    assignments: ChannelAssignmentDTO[];
+	    properties: ChannelPropertyDTO[];
+	    policy: Record<string, any>;
+	    federation: string;
 	    // Go type: time
 	    created_at: any;
 	    // Go type: time
 	    updated_at: any;
+	    // Go type: time
+	    revoked_at?: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new ChannelDTO(source);
@@ -2951,8 +2984,12 @@ export namespace tracecore_types {
 	        this.status = source["status"];
 	        this.slots = this.convertValues(source["slots"], ChannelSlotDTO);
 	        this.assignments = this.convertValues(source["assignments"], ChannelAssignmentDTO);
+	        this.properties = this.convertValues(source["properties"], ChannelPropertyDTO);
+	        this.policy = source["policy"];
+	        this.federation = source["federation"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.revoked_at = this.convertValues(source["revoked_at"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2973,6 +3010,75 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class ChannelInvitationDTO {
+	    id: string;
+	    channel_id: string;
+	    inviter_vault_id: string;
+	    invitee_vault_id: string;
+	    status: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    accepted_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelInvitationDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel_id = source["channel_id"];
+	        this.inviter_vault_id = source["inviter_vault_id"];
+	        this.invitee_vault_id = source["invitee_vault_id"];
+	        this.status = source["status"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.accepted_at = this.convertValues(source["accepted_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ChannelParticipantDTO {
+	    channel_id: string;
+	    vault_id: string;
+	    public_key: string;
+	    direction: string;
+	    joined_at: number;
+	    role: string;
+	    permissions: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ChannelParticipantDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.channel_id = source["channel_id"];
+	        this.vault_id = source["vault_id"];
+	        this.public_key = source["public_key"];
+	        this.direction = source["direction"];
+	        this.joined_at = source["joined_at"];
+	        this.role = source["role"];
+	        this.permissions = source["permissions"];
+	    }
+	}
+	
 	
 	export class PaymentHistory {
 	    id: string;

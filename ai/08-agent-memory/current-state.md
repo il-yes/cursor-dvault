@@ -355,6 +355,66 @@ Immediate priority:
 
 **API & Wails Handler Integration**
 
+## Channel Desktop → Cloud Status — 2026-08-15
+
+### Completed (live-verified against the running Cloud backend)
+
+Channel lifecycle, participants, and invitations are operational end-to-end:
+
+```text
+React
+→ Wails
+→ App (Wails bindings)
+→ ChannelHandler
+→ ChannelUseCase
+→ TracecoreClient (internal/tracecore/channel_client.go)
+→ Cloud REST API
+```
+
+All HTTP lives exclusively in `internal/tracecore/channel_client.go`. Cloud wire
+DTOs use default Go JSON encoding (capitalized field names) and are mapped
+explicitly (`channel_cloud_dto.go` → domain) — never unmarshaled into domain
+directly.
+
+#### Channel lifecycle
+
+- Create (POST /channels) → List (GET /channels/workspace/{id}) → Activate
+  (POST /channels/{id}/activate) → Revoke (POST /channels/{id}/revoke).
+- Activation is Cloud-authoritative: a gated slot is fulfilled when a
+  participant matches its VaultID (or Role) or an assignment targets it.
+
+#### Participants
+
+- AddParticipant (POST /channels/{id}/participants) → ListParticipants
+  (GET /channels/{id}/participants). Cloud derives/validates role from the
+  optional slot_id; the Desktop never decides locally.
+
+#### Invitations (this session)
+
+- InviteToChannel (POST /channels/{id}/invitations) body
+  `{channel_id, inviter_vault_id, invitee_vault_id}` → returns pending
+  Invitation. Cloud dedupes pending invitations per channel+invitee.
+- AcceptChannelInvitation (POST /channels/invitations/{invitation_id}/accept —
+  note: nested under the /api/channels group, NOT /api/invitations/{id}/accept)
+  body `{invitation_id, invitee_vault_id, invitee_public_key}` → returns the
+  accepted Invitation and creates the participant (Direction bidirectional,
+  empty Role, JoinedAt set). Accepting twice is idempotent (no duplicate
+  participant). Wrong invitee → 400 `invitation not for you`.
+- Invitation carries NO slot/role info; an invitation-accepted participant has
+  empty Role, so a gated slot can only be satisfied via VaultID matching.
+- Acceptance identity: the Desktop user's own vault
+  (`vault_runtime_context.VaultID` + `UserConfig.stellar_account.public_key`)
+  acts as the invitee.
+
+### Known limitations
+
+- Desktop DeleteChannel is a stub; temporary live-test channels/invitations are
+  cleaned by reporting their IDs, not by destructive API calls.
+- Frontend has no invitation-list endpoint (Cloud has none); the Invitations
+  panel lists session-created invitations only.
+- Pre-existing `RequestChallenge` Wails-binding warning (unrelated) and
+  `TestDirectAddToIPFSCall` failure (needs live local IPFS) remain.
+
 # 3. Update `ai/08-agent-memory/current-state.md`
 
 This is particularly important because this is the file an AI engineer should consult before touching the code.

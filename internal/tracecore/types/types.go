@@ -313,8 +313,8 @@ type Workspace struct {
 	ID      string `json:"id"`
 	VaultID string `json:"vault_id"`
 
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 	Status      string `json:"status"`
 
 	OwnerID string `json:"owner_id"`
@@ -333,8 +333,12 @@ type ChannelDTO struct {
 	Status      string                 `json:"status"`
 	Slots       []ChannelSlotDTO       `json:"slots"`
 	Assignments []ChannelAssignmentDTO `json:"assignments"`
+	Properties  []ChannelPropertyDTO   `json:"properties"`
+	Policy      map[string]any         `json:"policy"`
+	Federation  string                 `json:"federation"`
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
+	RevokedAt   *time.Time             `json:"revoked_at"`
 }
 
 type ChannelSlotDTO struct {
@@ -351,6 +355,34 @@ type ChannelAssignmentDTO struct {
 	OwnerID      string `json:"owner_id"`
 	PublicKey    string `json:"public_key"`
 	VaultAddress string `json:"vault_address"`
+}
+
+type ChannelPropertyDTO struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type ChannelParticipantDTO struct {
+	ChannelID   string   `json:"channel_id"`
+	VaultID     string   `json:"vault_id"`
+	PublicKey   string   `json:"public_key"`
+	Direction   string   `json:"direction"`
+	JoinedAt    int64    `json:"joined_at"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions"`
+}
+
+// ChannelInvitationDTO is the Wails-wire representation of a Cloud channel
+// invitation. It mirrors the Cloud Invitation aggregate; Invitations carry no
+// slot or role information.
+type ChannelInvitationDTO struct {
+	ID             string     `json:"id"`
+	ChannelID      string     `json:"channel_id"`
+	InviterVaultID string     `json:"inviter_vault_id"`
+	InviteeVaultID string     `json:"invitee_vault_id"`
+	Status         string     `json:"status"`
+	CreatedAt      time.Time  `json:"created_at"`
+	AcceptedAt     *time.Time `json:"accepted_at,omitempty"`
 }
 
 type ThreadDTO struct {
@@ -400,21 +432,21 @@ type TrustGroupMemberRefDTO struct {
 }
 
 type TrustGroupRefDTO struct {
-	ID          string                  `json:"id"`
-	ChannelID   string                  `json:"channel_id,omitempty"`
-	Name        string                  `json:"name"`
-	Status      string                  `json:"status,omitempty"`
-	MemberCount int                     `json:"member_count"`
+	ID          string                   `json:"id"`
+	ChannelID   string                   `json:"channel_id,omitempty"`
+	Name        string                   `json:"name"`
+	Status      string                   `json:"status,omitempty"`
+	MemberCount int                      `json:"member_count"`
 	Members     []TrustGroupMemberRefDTO `json:"members,omitempty"`
-	CreatedAt   string                  `json:"created_at,omitempty"`
+	CreatedAt   string                   `json:"created_at,omitempty"`
 }
 
 type CreateCollaborativeShareRequestDTO struct {
-	ThreadID     string `json:"thread_id"`
-	TrustGroupID string `json:"trust_group_id"`
-	AssetCID     string `json:"asset_cid"`
+	ThreadID      string `json:"thread_id"`
+	TrustGroupID  string `json:"trust_group_id"`
+	AssetCID      string `json:"asset_cid"`
 	TargetVaultID string `json:"target_vault_id"`
-	Notes        string `json:"notes,omitempty"`
+	Notes         string `json:"notes,omitempty"`
 }
 
 type CreateCollaborativeShareResponseDTO struct {

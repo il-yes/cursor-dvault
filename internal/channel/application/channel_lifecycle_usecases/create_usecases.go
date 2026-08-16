@@ -44,6 +44,13 @@ func (c *CreateChannelUsecase) Execute(ctx context.Context, req *channel_applica
 		channel.AddAssignment(assignment)
 	}
 
+	// The Desktop faithfully forwards the complete supported channel state to
+	// the Cloud create contract. Properties, policy and federation are carried
+	// verbatim; Cloud remains authoritative for their semantics.
+	channel.Properties = req.Properties
+	channel.Policy = req.Policy
+	channel.Federation = req.Federation
+
 	created, err := c.Repo.CreateChannel(ctx, &channel_domain.CreateChannelRequest{
 		Channel: channel,
 	})

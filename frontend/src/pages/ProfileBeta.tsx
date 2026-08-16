@@ -13,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useAppStore } from "@/store/appStore";
 import { formatMonthYear } from "@/services/utils";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useC3ChannelStore } from "@/components/C3/infrastructure/store/useC3ChannelStore";
 import { useVault } from "@/hooks/useVault";
 import * as AppAPI from "../../wailsjs/go/main/App";
 import { useState, useRef, useEffect } from "react";
@@ -245,10 +246,11 @@ const Profile = () => {
 
 	const handleLogout = () => {
 		// Clear all stores and state
-		clearVaultStore();                   // Clear vault store (entries, vault data)
-		clearVaultContext();                 // Clear vault context provider
-		useAuthStore.getState().clearAll();  // Clear auth store (user, tokens)
-		useAppStore.getState().reset();      // Clear app store (session)
+		clearVaultStore();                       // Clear vault store (entries, vault data)
+		clearVaultContext();                     // Clear vault context provider
+		useAuthStore.getState().clearAll();      // Clear auth store (user, tokens)
+		useAppStore.getState().reset();          // Clear app store (session)
+		useC3ChannelStore.getState().clearChannels(); // Clear C3 channel-scoped state (workspace, channels, participants, invitations)
 
 		// Clear specific localStorage items (not all, to preserve settings)
 		localStorage.removeItem('userId');

@@ -13,6 +13,9 @@ import { ChannelView } from "../../domain/channel/channel.types";
 import { ThreadAssetSingleDrawer } from "../thread/ThreadAssetSingleDrawer";
 import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
 import { toChannelView } from "../../domain/channel/channel.mapper";
+import { RevokeChannelConfirmModal } from "./RevokeChannelConfirmModal";
+import { ParticipantsPanel } from "./ParticipantsPanel";
+import { InvitationsPanel } from "./InvitationsPanel";
 
 
 export const c3BaseStyles = css`
@@ -27,7 +30,10 @@ const ChannelPage = () => {
     const [selectedAsset, setSelectedAsset] = useState<ThreadAssetViewInterface | null>(null);
     const [activating, setActivating] = useState(false);
     const [activateError, setActivateError] = useState<string | null>(null);
-    const { channels, selectChannel, activateChannel: activateStoreChannel } = useC3ChannelStore();
+    const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
+    const [revoking, setRevoking] = useState(false);
+    const [revokeError, setRevokeError] = useState<string | null>(null);
+    const { channels, selectChannel, activateChannel: activateStoreChannel, revokeChannel: revokeStoreChannel } = useC3ChannelStore();
 
     useEffect(() => {
         const found = channels.find((c) => c.id === channelId);
@@ -55,6 +61,25 @@ const ChannelPage = () => {
         }
     };
 
+    const handleRevoke = async () => {
+        if (!channel || revoking) return;
+
+        setRevoking(true);
+        setRevokeError(null);
+        try {
+            // The Cloud response carries no Channel data; the store refreshes
+            // the workspace channel list and this component re-derives the
+            // channel view (revoked) from the updated store.
+            await revokeStoreChannel(channel.id);
+            setRevokeConfirmOpen(false);
+        } catch (err: any) {
+            console.error("Failed to revoke channel:", err);
+            setRevokeError(err?.message || "Revocation failed.");
+        } finally {
+            setRevoking(false);
+        }
+    };
+
     return (
         <DashboardLayout>
 
@@ -66,7 +91,13 @@ const ChannelPage = () => {
 
 
             <LedgerLayout isNewShareOpen={false}>
-                <ChannelTable channel={channel} onOpenAsset={(asset) => { setSelectedAsset(asset); }} onActivate={handleActivate} activating={activating} activateError={activateError} />
+                <ChannelTable channel={channel} onOpenAsset={(asset) => { setSelectedAsset(asset); }} onActivate={handleActivate} activating={activating} activateError={activateError} onRevoke={() => setRevokeConfirmOpen(true)} revoking={revoking} revokeError={revokeError}>
+
+                    {channelId && <ParticipantsPanel channelId={channelId} />}
+
+                    {channelId && <InvitationsPanel channelId={channelId} />}
+
+                </ChannelTable>
 
                 {/* <ThreadAssetDrawer
 
@@ -85,6 +116,14 @@ const ChannelPage = () => {
                     onClose={() => setSelectedAsset(null)}
                 />
             </LedgerLayout>
+
+            <RevokeChannelConfirmModal
+                isOpen={revokeConfirmOpen}
+                channelTitle={channel?.title || ""}
+                isRevoking={revoking}
+                onCancel={() => setRevokeConfirmOpen(false)}
+                onConfirm={handleRevoke}
+            />
         </DashboardLayout>
     );
 };

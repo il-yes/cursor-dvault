@@ -1,4 +1,5 @@
 import { ArrowLeftIcon, Link } from "lucide-react";
+import type { ReactNode } from "react";
 import { ChannelView } from "../../domain/channel/channel.types"
 import { ThreadAssetViewInterface } from "../../domain/thread/asset.types";
 import * as ROUTES from '@/constants/routes';
@@ -10,12 +11,20 @@ export const ChannelTable = ({
     onActivate,
     activating,
     activateError,
+    onRevoke,
+    revoking,
+    revokeError,
+    children,
 }: {
     channel: ChannelView,
     onOpenAsset: (asset:ThreadAssetViewInterface) => void,
     onActivate: () => void,
     activating: boolean,
     activateError: string | null,
+    onRevoke: () => void,
+    revoking: boolean,
+    revokeError: string | null,
+    children?: ReactNode,
 }) => {
     const navigate = useNavigate();
 
@@ -42,7 +51,13 @@ export const ChannelTable = ({
             <div className="ledger-topbar">
                 
                 <div className="ledger-title">
-                    CHANNEL
+                    <span className="ledger-title-text">
+                        {channel?.title || "CHANNEL"}
+                    </span>
+
+                    <span className={`c3-status-badge ${statusView.dotClass}`}>
+                        {statusView.label}
+                    </span>
                 </div>
 
                 <div className="ledger-controls">
@@ -54,6 +69,16 @@ export const ChannelTable = ({
                             disabled={activating}
                         >
                             {activating ? 'Activating…' : 'Activate'}
+                        </button>
+                    )}
+
+                    {channel?.status === 'active' && (
+                        <button
+                            className="ctrl-btn revoke-btn"
+                            onClick={onRevoke}
+                            disabled={revoking}
+                        >
+                            {revoking ? 'Revoking…' : 'Revoke'}
                         </button>
                     )}
 
@@ -78,6 +103,17 @@ export const ChannelTable = ({
                     borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
                 }}>
                     ⚠️ Activation failed: {activateError}
+                </div>
+            )}
+            {revokeError && (
+                <div style={{
+                    padding: '8px 20px',
+                    fontSize: '13px',
+                    color: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+                }}>
+                    ⚠️ Revocation failed: {revokeError}
                 </div>
             )}
             <table className="ledger-table">
@@ -361,6 +397,8 @@ export const ChannelTable = ({
                 Last activity: {channel?.activity.lastActivity}
 
             </div>
+
+            {children}
         </div>
     )
 }

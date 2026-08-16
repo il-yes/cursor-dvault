@@ -545,8 +545,16 @@ func NewApp() *App {
 	channelBus := channel_eventbus.NewMemoryEventBus()
 	createChannelUC := channel_usecase.NewCreateChannelUsecase(tracecoreClient, channelBus)
 	listChannelUC := channel_usecase.NewListChannelUsecase(tracecoreClient)
+	getChannelUC := channel_usecase.NewGetChannelUsecase(tracecoreClient)
+	updateChannelUC := channel_usecase.NewUpdateChannelUsecase(tracecoreClient)
+	deleteChannelUC := channel_usecase.NewDeleteChannelUsecase(tracecoreClient)
 	activateChannelUC := channel_usecase.NewActivateChannelUsecase(tracecoreClient)
-	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC, activateChannelUC)
+	revokeChannelUC := channel_usecase.NewRevokeChannelUsecase(tracecoreClient)
+	addParticipantUC := channel_usecase.NewAddParticipantUsecase(tracecoreClient)
+	listParticipantsUC := channel_usecase.NewListParticipantsUsecase(tracecoreClient)
+	inviteToChannelUC := channel_usecase.NewInviteToChannelUsecase(tracecoreClient)
+	acceptInvitationUC := channel_usecase.NewAcceptChannelInvitationUsecase(tracecoreClient)
+	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC, getChannelUC, updateChannelUC, deleteChannelUC, activateChannelUC, revokeChannelUC, addParticipantUC, listParticipantsUC, inviteToChannelUC, acceptInvitationUC)
 
 	threadBus := thread_infrastructure_eventbus.NewMemoryBus()
 	createThreadUC := thread_usecase.NewCreateThreadUsecase(tracecoreClient, threadBus)
@@ -2847,7 +2855,7 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 	return res, nil
 }
 
-func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string, slots []channel_domain.Slot, assignments []channel_domain.Assignment) (*tracecore_types.ChannelDTO, error) {
+func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string, slots []channel_domain.Slot, assignments []channel_domain.Assignment, properties []channel_domain.ChannelProperty, policy map[string]interface{}, federation string) (*tracecore_types.ChannelDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -2855,7 +2863,7 @@ func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, t
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
-	return a.ChannelHandler.CreateChannel(a.ctx, claims.UserID, workspaceID, title, templateID, slots, assignments)
+	return a.ChannelHandler.CreateChannel(a.ctx, claims.UserID, workspaceID, title, templateID, slots, assignments, properties, policy, federation)
 }
 
 func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_types.ChannelDTO, error) {
@@ -2869,6 +2877,48 @@ func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_typ
 	return a.ChannelHandler.ListChannels(a.ctx, claims.UserID, workspaceID)
 }
 
+// GetChannel fetches a single Channel from the authoritative Cloud backend
+// (GET /channels/{id}). The returned Channel is the Cloud-persisted aggregate;
+// no local channel is ever fabricated.
+func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.ChannelDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.GetChannel(a.ctx, claims.UserID, channelID)
+}
+
+// UpdateChannel updates an existing Channel through the authoritative Cloud
+// backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no
+// local mutation is performed.
+func (a *App) UpdateChannel(JwtToken string, channelID string, title string, slots []channel_domain.Slot, assignments []channel_domain.Assignment, properties []channel_domain.ChannelProperty, policy map[string]interface{}) (*tracecore_types.ChannelDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.UpdateChannel(a.ctx, claims.UserID, channelID, title, slots, assignments, properties, policy)
+}
+
+// DeleteChannel deletes a Channel through the authoritative Cloud backend
+// (DELETE /channels/{id}). Cloud is the single source of truth for channel
+// existence; a 2xx response is success and HTTP >=400 is surfaced verbatim.
+func (a *App) DeleteChannel(JwtToken string, channelID string) error {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.DeleteChannel(a.ctx, claims.UserID, channelID)
+}
+
 func (a *App) ActivateChannel(JwtToken string, channelID string) (*tracecore_types.ChannelDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
@@ -2878,6 +2928,78 @@ func (a *App) ActivateChannel(JwtToken string, channelID string) (*tracecore_typ
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
 	return a.ChannelHandler.ActivateChannel(a.ctx, claims.UserID, channelID)
+}
+
+// RevokeChannel revokes an active Channel through the authoritative Cloud
+// backend. The Cloud response carries no Channel data; the frontend refreshes
+// the workspace channel list to observe the revoked status.
+func (a *App) RevokeChannel(JwtToken string, channelID string) error {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.RevokeChannel(a.ctx, claims.UserID, channelID)
+}
+
+// AddParticipant joins an external vault to a Channel through the authoritative
+// Cloud backend (POST /channels/{id}/participants). slotID and role are
+// optional; when supplied they are forwarded verbatim to the Cloud contract.
+func (a *App) AddParticipant(JwtToken string, channelID string, vaultID string, publicKey string, direction string, slotID string, role string) (*tracecore_types.ChannelParticipantDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.AddParticipant(a.ctx, claims.UserID, channelID, vaultID, publicKey, direction, slotID, role)
+}
+
+// ListParticipants returns the vaults Cloud has persisted as participants for
+// the Channel (GET /channels/{id}/participants). An empty result is valid.
+func (a *App) ListParticipants(JwtToken string, channelID string) ([]tracecore_types.ChannelParticipantDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.ListParticipants(a.ctx, claims.UserID, channelID)
+}
+
+// InviteToChannel creates a channel invitation through the authoritative Cloud
+// backend (POST /channels/{id}/invitations). The invitation carries no slot or
+// role information; role semantics are a channel participant concern.
+func (a *App) InviteToChannel(JwtToken string, channelID string, inviterVaultID string, inviteeVaultID string) (*tracecore_types.ChannelInvitationDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.InviteToChannel(a.ctx, claims.UserID, channelID, inviterVaultID, inviteeVaultID)
+}
+
+// AcceptChannelInvitation accepts a pending channel invitation through the
+// authoritative Cloud backend (POST /channels/invitations/{id}/accept). Cloud
+// validates the acceptance and persists the resulting participant; the accept
+// response carries the accepted Invitation, not the participant. Cloud is
+// idempotent: accepting an already-accepted invitation returns the accepted
+// invitation without a duplicate participant.
+func (a *App) AcceptChannelInvitation(JwtToken string, invitationID string, inviteeVaultID string, inviteePublicKey string) (*tracecore_types.ChannelInvitationDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.ChannelHandler == nil {
+		return nil, fmt.Errorf("channel handler is not initialized")
+	}
+	return a.ChannelHandler.AcceptChannelInvitation(a.ctx, claims.UserID, invitationID, inviteeVaultID, inviteePublicKey)
 }
 
 func (a *App) CreateThread(JwtToken string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {

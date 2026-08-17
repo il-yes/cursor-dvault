@@ -390,6 +390,10 @@ export function RequireAuth(arg1) {
   return window['go']['main']['App']['RequireAuth'](arg1);
 }
 
+export function RestoreCloudTokenForUser(arg1) {
+  return window['go']['main']['App']['RestoreCloudTokenForUser'](arg1);
+}
+
 export function RestoreEntry(arg1, arg2, arg3) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2, arg3);
 }

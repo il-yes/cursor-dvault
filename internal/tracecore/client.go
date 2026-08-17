@@ -3,6 +3,7 @@ package tracecore
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,20 @@ var (
 	ErrNotFound     = errors.New("endpoint not found")
 )
 
+// traceTokenFingerprint returns a safe fingerprint for a token (SHA-256 first 8 hex chars)
+func traceTokenFingerprint(token string) string {
+	if token == "" {
+		return "absent"
+	}
+	h := sha256.Sum256([]byte(token))
+	return fmt.Sprintf("%x", h[:4])
+}
+
+// TraceTokenFingerprint is the exported version for use across packages
+func TraceTokenFingerprint(token string) string {
+	return traceTokenFingerprint(token)
+}
+
 type TracecoreClient struct {
 	BaseURL         string
 	Token           string
@@ -31,15 +46,12 @@ type TracecoreClient struct {
 
 // NewTracecoreClient creates a new Tracecore client with default timeout.
 func NewTracecoreClient(baseURL, token, ankhoraFrontUrl, ankhoraCloudUrl string) *TracecoreClient {
-	// ⚠️ Don't use log.Fatal during startup - it kills the app!
-	// Just log warnings and allow the app to start
 	if baseURL == "" {
-		log.Println("⚠️ TRACECORE_URL is empty — Tracecore features will be disabled")
+		log.Println("⚠️ Cloud URL is empty — Cloud features will be disabled")
 	}
 	if token == "" {
-		log.Println("⚠️ TRACECORE_TOKEN is empty — Tracecore features will be disabled")
+		log.Println("ℹ️ Cloud token is empty — will be set after authentication")
 	}
-	log.Println("🔧 Initializing Tracecore client...", baseURL, token)
 
 	return &TracecoreClient{
 		BaseURL: baseURL,
@@ -96,10 +108,17 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 	}
 }
 func (c *TracecoreClient) SetToken(token string) {
+	before := traceTokenFingerprint(c.Token)
 	c.Token = token
+	after := traceTokenFingerprint(c.Token)
+	log.Printf("[CLOUD-TRACE] SetToken: before=%s after=%s length=%d", before, after, len(token))
 }
 
 func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, body any, out any) error {
+	authHeader := c.Token != ""
+	log.Printf("[CLOUD-TRACE] F: doRequest: method=%s path=%s token_fingerprint=%s token_length=%d authorization_header=%v",
+		method, path, traceTokenFingerprint(c.Token), len(c.Token), authHeader)
+
 	var buf io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)

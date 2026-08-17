@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Ankhora
-Exec=/usr/bin/ankhora %u
+Exec=/Applications/Ankhora.app/Contents/MacOS/ANKHORA
 Type=Application
 Terminal=false
 MimeType=x-scheme-handler/ankhora;

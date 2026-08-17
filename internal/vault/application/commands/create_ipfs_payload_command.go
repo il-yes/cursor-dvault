@@ -37,7 +37,7 @@ type CreateIPFSPayloadCommandHandler struct {
 	VaultRepo          vaults_domain.VaultRepository
 	CryptoService      vaults_domain.VaultCrypto
 	IpfsService        IpfsServiceInterface
-	TracecoreClient    tracecore.TracecoreClient
+	TracecoreClient    *tracecore.TracecoreClient
 	UnlockVaultHandler UnlockVaultHandlerInterface
 	StorageFactory     blockchain_ipfs.StorageFactory
 	EncryptionMode     string
@@ -46,7 +46,7 @@ type CreateIPFSPayloadCommandHandler struct {
 // -------- constructor --------
 func NewCreateIPFSPayloadCommandHandler(
 	vaultRepo vaults_domain.VaultRepository,
-	tracecoreClient tracecore.TracecoreClient,
+	tracecoreClient *tracecore.TracecoreClient,
 	sf blockchain_ipfs.StorageFactory,
 	uh UnlockVaultHandlerInterface,
 ) *CreateIPFSPayloadCommandHandler {

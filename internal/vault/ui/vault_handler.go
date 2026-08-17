@@ -57,7 +57,7 @@ type VaultHandler struct {
 	EntryRegistry       *registry.EntryRegistry
 	VaultRuntimeContext vault_session.RuntimeContext
 
-	TracecoreClient tracecore.TracecoreClient
+	TracecoreClient *tracecore.TracecoreClient
 	IPFS            blockchain.IPFSClientInterface
 	CryptoService   blockchain.CryptoServiceInterface
 	logger          logger.Logger
@@ -84,7 +84,7 @@ func NewVaultHandler(
 	ipfs blockchain.IPFSClientInterface,
 	crypto blockchain.CryptoServiceInterface,
 	db *gorm.DB,
-	tracecoreClient tracecore.TracecoreClient,
+	tracecoreClient *tracecore.TracecoreClient,
 	keyringPath string,
 ) *VaultHandler {
 	folderRepo := vaults_persistence.NewGormFolderRepository(db)
@@ -750,7 +750,7 @@ func (vh *VaultHandler) UpdateWorkspaceSession(userID string, vp vaults_domain.V
 }
 
 
-func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.SynchronizeVaultRequest, tc tracecore.TracecoreClient) (string, error) {
+func (vh *VaultHandler) SyncVault(ctx context.Context, input vault_dto.SynchronizeVaultRequest, tc *tracecore.TracecoreClient) (string, error) {
 	// 0. Initialisation - Guard
 	// ========================================================================================================
 	vh.logger.Info("🔄 Starting vault sync for UserID: %s", input.UserID)
@@ -1022,7 +1022,7 @@ func (vh *VaultHandler) GetEntryAttachements() {}
 
 func (vh *VaultHandler) UpdateEntryAttachements() {}
 
-func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req tracecore_types.AccessCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
+func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req tracecore_types.AccessCryptoShareRequest, tc *tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
 	response, err := tc.AccessEncryptedEntry(ctx, id, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to access encrypted entry: %w", err)
@@ -1030,7 +1030,7 @@ func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req
 
 	return response, nil
 }
-func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore_types.DecryptCryptoShareRequest, tc tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
+func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore_types.DecryptCryptoShareRequest, tc *tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	response, err := tc.DecryptVaultEntry(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt vault entry: %w", err)

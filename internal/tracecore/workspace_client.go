@@ -160,6 +160,8 @@ func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID str
 func (c *TracecoreClient) ListWorkspaces(ctx context.Context, vaultID string) ([]tracecore_types.Workspace, error) {
 	url := c.AnkhoraCloudUrl + "/workspaces?vault_id=" + vaultID
 	utils.LogPretty("[Workspace] Cloud GET URL", url)
+	log.Printf("[CLOUD-TRACE] ListWorkspaces: vault_id=%s token_fingerprint=%s token_length=%d authorization_header=%v",
+		vaultID, traceTokenFingerprint(c.Token), len(c.Token), c.Token != "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

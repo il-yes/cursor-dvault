@@ -339,7 +339,7 @@ func CreateVault_AttachesCIDToVault(t *testing.T) {
 	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
 	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
-	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, *tracecoreClient, &blockchain_ipfs.DefaultStorageFactory{}, mockUnlock)
+	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, tracecoreClient, &blockchain_ipfs.DefaultStorageFactory{}, mockUnlock)
 	ipfsHandler.SetIpfsService(ipfsService)
 
 	handler := vault_commands.NewCreateVaultCommandHandler(

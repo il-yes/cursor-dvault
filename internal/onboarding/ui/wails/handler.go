@@ -56,11 +56,11 @@ func  NewOnBoardingHandler(
     )
 
 	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(
-        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
+        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
     )
 
 	onboardingFreeSetupUseCase := onboarding_usecase.NewFreeSetupUseCase(
-        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, *tcClient,
+        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
     )
 
 	onboardingFindUsersUseCase := onboarding_usecase.NewFindUsersUseCase(

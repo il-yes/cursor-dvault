@@ -1144,7 +1144,7 @@ func TestBuildEntries_DryRun_Estimation(t *testing.T) {
 	}
 	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(
 		vaultRepo,
-		*tracecoreClient,
+		tracecoreClient,
 		&blockchain_ipfs.DefaultStorageFactory{},
 		mockUnlock,
 	)

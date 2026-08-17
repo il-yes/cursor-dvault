@@ -220,6 +220,8 @@ export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<traceco
 
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
+export function RestoreCloudTokenForUser(arg1:string):Promise<void>;
+
 export function RestoreEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function RevokeChannel(arg1:string,arg2:string):Promise<void>;

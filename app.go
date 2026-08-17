@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"net"
 	"os/exec"
 	// "encoding/base64"
@@ -200,9 +201,50 @@ func NewApp() *App {
 	// -----------------------------------
 	// Initialize
 	// -----------------------------------
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	// Load .env deterministically: search from executable directory upward, then project root, then cwd
+	
+	// 1. Try executable directory and parents (works for .app bundle and go run)
+	execDir := filepath.Dir(os.Args[0])
+	for i := 0; i < 5; i++ {
+		candidate := filepath.Join(execDir, ".env")
+		if _, err := os.Stat(candidate); err == nil {
+			if err := godotenv.Load(candidate); err == nil {
+				log.Printf("✅ Loaded .env from %s", candidate)
+				break
+			}
+		}
+		execDir = filepath.Dir(execDir)
+		if execDir == "/" || execDir == "." {
+			break
+		}
+	}
+
+	// 2. Try known project root (development)
+	projectRoot := "/Users/apple/sites/ankhora-dvault"
+	if _, err := os.Stat(filepath.Join(projectRoot, ".env")); err == nil {
+		if err := godotenv.Load(filepath.Join(projectRoot, ".env")); err == nil {
+			log.Printf("✅ Loaded .env from project root %s", projectRoot)
+		}
+	}
+
+	// 3. Fallback: current working directory
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️ .env not found in executable hierarchy or project root; trying cwd")
+		_ = godotenv.Load()
+	}
+
+	// Set deterministic defaults from application config (ANKHORA_CLOUD_BACK_URL is authoritative)
+	if os.Getenv("TRACECORE_URL") == "" {
+		os.Setenv("TRACECORE_URL", "http://localhost:4001/api")
+	}
+	// Do NOT set a fake TRACECORE_TOKEN. An empty token means
+	// no Authorization header is sent, which is correct until
+	// Cloud authentication actually succeeds.
+	if os.Getenv("ANKHORA_CLOUD_BACK_URL") == "" {
+		os.Setenv("ANKHORA_CLOUD_BACK_URL", "http://localhost:4001/api")
+	}
+	if os.Getenv("CLOUD_BACK_URL") == "" {
+		os.Setenv("CLOUD_BACK_URL", "http://localhost:4001/api")
 	}
 
 	cfg := loadConfig()
@@ -290,7 +332,8 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	// Tracecore
 	// -------------------------------------------------------------------------------------------------
-	tracecoreClient := tracecore.NewTracecoreClient(cfg.TracecoreURL, cfg.TracecoreToken, cfg.CloudFrontURL, cfg.CloudBackURL)
+	// Use ANKHORA_CLOUD_BACK_URL (via cfg.CloudBackURL) as the authoritative Cloud base URL
+	tracecoreClient := tracecore.NewTracecoreClient(cfg.CloudBackURL, cfg.TracecoreToken, cfg.CloudFrontURL, cfg.CloudBackURL)
 
 	// -------------------------------------------------------------------------------------------------
 	// Registry
@@ -355,7 +398,7 @@ func NewApp() *App {
 		ipfs,
 		&cryptoService,
 		db.DB,
-		*tracecoreClient,
+		tracecoreClient,
 		cfg.KEYRING_PATH,
 	)
 
@@ -489,6 +532,17 @@ func NewApp() *App {
 
 		for _, s := range storedSessions {
 			sessionsV2[s.UserID] = s
+			// Trace cloud token in restored session (Runtime is gorm:"-" so may be nil)
+			if s.Runtime != nil && s.Runtime.SessionSecrets != nil {
+				if cloudJWT, ok := s.Runtime.SessionSecrets["cloud_jwt"]; ok && cloudJWT != "" {
+					appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_token_present=true cloud_token_length=%d",
+						s.UserID, len(cloudJWT))
+				} else {
+					appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_jwt=absent", s.UserID)
+				}
+			} else {
+				appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_token_present=false (runtime context not persisted)", s.UserID)
+			}
 			if len(s.PendingCommits) > 0 {
 				// for _, commit := range s.PendingCommits {
 				// 	// if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
@@ -964,6 +1018,38 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		return nil, err
 	}
 	a.Logger.Info("Identity login successful: %v", result.User)
+	log.Println("[CLOUD-TRACE] A: identity login succeeded")
+
+	// --------- Cloud Authentication ---------
+	// Authenticate with Ankhora Cloud to obtain a 26-char bearer token.
+	// This token is required for Cloud API calls (workspaces, channels, etc.).
+	log.Println("[CLOUD-TRACE] B: Cloud authentication starting")
+	if req.Email != "" && req.Password != "" {
+		cloudLoginResp, cloudErr := a.Vault.TracecoreClient.Login(
+			context.Background(),
+			tracecore_types.LoginRequest{
+				Email:    req.Email,
+				Password: req.Password,
+			},
+		)
+		if cloudErr != nil {
+			log.Printf("[CLOUD-TRACE] C: Cloud authentication FAILED: %v", cloudErr)
+			a.Logger.Warn("☁️ Cloud authentication failed: %v — proceeding with local session only", cloudErr)
+		} else if cloudLoginResp != nil &&
+			cloudLoginResp.AuthenticationToken != nil &&
+			cloudLoginResp.AuthenticationToken.Token != "" {
+			cloudToken := cloudLoginResp.AuthenticationToken.Token
+			log.Printf("[CLOUD-TRACE] C: Cloud authentication result: authentication_token_present=true token_length=%d", len(cloudToken))
+			a.Vault.TracecoreClient.SetToken(cloudToken)
+			log.Printf("[CLOUD-TRACE] D: TracecoreClient.SetToken: token_present=true token_length=%d", len(cloudToken))
+			a.Logger.Info("☁️ [CLOUD-AUTH] Cloud token set: length=%d fingerprint=%s",
+				len(cloudToken), tracecore.TraceTokenFingerprint(cloudToken))
+		} else {
+			log.Printf("[CLOUD-TRACE] C: Cloud authentication returned nil/empty token resp=%v auth=%v", cloudLoginResp != nil, cloudLoginResp != nil && cloudLoginResp.AuthenticationToken != nil)
+		}
+	} else {
+		log.Printf("[CLOUD-TRACE] C: SKIPPED — email or password empty: email_empty=%v password_empty=%v", req.Email == "", req.Password == "")
+	}
 
 	// --------- Session Warm Up ---------
 	session, err := a.Vault.PrepareSession(result.User.ID)
@@ -1014,6 +1100,17 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		vaultRes.ReusedExisting,
 	)
 
+	// ---------- Persist Cloud token in session for future restoration --------- //
+	if cloudToken := a.Vault.TracecoreClient.Token; cloudToken != "" && cloudToken != "atokentochange" {
+		if vaultRes.RuntimeContext != nil {
+			if vaultRes.RuntimeContext.SessionSecrets == nil {
+				vaultRes.RuntimeContext.SessionSecrets = make(map[string]string)
+			}
+			vaultRes.RuntimeContext.SessionSecrets["cloud_jwt"] = cloudToken
+			a.Logger.Info("☁️ [CLOUD-AUTH] Persisted cloud token in session: length=%d", len(cloudToken))
+		}
+	}
+
 	// ---------- Connect to real-time --------- //
 	a.ConnectToRealtime(*result.User)
 
@@ -1035,6 +1132,29 @@ type GetSessionResponse struct {
 	Error error
 }
 
+// RestoreCloudTokenForUser restores the Cloud bearer token for a user from their session
+func (a *App) RestoreCloudTokenForUser(userID string) error {
+	if a.Vault.SessionManager == nil {
+		return nil
+	}
+	userSession, err := a.Vault.GetSession(userID)
+	if err != nil {
+		return err
+	}
+	if userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+		if cloudJWT, ok := userSession.Runtime.SessionSecrets["cloud_jwt"]; ok && cloudJWT != "" {
+			a.Vault.TracecoreClient.SetToken(cloudJWT)
+			a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s token_present=true token_length=%d",
+				userID, len(cloudJWT))
+		} else {
+			a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s cloud_jwt=absent", userID)
+		}
+	} else {
+		a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s runtime_context=nil", userID)
+	}
+	return nil
+}
+
 func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 	if a.Vault.SessionManager == nil {
 		return &GetSessionResponse{Error: errors.New("session manager not initialized")}, nil
@@ -1044,6 +1164,12 @@ func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 	if err != nil {
 		return &GetSessionResponse{Error: err}, nil
 	}
+
+	// Restore Cloud bearer token from session if available
+	if err := a.RestoreCloudTokenForUser(userID); err != nil {
+		return &GetSessionResponse{Error: err}, nil
+	}
+
 	user, err := a.Identity.FindUserById(a.ctx, userID)
 	if err != nil {
 		return nil, err
@@ -1473,7 +1599,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 
 	// 1. Access encrypted entry ==============================
 	entry.IPAddress = GetLocalIP()
-	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, *&a.Vault.TracecoreClient)
+	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,7 +1619,7 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
 
-	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, *&a.Vault.TracecoreClient)
+	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
 	}
@@ -2097,7 +2223,7 @@ func (a *App) CreateShare(input CreateShareInput) (*share_entry_domain.ShareEntr
 		a.AppConfigHandler,
 		a.config.ANCHORA_SECRET,
 		a.Vault,
-		&a.Vault.TracecoreClient,
+		a.Vault.TracecoreClient,
 		userOnboarding.ID,
 		*configs,
 		subscription.UserID,
@@ -2842,6 +2968,15 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
 	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, vaultId)
+
+	// Restore cloud token before making the request
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		a.Logger.Error("Failed to restore cloud token: %v", err)
+	}
+
+	log.Printf("[CLOUD-TRACE] E: ListWorkspaces: token_present=%v token_length=%d",
+		a.Vault.TracecoreClient.Token != "", len(a.Vault.TracecoreClient.Token))
+
 	if a.WorkspaceHandler == nil {
 		return nil, fmt.Errorf("workspace handler is not initialized")
 	}
@@ -2860,6 +2995,9 @@ func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, t
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
@@ -2870,6 +3008,9 @@ func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_typ
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
@@ -2885,6 +3026,9 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
@@ -2898,6 +3042,9 @@ func (a *App) UpdateChannel(JwtToken string, channelID string, title string, slo
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
@@ -2913,6 +3060,9 @@ func (a *App) DeleteChannel(JwtToken string, channelID string) error {
 	if err != nil {
 		return fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ChannelHandler == nil {
 		return fmt.Errorf("channel handler is not initialized")
 	}
@@ -2923,6 +3073,9 @@ func (a *App) ActivateChannel(JwtToken string, channelID string) (*tracecore_typ
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
@@ -2938,6 +3091,9 @@ func (a *App) RevokeChannel(JwtToken string, channelID string) error {
 	if err != nil {
 		return fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ChannelHandler == nil {
 		return fmt.Errorf("channel handler is not initialized")
 	}
@@ -2952,6 +3108,9 @@ func (a *App) AddParticipant(JwtToken string, channelID string, vaultID string, 
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
@@ -2964,6 +3123,9 @@ func (a *App) ListParticipants(JwtToken string, channelID string) ([]tracecore_t
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
@@ -2978,6 +3140,9 @@ func (a *App) InviteToChannel(JwtToken string, channelID string, inviterVaultID 
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
@@ -3063,3 +3228,20 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	}
 	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes)
 }
+
+// ConnectVault explicitly connects the local vault to Ankhora Cloud.
+// This is a first-class vault lifecycle operation, NOT a hidden side effect
+// of SignIn or ListWorkspaces. The Ledger should not discover a 403 and
+// secretly register the vault.
+//
+// Precondition: User must be signed in with a valid Cloud bearer token.
+// This method should be invoked from the Wails UI when the user clicks
+// "Connect Vault" — it is a first-class vault lifecycle operation.
+//
+// The flow is:
+//   1. POST /api/identity/challenge (vault_id)
+//   2. Sign challenge locally with the vault's stellar signing key
+//   3. POST /api/identity/register (challenge_id + signature + vault details)
+//   4. Return Connected — /api/workspaces will then return 200 instead of 403.
+//
+// If the vault is already delegated, the Cloud protocol handles idempotency;

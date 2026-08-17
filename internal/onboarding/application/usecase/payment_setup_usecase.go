@@ -29,14 +29,14 @@ func NewSetupPaymentAndActivateUseCase(
 	userSubscriptionRepo subscription_domain.UserRepository,
 	subscriptionRepo subscription_domain.SubscriptionRepository,
 	bus onboarding_application_events.OnboardingEventBus,
-	tracecoreClient tracecore.TracecoreClient,
+	tracecoreClient *tracecore.TracecoreClient,
 ) *SetupPaymentAndActivateUseCase {
 	return &SetupPaymentAndActivateUseCase{
 		UserOnboardingRepo:   userRepo,
 		UserSubscriptionRepo: userSubscriptionRepo,
 		SubscriptionRepo:     subscriptionRepo,
 		Bus:                  bus,
-		TracecoreClient:      &tracecoreClient,
+		TracecoreClient:      tracecoreClient,
 	}
 }
 

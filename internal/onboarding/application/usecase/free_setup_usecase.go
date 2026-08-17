@@ -24,14 +24,14 @@ func NewFreeSetupUseCase(
 	userSubscriptionRepo subscription_domain.UserRepository,
 	subscriptionRepo subscription_domain.SubscriptionRepository,
 	bus onboarding_application_events.OnboardingEventBus,
-	tracecoreClient tracecore.TracecoreClient,
+	tracecoreClient *tracecore.TracecoreClient,
 ) *FreeSetupUseCase {
 	return &FreeSetupUseCase{
 		UserOnboardingRepo:   userRepo,
 		UserSubscriptionRepo: userSubscriptionRepo,
 		SubscriptionRepo:     subscriptionRepo,
 		Bus:                  bus,
-		TracecoreClient:      &tracecoreClient,
+		TracecoreClient:      tracecoreClient,
 	}
 }
 

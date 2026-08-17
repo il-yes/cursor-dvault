@@ -111,20 +111,37 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		println("plainPassword", plainPassword)
 		credentials.Password = plainPassword
 
+		// Cloud authentication for stellar login
+		cloudLoginResponse2, err2 := ah.TracecoreClient.Login(context.Background(), tracecore_types.LoginRequest{
+			Email:    user.Email,
+			Password: plainPassword,
+		})
+		if err2 != nil {
+			ah.logger.Warn("⚠️ Cloud authentication failed for stellar user: %v — proceeding with local session only", err2)
+		} else {
+			cloudToken := cloudLoginResponse2.AuthenticationToken.Token
+			ah.TracecoreClient.SetToken(cloudToken)
+			ah.logger.Info("☁️ Cloud token set (stellar): %s...", cloudToken[:8])
+			cloudLoginResponse = cloudLoginResponse2
+		}
 	} else {
 		ah.logger.Info("📧 Email login request: %s", credentials.Email)
 		// authenticate to Ankhora.io
-		// cloudLoginResponse, err = ah.TracecoreClient.Login(context.Background(), tracecore.LoginRequest{
-		// 	Email:         credentials.Email,
-		// 	Password:      credentials.Password,
-		// 	PublicKey:     credentials.PublicKey,
-		// 	SignedMessage: credentials.SignedMessage,
-		// 	Signature:     credentials.Signature,
-		// })
-		// if err != nil {
-		// 	return nil, fmt.Errorf("❌ failed to authenticate with Ankhora: %w", err)
-		// }
-		// utils.LogPretty("cloud login respoonse", cloudLoginResponse)
+		cloudLoginResponse, err = ah.TracecoreClient.Login(context.Background(), tracecore_types.LoginRequest{
+			Email:    credentials.Email,
+			Password: credentials.Password,
+		})
+		if err != nil {
+			ah.logger.Warn("⚠️ Cloud authentication failed: %v — proceeding with local session only", err)
+		} else {
+			// Store the Cloud token so every subsequent Cloud API call
+			// carries Authorization: Bearer <cloud-token>.
+			cloudToken := cloudLoginResponse.AuthenticationToken.Token
+			ah.TracecoreClient.SetToken(cloudToken)
+			ah.logger.Info("☁️ [CLOUD-TRACE] Login: token_fingerprint=%s token_length=%d",
+				tracecore.TraceTokenFingerprint(cloudToken), len(cloudToken))
+		}
+		utils.LogPretty("cloud login response", cloudLoginResponse)
 
 		userOnboarding, err = ah.UserOnboardingRepository.FindByEmail(credentials.Email)
 		if err != nil || userOnboarding == nil {
@@ -206,9 +223,11 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		existingSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
 
 		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
-			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
-			ah.TracecoreClient.Token = cloudLoginResponse.Token
-			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)
+			cloudToken := cloudLoginResponse.AuthenticationToken.Token
+			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudToken
+			ah.TracecoreClient.Token = cloudToken
+			ah.logger.Info("☁️ [CLOUD-TRACE] Login existing session: token_fingerprint=%s token_length=%d",
+				tracecore.TraceTokenFingerprint(cloudToken), len(cloudToken))
 		}
 
 		return &LoginResponse{
@@ -245,10 +264,16 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 
 		storedSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
 
-		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+		// Restore Cloud bearer token from session if available
+		if cloud_jwt, ok := storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"]; ok && cloud_jwt != "" {
+			ah.TracecoreClient.SetToken(cloud_jwt)
+			ah.logger.Info("☁️ [CLOUD-TRACE] Login restored session: token_fingerprint=%s token_length=%d",
+				tracecore.TraceTokenFingerprint(cloud_jwt), len(cloud_jwt))
+		} else if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
 			storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
-			ah.TracecoreClient.Token = cloudLoginResponse.Token
-			ah.logger.Info("cloud token set to: ", ah.TracecoreClient.Token)
+			ah.TracecoreClient.SetToken(cloudLoginResponse.AuthenticationToken.Token)
+			ah.logger.Info("☁️ [CLOUD-TRACE] Login set fresh token: token_fingerprint=%s token_length=%d",
+				tracecore.TraceTokenFingerprint(cloudLoginResponse.AuthenticationToken.Token), len(cloudLoginResponse.AuthenticationToken.Token))
 		}
 		ah.logger.Info("🔄 Restored session for user %s from DB", user.ID)
 
@@ -332,7 +357,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		User:                *user,
 		Vault:               &vaultPayload,
 		Tokens:              &tokens,
-		CloudToken:          cloudLoginResponse.Token,
+		CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
 		VaultRuntimeContext: runtimeCtx,
 		LastCID:             vaultMeta.CID,
 		Dirty:               false,

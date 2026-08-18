@@ -83,15 +83,36 @@ func (c *TracecoreClient) CreateWorkspace(ctx context.Context, req workspace_dom
 		return nil, fmt.Errorf("TracecoreClient - CreateWorkspace - empty body")
 	}
 
-	var cloudResp tracecore_types.CloudResponse[workspace_domain.Workspace]
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.CloudWorkspaceDTO]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		utils.LogPretty("🚫 TracecoreClient - CreateWorkspace - json.Unmarshal error", err)
 		utils.LogPretty("🚫 TracecoreClient - CreateWorkspace - raw body when unmarshal failed", string(respBytes))
 		return nil, fmt.Errorf("TracecoreClient - CreateWorkspace - cloud response unmarshal failed: %w", err)
 	}
 
-	utils.LogPretty("✅ TracecoreClient - CreateWorkspace - cloudResp", cloudResp)
-	return &cloudResp, nil
+	dto := cloudResp.Data
+	domainWs := workspace_domain.Workspace{
+		ID:          dto.ID,
+		VaultID:     dto.VaultID,
+		Name:        dto.Name,
+		Description: dto.Description,
+		Status:      workspace_domain.WorkspaceStatus(dto.Status),
+		OwnerID:     dto.OwnerID,
+		CreatedAt:   dto.CreatedAt,
+		UpdatedAt:   dto.UpdatedAt,
+		IsDraft:     dto.IsDraft,
+		IsDirty:     dto.IsDirty,
+	}
+
+	res := &tracecore_types.CloudResponse[workspace_domain.Workspace]{
+		Status:  cloudResp.Status,
+		Data:    domainWs,
+		Message: cloudResp.Message,
+		Success: cloudResp.Success,
+	}
+
+	utils.LogPretty("✅ TracecoreClient - CreateWorkspace - cloudResp", res)
+	return res, nil
 }
 
 func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID string, userID string, name string, description string) (*tracecore_types.Workspace, error) {
@@ -135,14 +156,18 @@ func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID str
 		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var cloudResp tracecore_types.CloudResponse[tracecore_types.Workspace]
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.CloudWorkspaceDTO]
 	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data.ID != "" {
-		return &cloudResp.Data, nil
+		if mapped := tracecore_types.MapCloudWorkspaceToTypes(&cloudResp.Data); mapped != nil {
+			return mapped, nil
+		}
 	}
 
-	var ws tracecore_types.Workspace
-	if err := json.Unmarshal(respBytes, &ws); err == nil && ws.ID != "" {
-		return &ws, nil
+	var dto tracecore_types.CloudWorkspaceDTO
+	if err := json.Unmarshal(respBytes, &dto); err == nil && dto.ID != "" {
+		if mapped := tracecore_types.MapCloudWorkspaceToTypes(&dto); mapped != nil {
+			return mapped, nil
+		}
 	}
 
 	now := time.Now()
@@ -160,8 +185,8 @@ func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID str
 func (c *TracecoreClient) ListWorkspaces(ctx context.Context, vaultID string) ([]tracecore_types.Workspace, error) {
 	url := c.AnkhoraCloudUrl + "/workspaces?vault_id=" + vaultID
 	utils.LogPretty("[Workspace] Cloud GET URL", url)
-	log.Printf("[CLOUD-TRACE] ListWorkspaces: vault_id=%s token_fingerprint=%s token_length=%d authorization_header=%v",
-		vaultID, traceTokenFingerprint(c.Token), len(c.Token), c.Token != "")
+	log.Printf("[CLOUD-TRACE] LEDGER REQUEST: client_pointer=%p token_length=%d token_fingerprint=%s authorization_header=%v vault_id=%s",
+		c, len(c.Token), traceTokenFingerprint(c.Token), c.Token != "", vaultID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -190,18 +215,30 @@ func (c *TracecoreClient) ListWorkspaces(ctx context.Context, vaultID string) ([
 		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
-	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.Workspace]
+	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.CloudWorkspaceDTO]
 	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data != nil {
-		utils.LogPretty("[Workspace] Decoded cloudResp.Data", cloudResp.Data)
-		return cloudResp.Data, nil
-	}
-
-	var workspaces []tracecore_types.Workspace
-	if err := json.Unmarshal(respBytes, &workspaces); err == nil {
-		utils.LogPretty("[Workspace] Decoded workspaces array", workspaces)
+		utils.LogPretty("[Workspace] Decoded cloudResp.Data DTOs", cloudResp.Data)
+		workspaces := make([]tracecore_types.Workspace, 0, len(cloudResp.Data))
+		for _, dto := range cloudResp.Data {
+			if mapped := tracecore_types.MapCloudWorkspaceToTypes(&dto); mapped != nil {
+				workspaces = append(workspaces, *mapped)
+			}
+		}
 		return workspaces, nil
 	}
-	utils.LogPretty("[Workspace] TracecoreClient - ListWorkspaces empty fallback", workspaces)
+
+	var dtos []tracecore_types.CloudWorkspaceDTO
+	if err := json.Unmarshal(respBytes, &dtos); err == nil && len(dtos) > 0 {
+		utils.LogPretty("[Workspace] Decoded dtos array", dtos)
+		workspaces := make([]tracecore_types.Workspace, 0, len(dtos))
+		for _, dto := range dtos {
+			if mapped := tracecore_types.MapCloudWorkspaceToTypes(&dto); mapped != nil {
+				workspaces = append(workspaces, *mapped)
+			}
+		}
+		return workspaces, nil
+	}
+	utils.LogPretty("[Workspace] TracecoreClient - ListWorkspaces empty fallback", nil)
 	return []tracecore_types.Workspace{}, nil
 }
 

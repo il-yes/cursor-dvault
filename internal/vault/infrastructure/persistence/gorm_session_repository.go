@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -145,15 +146,19 @@ func (db *SessionDBModel) FindAll() (map[string]*vault_session.Session, error) {
 	sessions := make(map[string]*vault_session.Session)
 
 	for _, r := range records {
-		session := &vault_session.Session{
-			UserID:      r.UserID,
-			Vault:       r.Vault, // ✅ raw encrypted bytes
-			LastCID:     r.LastCID,
-			LastSynced:  r.LastSynced,
-			LastUpdated: r.LastUpdated,
-			Dirty:       r.Dirty,
+		session, err := r.ToDomain()
+		if err != nil {
+			return nil, fmt.Errorf("failed to restore session for user %s: %w", r.UserID, err)
 		}
-
+		runtimePresent := session.Runtime != nil
+		secretsPresent := runtimePresent && session.Runtime.SessionSecrets != nil
+		cloudJWTLen := 0
+		if secretsPresent {
+			if v, ok := session.Runtime.SessionSecrets["cloud_jwt"]; ok {
+				cloudJWTLen = len(v)
+			}
+		}
+		log.Printf("[TOKEN-TRACE 1] FindAll user=%s runtime_present=%v secrets_present=%v cloud_jwt_length=%d", r.UserID, runtimePresent, secretsPresent, cloudJWTLen)
 		sessions[r.UserID] = session
 	}
 

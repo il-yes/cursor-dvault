@@ -532,17 +532,15 @@ func NewApp() *App {
 
 		for _, s := range storedSessions {
 			sessionsV2[s.UserID] = s
-			// Trace cloud token in restored session (Runtime is gorm:"-" so may be nil)
-			if s.Runtime != nil && s.Runtime.SessionSecrets != nil {
-				if cloudJWT, ok := s.Runtime.SessionSecrets["cloud_jwt"]; ok && cloudJWT != "" {
-					appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_token_present=true cloud_token_length=%d",
-						s.UserID, len(cloudJWT))
-				} else {
-					appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_jwt=absent", s.UserID)
+			runtimePresent := s.Runtime != nil
+			secretsPresent := runtimePresent && s.Runtime.SessionSecrets != nil
+			cloudJWTLen := 0
+			if secretsPresent {
+				if v, ok := s.Runtime.SessionSecrets["cloud_jwt"]; ok {
+					cloudJWTLen = len(v)
 				}
-			} else {
-				appLogger.Info("☁️ [CLOUD-TRACE] Session restore: user=%s cloud_token_present=false (runtime context not persisted)", s.UserID)
 			}
+			log.Printf("[TOKEN-TRACE 2] sessionsV2 insert user=%s runtime_present=%v secrets_present=%v cloud_jwt_length=%d", s.UserID, runtimePresent, secretsPresent, cloudJWTLen)
 			if len(s.PendingCommits) > 0 {
 				// for _, commit := range s.PendingCommits {
 				// 	// if err := vaults.QueuePendingCommits(s.UserID, commit); err != nil {
@@ -1017,13 +1015,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		a.Logger.Error("❌ App - SignIn - failed to identify user %s: %v", result.User.ID, err)
 		return nil, err
 	}
-	a.Logger.Info("Identity login successful: %v", result.User)
-	log.Println("[CLOUD-TRACE] A: identity login succeeded")
-
 	// --------- Cloud Authentication ---------
-	// Authenticate with Ankhora Cloud to obtain a 26-char bearer token.
-	// This token is required for Cloud API calls (workspaces, channels, etc.).
-	log.Println("[CLOUD-TRACE] B: Cloud authentication starting")
 	if req.Email != "" && req.Password != "" {
 		cloudLoginResp, cloudErr := a.Vault.TracecoreClient.Login(
 			context.Background(),
@@ -1033,22 +1025,14 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 			},
 		)
 		if cloudErr != nil {
-			log.Printf("[CLOUD-TRACE] C: Cloud authentication FAILED: %v", cloudErr)
-			a.Logger.Warn("☁️ Cloud authentication failed: %v — proceeding with local session only", cloudErr)
+			a.Logger.Warn("☁️ [CLOUD-AUTH] Cloud authentication failed: %v — proceeding with local session only", cloudErr)
 		} else if cloudLoginResp != nil &&
 			cloudLoginResp.AuthenticationToken != nil &&
 			cloudLoginResp.AuthenticationToken.Token != "" {
 			cloudToken := cloudLoginResp.AuthenticationToken.Token
-			log.Printf("[CLOUD-TRACE] C: Cloud authentication result: authentication_token_present=true token_length=%d", len(cloudToken))
 			a.Vault.TracecoreClient.SetToken(cloudToken)
-			log.Printf("[CLOUD-TRACE] D: TracecoreClient.SetToken: token_present=true token_length=%d", len(cloudToken))
-			a.Logger.Info("☁️ [CLOUD-AUTH] Cloud token set: length=%d fingerprint=%s",
-				len(cloudToken), tracecore.TraceTokenFingerprint(cloudToken))
-		} else {
-			log.Printf("[CLOUD-TRACE] C: Cloud authentication returned nil/empty token resp=%v auth=%v", cloudLoginResp != nil, cloudLoginResp != nil && cloudLoginResp.AuthenticationToken != nil)
+			a.Logger.Info("☁️ [CLOUD-AUTH] Cloud authentication succeeded for user=%s", req.Email)
 		}
-	} else {
-		log.Printf("[CLOUD-TRACE] C: SKIPPED — email or password empty: email_empty=%v password_empty=%v", req.Email == "", req.Password == "")
 	}
 
 	// --------- Session Warm Up ---------
@@ -1061,6 +1045,10 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		// return	 nil, err
 	} else {
 		a.Logger.Info("Session fetched successfully")
+	}
+
+	if a.Vault.TracecoreClient.Token != "" && a.Vault.TracecoreClient.Token != "atokentochange" {
+		session.Runtime.SessionSecrets["cloud_jwt"] = a.Vault.TracecoreClient.Token
 	}
 
 	// --------- Find user onboarding ---------
@@ -1111,6 +1099,15 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		}
 	}
 
+	// ---------- Connect Vault Delegation with Ankhora Cloud --------- //
+	if vaultRes.RuntimeContext != nil && vaultRes.RuntimeContext.VaultID != "" {
+		if err := a.ConnectVault(result.User.ID, vaultRes.RuntimeContext.VaultID); err != nil {
+			a.Logger.Error("❌ App - SignIn - ConnectVault failed for user %s vault %s: %v",
+				result.User.ID, vaultRes.RuntimeContext.VaultID, err)
+			return nil, fmt.Errorf("vault cloud connection failed: %w", err)
+		}
+	}
+
 	// ---------- Connect to real-time --------- //
 	a.ConnectToRealtime(*result.User)
 
@@ -1141,16 +1138,15 @@ func (a *App) RestoreCloudTokenForUser(userID string) error {
 	if err != nil {
 		return err
 	}
-	if userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+	if userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
 		if cloudJWT, ok := userSession.Runtime.SessionSecrets["cloud_jwt"]; ok && cloudJWT != "" {
 			a.Vault.TracecoreClient.SetToken(cloudJWT)
-			a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s token_present=true token_length=%d",
-				userID, len(cloudJWT))
+			a.Logger.Info("☁️ [CLOUD-AUTH] Restored Cloud token for user=%s", userID)
 		} else {
-			a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s cloud_jwt=absent", userID)
+			a.Logger.Info("☁️ [CLOUD-AUTH] Cloud token absent in session for user=%s", userID)
 		}
 	} else {
-		a.Logger.Info("☁️ [CLOUD-TRACE] RestoreCloudTokenForUser: user=%s runtime_context=nil", userID)
+		a.Logger.Info("☁️ [CLOUD-AUTH] Session runtime context absent for user=%s", userID)
 	}
 	return nil
 }
@@ -2974,8 +2970,7 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 		a.Logger.Error("Failed to restore cloud token: %v", err)
 	}
 
-	log.Printf("[CLOUD-TRACE] E: ListWorkspaces: token_present=%v token_length=%d",
-		a.Vault.TracecoreClient.Token != "", len(a.Vault.TracecoreClient.Token))
+	a.Logger.Info("☁️ [CLOUD-WORKSPACE] Listing workspaces for vault=%s", vaultId)
 
 	if a.WorkspaceHandler == nil {
 		return nil, fmt.Errorf("workspace handler is not initialized")
@@ -3231,17 +3226,86 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 
 // ConnectVault explicitly connects the local vault to Ankhora Cloud.
 // This is a first-class vault lifecycle operation, NOT a hidden side effect
-// of SignIn or ListWorkspaces. The Ledger should not discover a 403 and
-// secretly register the vault.
-//
-// Precondition: User must be signed in with a valid Cloud bearer token.
-// This method should be invoked from the Wails UI when the user clicks
-// "Connect Vault" — it is a first-class vault lifecycle operation.
+// of ListWorkspaces.
 //
 // The flow is:
 //   1. POST /api/identity/challenge (vault_id)
-//   2. Sign challenge locally with the vault's stellar signing key
-//   3. POST /api/identity/register (challenge_id + signature + vault details)
-//   4. Return Connected — /api/workspaces will then return 200 instead of 403.
-//
-// If the vault is already delegated, the Cloud protocol handles idempotency;
+//   2. Sign challenge payload locally with the vault's stellar signing key
+//   3. POST /api/identity/ (challenge_id + signature + vault_id + public_key)
+//   4. Cloud creates/ensures identity_vaults and user_vault_identities delegation.
+func (a *App) ConnectVault(userID string, vaultID string) error {
+	log.Printf("[CLOUD-VAULT] CONNECT: started user=%s vault_id=%s", userID, vaultID)
+
+	if vaultID == "" {
+		log.Printf("[CLOUD-VAULT] CONNECT: FAILED vault_id is empty")
+		return fmt.Errorf("connect vault failed: vault_id is empty")
+	}
+
+	if err := a.RestoreCloudTokenForUser(userID); err != nil {
+		log.Printf("[CLOUD-VAULT] CONNECT: FAILED to restore cloud token: %v", err)
+		return fmt.Errorf("connect vault failed restoring token: %w", err)
+	}
+
+	if a.Vault.TracecoreClient.Token == "" {
+		log.Printf("[CLOUD-VAULT] CONNECT: FAILED no cloud token present")
+		return fmt.Errorf("connect vault failed: cloud bearer token is missing")
+	}
+
+	// Step 1: Request Challenge
+	log.Printf("[CLOUD-VAULT] CHALLENGE: sending vault_id=%s", vaultID)
+	challengeResp, err := a.Vault.TracecoreClient.RequestVaultChallenge(context.Background(), vaultID)
+	if err != nil {
+		log.Printf("[CLOUD-VAULT] CHALLENGE: status=FAILED error=%v", err)
+		return fmt.Errorf("vault challenge failed: %w", err)
+	}
+	log.Printf("[CLOUD-VAULT] CHALLENGE: status=200 challenge_id=%s payload_len=%d",
+		challengeResp.Data.ChallengeID, len(challengeResp.Data.SigningPayload))
+
+	// Step 2: Retrieve local stellar account / signing key
+	userCfg, err := a.AppConfigHandler.GetUserConfigByUserID(userID)
+	if err != nil {
+		log.Printf("[CLOUD-VAULT] SIGN: FAILED to get user config: %v", err)
+		return fmt.Errorf("connect vault failed retrieving user config: %w", err)
+	}
+
+	if userCfg.StellarAccount.PrivateKey == "" {
+		log.Printf("[CLOUD-VAULT] SIGN: FAILED stellar secret key missing in config")
+		return fmt.Errorf("connect vault failed: stellar signing key not found in user config")
+	}
+
+	privKey := userCfg.StellarAccount.PrivateKey
+	pubKey := userCfg.StellarAccount.PublicKey
+
+	// Step 3: Sign challenge payload
+	sig, err := blockchain.SignActorWithStellarPrivateKey(privKey, challengeResp.Data.SigningPayload)
+	if err != nil {
+		log.Printf("[CLOUD-VAULT] SIGN: FAILED signing payload: %v", err)
+		return fmt.Errorf("connect vault failed signing challenge: %w", err)
+	}
+	log.Printf("[CLOUD-VAULT] SIGN: signature_present=true pubkey=%s", pubKey)
+
+	// Step 4: Register / Delegate with Cloud (POST /api/identity/)
+	log.Printf("[CLOUD-VAULT] REGISTER: sending vault_id=%s challenge_id=%s", vaultID, challengeResp.Data.ChallengeID)
+	regReq := tracecore.VaultRegisterRequest{
+		ChallengeID:    challengeResp.Data.ChallengeID,
+		Signature:      sig,
+		VaultID:        vaultID,
+		OrganizationID: "personal",
+		SigningKey:     pubKey,
+		EncryptionKey:  pubKey,
+		Endpoint:       "local",
+		Capabilities:   []string{"storage"},
+		VaultAddress:   "local",
+	}
+
+	regResp, err := a.Vault.TracecoreClient.RegisterVaultIdentity(context.Background(), regReq)
+	if err != nil {
+		log.Printf("[CLOUD-VAULT] REGISTER: FAILED status=ERROR error=%v", err)
+		return fmt.Errorf("vault identity registration failed: %w", err)
+	}
+
+	log.Printf("[CLOUD-VAULT] REGISTER: SUCCESS vault_id=%s delegation_id=%s status=%s",
+		regResp.Data.VaultID, regResp.Data.DelegationID, regResp.Data.Status)
+	return nil
+}
+

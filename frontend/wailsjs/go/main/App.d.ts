@@ -64,6 +64,8 @@ export function CompleteOnboarding():Promise<void>;
 
 export function ConnectToRealtime(arg1:identity_domain.User):Promise<void>;
 
+export function ConnectVault(arg1:string,arg2:string):Promise<void>;
+
 export function ConnectWithStellar(arg1:handlers.LoginRequest):Promise<main.CheckKeyResponse>;
 
 export function CountUnread(arg1:string):Promise<number>;

@@ -4,6 +4,10 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
 	"vault-app/internal/auth"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
@@ -20,9 +24,6 @@ import (
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_ui "vault-app/internal/vault/ui"
-
-	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // --------------------------------------------------------------------------------------------------
@@ -464,7 +465,7 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 		ipfs,
 		nil,
 		nil,
-		*tracecoreClient,
+		tracecoreClient,
 		"",
 	)
 
@@ -602,7 +603,7 @@ func TestDownloadAttachment_Success(t *testing.T) {
         ipfs,
         nil,
         nil,
-        *tracecoreClient,
+        tracecoreClient,
         "",
     )
 

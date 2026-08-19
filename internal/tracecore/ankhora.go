@@ -2052,3 +2052,121 @@ func CryptoShareConvertor(cloudResp []WrappedShare) []share_entry_domain.ShareEn
 	}
 	return list
 }
+
+// VaultChallengeRequest payload for requesting identity challenge
+type VaultChallengeRequest struct {
+	VaultID string `json:"vault_id"`
+}
+
+// VaultChallengeResponse payload returned from /identity/challenge
+type VaultChallengeResponse struct {
+	ChallengeID    string `json:"challenge_id"`
+	SigningPayload string `json:"signing_payload"`
+	VaultID        string `json:"vault_id"`
+}
+
+// VaultRegisterRequest payload for POST /identity/
+type VaultRegisterRequest struct {
+	ChallengeID    string   `json:"challenge_id"`
+	Signature      string   `json:"signature"`
+	VaultID        string   `json:"vault_id"`
+	OrganizationID string   `json:"organization_id"`
+	SigningKey     string   `json:"signing_key"`
+	EncryptionKey  string   `json:"encryption_key"`
+	Endpoint       string   `json:"endpoint"`
+	Capabilities   []string `json:"capabilities"`
+	VaultAddress   string   `json:"vault_address"`
+}
+
+// VaultRegisterResponse payload returned from POST /identity/
+type VaultRegisterResponse struct {
+	VaultID      string `json:"vault_id"`
+	Status       string `json:"status"`
+	DelegationID string `json:"delegation_id"`
+}
+
+// RequestVaultChallenge calls POST /identity/challenge to obtain a challenge for vault registration
+func (c *TracecoreClient) RequestVaultChallenge(ctx context.Context, vaultID string) (*tracecore_types.CloudResponse[VaultChallengeResponse], error) {
+	reqBody := VaultChallengeRequest{VaultID: vaultID}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal challenge request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/identity/challenge", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create challenge request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("challenge request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read challenge response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, MapHTTPStatusToError(resp.StatusCode, string(respBytes))
+	}
+
+	var challengeResp VaultChallengeResponse
+	if err := json.Unmarshal(respBytes, &challengeResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal challenge response: %w", err)
+	}
+
+	return &tracecore_types.CloudResponse[VaultChallengeResponse]{
+		Status: resp.StatusCode,
+		Data:   challengeResp,
+	}, nil
+}
+
+// RegisterVaultIdentity calls POST /identity/ to register/delegate a vault identity
+func (c *TracecoreClient) RegisterVaultIdentity(ctx context.Context, regReq VaultRegisterRequest) (*tracecore_types.CloudResponse[VaultRegisterResponse], error) {
+	bodyBytes, err := json.Marshal(regReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal register request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/identity/", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create register request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("register request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read register response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, MapHTTPStatusToError(resp.StatusCode, string(respBytes))
+	}
+
+	var regResp VaultRegisterResponse
+	if err := json.Unmarshal(respBytes, &regResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal register response: %w", err)
+	}
+
+	return &tracecore_types.CloudResponse[VaultRegisterResponse]{
+		Status: resp.StatusCode,
+		Data:   regResp,
+	}, nil
+}
+

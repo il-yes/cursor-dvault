@@ -275,6 +275,11 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 			ah.logger.Info("☁️ [CLOUD-TRACE] Login set fresh token: token_fingerprint=%s token_length=%d",
 				tracecore.TraceTokenFingerprint(cloudLoginResponse.AuthenticationToken.Token), len(cloudLoginResponse.AuthenticationToken.Token))
 		}
+
+		// Persist the modified session so cloud_jwt survives app restarts
+		if saveErr := ah.DB.SaveSession(user.ID, storedSession); saveErr != nil {
+			ah.logger.Error("❌ failed to persist restored session with cloud_jwt: %v", saveErr)
+		}
 		ah.logger.Info("🔄 Restored session for user %s from DB", user.ID)
 
 		return &LoginResponse{
@@ -343,6 +348,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		WorkingBranch:  "main",
 		LoadedEntries:  []vaults_domain.VaultEntry{},
 	}
+	runtimeCtx.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
 
 	// -----------------------------
 	// 8. Start new session
@@ -353,6 +359,15 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// -----------------------------
 	// 10. Return login response
 	// -----------------------------
+	// Persist session so cloud_jwt survives app restarts
+	session, saveErr := ah.Vaults.GetSession(user.ID)
+	if saveErr == nil && session != nil {
+		session.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
+		if persistErr := ah.DB.SaveSession(user.ID, session); persistErr != nil {
+			ah.logger.Error("❌ failed to persist session with cloud_jwt: %v", persistErr)
+		}
+	}
+
 	return &LoginResponse{
 		User:                *user,
 		Vault:               &vaultPayload,

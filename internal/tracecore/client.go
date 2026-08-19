@@ -108,16 +108,10 @@ func NewTracecoreFromConfig(appCfg *app_config_domain.AppConfig, token string) *
 	}
 }
 func (c *TracecoreClient) SetToken(token string) {
-	before := traceTokenFingerprint(c.Token)
 	c.Token = token
-	after := traceTokenFingerprint(c.Token)
-	log.Printf("[CLOUD-TRACE] SetToken: before=%s after=%s length=%d", before, after, len(token))
 }
 
 func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, body any, out any) error {
-	authHeader := c.Token != ""
-	log.Printf("[CLOUD-TRACE] F: doRequest: method=%s path=%s token_fingerprint=%s token_length=%d authorization_header=%v",
-		method, path, traceTokenFingerprint(c.Token), len(c.Token), authHeader)
 
 	var buf io.Reader
 	if body != nil {

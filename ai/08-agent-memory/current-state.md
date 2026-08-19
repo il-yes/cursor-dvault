@@ -550,3 +550,21 @@ V1 Multi-Device Key Model — APPROVED
 - V1 KEK rotation uses eager DEK re-wrapping.
 - ShareEntry tracks KEKVersion.
 - Raw KEK/DEK never crosses Desktop → Backend boundary.
+
+---
+
+## Desktop ConnectVault Protocol & Cloud Workspace DTO Integration — 2026-08-18
+
+### Completed
+
+1. **Authentication vs Vault Delegation Boundary**:
+   - `SignIn()` authenticates user credentials and retrieves Cloud bearer token (JWT).
+   - Vault operation access requires an active user-vault delegation in Cloud (`UserVaultIdentity`).
+   - `ConnectVault()` flow executes: `POST /api/identity/challenge` → local Ed25519 Stellar signature of challenge payload → `POST /api/identity/` registration.
+   - `SignIn()` invokes `ConnectVault()` immediately after opening the vault, ensuring delegation is established before accessing Ledger.
+
+2. **Workspace Infrastructure DTO Mapping**:
+   - Cloud serializes `Workspace` aggregates using PascalCase field names (`ID`, `VaultID`, `Name`, `Description`, `Status`, `OwnerID`, `CreatedAt`, `UpdatedAt`).
+   - Implemented `CloudWorkspaceDTO` in `internal/tracecore/types/workspace_cloud_dto.go` and explicit mapper `MapCloudWorkspaceToTypes()`.
+   - All fields (`VaultID`, `OwnerID`, `CreatedAt`, `UpdatedAt`) are strictly preserved when decoding Cloud responses into Desktop application/domain models.
+   - Unit tests added in `internal/tracecore/workspace_dto_test.go` to prevent regression.

@@ -760,3 +760,27 @@ The responsibility boundary is defined by the approved Client / Backend / Cloud 
 Lazy DEK re-wrapping is deferred to V2.
 
 Federation-specific cryptographic workflows remain subject to the Federation architecture.
+
+---
+
+## Authentication vs Vault Delegation & Cloud Wire DTO Mapping
+
+Status:
+
+RESOLVED — LESSON PRESERVED
+
+Discovered:
+
+2026-08-18 — ConnectVault & Workspace DTO Integration
+
+Lessons:
+
+1. **Authentication != Delegation**:
+   - Authenticating a user via `SignIn()` obtains a Cloud bearer JWT (`401` class if missing).
+   - Performing vault-scoped operations requires a persisted `UserVaultIdentity` delegation in Cloud (`403` class if un-delegated).
+   - Do NOT assume a valid Cloud JWT implies vault access. `SignIn()` must trigger `ConnectVault()` to perform challenge-signing registration before rendering Ledger.
+
+2. **Cloud Wire DTO Mapping**:
+   - Cloud serializes models in PascalCase (e.g. `VaultID`, `OwnerID`, `CreatedAt`, `UpdatedAt`).
+   - Decoding Cloud responses directly into Desktop domain models causes silent field loss for snake_case JSON tags.
+   - All Cloud responses MUST be decoded into dedicated infrastructure DTOs (e.g. `CloudWorkspaceDTO`) and explicitly mapped at the TraceCore boundary before returning domain objects.

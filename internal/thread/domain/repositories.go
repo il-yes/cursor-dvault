@@ -26,9 +26,10 @@ type ListThreadEventsRequest struct {
 }
 
 type AppendThreadEventRequest struct {
-	ThreadID  string
-	EventType string
-	Payload   map[string]interface{}
+	ThreadID       string
+	EventType      string
+	Payload        EventResourceRef
+	IdempotencyKey string
 }
 
 type ThreadRepository interface {

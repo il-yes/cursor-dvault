@@ -1003,6 +1003,8 @@ type CryptoRecipient struct {
 	ID            string     `json:"ID"`
 	EncryptedKeys string     `json:"EncryptedKeys"`
 	Role          string     `json:"Role"`
+	TrustGroupID  string     `json:"TrustGroupID,omitempty"`
+	RecipientType string     `json:"RecipientType,omitempty"` // "user" or "trust_group"
 	RevokedAt     *time.Time `json:"RevokedAt"`
 }
 type ProdCreateCryptoShareRequest struct {
@@ -1010,7 +1012,8 @@ type ProdCreateCryptoShareRequest struct {
 	SenderEmail     string                     `json:"SenderEmail"`
 	Recipients      map[string]CryptoRecipient `json:"Recipients"`
 	VaultPayload    string                     `json:"VaultPayload"`  // already encrypted
-	EncryptedKeys   map[string]string          `json:"EncryptedKeys"` // userID -> encrypted key
+	EncryptedKeys   map[string]string          `json:"EncryptedKeys"` // target key -> encrypted key
+	TrustGroupID    string                     `json:"TrustGroupID,omitempty"`
 	Message         string                     `json:"Message"`
 	PublicKey       string                     `json:"PublicKey"`
 	Signature       string                     `json:"Signature"`

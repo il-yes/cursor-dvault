@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // Standardized Cloud & Identity Errors
@@ -13,8 +14,9 @@ var (
 	ErrResourceNotFound       = errors.New("resource not found (404)")
 	ErrChallengeExpired       = errors.New("vault challenge expired")
 	ErrInvalidSignature       = errors.New("invalid cryptographic signature for challenge")
-	ErrRegistrationBadRequest = errors.New("malformed vault registration request (400)")
-	ErrCloudServerError       = errors.New("cloud server error (5xx)")
+	ErrRegistrationBadRequest   = errors.New("malformed vault registration request (400)")
+	ErrCloudServerError         = errors.New("cloud server error (5xx)")
+	ErrDelegationAlreadyExists  = errors.New("active delegation already exists")
 )
 
 // MapHTTPStatusToError converts an HTTP status code and response body into a typed error
@@ -31,6 +33,11 @@ func MapHTTPStatusToError(statusCode int, body string) error {
 		return ErrVaultForbidden
 	case http.StatusNotFound:
 		return ErrResourceNotFound
+	case http.StatusConflict:
+		if body != "" && strings.Contains(body, "active delegation already exists") {
+			return fmt.Errorf("%w: %s", ErrDelegationAlreadyExists, body)
+		}
+		return fmt.Errorf("cloud returned status 409: %s", body)
 	default:
 		if statusCode >= 500 {
 			return fmt.Errorf("%w (status %d): %s", ErrCloudServerError, statusCode, body)

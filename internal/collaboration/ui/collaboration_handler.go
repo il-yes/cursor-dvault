@@ -8,6 +8,7 @@ import (
 
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	thread_domain "vault-app/internal/thread/domain"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	tracecore_types "vault-app/internal/tracecore/types"
 )
@@ -36,17 +37,10 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 	targetVaultID string,
 	notes string,
 ) (*tracecore_types.ShareEntryRefDTO, error) {
-	shareID := "se_" + uuid.NewString()[:12]
 	nowStr := time.Now().Format(time.RFC3339)
 
-	shareRef := tracecore_types.ShareEntryRefDTO{
-		ShareEntryID: shareID,
-		TrustGroupID: trustGroupID,
-		AssetCID:     assetCID,
-		CreatedBy:    userID,
-		Status:       "active",
-		CreatedAt:    nowStr,
-	}
+	var createdShareID string
+	var createdTrustGroupID string = trustGroupID
 
 	if h.createCollabShareUC != nil {
 		req := collaboration_dtos.CreateCollaborativeShareRequest{
@@ -63,21 +57,41 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 		}
 
 		resp, err := h.createCollabShareUC.Execute(ctx, req)
-		if err == nil && resp != nil {
-			shareRef.ShareEntryID = resp.ShareEntry.ID
-			shareRef.TrustGroupID = resp.ShareEntry.TrustGroupID
-			shareRef.AssetCID = resp.ShareEntry.AssetCID
-			shareRef.CreatedBy = resp.ShareEntry.CreatedBy
+		if err != nil {
+			return nil, err
+		}
+		if resp != nil {
+			createdShareID = resp.ShareEntry.ID
+			if resp.ShareEntry.TrustGroupID != "" {
+				createdTrustGroupID = resp.ShareEntry.TrustGroupID
+			}
 		}
 	}
 
+	if createdShareID == "" {
+		createdShareID = "se_" + uuid.NewString()[:12]
+	}
+
+	shareRef := tracecore_types.ShareEntryRefDTO{
+		ShareEntryID: createdShareID,
+		TrustGroupID: createdTrustGroupID,
+		AssetCID:     assetCID,
+		CreatedBy:    userID,
+		Status:       "active",
+		CreatedAt:    nowStr,
+	}
+
 	if h.appendEventUC != nil && threadID != "" {
-		payload := map[string]interface{}{
-			"notes":           notes,
-			"target_vault_id": targetVaultID,
-			"share_entry_ref": shareRef,
+		refPayload := thread_domain.EventResourceRef{
+			RefType:      thread_domain.ResourceShareEntry,
+			ShareEntryID: createdShareID,
+			TrustGroupID: createdTrustGroupID,
 		}
-		_, _ = h.appendEventUC.Execute(ctx, threadID, "share.created", payload)
+		idempotencyKey := "evt_share_" + createdShareID
+		_, err := h.appendEventUC.Execute(ctx, threadID, "entry.shared", refPayload, idempotencyKey)
+		if err != nil {
+			return &shareRef, err
+		}
 	}
 
 	return &shareRef, nil

@@ -1917,6 +1917,8 @@ export namespace share_entry_application_dto {
 	    email: string;
 	    role: string;
 	    public_key: string;
+	    trust_group_id?: string;
+	    type?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new RecipientPayload(source);
@@ -1928,6 +1930,8 @@ export namespace share_entry_application_dto {
 	        this.email = source["email"];
 	        this.role = source["role"];
 	        this.public_key = source["public_key"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.type = source["type"];
 	    }
 	}
 	export class CreateShareEntryPayload {
@@ -2204,6 +2208,8 @@ export namespace share_entry_domain {
 	    email: string;
 	    public_key: string;
 	    role: string;
+	    trust_group_id?: string;
+	    recipient_type?: string;
 	    // Go type: time
 	    joined_at: any;
 	    // Go type: time
@@ -2226,6 +2232,8 @@ export namespace share_entry_domain {
 	        this.email = source["email"];
 	        this.public_key = source["public_key"];
 	        this.role = source["role"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.recipient_type = source["recipient_type"];
 	        this.joined_at = this.convertValues(source["joined_at"], null);
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
@@ -3469,6 +3477,7 @@ export namespace tracecore_types {
 	export class ThreadDTO {
 	    id: string;
 	    channel_id: string;
+	    workspace_id?: string;
 	    asset_type: string;
 	    title: string;
 	    subtitle: string;
@@ -3484,6 +3493,7 @@ export namespace tracecore_types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.channel_id = source["channel_id"];
+	        this.workspace_id = source["workspace_id"];
 	        this.asset_type = source["asset_type"];
 	        this.title = source["title"];
 	        this.subtitle = source["subtitle"];

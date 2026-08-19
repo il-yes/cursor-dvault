@@ -13,10 +13,12 @@ type Metadata struct {
 }
 
 type RecipientPayload struct {
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	PublicKey string `json:"public_key"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	PublicKey    string `json:"public_key"`
+	TrustGroupID string `json:"trust_group_id,omitempty"`
+	Type         string `json:"type,omitempty"` // "user" (default) or "trust_group"
 }
 type CreateShareEntryPayload struct {
 	EntryID string	`json:"entry_id"`

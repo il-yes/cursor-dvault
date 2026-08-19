@@ -106,6 +106,21 @@ func (s *stubChannelGovReader) GetChannel(_ context.Context, req *channel_domain
 	return &tracecore_types.CloudResponse[channel_domain.Channel]{Data: ch}, nil
 }
 
+type stubThreadEventBus struct{}
+
+func (s *stubThreadEventBus) PublishThreadCreated(_ context.Context, _ thread_domain.ThreadCreated) error {
+	return nil
+}
+func (s *stubThreadEventBus) SubscribeToThreadCreated(_ func(ctx context.Context, event thread_domain.ThreadCreated)) error {
+	return nil
+}
+func (s *stubThreadEventBus) PublishThreadUpdated(_ context.Context, _ thread_domain.ThreadUpdated) error {
+	return nil
+}
+func (s *stubThreadEventBus) SubscribeToThreadUpdated(_ func(ctx context.Context, event thread_domain.ThreadUpdated)) error {
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -122,14 +137,14 @@ func TestC3ThreadIntegration_CreateThread_RemainsIsolated(t *testing.T) {
 		},
 	}
 
-	createUC := thread_usecase.NewCreateThreadUsecase(repo, nil, govReader)
+	eventBus := &stubThreadEventBus{}
+	createUC := thread_usecase.NewCreateThreadUsecase(repo, eventBus, govReader)
 
-	th, err := createUC.Execute(context.Background(), &thread_dtos.CreateThreadRequest{
+	th, err := createUC.Execute(context.Background(), thread_dtos.CreateThreadRequest{
 		ChannelID: "ch_1",
 		Title:     "Financial Review",
 		Subtitle:  "Q3 Audit",
 		AssetType: "document",
-		CallerID:  "user_1",
 	})
 
 	require.NoError(t, err)

@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"path/filepath"
 	"net"
 	"os/exec"
+	"path/filepath"
 	// "encoding/base64"
 	"encoding/base64"
 	"encoding/hex"
@@ -48,16 +48,16 @@ import (
 	notification_center_ui "vault-app/internal/notification_center/ui"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
 	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
 	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
+	"vault-app/internal/registry"
 	share_entry_application_dto "vault-app/internal/share_entry/application"
 	share_entry_use_cases "vault-app/internal/share_entry/application/use_cases"
 	share_entry_domain "vault-app/internal/share_entry/domain"
 	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
 	sahre_entry_ui_wails "vault-app/internal/share_entry/ui/wails"
-	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
-	"vault-app/internal/registry"
 	shared_realtime "vault-app/internal/shared/realtime"
 	shared "vault-app/internal/shared/stellar"
 	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
@@ -85,10 +85,11 @@ import (
 	channel_domain "vault-app/internal/channel/domain"
 	channel_eventbus "vault-app/internal/channel/infrastructure/eventbus"
 	channel_ui "vault-app/internal/channel/ui"
+	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	"vault-app/internal/models"
-	thread_domain "vault-app/internal/thread/domain"
 	thread_usecase "vault-app/internal/thread/application/usecases"
+	thread_domain "vault-app/internal/thread/domain"
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
 	workspace_usecase "vault-app/internal/workspace/application/usecases"
@@ -203,7 +204,7 @@ func NewApp() *App {
 	// Initialize
 	// -----------------------------------
 	// Load .env deterministically: search from executable directory upward, then project root, then cwd
-	
+
 	// 1. Try executable directory and parents (works for .app bundle and go run)
 	execDir := filepath.Dir(os.Args[0])
 	for i := 0; i < 5; i++ {
@@ -616,7 +617,7 @@ func NewApp() *App {
 	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(tracecoreClient)
 	threadHandler := thread_ui.NewThreadHandler(createThreadUC, listThreadsUC, listThreadEventsUC, appendThreadEventUC)
 
-	collaborationHandler := collaboration_ui.NewCollaborationHandler(nil, appendThreadEventUC)
+	collaborationHandler := collaboration_ui.NewCollaborationHandler(nil, nil, appendThreadEventUC)
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -3222,15 +3223,26 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes)
 }
 
+func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, deviceID string) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, shareEntryID, deviceID)
+}
+
 // ConnectVault explicitly connects the local vault to Ankhora Cloud.
 // This is a first-class vault lifecycle operation, NOT a hidden side effect
 // of ListWorkspaces.
 //
 // The flow is:
-//   1. POST /api/identity/challenge (vault_id)
-//   2. Sign challenge payload locally with the vault's stellar signing key
-//   3. POST /api/identity/ (challenge_id + signature + vault_id + public_key)
-//   4. Cloud creates/ensures identity_vaults and user_vault_identities delegation.
+//  1. POST /api/identity/challenge (vault_id)
+//  2. Sign challenge payload locally with the vault's stellar signing key
+//  3. POST /api/identity/ (challenge_id + signature + vault_id + public_key)
+//  4. Cloud creates/ensures identity_vaults and user_vault_identities delegation.
 func (a *App) ConnectVault(userID string, vaultID string) error {
 	log.Printf("[CLOUD-VAULT] CONNECT: started user=%s vault_id=%s", userID, vaultID)
 
@@ -3310,4 +3322,3 @@ func (a *App) ConnectVault(userID string, vaultID string) error {
 		regResp.Data.VaultID, regResp.Data.DelegationID, regResp.Data.Status)
 	return nil
 }
-

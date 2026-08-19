@@ -386,13 +386,14 @@ type ChannelInvitationDTO struct {
 }
 
 type ThreadDTO struct {
-	ID        string    `json:"id"`
-	ChannelID string    `json:"channel_id"`
-	AssetType string    `json:"asset_type"`
-	Title     string    `json:"title"`
-	Subtitle  string    `json:"subtitle"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	ChannelID   string    `json:"channel_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AssetType   string    `json:"asset_type"`
+	Title       string    `json:"title"`
+	Subtitle    string    `json:"subtitle"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type ThreadEventDTO struct {

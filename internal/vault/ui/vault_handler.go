@@ -167,6 +167,9 @@ func (vh *VaultHandler) HasSession() bool {
 }
 
 func (vh *VaultHandler) GetSession(userID string) (*vault_session.Session, error) {
+	if vh.SessionManager == nil {
+		return nil, fmt.Errorf("session manager is nil")
+	}
 	return vh.SessionManager.GetSession(userID)
 }
 
@@ -1660,32 +1663,53 @@ func (vh *VaultHandler) HandleShareCreated(
 	vault vaults_domain.Vault,
 	appConfigs app_config_domain.Config,
 ) error {
-	session, err := vh.GetSession(shareEvent.OwnerID)
-	if err != nil {
-		return err
-	}
-
-	vp, err := vault_session.DecodeSessionVault(session.Vault)
-	if err != nil {
-		return err
+	var vp *vaults_domain.VaultPayload
+	if vh.GetVaultSessionFunc != nil {
+		var err error
+		vp, err = vh.GetVaultSessionFunc(shareEvent.OwnerID)
+		if err != nil {
+			return err
+		}
+	} else {
+		session, err := vh.GetSession(shareEvent.OwnerID)
+		if err != nil || session == nil {
+			return nil
+		}
+		var err2 error
+		vp, err2 = vault_session.DecodeSessionVault(session.Vault)
+		if err2 != nil {
+			return err2
+		}
 	}
 
 	for _, att := range shareEvent.Attachements {
 		vp.UpdateAttachment(att)
 	}
 
-	vh.SessionManager.SetVault(shareEvent.OwnerID, vp)
+	if len(shareEvent.CIDs) > 0 && len(shareEvent.AttachementIDs) > 0 {
+		for i, note := range vp.Entries.Note {
+			if note.OnShareCreated(shareEvent.CIDs, shareEvent.AttachementIDs) {
+				for j, att := range note.Attachments {
+					if att.ID == shareEvent.AttachementIDs[0] {
+						vp.Entries.Note[i].Attachments[j].Hash = shareEvent.CIDs[0]
+					}
+				}
+			}
+		}
+	}
 
+	if vh.SessionManager != nil {
+		_, err := vh.CommitAttachments(vault_dto.SynchronizeAttachmentRequest{
+			UserID:         shareEvent.OwnerID,
+			Password:       "password",
+			Vault:          vault,
+			UserIdentity:   identityUser,
+			UserOnboarding: appConfigs.Onboarding.UserID,
+			Configs:        appConfigs,
+			PrivateKey:     appConfigs.User.StellarAccount.PrivateKey,
+		})
+		return err
+	}
 
-	_, err = vh.CommitAttachments(vault_dto.SynchronizeAttachmentRequest{
-		UserID: shareEvent.OwnerID,
-		Password: "password",
-		Vault: vault,
-		UserIdentity: identityUser,
-		UserOnboarding: appConfigs.Onboarding.UserID,
-		Configs: appConfigs,
-		PrivateKey: appConfigs.User.StellarAccount.PrivateKey,
-	})
-
-	return err
+	return nil
 }

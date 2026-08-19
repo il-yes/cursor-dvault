@@ -136,11 +136,17 @@ func (c *TracecoreClient) ListThreadEvents(ctx context.Context, req *thread_doma
 }
 
 func (c *TracecoreClient) AppendThreadEvent(ctx context.Context, req *thread_domain.AppendThreadEventRequest) (*tracecore_types.CloudResponse[thread_domain.ThreadEvent], error) {
+	idempotencyKey := req.IdempotencyKey
+	if idempotencyKey == "" {
+		idempotencyKey = uuid.NewString()
+	}
+
 	evt := thread_domain.ThreadEvent{
 		ID:             uuid.NewString(),
 		ThreadID:       req.ThreadID,
 		Type:           thread_domain.ThreadEventType(req.EventType),
-		IdempotencyKey: uuid.NewString(),
+		Payload:        req.Payload,
+		IdempotencyKey: idempotencyKey,
 		Cursor:         1,
 		CreatedAt:      time.Now(),
 	}

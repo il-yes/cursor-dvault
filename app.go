@@ -87,6 +87,7 @@ import (
 	channel_ui "vault-app/internal/channel/ui"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	"vault-app/internal/models"
+	thread_domain "vault-app/internal/thread/domain"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
@@ -609,7 +610,7 @@ func NewApp() *App {
 	channelHandler := channel_ui.NewChannelHandler(createChannelUC, listChannelUC, getChannelUC, updateChannelUC, deleteChannelUC, activateChannelUC, revokeChannelUC, addParticipantUC, listParticipantsUC, inviteToChannelUC, acceptInvitationUC)
 
 	threadBus := thread_infrastructure_eventbus.NewMemoryBus()
-	createThreadUC := thread_usecase.NewCreateThreadUsecase(tracecoreClient, threadBus)
+	createThreadUC := thread_usecase.NewCreateThreadUsecase(tracecoreClient, threadBus, tracecoreClient)
 	listThreadsUC := thread_usecase.NewListThreadsUsecase(tracecoreClient)
 	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(tracecoreClient)
 	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(tracecoreClient)
@@ -3200,17 +3201,14 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	var payload map[string]interface{}
+	var ref thread_domain.EventResourceRef
 	if payloadJson != "" {
-		_ = json.Unmarshal([]byte(payloadJson), &payload)
-	}
-	if payload == nil {
-		payload = make(map[string]interface{})
+		_ = json.Unmarshal([]byte(payloadJson), &ref)
 	}
 	if a.ThreadHandler == nil {
 		return nil, fmt.Errorf("thread handler is not initialized")
 	}
-	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, payload)
+	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, ref)
 }
 
 func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string) (*tracecore_types.ShareEntryRefDTO, error) {
@@ -3300,6 +3298,10 @@ func (a *App) ConnectVault(userID string, vaultID string) error {
 
 	regResp, err := a.Vault.TracecoreClient.RegisterVaultIdentity(context.Background(), regReq)
 	if err != nil {
+		if errors.Is(err, tracecore.ErrDelegationAlreadyExists) {
+			log.Printf("[CLOUD-VAULT] REGISTER: DELEGATION_ALREADY_ACTIVE vault_id=%s (reusing existing active delegation)", vaultID)
+			return nil
+		}
 		log.Printf("[CLOUD-VAULT] REGISTER: FAILED status=ERROR error=%v", err)
 		return fmt.Errorf("vault identity registration failed: %w", err)
 	}

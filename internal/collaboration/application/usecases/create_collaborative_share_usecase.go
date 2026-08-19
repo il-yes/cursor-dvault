@@ -30,9 +30,6 @@ func (u *CreateCollaborativeShareUseCase) ValidateDependencies() error {
 	if u.shareAssetUseCase == nil {
 		return errors.New("share asset use case is required")
 	}
-	if u.addEnvelopeUseCase == nil {
-		return errors.New("add envelope use case is required")
-	}
 	return nil
 }
 
@@ -81,20 +78,22 @@ func (u *CreateCollaborativeShareUseCase) Execute(
 
 	// 2. Attach device key envelopes to TrustGroup
 	attachedEnvelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0, len(req.Envelopes))
-	for _, envReq := range req.Envelopes {
-		// Ensure KEKVersion and TrustGroupID are populated from the request
-		if envReq.TrustGroupID == "" {
-			envReq.TrustGroupID = req.TrustGroupID
-		}
-		if envReq.KEKVersion == 0 {
-			envReq.KEKVersion = req.KEKVersion
-		}
+	if u.addEnvelopeUseCase != nil {
+		for _, envReq := range req.Envelopes {
+			// Ensure KEKVersion and TrustGroupID are populated from the request
+			if envReq.TrustGroupID == "" {
+				envReq.TrustGroupID = req.TrustGroupID
+			}
+			if envReq.KEKVersion == 0 {
+				envReq.KEKVersion = req.KEKVersion
+			}
 
-		_, err := u.addEnvelopeUseCase.Execute(ctx, envReq)
-		if err != nil {
-			return nil, fmt.Errorf("failed to attach key envelope for device %s: %w", envReq.DeviceID, err)
+			_, err := u.addEnvelopeUseCase.Execute(ctx, envReq)
+			if err != nil {
+				return nil, fmt.Errorf("failed to attach key envelope for device %s: %w", envReq.DeviceID, err)
+			}
+			attachedEnvelopes = append(attachedEnvelopes, envReq)
 		}
-		attachedEnvelopes = append(attachedEnvelopes, envReq)
 	}
 
 	return &collaboration_dtos.CreateCollaborativeShareResponse{

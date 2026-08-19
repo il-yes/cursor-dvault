@@ -100,15 +100,17 @@ func NewShareEntry(
 // Recipient
 // -----------------------
 type Recipient struct {
-	ID        string    `json:"id"`
-	ShareID   string    `json:"share_id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	PublicKey string    `json:"public_key"`
-	Role      string    `json:"role"`
-	JoinedAt  time.Time `json:"joined_at"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	ShareID       string    `json:"share_id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	PublicKey     string    `json:"public_key"`
+	Role          string    `json:"role"`
+	TrustGroupID  string    `json:"trust_group_id,omitempty"`
+	RecipientType string    `json:"recipient_type,omitempty"` // "user" or "trust_group"
+	JoinedAt      time.Time `json:"joined_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 	// Blob containing encrypted vault snapshot (optional)
 	EncryptedBlob []byte    `json:"encrypted_blob"`
 	RevokedAt     time.Time `json:"revoked_at"`

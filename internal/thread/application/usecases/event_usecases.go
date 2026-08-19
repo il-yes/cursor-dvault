@@ -52,7 +52,8 @@ func (uc *AppendThreadEventUsecase) Execute(
 	ctx context.Context,
 	threadID string,
 	eventType string,
-	payload map[string]interface{},
+	payload thread_domain.EventResourceRef,
+	idempotencyKey ...string,
 ) (*thread_domain.ThreadEvent, error) {
 	if uc.Repo == nil {
 		return nil, errors.New("repository is required")
@@ -64,10 +65,18 @@ func (uc *AppendThreadEventUsecase) Execute(
 		return nil, errors.New("event type is required")
 	}
 
+	key := ""
+	if len(idempotencyKey) > 0 && idempotencyKey[0] != "" {
+		key = idempotencyKey[0]
+	} else if payload.RefType == thread_domain.ResourceShareEntry && payload.ShareEntryID != "" {
+		key = "evt_share_" + payload.ShareEntryID
+	}
+
 	resp, err := uc.Repo.AppendThreadEvent(ctx, &thread_domain.AppendThreadEventRequest{
-		ThreadID:  threadID,
-		EventType: eventType,
-		Payload:   payload,
+		ThreadID:       threadID,
+		EventType:      eventType,
+		Payload:        payload,
+		IdempotencyKey: key,
 	})
 	if err != nil {
 		return nil, err

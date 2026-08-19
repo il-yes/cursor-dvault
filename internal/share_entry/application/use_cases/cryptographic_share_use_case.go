@@ -207,28 +207,52 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// ---------------------------------------------------------
 	encryptedKeys := make(map[string]string)
 	recipients := make(map[string]tracecore.CryptoRecipient, 0)
+	var primaryTrustGroupID string
 
 	for _, rid := range share.Recipients {
 		var str string
-		if rid.PublicKey != "" {
-			encKey, err :=
-				crypto.EncryptPayload(
-					rid.PublicKey,
-					symKey,
-				)
 
-			if err != nil {
-				return nil, nil, err
+		if rid.RecipientType == "trust_group" || rid.TrustGroupID != "" {
+			// TrustGroup mode: use TrustGroup ID as target key
+			targetKey := rid.TrustGroupID
+			if targetKey == "" {
+				targetKey = rid.Email // Fallback if passed in Email field
+			}
+			primaryTrustGroupID = targetKey
+
+			if rid.PublicKey != "" {
+				encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to encrypt key for trust group: %w", err)
+				}
+				str = encKey.ToString()
 			}
 
-			str = encKey.ToString()
-		}
-		encryptedKeys[rid.Email] = str
+			encryptedKeys[targetKey] = str
+			recipients[targetKey] = tracecore.CryptoRecipient{
+				ID:            rid.ID,
+				EncryptedKeys: str,
+				Role:          rid.Role,
+				TrustGroupID:  targetKey,
+				RecipientType: "trust_group",
+			}
+		} else {
+			// Personal User mode: existing user recipient logic
+			if rid.PublicKey != "" {
+				encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
+				if err != nil {
+					return nil, nil, err
+				}
+				str = encKey.ToString()
+			}
+			encryptedKeys[rid.Email] = str
 
-		recipients[rid.Email] = tracecore.CryptoRecipient{
-			ID:            rid.ID,
-			EncryptedKeys: str,
-			Role:          rid.Role,
+			recipients[rid.Email] = tracecore.CryptoRecipient{
+				ID:            rid.ID,
+				EncryptedKeys: str,
+				Role:          rid.Role,
+				RecipientType: "user",
+			}
 		}
 	}
 	// ---------------------------------------------------------
@@ -250,15 +274,16 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	// 5. Return request
 	// ---------------------------------------------------------
 	return &tracecore.ProdCreateCryptoShareRequest{
-			SenderID:      share.OwnerID,
-			SenderEmail:   email,
-			Recipients:    recipients,
-			VaultPayload:  base64.StdEncoding.EncodeToString(encryptedPayload),
-			EncryptedKeys: encryptedKeys,
-			Title:         share.EntryName,
-			EntryType:     share.EntryType,
-			AccessMode:    share.AccessMode,
-			ExpiresAt:     share.ExpiresAt,
+			SenderID:        share.OwnerID,
+			SenderEmail:     email,
+			Recipients:      recipients,
+			VaultPayload:    base64.StdEncoding.EncodeToString(encryptedPayload),
+			EncryptedKeys:   encryptedKeys,
+			TrustGroupID:    primaryTrustGroupID,
+			Title:           share.EntryName,
+			EntryType:       share.EntryType,
+			AccessMode:      share.AccessMode,
+			ExpiresAt:       share.ExpiresAt,
 			PublicKey:       userCfg.StellarAccount.PublicKey,
 			Signature:       signature,
 			Message:         message,

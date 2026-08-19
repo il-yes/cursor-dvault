@@ -107,7 +107,7 @@ func (h *ThreadHandler) AppendThreadEvent(
 	userID string,
 	threadID string,
 	eventType string,
-	payload map[string]interface{},
+	payload thread_domain.EventResourceRef,
 ) (*tracecore_types.ThreadEventDTO, error) {
 	if h.appendEventUseCase == nil {
 		return nil, fmt.Errorf("append thread event use case is not initialized")
@@ -126,13 +126,14 @@ func toTracecoreThreadDTO(th *thread_domain.Thread) *tracecore_types.ThreadDTO {
 		return nil
 	}
 	return &tracecore_types.ThreadDTO{
-		ID:        th.ID,
-		ChannelID: th.ChannelID,
-		AssetType: th.AssetType,
-		Title:     th.Title,
-		Subtitle:  th.Subtitle,
-		Status:    string(th.Status),
-		CreatedAt: th.CreatedAt,
+		ID:          th.ID,
+		ChannelID:   th.ChannelID,
+		WorkspaceID: th.WorkspaceID,
+		AssetType:   th.AssetType,
+		Title:       th.Title,
+		Subtitle:    th.Subtitle,
+		Status:      string(th.Status),
+		CreatedAt:   th.CreatedAt,
 	}
 }
 
@@ -141,12 +142,19 @@ func toTracecoreThreadEventDTO(evt *thread_domain.ThreadEvent) *tracecore_types.
 		return nil
 	}
 	var payloadMap map[string]any
-	if evt.Payload.CID != "" || evt.Payload.Type != "" {
+	if evt.Payload.RefType == thread_domain.ResourceShareEntry {
 		payloadMap = map[string]any{
+			"ref_type":       string(evt.Payload.RefType),
+			"share_entry_id": evt.Payload.ShareEntryID,
+			"trust_group_id": evt.Payload.TrustGroupID,
+		}
+	} else if evt.Payload.CID != "" || evt.Payload.AssetType != "" || evt.Payload.RefType == thread_domain.ResourceStorageAsset {
+		payloadMap = map[string]any{
+			"ref_type":     string(evt.Payload.RefType),
 			"cid":          evt.Payload.CID,
 			"content_hash": evt.Payload.ContentHash,
 			"size":         evt.Payload.Size,
-			"type":         evt.Payload.Type,
+			"asset_type":   evt.Payload.AssetType,
 		}
 	}
 

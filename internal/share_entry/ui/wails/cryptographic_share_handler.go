@@ -87,11 +87,12 @@ func (vh *CryptographicShareHandler) CreateShareEntry(
 	recips := make([]share_entry_domain.Recipient, 0, len(payload.Recipients))
 	for _, r := range payload.Recipients {
 		recips = append(recips, share_entry_domain.Recipient{
-			Name:      r.Name,
-			Email:     r.Email,
-			Role:      r.Role,
-			PublicKey: r.PublicKey,
-			// IDs are assigned by DB
+			Name:          r.Name,
+			Email:         r.Email,
+			Role:          r.Role,
+			PublicKey:     r.PublicKey,
+			TrustGroupID:  r.TrustGroupID,
+			RecipientType: r.Type,
 		})
 	}
 	share.Recipients = recips

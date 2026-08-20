@@ -27,28 +27,23 @@ export const C3GlobalStyles = () => <Global styles={C3BaseStyles} />;
 
 const ChannelPage = () => {
     const { channelId } = useParams();
-    const [channel, setChannel] = useState<ChannelView | null>(null);
     const [selectedAsset, setSelectedAsset] = useState<ThreadAssetViewInterface | null>(null);
     const [activating, setActivating] = useState(false);
     const [activateError, setActivateError] = useState<string | null>(null);
     const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
     const [revoking, setRevoking] = useState(false);
     const [revokeError, setRevokeError] = useState<string | null>(null);
-    const { channels, selectChannel, activateChannel: activateStoreChannel, revokeChannel: revokeStoreChannel } = useC3ChannelStore();
+    const { activeChannel, activeChannelId, selectChannel, activateChannel: activateStoreChannel, revokeChannel: revokeStoreChannel } = useC3ChannelStore();
     const threads = useC3ThreadStore((state) => state.threads);
 
     useEffect(() => {
-        console.log("[THREAD LIST] ChannelPage channelId =", channelId);
-        if (channelId) {
+        if (channelId && activeChannelId !== channelId) {
             selectChannel(channelId);
         }
-        const found = channels.find((c) => c.id === channelId);
-        if (found) {
-            setChannel(toChannelView(found, threads));
-        } else {
-            setChannel(null);
-        }
-    }, [channelId, channels, selectChannel, threads]);
+    }, [channelId, activeChannelId, selectChannel]);
+
+    // Pure derived view — zero local state duplication, zero synchronization lag
+    const channel = activeChannel ? toChannelView(activeChannel, threads) : null;
 
     const handleActivate = async () => {
         if (!channel || activating) return;
@@ -56,8 +51,7 @@ const ChannelPage = () => {
         setActivating(true);
         setActivateError(null);
         try {
-            const updated = await activateStoreChannel(channel.id);
-            setChannel(toChannelView(updated, threads));
+            await activateStoreChannel(channel.id);
         } catch (err: any) {
             console.error("Failed to activate channel:", err);
             setActivateError(err?.message || "Activation failed.");

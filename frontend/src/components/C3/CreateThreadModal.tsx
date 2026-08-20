@@ -61,18 +61,15 @@ export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 		setIsLoading(true);
 
 		try {
-			console.log("[BOUNDARY_LOG] CREATE THREAD CALLING", { channel_id: activeChannelId, title: trimmedTitle });
 			const createdThread = await createThread({
 				channel_id: activeChannelId,
 				title: trimmedTitle,
 				subtitle: subtitle.trim(),
 				asset_type: assetType,
 			});
-			console.log("[BOUNDARY_LOG] CREATE THREAD RETURNED", createdThread);
 
 			handleReset();
 			if (onThreadCreated) {
-				console.log("[BOUNDARY_LOG] CALLING addThread (via onThreadCreated)", createdThread);
 				onThreadCreated(createdThread);
 			}
 			onClose();

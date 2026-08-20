@@ -145,6 +145,12 @@ export const toThreadAssetItem = (thread: { id: string; channel_id: string; titl
 export const toChannelView = (channel: ChannelResponse, threads: { id: string; channel_id: string; title: string; subtitle?: string; asset_type?: string; status?: string; created_at?: string }[] = []): ChannelView => {
     const lastActivity = formatDate(channel.updated_at || channel.created_at);
     const mappedItems = threads.map(toThreadAssetItem);
+    console.log("[BOUNDARY LOG 3: TO_CHANNEL_VIEW MAPPER]", {
+        channelId: channel?.id,
+        inputThreadsCount: threads.length,
+        outputItemsCount: mappedItems.length,
+        outputItemIDs: mappedItems.map((i) => i.id),
+    });
 
     return {
         id: channel.id,

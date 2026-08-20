@@ -96,11 +96,12 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 		// channel-scoped participant/invitation state is preserved so that
 		// in-flight panel fetches are not dropped by the stale-response guard.
 		const previousWorkspaceId = get().activeWorkspaceId;
+		const currentActiveId = get().activeChannelId;
 		set({
 			activeWorkspaceId: workspaceId,
 			channels: [],
-			activeChannel: null,
-			activeChannelId: null,
+			activeChannel: previousWorkspaceId === workspaceId ? get().activeChannel : null,
+			activeChannelId: previousWorkspaceId === workspaceId ? currentActiveId : currentActiveId,
 			isLoading: true,
 			error: null,
 			...(previousWorkspaceId !== workspaceId
@@ -119,11 +120,15 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 			const fetched = await listChannels(workspaceId);
 			if (get().activeWorkspaceId !== workspaceId) return;
 
-			const active = fetched.length > 0 ? fetched[0] : null;
+			const targetActiveId = get().activeChannelId || currentActiveId;
+			const active =
+				fetched.find((c) => c.id === targetActiveId) ??
+				(fetched.length > 0 ? fetched[0] : null);
+
 			set({
 				channels: fetched,
 				activeChannel: active,
-				activeChannelId: active ? active.id : null,
+				activeChannelId: active ? active.id : targetActiveId,
 				isLoading: false,
 				error: null,
 			});

@@ -304,3 +304,9 @@ Every engineering decision should answer:
 "Does this make Ankhora more trustworthy, more understandable, and more sustainable?"
 
 If the answer is no, reconsider the decision.
+
+An agent may not propose a fix while an observable configuration/runtime value can falsify its hypothesis.
+
+And an even stronger one:
+
+Every root-cause claim must identify the first broken boundary and provide executable evidence for it.

@@ -987,6 +987,33 @@ export namespace channel_domain {
 
 }
 
+export namespace collaboration_dtos {
+	
+	export class ResolveCollaborativeShareResponse {
+	    share_entry_id: string;
+	    trust_group_id: string;
+	    created_by: string;
+	    created_at: string;
+	    metadata: Record<string, string>;
+	    plaintext: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolveCollaborativeShareResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.share_entry_id = source["share_entry_id"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.created_by = source["created_by"];
+	        this.created_at = source["created_at"];
+	        this.metadata = source["metadata"];
+	        this.plaintext = source["plaintext"];
+	    }
+	}
+
+}
+
 export namespace handlers {
 	
 	export class LoginRequest {

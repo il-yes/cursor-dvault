@@ -3,6 +3,7 @@ package thread_ui
 import (
 	"context"
 	"fmt"
+	"log"
 
 	thread_dtos "vault-app/internal/thread/application/dtos"
 	thread_usecase "vault-app/internal/thread/application/usecases"
@@ -44,10 +45,11 @@ func (h *ThreadHandler) CreateThread(
 	}
 
 	req := thread_dtos.CreateThreadRequest{
-		ChannelID: channelID,
-		AssetType: assetType,
-		Title:     title,
-		Subtitle:  subtitle,
+		ChannelID:  channelID,
+		IdentityID: userID,
+		AssetType:  assetType,
+		Title:      title,
+		Subtitle:   subtitle,
 	}
 
 	th, err := h.createUseCase.Execute(ctx, req)
@@ -63,6 +65,7 @@ func (h *ThreadHandler) ListThreads(
 	userID string,
 	channelID string,
 ) ([]tracecore_types.ThreadDTO, error) {
+	log.Printf("[THREAD LIST HANDLER] userID=%s channelID=%s", userID, channelID)
 	if h.listUseCase == nil {
 		return nil, fmt.Errorf("list thread use case is not initialized")
 	}
@@ -77,6 +80,7 @@ func (h *ThreadHandler) ListThreads(
 		res = append(res, *toTracecoreThreadDTO(&th))
 	}
 
+	log.Printf("[THREAD LIST HANDLER RETURN] count=%d", len(res))
 	return res, nil
 }
 

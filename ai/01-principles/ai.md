@@ -344,3 +344,43 @@ AI is an amplifier of engineering thinking.
 The best use of AI is not creating more code.
 
 It is creating better decisions.
+
+
+## Runtime Reality Principle
+
+The agent MUST distinguish between:
+
+1. Static correctness
+2. Local test correctness
+3. Integration correctness
+4. Runtime correctness
+
+A passing unit test does not establish runtime correctness.
+
+Before asserting a runtime-dependent fact, the agent MUST trace
+the value to its source.
+
+Examples:
+
+- URL → configuration → environment → constructed URL
+- Token → session → restoration → HTTP header
+- ID → UI event → Wails → use case → repository → HTTP payload
+- Response → raw HTTP body → DTO → Wails → frontend state
+- DB result → repository → mapper → domain → HTTP response
+
+The agent MUST NOT infer runtime values from variable names,
+function names, or conventions when the actual source is available.
+
+When a claim depends on configuration, inspect the configuration.
+
+When a claim depends on an HTTP route, inspect route registration.
+
+When a claim depends on an HTTP URL, print/verify the constructed URL.
+
+When a claim depends on an ID, trace the actual ID.
+
+When a claim depends on persistence, query the database.
+
+When a claim depends on a response, inspect the raw response.
+
+Assertions must be backed by observable evidence.

@@ -3,6 +3,7 @@ package thread_usecase
 import (
 	"context"
 	"errors"
+	"log"
 
 	thread_domain "vault-app/internal/thread/domain"
 )
@@ -18,6 +19,7 @@ func NewListThreadsUsecase(repo thread_domain.ThreadRepository) *ListThreadsUsec
 }
 
 func (uc *ListThreadsUsecase) Execute(ctx context.Context, channelID string) ([]thread_domain.Thread, error) {
+	log.Printf("[THREAD LIST USECASE] channelID=%s", channelID)
 	if uc.Repo == nil {
 		return nil, errors.New("repository is required")
 	}
@@ -35,5 +37,6 @@ func (uc *ListThreadsUsecase) Execute(ctx context.Context, channelID string) ([]
 		return []thread_domain.Thread{}, nil
 	}
 
+	log.Printf("[THREAD LIST USECASE RETURN] count=%d", len(resp.Data))
 	return resp.Data, nil
 }

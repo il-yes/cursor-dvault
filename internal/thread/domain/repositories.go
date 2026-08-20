@@ -8,7 +8,8 @@ import (
 
 
 type CreateThreadRequest struct {
-	Thread Thread
+	Thread     Thread
+	IdentityID string
 }
 
 type ListThreadsRequest struct {

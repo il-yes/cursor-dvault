@@ -24,6 +24,7 @@ import {app_config_worker} from '../models';
 import {billing_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {notification_center_domain} from '../models';
+import {collaboration_dtos} from '../models';
 import {tracecore} from '../models';
 
 export function AcceptChannelInvitation(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
@@ -221,6 +222,8 @@ export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
+
+export function ResolveCollaborativeShare(arg1:string,arg2:string,arg3:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
 
 export function RestoreCloudTokenForUser(arg1:string):Promise<void>;
 

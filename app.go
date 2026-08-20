@@ -1589,12 +1589,6 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	fmt.Println("userID", claims.UserID)
 
-	// 0. Get user vault ==============================
-	// vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	// 1. Access encrypted entry ==============================
 	entry.IPAddress = GetLocalIP()
 	res, err := a.Vault.AccessEncryptedEntry(a.ctx, claims.UserID, entry, a.Vault.TracecoreClient)
@@ -3169,16 +3163,33 @@ func (a *App) CreateThread(JwtToken string, channelID string, title string, subt
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ThreadHandler == nil {
 		return nil, fmt.Errorf("thread handler is not initialized")
 	}
-	return a.ThreadHandler.CreateThread(a.ctx, claims.UserID, channelID, title, subtitle, assetType)
+
+	var vaultID string
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(claims.UserID); err == nil && session != nil && session.Runtime != nil {
+			vaultID = session.Runtime.VaultID
+		}
+	}
+	if vaultID == "" {
+		vaultID = claims.UserID
+	}
+	return a.ThreadHandler.CreateThread(a.ctx, vaultID, channelID, title, subtitle, assetType)
 }
 
 func (a *App) ListThreads(JwtToken string, channelID string) ([]tracecore_types.ThreadDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	log.Printf("[THREAD LIST APP] JwtToken present=%v userID=%s channelID=%s", JwtToken != "", claims.UserID, channelID)
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	if a.ThreadHandler == nil {
 		return nil, fmt.Errorf("thread handler is not initialized")
@@ -3191,6 +3202,9 @@ func (a *App) ListThreadEvents(JwtToken string, threadID string) ([]tracecore_ty
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
+	}
 	if a.ThreadHandler == nil {
 		return nil, fmt.Errorf("thread handler is not initialized")
 	}
@@ -3201,6 +3215,9 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RestoreCloudTokenForUser(claims.UserID); err != nil {
+		return nil, fmt.Errorf("failed to restore Cloud token: %w", err)
 	}
 	var ref thread_domain.EventResourceRef
 	if payloadJson != "" {

@@ -1,5 +1,6 @@
 import React from "react";
 import { ThreadEventResponse } from "@/services/api";
+import { C3ResourceCard } from "./C3ResourceCard";
 
 interface ThreadEventTimelineProps {
 	events: ThreadEventResponse[];
@@ -255,7 +256,7 @@ export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 											);
 										})()}
 
-										{/* Safe ShareEntry Collaboration Reference Card */}
+										{/* Safe ShareEntry Collaboration Reference Card with Interactive Open Action */}
 										{(evt.payload.share_entry_ref || evt.share_entry_ref || evt.payload.share_entry_id) && (() => {
 											const shareRef = evt.payload.share_entry_ref || evt.share_entry_ref || {
 												share_entry_id: evt.payload.share_entry_id,
@@ -266,46 +267,14 @@ export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 											};
 
 											return (
-												<div
-													style={{
-														marginTop: "4px",
-														padding: "8px",
-														backgroundColor: "rgba(16, 185, 129, 0.08)",
-														border: "1px solid rgba(16, 185, 129, 0.2)",
-														borderRadius: "4px",
-														display: "flex",
-														flexDirection: "column",
-														gap: "4px",
-														fontSize: "11px",
-													}}
-												>
-													<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-														<strong style={{ color: "#34D399" }}>
-															🤝 ShareEntry: {shareRef.share_entry_id || "Collaborative Share"}
-														</strong>
-														<span style={{
-															color: "#10B981",
-															fontSize: "10px",
-															fontWeight: 600,
-															textTransform: "uppercase",
-															padding: "1px 6px",
-															backgroundColor: "rgba(16, 185, 129, 0.15)",
-															borderRadius: "4px",
-														}}>
-															{shareRef.status || "active"}
-														</span>
-													</div>
-													{shareRef.trust_group_id && (
-														<div style={{ color: "#C9D1D9" }}>
-															<span style={{ color: "#8B949E" }}>TrustGroup:</span> {shareRef.trust_group_id}
-														</div>
-													)}
-													{shareRef.asset_cid && (
-														<div style={{ fontFamily: "monospace", color: "#8B949E", wordBreak: "break-all", fontSize: "10px" }}>
-															Asset CID: {shareRef.asset_cid}
-														</div>
-													)}
-												</div>
+												<C3ResourceCard
+													refType={evt.payload.ref_type || "share_entry"}
+													shareEntryId={shareRef.share_entry_id}
+													trustGroupId={shareRef.trust_group_id}
+													cid={shareRef.asset_cid}
+													author={shareRef.created_by}
+													createdAt={evt.created_at}
+												/>
 											);
 										})()}
 

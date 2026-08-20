@@ -386,3 +386,106 @@ func TestThreadDTO_MapsAllFields(t *testing.T) {
 	assert.Equal(t, "open", dto.Status)
 	assert.True(t, dto.CreatedAt.Equal(now))
 }
+
+// ---------------------------------------------------------------------------
+// Test that empty subtitle (optional) succeeds end-to-end:
+//   use case → repo.CreateThread → domain event → DTO mapping
+// ---------------------------------------------------------------------------
+
+func TestCreateThread_EmptySubtitle_SucceedsAndPersists(t *testing.T) {
+	repo := &stubThreadRepo{}
+	bus := &stubThreadEventBus{}
+	reader := &stubChannelReader{
+		channels: map[string]*channel_domain.Channel{
+			"ch_opt": {
+				ID:          "ch_opt",
+				Status:      channel_domain.StatusActive,
+				WorkspaceID: "ws_opt",
+			},
+		},
+	}
+
+	uc := thread_usecase.NewCreateThreadUsecase(repo, bus, reader)
+
+	req := thread_dtos.CreateThreadRequest{
+		ChannelID: "ch_opt",
+		AssetType: "note",
+		Title:     "Minimal Thread",
+		Subtitle:  "", // empty — the form marks subtitle as optional
+	}
+
+	result, err := uc.Execute(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// 1. Domain aggregate persisted via repo
+	assert.Equal(t, "ch_opt", result.ChannelID)
+	assert.Equal(t, "ws_opt", result.WorkspaceID)
+	assert.Equal(t, "Minimal Thread", result.Title)
+	assert.Equal(t, "", result.Subtitle)
+	assert.Equal(t, thread_domain.ThreadOpen, result.Status)
+	assert.NotEmpty(t, result.ID)
+	assert.True(t, result.CreatedAt.After(time.Time{}))
+
+	// 2. Repository actually received the thread
+	require.NotNil(t, repo.lastCreated)
+	assert.Equal(t, result.ID, repo.lastCreated.ID)
+	assert.Equal(t, "ch_opt", repo.lastCreated.ChannelID)
+
+	// 3. Domain event published
+	require.NotNil(t, bus.lastCreatedEvent)
+	assert.Equal(t, result.ID, bus.lastCreatedEvent.ThreadID)
+	assert.Equal(t, "ch_opt", bus.lastCreatedEvent.ChannelID)
+	assert.Equal(t, "ws_opt", bus.lastCreatedEvent.WorkspaceID)
+	assert.Equal(t, "note", bus.lastCreatedEvent.AssetType)
+
+	// 4. DTO mapping (mirrors thread_handler.toTracecoreThreadDTO)
+	dto := tracecore_types.ThreadDTO{
+		ID:          result.ID,
+		ChannelID:   result.ChannelID,
+		WorkspaceID: result.WorkspaceID,
+		AssetType:   result.AssetType,
+		Title:       result.Title,
+		Subtitle:    result.Subtitle,
+		Status:      string(result.Status),
+		CreatedAt:   result.CreatedAt,
+	}
+	assert.Equal(t, result.ID, dto.ID)
+	assert.Equal(t, "", dto.Subtitle)
+	assert.Equal(t, "open", dto.Status)
+}
+
+func TestCreateThread_EmptySubtitle_EventPublishedWithCorrectContext(t *testing.T) {
+	repo := &stubThreadRepo{}
+	bus := &stubThreadEventBus{}
+	reader := &stubChannelReader{
+		channels: map[string]*channel_domain.Channel{
+			"ch_evt2": {
+				ID:          "ch_evt2",
+				Status:      channel_domain.StatusActive,
+				WorkspaceID: "ws_evt2",
+			},
+		},
+	}
+
+	uc := thread_usecase.NewCreateThreadUsecase(repo, bus, reader)
+
+	req := thread_dtos.CreateThreadRequest{
+		ChannelID: "ch_evt2",
+		AssetType: "card",
+		Title:     "Payment Thread",
+		Subtitle:  "", // empty
+	}
+
+	_, err := uc.Execute(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, bus.lastCreatedEvent)
+
+	event := bus.lastCreatedEvent
+	assert.NotEmpty(t, event.EventID)
+	assert.NotEmpty(t, event.ThreadID)
+	assert.Equal(t, "ch_evt2", event.ChannelID)
+	assert.Equal(t, "ws_evt2", event.WorkspaceID)
+	assert.Equal(t, "card", event.AssetType)
+	assert.False(t, event.Timestamp.IsZero())
+}

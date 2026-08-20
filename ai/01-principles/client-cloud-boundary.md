@@ -146,3 +146,16 @@ Federated Distribution
 Remote Projection
 
 That's the platform architecture you've been trying to reach.
+
+
+
+
+Evidence Before Explanation
+
+An agent must never promote a hypothesis to a finding without runtime, test, configuration, or source-level evidence appropriate to the claim.
+
+In particular, configuration-derived values must always be traced to their actual configuration source before making assertions about their runtime value.
+
+Variable names are not evidence. Function names are not evidence. Passing compilation is not evidence. Passing unrelated tests is not evidence.
+
+When runtime behavior contradicts the agent's explanation, the explanation is considered invalid until disproven by new evidence.

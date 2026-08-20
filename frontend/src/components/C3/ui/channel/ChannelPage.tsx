@@ -12,6 +12,7 @@ import { ThreadAssetViewInterface } from "../../domain/thread/asset.types";
 import { ChannelView } from "../../domain/channel/channel.types";
 import { ThreadAssetSingleDrawer } from "../thread/ThreadAssetSingleDrawer";
 import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { useC3ThreadStore } from "../../infrastructure/store/useC3ThreadStore";
 import { toChannelView } from "../../domain/channel/channel.mapper";
 import { RevokeChannelConfirmModal } from "./RevokeChannelConfirmModal";
 import { ParticipantsPanel } from "./ParticipantsPanel";
@@ -34,16 +35,20 @@ const ChannelPage = () => {
     const [revoking, setRevoking] = useState(false);
     const [revokeError, setRevokeError] = useState<string | null>(null);
     const { channels, selectChannel, activateChannel: activateStoreChannel, revokeChannel: revokeStoreChannel } = useC3ChannelStore();
+    const threads = useC3ThreadStore((state) => state.threads);
 
     useEffect(() => {
+        console.log("[THREAD LIST] ChannelPage channelId =", channelId);
+        if (channelId) {
+            selectChannel(channelId);
+        }
         const found = channels.find((c) => c.id === channelId);
         if (found) {
-            setChannel(toChannelView(found));
-            selectChannel(found.id);
+            setChannel(toChannelView(found, threads));
         } else {
             setChannel(null);
         }
-    }, [channelId, channels, selectChannel]);
+    }, [channelId, channels, selectChannel, threads]);
 
     const handleActivate = async () => {
         if (!channel || activating) return;
@@ -52,7 +57,7 @@ const ChannelPage = () => {
         setActivateError(null);
         try {
             const updated = await activateStoreChannel(channel.id);
-            setChannel(toChannelView(updated));
+            setChannel(toChannelView(updated, threads));
         } catch (err: any) {
             console.error("Failed to activate channel:", err);
             setActivateError(err?.message || "Activation failed.");

@@ -394,6 +394,10 @@ export function RequireAuth(arg1) {
   return window['go']['main']['App']['RequireAuth'](arg1);
 }
 
+export function ResolveCollaborativeShare(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ResolveCollaborativeShare'](arg1, arg2, arg3);
+}
+
 export function RestoreCloudTokenForUser(arg1) {
   return window['go']['main']['App']['RestoreCloudTokenForUser'](arg1);
 }

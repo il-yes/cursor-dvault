@@ -131,8 +131,20 @@ export const toRowStatusView = (status: ChannelRow["status"]): StatusView => {
 };
 
 
-export const toChannelView = (channel: ChannelResponse): ChannelView => {
+export const toThreadAssetItem = (thread: { id: string; channel_id: string; title: string; subtitle?: string; asset_type?: string; status?: string; created_at?: string }): ThreadAssetViewInterface => ({
+    id: thread.id,
+    channelId: thread.channel_id,
+    title: thread.title,
+    subtitle: thread.subtitle || thread.asset_type || "thread",
+    type: thread.asset_type || "note",
+    status: (thread.status as ThreadAssetViewInterface["status"]) || "open",
+    createdAt: formatDate(thread.created_at),
+    lastEvent: "thread.created",
+});
+
+export const toChannelView = (channel: ChannelResponse, threads: { id: string; channel_id: string; title: string; subtitle?: string; asset_type?: string; status?: string; created_at?: string }[] = []): ChannelView => {
     const lastActivity = formatDate(channel.updated_at || channel.created_at);
+    const mappedItems = threads.map(toThreadAssetItem);
 
     return {
         id: channel.id,
@@ -141,8 +153,8 @@ export const toChannelView = (channel: ChannelResponse): ChannelView => {
         status: mapViewStatus(channel.status),
         participants: mapParticipants(channel.participants),
         assets: {
-            total: channel.asset_count ?? 0,
-            items: [],
+            total: mappedItems.length || channel.asset_count || 0,
+            items: mappedItems,
         },
         activity: {
             lastEvent: channel.last_event || "",

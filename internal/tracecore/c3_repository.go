@@ -2,6 +2,8 @@ package tracecore
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,44 +79,85 @@ func (c *TracecoreClient) ListWorkspace(ctx context.Context, req workspace_domai
 
 func (c *TracecoreClient) CreateThread(ctx context.Context, req *thread_domain.CreateThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {
 	th := req.Thread
-	if th.ID == "" {
-		th.ID = uuid.NewString()
+	dto, err := c.CreateThreadDirect(ctx, req.IdentityID, th.ChannelID, th.Title, th.Subtitle, th.AssetType)
+	if err != nil {
+		return nil, fmt.Errorf("cloud create thread failed: %w", err)
 	}
-	th.CreatedAt = time.Now()
+
+	createdAt := dto.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+
+	domainThread := thread_domain.Thread{
+		ID:          dto.ID,
+		ChannelID:   dto.ChannelID,
+		WorkspaceID: th.WorkspaceID,
+		AssetType:   dto.AssetType,
+		Title:       dto.Title,
+		Subtitle:    dto.Subtitle,
+		Status:      thread_domain.ThreadStatus(dto.Status),
+		CreatedAt:   createdAt,
+	}
 
 	return &tracecore_types.CloudResponse[thread_domain.Thread]{
 		Status:  200,
-		Data:    th,
+		Data:    domainThread,
 		Message: "success",
 		Success: true,
 	}, nil
 }
 
 func (c *TracecoreClient) ListThreads(ctx context.Context, req *thread_domain.ListThreadsRequest) (*tracecore_types.CloudResponse[[]thread_domain.Thread], error) {
-	now := time.Now()
-	th := thread_domain.NewThread(req.ChannelID, "vault_entry", "Default Thread", "Collaboration thread")
-	th.CreatedAt = now
+	log.Printf("[THREAD LIST REPO/TRACECORE] channelID=%s", req.ChannelID)
+	dtos, err := c.ListThreadsDirect(ctx, "me", req.ChannelID)
+	if err != nil {
+		return nil, fmt.Errorf("cloud list threads failed: %w", err)
+	}
+
+	result := make([]thread_domain.Thread, 0, len(dtos))
+	for _, dto := range dtos {
+		createdAt := dto.CreatedAt
+		if createdAt.IsZero() {
+			createdAt = time.Now()
+		}
+		result = append(result, thread_domain.Thread{
+			ID:        dto.ID,
+			ChannelID: dto.ChannelID,
+			AssetType: dto.AssetType,
+			Title:     dto.Title,
+			Subtitle:  dto.Subtitle,
+			Status:    thread_domain.ThreadStatus(dto.Status),
+			CreatedAt: createdAt,
+		})
+	}
 
 	return &tracecore_types.CloudResponse[[]thread_domain.Thread]{
 		Status:  200,
-		Data:    []thread_domain.Thread{th},
+		Data:    result,
 		Message: "success",
 		Success: true,
 	}, nil
 }
 
 func (c *TracecoreClient) GetThread(ctx context.Context, req *thread_domain.GetThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {
-	now := time.Now()
-	th := thread_domain.NewThread("ch_1", "vault_entry", "Default Thread", "Collaboration thread")
-	th.ID = req.ThreadID
-	th.CreatedAt = now
-
-	return &tracecore_types.CloudResponse[thread_domain.Thread]{
-		Status:  200,
-		Data:    th,
-		Message: "success",
-		Success: true,
-	}, nil
+	resp, err := c.ListThreads(ctx, &thread_domain.ListThreadsRequest{
+		ChannelID: "all",
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, th := range resp.Data {
+		if th.ID == req.ThreadID {
+			return &tracecore_types.CloudResponse[thread_domain.Thread]{
+				Status:  200,
+				Data:    th,
+				Message: "success",
+				Success: true,
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("thread not found: %s", req.ThreadID)
 }
 
 func (c *TracecoreClient) UpdateThread(ctx context.Context, req *thread_domain.UpdateThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {

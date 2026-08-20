@@ -61,28 +61,34 @@ export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 		setIsLoading(true);
 
 		try {
+			console.log("[BOUNDARY_LOG] CREATE THREAD CALLING", { channel_id: activeChannelId, title: trimmedTitle });
 			const createdThread = await createThread({
 				channel_id: activeChannelId,
 				title: trimmedTitle,
 				subtitle: subtitle.trim(),
 				asset_type: assetType,
 			});
+			console.log("[BOUNDARY_LOG] CREATE THREAD RETURNED", createdThread);
 
 			handleReset();
 			if (onThreadCreated) {
+				console.log("[BOUNDARY_LOG] CALLING addThread (via onThreadCreated)", createdThread);
 				onThreadCreated(createdThread);
 			}
 			onClose();
 		} catch (err: any) {
-			console.error("Failed to create thread:", err);
-			setError(err?.message || "An unexpected error occurred while creating the thread.");
+			console.error("[BOUNDARY_LOG] CREATE THREAD FAILED with error:", err);
+			const msg = typeof err === "string" ? err : err?.message || "An unexpected error occurred while creating the thread.";
+			setError(msg);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	const channelDisplayName = activeChannelTitle || "Contract Execution";
-	const channelSlug = channelDisplayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+	const channelDisplayName = activeChannelId ? (activeChannelTitle || "Selected Channel") : "No Active Channel Selected";
+	const channelSlug = activeChannelTitle
+		? activeChannelTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+		: "none";
 
 	return (
 		<>
@@ -96,9 +102,14 @@ export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 					<div className="sp-header">
 						<div className="sp-header-row">
 							<div>
-								<div className="sp-title">New Thread</div>
+								<div className="sp-title">
+									New Thread <span style={{ background: "#FF0055", color: "#FFF", padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: 700 }}>[RUNTIME-MARKER-ACTIVE]</span>
+								</div>
 								<div className="sp-subtitle">
 									Instantiate a channel into a new thread
+								</div>
+								<div style={{ background: "#1E293B", color: "#38BDF8", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", marginTop: "6px", fontFamily: "monospace" }}>
+									activeChannelId: {activeChannelId ? `"${activeChannelId}"` : "NULL (NOT SELECTED)"}
 								</div>
 							</div>
 							<div
@@ -115,8 +126,30 @@ export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 					{/* Form Body */}
 					<form onSubmit={handleSubmit} style={{ display: "contents" }}>
 						<div className="sp-body">
-							{/* Error Alert */}
-							{error && (
+							{/* Missing Channel Alert Banner */}
+							{!activeChannelId && (
+								<div
+									style={{
+										backgroundColor: "rgba(239, 68, 68, 0.08)",
+										border: "1px solid rgba(239, 68, 68, 0.3)",
+										borderRadius: "6px",
+										padding: "10px 12px",
+										color: "#DC2626",
+										fontSize: "13px",
+										display: "flex",
+										alignItems: "flex-start",
+										gap: "8px",
+									}}
+								>
+									<span>⚠️</span>
+									<div style={{ flex: 1 }}>
+										<strong>Channel Required:</strong> Please select an active channel from the workspace before creating a thread.
+									</div>
+								</div>
+							)}
+
+							{/* General Error Alert */}
+							{error && activeChannelId && (
 								<div
 									style={{
 										backgroundColor: "rgba(239, 68, 68, 0.08)",
@@ -266,10 +299,10 @@ export const ThreadSlidingView: React.FC<ThreadSlidingViewProps> = ({
 							<button
 								type="submit"
 								className="start-btn"
-								disabled={isLoading || !title.trim()}
+								disabled={isLoading || !title.trim() || !activeChannelId}
 								style={{
-									opacity: isLoading || !title.trim() ? 0.6 : 1,
-									cursor: isLoading || !title.trim() ? "not-allowed" : "pointer",
+									opacity: isLoading || !title.trim() || !activeChannelId ? 0.6 : 1,
+									cursor: isLoading || !title.trim() || !activeChannelId ? "not-allowed" : "pointer",
 								}}
 							>
 								{isLoading ? (

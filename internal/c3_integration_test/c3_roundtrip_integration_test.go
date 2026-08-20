@@ -129,9 +129,34 @@ func (r *roundTripRepo) UpdateThread(_ context.Context, req *thread_domain.Updat
 }
 func (r *roundTripRepo) ListThreadEvents(_ context.Context, req *thread_domain.ListThreadEventsRequest) (*tracecore_types.CloudResponse[[]thread_domain.ThreadEvent], error) {
 	evts := r.events[req.ThreadID]
-	return &tracecore_types.CloudResponse[[]thread_domain.ThreadEvent]{Data: evts}, nil
+	// Return a sorted copy by Cursor
+	sortedEvts := make([]thread_domain.ThreadEvent, len(evts))
+	copy(sortedEvts, evts)
+	for i := 0; i < len(sortedEvts); i++ {
+		for j := i + 1; j < len(sortedEvts); j++ {
+			if sortedEvts[i].Cursor > sortedEvts[j].Cursor {
+				sortedEvts[i], sortedEvts[j] = sortedEvts[j], sortedEvts[i]
+			}
+		}
+	}
+	return &tracecore_types.CloudResponse[[]thread_domain.ThreadEvent]{Data: sortedEvts}, nil
 }
 func (r *roundTripRepo) AppendThreadEvent(_ context.Context, req *thread_domain.AppendThreadEventRequest) (*tracecore_types.CloudResponse[thread_domain.ThreadEvent], error) {
+	th, ok := r.threads[req.ThreadID]
+	if !ok {
+		return nil, thread_domain.ErrThreadNotFound
+	}
+	if th.Status == thread_domain.ThreadClosed {
+		return nil, thread_domain.ErrThreadClosed
+	}
+	// Deduplicate by IdempotencyKey
+	if req.IdempotencyKey != "" {
+		for _, existing := range r.events[req.ThreadID] {
+			if existing.IdempotencyKey == req.IdempotencyKey {
+				return &tracecore_types.CloudResponse[thread_domain.ThreadEvent]{Data: existing}, nil
+			}
+		}
+	}
 	evt := thread_domain.ThreadEvent{
 		ID:             "evt_" + uuid.NewString()[:8],
 		ThreadID:       req.ThreadID,

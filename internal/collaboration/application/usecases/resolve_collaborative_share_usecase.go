@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	ErrShareEntryNotFound   = errors.New("share entry not found")
+	ErrShareEntryNotFound  = errors.New("share entry not found")
+	ErrShareEntryRevoked   = errors.New("share entry has been revoked")
 	ErrTrustGroupNotFound  = errors.New("trust group not found")
 	ErrUnauthorizedMember  = errors.New("caller is not an authorized member of trust group")
 	ErrKeyEnvelopeNotFound = errors.New("no active device key envelope found for member device and KEK version")
@@ -100,6 +101,9 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		return nil, ErrShareEntryNotFound
 	}
 	shareEntry := shareResp.Data
+	if shareEntry.Status == c3_asset_domain.ShareEntryStatusRevoked {
+		return nil, ErrShareEntryRevoked
+	}
 
 	// 2. Fetch TrustGroup
 	tgResp, err := u.trustGroupRepo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{

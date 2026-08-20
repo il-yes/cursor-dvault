@@ -84,7 +84,8 @@ func (uc *CreateThreadUsecase) Execute(ctx context.Context, req thread_dtos.Crea
 	thread.WorkspaceID = workspaceID
 
 	created, err := uc.Repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{
-		Thread: thread,
+		Thread:     thread,
+		IdentityID: req.IdentityID,
 	})
 	if err != nil {
 		return nil, err
@@ -134,10 +135,6 @@ func (c *CreateThreadUsecase) ValidateRequest(req thread_dtos.CreateThreadReques
 
 	if req.Title == "" {
 		return thread_domain.ErrThreadTitleRequired
-	}
-
-	if req.Subtitle == "" {
-		return thread_domain.ErrThreadSubtitleRequired
 	}
 
 	return nil

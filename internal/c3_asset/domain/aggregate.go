@@ -9,17 +9,25 @@ import (
 
 
 
+type ShareEntryStatus string
+
+const (
+	ShareEntryStatusActive  ShareEntryStatus = "active"
+	ShareEntryStatusRevoked ShareEntryStatus = "revoked"
+)
+
 type ShareEntry struct {
-	ID           string	`json:"id"`
-	AssetCID     string	`json:"asset_cid"`
-	TrustGroupID string	`json:"trust_group_id"`
-	WrappedDEK   string	`json:"wrapped_dek"`
-	KEKVersion uint64 `json:"kek_version"`
-	CreatedBy    string	`json:"created_by"`
-	CreatedAt    time.Time	`json:"created_at"`
-	Metadata     map[string]string	`json:"metadata"`
-	IsDraft      bool `json:"is_draft"`
-	IsDirty      bool `json:"is_dirty" gorm:"boolean"`
+	ID           string            `json:"id"`
+	AssetCID     string            `json:"asset_cid"`
+	TrustGroupID string            `json:"trust_group_id"`
+	WrappedDEK   string            `json:"wrapped_dek"`
+	KEKVersion   uint64            `json:"kek_version"`
+	CreatedBy    string            `json:"created_by"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Status       ShareEntryStatus  `json:"status"`
+	Metadata     map[string]string `json:"metadata"`
+	IsDraft      bool              `json:"is_draft"`
+	IsDirty      bool              `json:"is_dirty" gorm:"boolean"`
 }
 
 
@@ -67,6 +75,7 @@ func NewShareEntry(
 		WrappedDEK:   wrappedDEK,
 		KEKVersion: kekVersion,
 		CreatedBy:    createdBy,
+		Status:       ShareEntryStatusActive,
 		Metadata:     metadata,
 		IsDraft:      true,
 		IsDirty:      false,

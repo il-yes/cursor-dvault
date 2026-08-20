@@ -110,6 +110,7 @@ export const LedgerLayout = ({
     };
 
     const handleThreadCreated = (thread: ThreadResponse) => {
+        console.log("SUBMIT HANDLER REACHED");
         addThread(thread);
     };
 

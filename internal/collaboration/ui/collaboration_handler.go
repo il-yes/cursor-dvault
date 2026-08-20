@@ -2,6 +2,7 @@ package collaboration_ui
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,17 +15,20 @@ import (
 )
 
 type CollaborationHandler struct {
-	createCollabShareUC *collaboration_usecases.CreateCollaborativeShareUseCase
-	appendEventUC       *thread_usecase.AppendThreadEventUsecase
+	createCollabShareUC  *collaboration_usecases.CreateCollaborativeShareUseCase
+	resolveCollabShareUC *collaboration_usecases.ResolveCollaborativeShareUseCase
+	appendEventUC        *thread_usecase.AppendThreadEventUsecase
 }
 
 func NewCollaborationHandler(
 	createCollabShareUC *collaboration_usecases.CreateCollaborativeShareUseCase,
+	resolveCollabShareUC *collaboration_usecases.ResolveCollaborativeShareUseCase,
 	appendEventUC *thread_usecase.AppendThreadEventUsecase,
 ) *CollaborationHandler {
 	return &CollaborationHandler{
-		createCollabShareUC: createCollabShareUC,
-		appendEventUC:       appendEventUC,
+		createCollabShareUC:  createCollabShareUC,
+		resolveCollabShareUC: resolveCollabShareUC,
+		appendEventUC:        appendEventUC,
 	}
 }
 
@@ -95,4 +99,23 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 	}
 
 	return &shareRef, nil
+}
+
+func (h *CollaborationHandler) ResolveCollaborativeShare(
+	ctx context.Context,
+	userID string,
+	shareEntryID string,
+	deviceID string,
+) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+	if h.resolveCollabShareUC == nil {
+		return nil, errors.New("resolve collaborative share use case is not initialized")
+	}
+
+	req := collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID: shareEntryID,
+		CallerUserID: userID,
+		DeviceID:     deviceID,
+	}
+
+	return h.resolveCollabShareUC.Execute(ctx, req)
 }

@@ -31,5 +31,20 @@ type CreateCollaborativeShareResponse struct {
 	Envelopes  []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest `json:"envelopes"`
 }
 
+type ResolveCollaborativeShareRequest struct {
+	ShareEntryID string `json:"share_entry_id"`
+	CallerUserID string `json:"caller_user_id"`
+	DeviceID     string `json:"device_id"`
+}
+
+type ResolveCollaborativeShareResponse struct {
+	ShareEntryID string            `json:"share_entry_id"`
+	TrustGroupID string            `json:"trust_group_id"`
+	CreatedBy    string            `json:"created_by"`
+	CreatedAt    string            `json:"created_at"`
+	Metadata     map[string]string `json:"metadata"`
+	Plaintext    []byte            `json:"plaintext"`
+}
+
 
 

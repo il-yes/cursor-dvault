@@ -140,6 +140,97 @@ func (o *TrustGroupCryptoOrchestrator) PrepareCollaborativeAsset(
 	}, nil
 }
 
+type ResolveCollaborativeAssetPayload struct {
+	AssetID       string
+	TrustGroupID  string
+	KEKVersion    uint64
+	EncryptedData []byte // AES-256-GCM(Payload, DEK)
+	WrappedDEK    []byte // AES-256-GCM(DEK, KEK)
+	WrappedKEK    string // Asymmetric box payload for current member device
+	DeviceSeed    string // Member device Stellar seed for asymmetric decryption
+	Keyring       *vaults_domain.VaultKeyring
+}
+
+type ResolvedCollaborativeAsset struct {
+	AssetID      string
+	TrustGroupID string
+	KEKVersion   uint64
+	Plaintext    []byte
+}
+
+func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
+	ctx context.Context,
+	req ResolveCollaborativeAssetPayload,
+) (*ResolvedCollaborativeAsset, error) {
+	if req.TrustGroupID == "" {
+		return nil, errors.New("trust group ID is required")
+	}
+	if req.KEKVersion == 0 {
+		return nil, errors.New("KEK version is required")
+	}
+	if len(req.EncryptedData) == 0 {
+		return nil, errors.New("encrypted data cannot be empty")
+	}
+	if len(req.WrappedDEK) == 0 {
+		return nil, errors.New("wrapped DEK cannot be empty")
+	}
+
+	// 1. Resolve KEK for TrustGroup + KEKVersion (Fast path: Keyring)
+	var kek []byte
+	if req.Keyring != nil && o.keyringService != nil {
+		k, err := o.keyringService.GetTrustGroupKEK(req.Keyring, req.TrustGroupID, req.KEKVersion)
+		if err == nil && len(k) == 32 {
+			kek = k
+		}
+	}
+
+	// 2. Slow path: Unwrap KEK using member device private seed
+	if len(kek) == 0 {
+		if req.WrappedKEK == "" {
+			return nil, errors.New("wrapped KEK envelope is required when KEK is not cached in keyring")
+		}
+		if req.DeviceSeed == "" {
+			return nil, errors.New("device private seed is required to unwrap KEK envelope")
+		}
+
+		unwrappedKEK, err := o.aesService.AsymetricDecrypt(req.DeviceSeed, req.WrappedKEK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unwrap KEK envelope for device: %w", err)
+		}
+		if len(unwrappedKEK) != 32 {
+			return nil, errors.New("unwrapped KEK must be exactly 32 bytes")
+		}
+		kek = unwrappedKEK
+
+		// Cache recovered KEK in local VaultKeyring
+		if req.Keyring != nil && o.keyringService != nil {
+			_, _ = o.keyringService.StoreTrustGroupKEK(req.Keyring, req.TrustGroupID, req.KEKVersion, kek)
+		}
+	}
+
+	// 3. Unwrap DEK using KEK (AES-256-GCM)
+	dek, err := o.aesService.Decrypt(req.WrappedDEK, kek)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unwrap DEK with KEK v%d: %w", req.KEKVersion, err)
+	}
+	if len(dek) != 32 {
+		return nil, errors.New("unwrapped DEK must be exactly 32 bytes")
+	}
+
+	// 4. Decrypt encrypted payload using DEK (AES-256-GCM)
+	plaintext, err := o.aesService.Decrypt(req.EncryptedData, dek)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt asset payload with DEK: %w", err)
+	}
+
+	return &ResolvedCollaborativeAsset{
+		AssetID:      req.AssetID,
+		TrustGroupID: req.TrustGroupID,
+		KEKVersion:   req.KEKVersion,
+		Plaintext:    plaintext,
+	}, nil
+}
+
 type RotateCollaborativeAssetInput struct {
 	ShareEntryID string
 	WrappedDEK   []byte // WrappedDEK under KEK vN

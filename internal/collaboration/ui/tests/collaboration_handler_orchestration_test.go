@@ -149,7 +149,7 @@ func setupHandler(tg *trustgroup_domain.TrustGroup, threadRepo *stubThreadRepo) 
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
 	appendEventUC := thread_usecase.NewAppendThreadEventUsecase(threadRepo)
 
-	handler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, appendEventUC)
+	handler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendEventUC)
 	return handler, shareRepo
 }
 
@@ -310,4 +310,16 @@ func TestOrchestration_CaseE_SecurityBoundaryVerification(t *testing.T) {
 	assert.Equal(t, res.ShareEntryID, evt.Payload.ShareEntryID)
 	assert.Equal(t, tg.ID, evt.Payload.TrustGroupID)
 	assert.Empty(t, evt.Payload.CID)
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: CollaborationHandler.ResolveCollaborativeShare Delegation Tests
+// ---------------------------------------------------------------------------
+
+func TestCollaborationHandler_ResolveCollaborativeShare_NilUseCase(t *testing.T) {
+	ctx := context.Background()
+	handler := collaboration_ui.NewCollaborationHandler(nil, nil, nil)
+
+	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "se_100", "dev_laptop")
+	assert.ErrorContains(t, err, "resolve collaborative share use case is not initialized")
 }

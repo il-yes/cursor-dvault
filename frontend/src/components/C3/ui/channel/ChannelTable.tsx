@@ -17,7 +17,7 @@ export const ChannelTable = ({
     children,
 }: {
     channel: ChannelView,
-    onOpenAsset: (asset:ThreadAssetViewInterface) => void,
+    onOpenAsset: (asset: ThreadAssetViewInterface) => void,
     onActivate: () => void,
     activating: boolean,
     activateError: string | null,
@@ -45,11 +45,11 @@ export const ChannelTable = ({
     
     return (
         <div className="ledger-area">
-            <p onClick={() => navigate(ROUTES.LEDGER)} style={{cursor: "pointer", fontSize: "10px", margin: "10px", fontWeight: 600}}>
-                <ArrowLeftIcon size={12}/> <em>Back</em>
+            <p onClick={() => navigate(ROUTES.LEDGER)} style={{ cursor: "pointer", fontSize: "10px", margin: "10px", fontWeight: 600 }}>
+                <ArrowLeftIcon size={12} /> <em>Back</em>
             </p>
             <div className="ledger-topbar">
-                
+
                 <div className="ledger-title">
                     <span className="ledger-title-text">
                         {channel?.title || "CHANNEL"}
@@ -178,7 +178,7 @@ export const ChannelTable = ({
                             <div className="flow">
 
                                 {
-                                    channel?.participants?.length !== 0 &&  channel?.participants?.map(
+                                    channel?.participants?.length !== 0 && channel?.participants?.map(
                                         (p, i) => (
 
                                             <span key={i}>

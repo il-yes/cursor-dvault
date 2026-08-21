@@ -81,23 +81,12 @@ export const useC3ThreadStore = create<C3ThreadState>((set, get) => ({
 	addThread: (newThread: ThreadResponse) => {
 		const currentChannelId = get().activeChannelId;
 		const isMatch = !!currentChannelId && newThread.channel_id === currentChannelId;
-		console.log("[BOUNDARY_LOG] inside addThread():", {
-			currentChannelId,
-			newThread_channel_id: newThread.channel_id,
-			isMatch,
-			newThread,
-		});
 		if (isMatch) {
 			set((state) => ({
 				threads: [newThread, ...state.threads],
 				activeThread: newThread,
 				activeThreadId: newThread.id,
 			}));
-		} else {
-			console.warn("[BOUNDARY_LOG] addThread() SKIPPED set state because channel IDs did not match or currentChannelId was null!", {
-				currentChannelId,
-				newThread_channel_id: newThread.channel_id,
-			});
 		}
 	},
 

@@ -144,6 +144,9 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 	},
 
 	selectChannel: (channelId: string) => {
+		if (get().activeChannelId === channelId && get().activeChannel?.id === channelId) {
+			return;
+		}
 		const found = get().channels.find((c) => c.id === channelId) || null;
 		set({
 			activeChannel: found,

@@ -269,6 +269,7 @@ Systems should favor:
 - proofs over claims
 - evidence over assumptions
 - history over memory
+- boundary tracing over speculative guessing
 
 This principle applies to:
 
@@ -277,6 +278,9 @@ This principle applies to:
 - workflows
 - compliance
 - data integrity
+- AI debugging and runtime investigation
+
+An AI agent or human contributor MUST NOT assert a root cause without identifying the first broken boundary and providing runtime evidence.
 
 ---
 
@@ -305,8 +309,6 @@ Every engineering decision should answer:
 
 If the answer is no, reconsider the decision.
 
-An agent may not propose a fix while an observable configuration/runtime value can falsify its hypothesis.
+An agent may not propose a fix while an observable configuration or runtime value can falsify its hypothesis.
 
-And an even stronger one:
-
-Every root-cause claim must identify the first broken boundary and provide executable evidence for it.
+Every root-cause claim MUST identify the first broken boundary where `EXPECTED != ACTUAL` and provide executable, reproducible evidence for it.

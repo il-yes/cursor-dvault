@@ -1,5 +1,6 @@
 import { ChannelResponse } from "@/services/api";
 import { ChannelRow, ChannelView, FlowStep } from "./channel.types";
+import { ThreadAssetViewInterface } from "../thread/asset.types";
 
 type RowType = ChannelRow["type"];
 

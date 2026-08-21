@@ -182,11 +182,14 @@ func (c *TracecoreClient) ListThreadEventsDirect(ctx context.Context, userID str
 	return []tracecore_types.ThreadEventDTO{}, nil
 }
 
-func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID string, threadID string, eventType string, payload map[string]interface{}) (*tracecore_types.ThreadEventDTO, error) {
+func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID string, threadID string, eventType string, payload map[string]interface{}, idempotencyKey string) (*tracecore_types.ThreadEventDTO, error) {
 	reqPayload := map[string]interface{}{
 		"type":      eventType,
 		"thread_id": threadID,
 		"payload":   payload,
+	}
+	if idempotencyKey != "" {
+		reqPayload["idempotency_key"] = idempotencyKey
 	}
 	body, err := json.Marshal(reqPayload)
 	if err != nil {

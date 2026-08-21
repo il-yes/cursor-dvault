@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
@@ -170,34 +169,123 @@ func (c *TracecoreClient) UpdateThread(ctx context.Context, req *thread_domain.U
 }
 
 func (c *TracecoreClient) ListThreadEvents(ctx context.Context, req *thread_domain.ListThreadEventsRequest) (*tracecore_types.CloudResponse[[]thread_domain.ThreadEvent], error) {
+	dtos, err := c.ListThreadEventsDirect(ctx, "me", req.ThreadID)
+	if err != nil {
+		return nil, fmt.Errorf("cloud list thread events failed: %w", err)
+	}
+
+	result := make([]thread_domain.ThreadEvent, 0, len(dtos))
+	for _, dto := range dtos {
+		result = append(result, mapThreadEventDTO(dto))
+	}
+
 	return &tracecore_types.CloudResponse[[]thread_domain.ThreadEvent]{
 		Status:  200,
-		Data:    []thread_domain.ThreadEvent{},
+		Data:    result,
 		Message: "success",
 		Success: true,
 	}, nil
 }
 
 func (c *TracecoreClient) AppendThreadEvent(ctx context.Context, req *thread_domain.AppendThreadEventRequest) (*tracecore_types.CloudResponse[thread_domain.ThreadEvent], error) {
-	idempotencyKey := req.IdempotencyKey
-	if idempotencyKey == "" {
-		idempotencyKey = uuid.NewString()
+	payload := eventResourceRefToPayload(req.Payload)
+
+	dto, err := c.AppendThreadEventDirect(ctx, "me", req.ThreadID, req.EventType, payload, req.IdempotencyKey)
+	if err != nil {
+		return nil, fmt.Errorf("cloud append thread event failed: %w", err)
 	}
 
-	evt := thread_domain.ThreadEvent{
-		ID:             uuid.NewString(),
-		ThreadID:       req.ThreadID,
-		Type:           thread_domain.ThreadEventType(req.EventType),
-		Payload:        req.Payload,
-		IdempotencyKey: idempotencyKey,
-		Cursor:         1,
-		CreatedAt:      time.Now(),
-	}
+	domainEvent := mapThreadEventDTO(*dto)
 
 	return &tracecore_types.CloudResponse[thread_domain.ThreadEvent]{
 		Status:  200,
-		Data:    evt,
+		Data:    domainEvent,
 		Message: "success",
 		Success: true,
 	}, nil
+}
+
+// eventResourceRefToPayload converts the domain EventResourceRef into the
+// wire payload (map) expected by AppendThreadEventDirect.
+func eventResourceRefToPayload(ref thread_domain.EventResourceRef) map[string]interface{} {
+	payload := map[string]interface{}{}
+	if ref.RefType != "" {
+		payload["ref_type"] = string(ref.RefType)
+	}
+	if ref.RefType == thread_domain.ResourceShareEntry {
+		if ref.ShareEntryID != "" {
+			payload["share_entry_id"] = ref.ShareEntryID
+		}
+		if ref.TrustGroupID != "" {
+			payload["trust_group_id"] = ref.TrustGroupID
+		}
+	} else {
+		if ref.CID != "" {
+			payload["cid"] = ref.CID
+		}
+		if ref.ContentHash != "" {
+			payload["content_hash"] = ref.ContentHash
+		}
+		if ref.Size != 0 {
+			payload["size"] = ref.Size
+		}
+		if ref.AssetType != "" {
+			payload["asset_type"] = ref.AssetType
+		}
+	}
+	return payload
+}
+
+// mapThreadEventDTO maps a Cloud ThreadEventDTO into the domain ThreadEvent.
+func mapThreadEventDTO(dto tracecore_types.ThreadEventDTO) thread_domain.ThreadEvent {
+	return thread_domain.ThreadEvent{
+		ID:              dto.ID,
+		ThreadID:        dto.ThreadID,
+		PreviousEventID: dto.PreviousEventID,
+		Type:            thread_domain.ThreadEventType(dto.Type),
+		Payload:         payloadToEventResourceRef(dto.Payload),
+		IdempotencyKey:  dto.IdempotencyKey,
+		Cursor:          dto.Cursor,
+		Headers:         dto.Headers,
+		Signature:       dto.Signature,
+		CreatedAt:       dto.CreatedAt,
+	}
+}
+
+// payloadToEventResourceRef reconstructs the domain EventResourceRef from
+// the wire payload map returned by the Cloud backend.
+func payloadToEventResourceRef(payload map[string]any) thread_domain.EventResourceRef {
+	ref := thread_domain.EventResourceRef{}
+	if payload == nil {
+		return ref
+	}
+
+	if rt, ok := payload["ref_type"].(string); ok {
+		ref.RefType = thread_domain.ResourceType(rt)
+	}
+
+	// ShareEntry fields
+	if v, ok := payload["share_entry_id"].(string); ok {
+		ref.ShareEntryID = v
+	}
+	if v, ok := payload["trust_group_id"].(string); ok {
+		ref.TrustGroupID = v
+	}
+
+	// Storage asset fields
+	if v, ok := payload["cid"].(string); ok {
+		ref.CID = v
+	}
+	if v, ok := payload["content_hash"].(string); ok {
+		ref.ContentHash = v
+	}
+	// JSON numbers unmarshal as float64 in Go
+	if v, ok := payload["size"].(float64); ok {
+		ref.Size = int64(v)
+	}
+	if v, ok := payload["asset_type"].(string); ok {
+		ref.AssetType = v
+	}
+
+	return ref
 }

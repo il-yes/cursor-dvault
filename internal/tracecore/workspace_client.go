@@ -261,7 +261,7 @@ func (c *TracecoreClient) CreateCollaborativeShareDirect(ctx context.Context, us
 		"trust_group_id": shareRef.TrustGroupID,
 	}
 
-	_, err := c.AppendThreadEventDirect(ctx, userID, threadID, "entry.shared", payload)
+	_, err := c.AppendThreadEventDirect(ctx, userID, threadID, "entry.shared", payload, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to record collaborative share thread event: %w", err)
 	}

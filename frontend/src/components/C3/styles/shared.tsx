@@ -200,6 +200,7 @@ export const c3SharedStyles = css`
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(2px);
     z-index: 999;
+    pointer-events: auto;
     animation: c3-fade-in 150ms ease-out;
   }
 
@@ -213,6 +214,7 @@ export const c3SharedStyles = css`
     border-left: 1px solid #e0e0e0;
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.10);
     z-index: 1000;
+    pointer-events: auto;
     display: flex;
     flex-direction: column;
     overflow: hidden;

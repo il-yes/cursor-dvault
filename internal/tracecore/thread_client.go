@@ -146,7 +146,11 @@ func (c *TracecoreClient) ListThreadsDirect(
 }
 
 func (c *TracecoreClient) ListThreadEventsDirect(ctx context.Context, userID string, threadID string) ([]tracecore_types.ThreadEventDTO, error) {
-	url := c.AnkhoraCloudUrl + "/threads/" + threadID + "/events"
+	baseURL := c.AnkhoraCloudUrl
+	if baseURL == "" {
+		baseURL = c.BaseURL
+	}
+	url := baseURL + "/threads/" + threadID + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -182,20 +186,25 @@ func (c *TracecoreClient) ListThreadEventsDirect(ctx context.Context, userID str
 	return []tracecore_types.ThreadEventDTO{}, nil
 }
 
-func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID string, threadID string, eventType string, payload map[string]interface{}) (*tracecore_types.ThreadEventDTO, error) {
+func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID string, threadID string, eventType string, payload map[string]interface{}, idempotencyKey string) (*tracecore_types.ThreadEventDTO, error) {
 	reqPayload := map[string]interface{}{
 		"type":      eventType,
 		"thread_id": threadID,
 		"payload":   payload,
+	}
+	if idempotencyKey != "" {
+		reqPayload["idempotency_key"] = idempotencyKey
 	}
 	body, err := json.Marshal(reqPayload)
 	if err != nil {
 		return nil, err
 	}
 
-
-
-	url := c.AnkhoraCloudUrl + "/threads/" + threadID + "/events"
+	baseURL := c.AnkhoraCloudUrl
+	if baseURL == "" {
+		baseURL = c.BaseURL
+	}
+	url := baseURL + "/threads/" + threadID + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

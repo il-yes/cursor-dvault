@@ -75,7 +75,7 @@ export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Pr
 
 export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>,arg7:Array<channel_domain.ChannelProperty>,arg8:Record<string, any>,arg9:string):Promise<tracecore_types.ChannelDTO>;
 
-export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<tracecore_types.ShareEntryRefDTO>;
+export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:number):Promise<tracecore_types.ShareEntryRefDTO>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 

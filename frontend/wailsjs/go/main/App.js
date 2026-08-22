@@ -98,8 +98,8 @@ export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, ar
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
-export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function CreateFolder(arg1, arg2) {

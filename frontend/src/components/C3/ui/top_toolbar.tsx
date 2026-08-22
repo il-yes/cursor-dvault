@@ -1,16 +1,19 @@
 import React, { useState } from "react";
 import { useC3WorkspaceStore } from "@/components/C3/infrastructure/store/useC3WorkspaceStore";
+import { useC3ThreadStore } from "@/components/C3/infrastructure/store/useC3ThreadStore";
 
 interface TopToolbarProps {
     setOpenNewThread: (open: boolean) => void;
     setOpenCreateWorkspace?: (open: boolean) => void;
     setOpenCreateChannel?: (open: boolean) => void;
+    setOpenAppendEvent?: (open: boolean) => void;
 }
 
 export const TopToolbar = ({
     setOpenNewThread,
     setOpenCreateWorkspace,
     setOpenCreateChannel,
+    setOpenAppendEvent,
 }: TopToolbarProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -21,6 +24,8 @@ export const TopToolbar = ({
         isLoading,
         selectWorkspace,
     } = useC3WorkspaceStore();
+
+    const { activeThreadId } = useC3ThreadStore();
 
     const handleSelectWorkspace = (workspaceId: string) => {
         selectWorkspace(workspaceId);
@@ -111,6 +116,14 @@ export const TopToolbar = ({
             <div className="topbar-spacer"></div>
             <div style={{ display: "flex", gap: "8px" }}>
                 <button className="btn btn-ghost">↓ Export</button>
+                <button
+                    className="btn btn-ghost"
+                    disabled={!activeThreadId || !setOpenAppendEvent}
+                    onClick={() => setOpenAppendEvent?.(true)}
+                    title={activeThreadId ? "Append an event to the active thread" : "Select a thread first"}
+                >
+                    + Append Event
+                </button>
                 <button className="btn btn-primary" onClick={() => setOpenNewThread(true)}>+ New Thread</button>
             </div>
         </div>

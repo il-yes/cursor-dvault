@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
-
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
@@ -32,6 +30,14 @@ func NewCollaborationHandler(
 	}
 }
 
+// CreateCollaborativeShare persists a C3 share entry through the real
+// Cloud persistence path and returns the authoritative ShareEntryRef.
+//
+// wrappedDEK and kekVersion are cryptographic material owned by the
+// desktop crypto layer (TrustGroupCryptoOrchestrator.PrepareCollaborativeAsset).
+// They must be supplied by the caller; this handler never invents them.
+// A successful response only ever contains the share_entry_id returned by
+// the Cloud C3 ShareEntry persistence path.
 func (h *CollaborationHandler) CreateCollaborativeShare(
 	ctx context.Context,
 	userID string,
@@ -40,40 +46,44 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 	assetCID string,
 	targetVaultID string,
 	notes string,
+	wrappedDEK string,
+	kekVersion uint64,
 ) (*tracecore_types.ShareEntryRefDTO, error) {
-	nowStr := time.Now().Format(time.RFC3339)
-
-	var createdShareID string
-	var createdTrustGroupID string = trustGroupID
-
-	if h.createCollabShareUC != nil {
-		req := collaboration_dtos.CreateCollaborativeShareRequest{
-			TrustGroupID: trustGroupID,
-			KEKVersion:   1,
-			CreatedBy:    userID,
-			AssetCID:     assetCID,
-			WrappedDEK:   "wrapped_dek_" + assetCID,
-			Metadata: map[string]string{
-				"target_vault_id": targetVaultID,
-				"notes":           notes,
-				"thread_id":       threadID,
-			},
-		}
-
-		resp, err := h.createCollabShareUC.Execute(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		if resp != nil {
-			createdShareID = resp.ShareEntry.ID
-			if resp.ShareEntry.TrustGroupID != "" {
-				createdTrustGroupID = resp.ShareEntry.TrustGroupID
-			}
-		}
+	if h.createCollabShareUC == nil {
+		return nil, errors.New("create collaborative share use case is not initialized")
+	}
+	if wrappedDEK == "" {
+		return nil, errors.New("wrapped_dek is required: it must be produced by the desktop crypto orchestration path")
+	}
+	if kekVersion == 0 {
+		return nil, errors.New("kek_version is required: it must come from the trust group key state")
 	}
 
-	if createdShareID == "" {
-		createdShareID = "se_" + uuid.NewString()[:12]
+	req := collaboration_dtos.CreateCollaborativeShareRequest{
+		TrustGroupID: trustGroupID,
+		KEKVersion:   kekVersion,
+		CreatedBy:    userID,
+		AssetCID:     assetCID,
+		WrappedDEK:   wrappedDEK,
+		Metadata: map[string]string{
+			"target_vault_id": targetVaultID,
+			"notes":           notes,
+			"thread_id":       threadID,
+		},
+	}
+
+	resp, err := h.createCollabShareUC.Execute(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil || resp.ShareEntry.ID == "" {
+		return nil, errors.New("cloud did not return a persisted share entry id")
+	}
+
+	createdShareID := resp.ShareEntry.ID
+	createdTrustGroupID := resp.ShareEntry.TrustGroupID
+	if createdTrustGroupID == "" {
+		createdTrustGroupID = trustGroupID
 	}
 
 	shareRef := tracecore_types.ShareEntryRefDTO{
@@ -81,8 +91,8 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 		TrustGroupID: createdTrustGroupID,
 		AssetCID:     assetCID,
 		CreatedBy:    userID,
-		Status:       "active",
-		CreatedAt:    nowStr,
+		Status:       string(resp.ShareEntry.Status),
+		CreatedAt:    time.Now().Format(time.RFC3339),
 	}
 
 	if h.appendEventUC != nil && threadID != "" {

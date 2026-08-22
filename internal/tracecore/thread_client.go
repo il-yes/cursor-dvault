@@ -146,7 +146,11 @@ func (c *TracecoreClient) ListThreadsDirect(
 }
 
 func (c *TracecoreClient) ListThreadEventsDirect(ctx context.Context, userID string, threadID string) ([]tracecore_types.ThreadEventDTO, error) {
-	url := c.AnkhoraCloudUrl + "/threads/" + threadID + "/events"
+	baseURL := c.AnkhoraCloudUrl
+	if baseURL == "" {
+		baseURL = c.BaseURL
+	}
+	url := baseURL + "/threads/" + threadID + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -196,9 +200,11 @@ func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID st
 		return nil, err
 	}
 
-
-
-	url := c.AnkhoraCloudUrl + "/threads/" + threadID + "/events"
+	baseURL := c.AnkhoraCloudUrl
+	if baseURL == "" {
+		baseURL = c.BaseURL
+	}
+	url := baseURL + "/threads/" + threadID + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err

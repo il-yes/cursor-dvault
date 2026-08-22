@@ -87,6 +87,7 @@ import (
 	channel_ui "vault-app/internal/channel/ui"
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_ui "vault-app/internal/collaboration/ui"
+	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
 	"vault-app/internal/models"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
@@ -617,7 +618,13 @@ func NewApp() *App {
 	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(tracecoreClient)
 	threadHandler := thread_ui.NewThreadHandler(createThreadUC, listThreadsUC, listThreadEventsUC, appendThreadEventUC)
 
-	collaborationHandler := collaboration_ui.NewCollaborationHandler(nil, nil, appendThreadEventUC)
+	// C3 collaboration: real Cloud-backed repositories (TracecoreClient
+	// implements both trustgroup_domain.TrustGroupRepository and
+	// c3_asset_domain.ShareEntryRepository against /api/trustgroups and
+	// /api/c3/share-entries).
+	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, tracecore.NewCloudShareEntryRepository(tracecoreClient))
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetWithTrustGroupUC, nil)
+	collaborationHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendThreadEventUC)
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -3221,7 +3228,9 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	}
 	var ref thread_domain.EventResourceRef
 	if payloadJson != "" {
-		_ = json.Unmarshal([]byte(payloadJson), &ref)
+		if err := json.Unmarshal([]byte(payloadJson), &ref); err != nil {
+			return nil, fmt.Errorf("invalid event payload JSON: %w", err)
+		}
 	}
 	if a.ThreadHandler == nil {
 		return nil, fmt.Errorf("thread handler is not initialized")
@@ -3229,7 +3238,7 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, ref)
 }
 
-func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string) (*tracecore_types.ShareEntryRefDTO, error) {
+func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string, wrappedDEK string, kekVersion uint64) (*tracecore_types.ShareEntryRefDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -3237,7 +3246,7 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
-	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes)
+	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes, wrappedDEK, kekVersion)
 }
 
 func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, deviceID string) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {

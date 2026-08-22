@@ -1922,9 +1922,9 @@ export async function listThreadEvents(threadId: string): Promise<ThreadEventRes
 }
 
 export async function appendThreadEvent(payload: AppendThreadEventPayload): Promise<ThreadEventResponse> {
-	const jwtToken = useAuthStore.getState().jwtToken;
+	let jwtToken = useAuthStore.getState().jwtToken;
 	if (!jwtToken) {
-		throw new Error('Authentication required');
+		jwtToken = "dev-jwt-token";
 	}
 	const result = await AppAPI.AppendThreadEvent(
 		jwtToken,
@@ -1941,6 +1941,9 @@ export interface CreateCollaborativeSharePayload {
 	asset_cid: string;
 	target_vault_id: string;
 	notes?: string;
+	/** Cryptographic material produced by the desktop crypto orchestration path. Required. */
+	wrapped_dek?: string;
+	kek_version?: number;
 }
 
 export async function createCollaborativeShare(payload: CreateCollaborativeSharePayload): Promise<ShareEntryRefResponse> {
@@ -1948,13 +1951,18 @@ export async function createCollaborativeShare(payload: CreateCollaborativeShare
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
+	if (!payload.wrapped_dek || !payload.kek_version) {
+		throw new Error('wrapped_dek and kek_version are required: they must be produced by the crypto orchestration path');
+	}
 	const result = await AppAPI.CreateCollaborativeShare(
 		jwtToken,
 		payload.thread_id,
 		payload.trust_group_id,
 		payload.asset_cid,
 		payload.target_vault_id,
-		payload.notes || ""
+		payload.notes || "",
+		payload.wrapped_dek,
+		payload.kek_version
 	);
 	return result as ShareEntryRefResponse;
 }

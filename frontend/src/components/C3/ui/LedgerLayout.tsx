@@ -126,6 +126,7 @@ export const LedgerLayout = ({
                 setOpenNewThread={setOpenNewThread}
                 setOpenCreateWorkspace={setOpenCreateWorkspace}
                 setOpenCreateChannel={setOpenCreateChannel}
+                setOpenAppendEvent={setOpenAppendEvent}
             />
 
             {/* Error Notification / Retry Bar */}

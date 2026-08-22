@@ -167,7 +167,7 @@ func TestOrchestration_CaseA_CompleteSuccess(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
@@ -196,7 +196,7 @@ func TestOrchestration_CaseB_ThreadAppendFailure(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	assert.ErrorIs(t, err, assert.AnError)
 	require.NotNil(t, res, "ShareEntry result reference MUST be returned even if Thread append fails")
 
@@ -218,7 +218,7 @@ func TestOrchestration_CaseC_ThreadEventRetry(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note")
+	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	require.NoError(t, err)
 
 	// Direct retry of AppendThreadEvent with canonical ShareEntryID & idempotency key
@@ -251,7 +251,7 @@ func TestOrchestration_CaseD_InvalidOrClosedThread(t *testing.T) {
 
 	handlerClosed, shareRepoClosed := setupHandler(tg, threadRepoClosed)
 
-	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "v_target", "note")
+	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	assert.ErrorIs(t, err, thread_domain.ErrThreadClosed)
 	require.NotNil(t, resClosed)
 	assert.Len(t, shareRepoClosed.createdEntries, 1, "ShareEntry remains valid even when Thread is closed")
@@ -260,7 +260,7 @@ func TestOrchestration_CaseD_InvalidOrClosedThread(t *testing.T) {
 	threadRepoMissing := newStubThreadRepo()
 	handlerMissing, shareRepoMissing := setupHandler(tg, threadRepoMissing)
 
-	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "v_target", "note")
+	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	assert.ErrorIs(t, err, thread_domain.ErrThreadNotFound)
 	require.NotNil(t, resMissing)
 	assert.Len(t, shareRepoMissing.createdEntries, 1, "ShareEntry remains valid even when Thread does not exist")
@@ -276,7 +276,7 @@ func TestOrchestration_CaseE_SecurityBoundaryVerification(t *testing.T) {
 
 	handler, _ := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
 	require.NoError(t, err)
 
 	evt := threadRepo.events[th.ID][0]

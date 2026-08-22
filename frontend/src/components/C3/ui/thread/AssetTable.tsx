@@ -357,13 +357,26 @@ export function ThreadAssetView_ALPHA({ hasConflict }: { hasConflict: boolean })
         </div>
     );
 }
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useC3ThreadEventStore } from "../../infrastructure/store/useC3ThreadEventStore";
 import { AppendThreadEventSlidingView } from "../../AppendThreadEventModal";
+import { useVaultStore } from "@/store/vaultStore";
+import { SharedEntryDetails } from "@/components/SharedEntryDetails";
+import { SharedEntry } from "@/types/sharing";
 
 export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Channel | null, asset: ThreadAssetViewInterface, hasConflict: boolean }) {
     const hasC3Extension = true;
     const [isAppendOpen, setIsAppendOpen] = useState(false);
+
+    // Read-side Share Entry resolution state
+    const [selectedShareEntry, setSelectedShareEntry] = useState<SharedEntry | null>(null);
+    const [isShareDetailsOpen, setIsShareDetailsOpen] = useState(false);
+    const [shareResolutionNotice, setShareResolutionNotice] = useState<string | null>(null);
+
+    const sharedWithMe = useVaultStore((state) => state.sharedWithMe?.items || []);
+    const sharedByMe = useVaultStore((state) => state.shared?.items || []);
+    const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
 
     const events = useC3ThreadEventStore((state) => state.events);
     const isLoadingEvents = useC3ThreadEventStore((state) => state.isLoading);
@@ -375,6 +388,24 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
             fetchEvents(asset.id);
         }
     }, [asset?.id, fetchEvents]);
+
+    const handleSeeShareEntry = (entryId: string) => {
+        setShareResolutionNotice(null);
+        if (!entryId) {
+            setShareResolutionNotice("No Vault Entry / Share ID associated with this event.");
+            return;
+        }
+
+        const sessionShares = [...sharedWithMe, ...sharedByMe];
+        const found = sessionShares.find((s) => s.id === entryId || s.entry_name === entryId);
+
+        if (found) {
+            setSelectedShareEntry(found);
+            setIsShareDetailsOpen(true);
+        } else {
+            setShareResolutionNotice(`Share Entry "${entryId}" was not found in the current session context.`);
+        }
+    };
 
     return (
         <div className="detail-panel">
@@ -413,6 +444,12 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                         </div>
                     )}
 
+                    {shareResolutionNotice && (
+                        <div style={{ padding: "10px", backgroundColor: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.4)", color: "#B45309", borderRadius: "6px", fontSize: "12px", marginBottom: "8px" }}>
+                            ⚠️ {shareResolutionNotice}
+                        </div>
+                    )}
+
                     {!isLoadingEvents && !eventError && events.length === 0 && (
                         <div style={{ padding: "14px", backgroundColor: "#fafafa", border: "1px dashed #ddd", borderRadius: "6px", color: "#888", fontSize: "13px", textAlign: "center" }}>
                             No thread events recorded yet. Click <strong>+ Append Event</strong> below to append an event.
@@ -422,8 +459,11 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                     {!isLoadingEvents && events.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                             {events.map((evt) => {
-                                const shareEntryId = evt.share_entry_ref?.share_entry_id || (evt.payload as any)?.share_entry_id;
-                                const trustGroupId = evt.trust_group_ref?.trust_group_id || (evt.payload as any)?.trust_group_id;
+                                const payload = (evt.payload || {}) as Record<string, any>;
+                                const shareEntryId = evt.share_entry_ref?.share_entry_id || payload.share_entry_id || payload.entry_id;
+                                const entryName = payload.entry_name || "Vault Entry";
+                                const entryType = payload.entry_type || payload.ref_type || "entry";
+                                const notes = payload.notes;
 
                                 return (
                                     <div
@@ -453,9 +493,31 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                                         </div>
 
                                         {evt.type === "entry.shared" && (
-                                            <div style={{ marginTop: "4px", padding: "6px 8px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "4px", color: "#166534" }}>
-                                                <div><strong>Share Entry ID:</strong> {shareEntryId || "None"}</div>
-                                                <div><strong>Trust Group ID:</strong> {trustGroupId || "None"}</div>
+                                            <div style={{ marginTop: "4px", padding: "8px 10px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "6px", color: "#166534", display: "flex", flexDirection: "column", gap: "4px" }}>
+                                                <div><strong>Referenced Entry:</strong> [{entryType.toUpperCase()}] {entryName}</div>
+                                                {shareEntryId && <div style={{ fontFamily: "monospace", fontSize: "11px" }}><strong>Entry ID:</strong> {shareEntryId}</div>}
+                                                {notes && <div style={{ fontSize: "11px", color: "#15803d", fontStyle: "italic" }}>"{notes}"</div>}
+                                                
+                                                <button
+                                                    onClick={() => handleSeeShareEntry(shareEntryId)}
+                                                    style={{
+                                                        marginTop: "4px",
+                                                        alignSelf: "flex-start",
+                                                        padding: "4px 10px",
+                                                        backgroundColor: "#C8922A",
+                                                        color: "#ffffff",
+                                                        border: "none",
+                                                        borderRadius: "4px",
+                                                        fontSize: "11px",
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                    }}
+                                                >
+                                                    👁 See Decrypted Entry
+                                                </button>
                                             </div>
                                         )}
 
@@ -472,6 +534,75 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                         </div>
                     )}
                 </div>
+
+                {/* SHARED ENTRY DECRYPTION DETAILS MODAL VIA PORTAL */}
+                {isShareDetailsOpen && selectedShareEntry && createPortal(
+                    <>
+                        <div
+                            style={{
+                                position: "fixed",
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundColor: "rgba(0, 0, 0, 0.4)",
+                                zIndex: 1100,
+                            }}
+                            onClick={() => setIsShareDetailsOpen(false)}
+                        />
+                        <div
+                            style={{
+                                position: "fixed",
+                                top: "5%",
+                                right: "5%",
+                                width: "600px",
+                                height: "90vh",
+                                backgroundColor: "#ffffff",
+                                borderRadius: "12px",
+                                boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+                                zIndex: 1101,
+                                display: "flex",
+                                flexDirection: "column",
+                                overflow: "hidden",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    padding: "12px 16px",
+                                    borderBottom: "1px solid #e5e7eb",
+                                    display: "flex",
+                                    justify: "space-between",
+                                    alignItems: "center",
+                                    backgroundColor: "#f9fafb",
+                                }}
+                            >
+                                <span style={{ fontWeight: 700, fontSize: "14px", color: "#111827" }}>
+                                    Decrypted Share Entry View
+                                </span>
+                                <button
+                                    onClick={() => setIsShareDetailsOpen(false)}
+                                    style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        fontSize: "16px",
+                                        cursor: "pointer",
+                                        color: "#6b7280",
+                                    }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div style={{ flex: 1, overflowY: "auto" }}>
+                                <SharedEntryDetails
+                                    entry={selectedShareEntry}
+                                    view="metadata"
+                                    updateRecipients={updateRecipients}
+                                />
+                            </div>
+                        </div>
+                    </>,
+                    document.body
+                )}
 
                 {/* STELLAR */}
                 <div className="dp-section">

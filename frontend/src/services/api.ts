@@ -1127,15 +1127,15 @@ export const GetConfig = async (vaultName: string, jwtToken: string): Promise<Se
 			last_synced: getConfigRes.Devices.length > 0 && getConfigRes.Devices[0].last_sync || 2,
 		},
 		subscription: {
-			user_id: getConfigRes?.User?.id,
+			user_id: getConfigRes?.Subscription?.user_id,
 			vault_name: vaultName,
 			plan: getConfigRes.Subscription.plan || "free",
 			features: {
-				tracecoreEnabled: getConfigRes.Vaults.features.tracecore_enabled,
-				cloudBackupEnabled: getConfigRes.Vaults.features.cloud_backup_enabled,
-				threatDetectionEnabled: getConfigRes.Vaults.features.threat_detection_enabled,
-				browserExtensionEnabled: getConfigRes.Vaults.features.browser_extension_enabled,
-				gitCLIEnabled: getConfigRes.Vaults.features.git_cli_enabled
+				tracecoreEnabled: getConfigRes.Subscription.features.tracecore_enabled,
+				cloudBackupEnabled: getConfigRes.Subscription.features.cloud_backup_enabled,
+				threatDetectionEnabled: getConfigRes.Subscription.features.threat_detection_enabled,
+				browserExtensionEnabled: getConfigRes.Subscription.features.browser_extension_enabled,
+				gitCLIEnabled: getConfigRes.Subscription.features.git_cli_enabled
 
 			},
 			limits: {

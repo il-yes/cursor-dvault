@@ -100,6 +100,14 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 		setAcceptError(null);
 		try {
 			await acceptInvitation(invitation.id);
+			const workspaceStore = (await import("../../infrastructure/store/useC3WorkspaceStore")).useC3WorkspaceStore;
+			await workspaceStore.getState().fetchWorkspaces();
+			const freshWorkspaces = workspaceStore.getState().workspaces;
+			if (freshWorkspaces.length > 0) {
+				const target = freshWorkspaces.find((w) => w.id === channelId) || freshWorkspaces[0];
+				workspaceStore.getState().selectWorkspace(target.id);
+				await useC3ChannelStore.getState().fetchChannels(target.id);
+			}
 		} catch (err: unknown) {
 			setAcceptError(err instanceof Error ? err.message : "Failed to accept invitation.");
 		} finally {
@@ -116,6 +124,14 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 		try {
 			await acceptInvitation(id);
 			setAcceptId("");
+			const workspaceStore = (await import("../../infrastructure/store/useC3WorkspaceStore")).useC3WorkspaceStore;
+			await workspaceStore.getState().fetchWorkspaces();
+			const freshWorkspaces = workspaceStore.getState().workspaces;
+			if (freshWorkspaces.length > 0) {
+				const target = freshWorkspaces.find((w) => w.id === channelId) || freshWorkspaces[0];
+				workspaceStore.getState().selectWorkspace(target.id);
+				await useC3ChannelStore.getState().fetchChannels(target.id);
+			}
 		} catch (err: unknown) {
 			setAcceptError(err instanceof Error ? err.message : "Failed to accept invitation.");
 		} finally {
@@ -161,7 +177,7 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 							{` · ${i.id.slice(0, 8)}…`}
 						</div>
 					</div>
-					{i.status === "pending" && (
+					{i.status === "pending" ? (
 						<button
 							onClick={() => handleAccept(i)}
 							disabled={accepting}
@@ -169,6 +185,8 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 						>
 							{accepting ? "Accepting…" : "Accept"}
 						</button>
+					) : (
+						<span style={{ opacity: 0.6, fontSize: "11px", fontWeight: 600 }}>{i.status}</span>
 					)}
 				</div>
 			))}

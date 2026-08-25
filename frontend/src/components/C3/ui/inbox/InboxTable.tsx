@@ -332,11 +332,11 @@ export const InboxTable = () => {
                 )}
 
                 <div className="inbox-list">
-                    {vaultGroups.map((group) => {
+                    {vaultGroups.map((group, groupIdx) => {
                         const pendingCount = group.items.filter((i) => i.gate_status !== "blocked").length;
 
                         return (
-                            <div key={group.vault_name} className="vault-group">
+                            <div key={group.vault_name || `group-${groupIdx}`} className="vault-group">
                                 <div className="vg-header">
                                     <div className="vg-dot" style={{ background: group.vault_dot_color }} />
                                     <div className="vg-name">{group.vault_name}</div>
@@ -348,13 +348,13 @@ export const InboxTable = () => {
                                 {group.items.length === 0 ? (
                                     <div className="vg-empty">No actions pending for this vault</div>
                                 ) : (
-                                    group.items.map((item) => {
+                                    group.items.map((item, itemIdx) => {
                                         const isBlocked = item.gate_status === "blocked";
                                         const isC3 = item.is_c3_channel || item.gate_status === "c3";
 
                                         return (
                                             <div
-                                                key={item.id}
+                                                key={item.id || `item-${groupIdx}-${itemIdx}`}
                                                 className={`inbox-item ${isC3 ? "c3" : item.priority === "urgent" ? "urgent" : "pending"}`}
                                                 style={isBlocked ? { paddingLeft: 25, borderLeft: "3px solid #e0e0e0" } : undefined}
                                             >

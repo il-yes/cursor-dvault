@@ -1,0 +1,3 @@
+Cloud authentication is a session concern, never a Ledger concern.
+
+Local sign-in establishes the sovereign desktop session. Cloud authentication is opportunistically established during sign-in and its bearer token is persisted in the session. Cloud-dependent features consume that capability but never acquire credentials themselves. If the capability is unavailable, the feature reports its unavailable state without initiating an authentication ceremony.

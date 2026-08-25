@@ -928,6 +928,37 @@ export namespace billing_domain {
 
 }
 
+export namespace blockchain {
+	
+	export class ChallengeRequest {
+	    public_key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChallengeRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.public_key = source["public_key"];
+	    }
+	}
+	export class ChallengeResponse {
+	    challenge: string;
+	    expires_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChallengeResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.challenge = source["challenge"];
+	        this.expires_at = source["expires_at"];
+	    }
+	}
+
+}
+
 export namespace channel_domain {
 	
 	export class Assignment {
@@ -1023,6 +1054,7 @@ export namespace handlers {
 	    privateKey?: string;
 	    signedMessage?: string;
 	    signature?: string;
+	    stellarSecret?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoginRequest(source);
@@ -1036,6 +1068,7 @@ export namespace handlers {
 	        this.privateKey = source["privateKey"];
 	        this.signedMessage = source["signedMessage"];
 	        this.signature = source["signature"];
+	        this.stellarSecret = source["stellarSecret"];
 	    }
 	}
 

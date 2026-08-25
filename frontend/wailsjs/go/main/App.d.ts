@@ -24,6 +24,7 @@ import {app_config_worker} from '../models';
 import {billing_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {notification_center_domain} from '../models';
+import {blockchain} from '../models';
 import {collaboration_dtos} from '../models';
 import {tracecore} from '../models';
 
@@ -221,7 +222,11 @@ export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 
 export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
+export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
+
 export function RequireAuth(arg1:string):Promise<auth.Claims>;
+
+export function RequireCloudAuthentication():Promise<void>;
 
 export function ResolveCollaborativeShare(arg1:string,arg2:string,arg3:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
 

@@ -105,7 +105,7 @@ func (h *IdentityHandler) FindUserById(ctx context.Context, req string) (*identi
 
 func (h *IdentityHandler) UpdateUser(ctx context.Context, user *identity_domain.User) (*identity_domain.User, error) {
 	if err := h.IdentityUserRepo.Update(ctx, user ); err != nil {
-		log.Println("❌ App - IdentityHandler - UpdateUser - failed to update user %s: %v", user.ID, err)
+		log.Printf("❌ App - IdentityHandler - UpdateUser - failed to update user %s: %v", user.ID, err)
 		return nil, err
 	}
 	return user, nil
@@ -115,13 +115,13 @@ func (h *IdentityHandler) UpdateUser(ctx context.Context, user *identity_domain.
 func (h *IdentityHandler) OnGenerateApiKey(ctx context.Context, userID string, publicKey string) (*identity_domain.User, error) {
 	user, err := h.FindUserById(ctx, userID)
 	if err != nil {
-		log.Println("❌ App - IdentityHandler - OnGenerateApiKey - failed to find user %s: %v", userID, err)
+		log.Printf("❌ App - IdentityHandler - OnGenerateApiKey - failed to find user %s: %v", userID, err)
 		return nil, err
 	}
 	user.OnGenerateApiKey(publicKey)
 	updatedUser, err := h.UpdateUser(context.Background(), user)
 	if err != nil {
-		log.Println("❌ App - IdentityHandler - OnGenerateApiKey - failed to update user %s: %v", userID, err)
+		log.Printf("❌ App - IdentityHandler - OnGenerateApiKey - failed to update user %s: %v", userID, err)
 		return nil, err
 	}
 	return updatedUser, nil

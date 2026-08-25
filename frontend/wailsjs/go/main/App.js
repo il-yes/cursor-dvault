@@ -390,8 +390,16 @@ export function RejectShare(arg1, arg2, arg3) {
   return window['go']['main']['App']['RejectShare'](arg1, arg2, arg3);
 }
 
+export function RequestChallenge(arg1) {
+  return window['go']['main']['App']['RequestChallenge'](arg1);
+}
+
 export function RequireAuth(arg1) {
   return window['go']['main']['App']['RequireAuth'](arg1);
+}
+
+export function RequireCloudAuthentication() {
+  return window['go']['main']['App']['RequireCloudAuthentication']();
 }
 
 export function ResolveCollaborativeShare(arg1, arg2, arg3) {

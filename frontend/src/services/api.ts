@@ -1802,6 +1802,7 @@ export async function acceptChannelInvitation(invitationId: string): Promise<Cha
 	if (!identity) {
 		throw new Error('Vault identity is required to accept an invitation');
 	}
+	console.log({identity})
 
 	const result = await AppAPI.AcceptChannelInvitation(
 		jwtToken,

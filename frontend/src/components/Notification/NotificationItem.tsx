@@ -39,9 +39,13 @@ export function NotificationItem({ item, onMarkRead, onArchive }: Props) {
 	const isUnread = item.status === "unread";
 	const timeLabel = useMemo(() => formatRelative(item.created_at), [item.created_at]);
 	const acceptShare = useNotificationsStore((s) => s.acceptShare);
+	const acceptWorkspaceInvitation = useNotificationsStore((s) => s.acceptWorkspaceInvitation);
 	const rejectShare = useNotificationsStore((s) => s.rejectShare);
 	const revokeShare = useNotificationsStore((s) => s.revokeShare);
 	console.log({item})
+	const payloadJson = parseNotificationPayload(item.payload);
+	console.log({payloadJson})
+	
 
 	return (
 		<div
@@ -72,6 +76,12 @@ export function NotificationItem({ item, onMarkRead, onArchive }: Props) {
 						<Button size="sm" variant="ghost" onClick={() => onArchive(item.id)}>
 							<Archive className="mr-2 h-4 w-4" />
 							Archive
+						</Button>
+					) : null}
+
+					{item.type === "workspace.invitation" || item.type === "workspace_invitation" ? (
+						<Button size="sm" onClick={() => acceptWorkspaceInvitation(item)}>
+							Accept
 						</Button>
 					) : null}
 

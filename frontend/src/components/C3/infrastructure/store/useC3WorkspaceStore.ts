@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { listWorkspaces, WorkspaceResponse } from "@/services/api";
+import { useAppStore } from "@/store/appStore";
 
 export interface C3WorkspaceState {
 	workspaces: WorkspaceResponse[];
@@ -7,10 +8,12 @@ export interface C3WorkspaceState {
 	activeWorkspaceId: string | null;
 	isLoading: boolean;
 	error: string | null;
+	isCloudAuthRequired: boolean;
 
 	fetchWorkspaces: () => Promise<void>;
 	selectWorkspace: (workspaceId: string) => void;
 	addWorkspace: (workspace: WorkspaceResponse) => void;
+	clearCloudAuthRequired: () => void;
 }
 
 export const useC3WorkspaceStore = create<C3WorkspaceState>((set, get) => ({
@@ -19,16 +22,17 @@ export const useC3WorkspaceStore = create<C3WorkspaceState>((set, get) => ({
 	activeWorkspaceId: null,
 	isLoading: false,
 	error: null,
+	isCloudAuthRequired: false,
 
 	fetchWorkspaces: async () => {
+		const session = useAppStore.getState().session;
+		
+
 		set({ isLoading: true, error: null });
 		try {
-			console.log('fetching........................................')
 			const fetched = await listWorkspaces();
 			const currentActiveId = get().activeWorkspaceId;
 			let active = fetched.find((w) => w.id === currentActiveId) || null;
-			console.log('result fetching........................................')
-			console.log({fetched})
 
 			if (!active && fetched.length > 0) {
 				active = fetched[0];
@@ -40,12 +44,24 @@ export const useC3WorkspaceStore = create<C3WorkspaceState>((set, get) => ({
 				activeWorkspaceId: active ? active.id : null,
 				isLoading: false,
 				error: null,
+				isCloudAuthRequired: false,
 			});
 		} catch (err: any) {
+			const msg = err?.message || String(err) || "Failed to load workspaces.";
+			if (msg.includes("cloud authentication required")) {
+				console.info("ℹ️ C3 Workspace Store: Cloud authentication is required to access remote workspaces.");
+				set({
+					isLoading: false,
+					error: null,
+					isCloudAuthRequired: true,
+				});
+				return;
+			}
 			console.error("Failed to fetch workspaces:", err);
 			set({
 				isLoading: false,
-				error: err?.message || "Failed to load workspaces.",
+				error: msg,
+				isCloudAuthRequired: false,
 			});
 		}
 	},
@@ -65,4 +81,6 @@ export const useC3WorkspaceStore = create<C3WorkspaceState>((set, get) => ({
 			activeWorkspaceId: newWorkspace.id,
 		}));
 	},
+
+	clearCloudAuthRequired: () => set({ isCloudAuthRequired: false }),
 }));

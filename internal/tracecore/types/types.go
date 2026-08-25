@@ -12,6 +12,23 @@ type LoginRequest struct {
 	Signature     string `json:"signature,omitempty"`
 }
 
+type StellarChallengeRequest struct {
+	PublicKey string `json:"public_key"`
+}
+
+type StellarChallengeResponse struct {
+	Challenge string `json:"challenge"`
+	Data      struct {
+		Challenge string `json:"challenge"`
+	} `json:"data,omitempty"`
+}
+
+type StellarAuthenticateRequest struct {
+	PublicKey string `json:"public_key"`
+	Signature string `json:"signature"`
+}
+
+
 type CloudLoginResponse struct {
 	Error               bool   `json:"error"`
 	Message             string `json:"message"`
@@ -301,13 +318,13 @@ type StorageUsageResponse struct {
 }
 
 type NewCreateWorkspaceRequest struct {
-	UserID    string
-	VaultID   string
-	Signature string
+	UserID    string `json:"user_id,omitempty"`
+	VaultID   string `json:"vault_id"`
+	Signature string `json:"signature,omitempty"`
 
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	OwnerID     string `json:"owner_id"`
+	OwnerID     string `json:"owner_id,omitempty"`
 }
 type Workspace struct {
 	ID      string `json:"id"`

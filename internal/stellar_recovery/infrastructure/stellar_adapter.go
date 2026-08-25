@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"vault-app/internal/blockchain"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	"vault-app/internal/models"
 
 	"github.com/stellar/go/keypair"
@@ -74,11 +75,13 @@ func (a *StellarLoginAdapter) RecoverPassword(ctx context.Context, input Recover
 		return "", nil, errors.New("stellar: missing login data")
 	}
 
-	// 1️⃣ Lookup user
-	user, _, err := a.DB.GetUserByPublicKey(input.PublicKey)
-	if err != nil || user == nil {
-		return "", nil, fmt.Errorf("stellar: user not found for public key %s: %w", input.PublicKey, err)
+	// 1️⃣ Lookup user via DDD identity repo
+	repo := identity_persistence.NewGormUserRepository(a.DB.DB)
+	identityUser, errKey := repo.FindByPublicKey(ctx, input.PublicKey)
+	if errKey != nil || identityUser == nil {
+		return "", nil, fmt.Errorf("stellar: user not found for public key %s: %w", input.PublicKey, errKey)
 	}
+	user := identityUser.ToFormerUser()
 
 	// 2️⃣ Verify the signature
 	if !blockchain.VerifySignature(input.PublicKey, input.SignedMessage, input.Signature) {

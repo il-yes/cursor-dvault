@@ -207,7 +207,6 @@ func VerifySignature(publicKey, challenge, signatureB64 string) bool {
 
 // SubmitCID anchors an IPFS CID on the Stellar Testnet using ManageData.
 func SubmitCID(secretKey, ipfsCID string) (string, error) {
-	utils.LogPretty("SubmitCID - secretKey", secretKey)
 	kp, err := keypair.ParseFull(secretKey)
 	if err != nil {
 		return "", fmt.Errorf("invalid secret key: %w", err)
@@ -293,8 +292,6 @@ func CreateStellarAccount() (publicKey string, secretKey string, transactionID s
 	if !ok {
 		txHash = "unknown"
 	}
-	fmt.Println("Public key: ", kp)
-	fmt.Println("Secret key: ", kp)
 	return kp.Address(), kp.Seed(), txHash, nil
 
 }
@@ -334,10 +331,9 @@ func VerifyStellarSignature(message, pubKey, signatureBase64 string) bool {
 }
 
 func SignActorWithStellarPrivateKey(privateKey string, message string) (string, error) {
-	utils.LogPretty("private key", privateKey)
 	kp, err := keypair.ParseFull(privateKey)
 	if err != nil {
-		return "", fmt.Errorf("❌ failed to retrieve keypair from this private key %s: %w", privateKey, err)
+		return "", fmt.Errorf("❌ failed to retrieve keypair from private key: %w", err)
 	}
 	sig, err := kp.Sign([]byte(message))
 	if err != nil {

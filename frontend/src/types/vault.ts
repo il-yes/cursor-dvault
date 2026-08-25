@@ -316,6 +316,7 @@ export interface LoginRequest {
   publicKey?: string;
   signedMessage?: string;
   signature?: string;
+  stellarSecret?: string;
 }
 export interface User {
   id: string;

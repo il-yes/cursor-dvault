@@ -263,7 +263,7 @@ func TestAppendThreadEvent_ReferencesPersistedShareEntry(t *testing.T) {
 		AuthHandler:          authHandler,
 		CollaborationHandler: collabHandler,
 		ThreadHandler:        threadHandler,
-		Vault:                &vault_ui.VaultHandler{}, // SessionManager nil -> RestoreCloudTokenForUser no-ops
+		Vault:                &vault_ui.VaultHandler{TracecoreClient: tc}, // SessionManager nil -> RestoreCloudTokenForUser no-ops
 		ctx:                  ctx,
 	}
 

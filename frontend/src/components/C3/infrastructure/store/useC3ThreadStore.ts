@@ -61,11 +61,21 @@ export const useC3ThreadStore = create<C3ThreadState>((set, get) => ({
 			});
 		} catch (err: any) {
 			if (get().activeChannelId !== channelId) return;
+			const msg = err?.message || String(err);
+			if (msg.includes("cloud authentication required")) {
+				console.info(`ℹ️ C3 Thread Store: Cloud authentication required for channel ${channelId}`);
+				set({
+					threads: [],
+					isLoading: false,
+					error: null,
+				});
+				return;
+			}
 			console.error(`Failed to fetch threads for channel ${channelId}:`, err);
 			set({
 				threads: [],
 				isLoading: false,
-				error: err?.message || "Failed to load threads.",
+				error: msg,
 			});
 		}
 	},

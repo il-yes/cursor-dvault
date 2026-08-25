@@ -571,7 +571,7 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                                     padding: "12px 16px",
                                     borderBottom: "1px solid #e5e7eb",
                                     display: "flex",
-                                    justify: "space-between",
+                                    justifyContent: "space-between",
                                     alignItems: "center",
                                     backgroundColor: "#f9fafb",
                                 }}

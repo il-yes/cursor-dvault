@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +45,11 @@ func (c *TracecoreClient) CreateWorkspace(ctx context.Context, req workspace_dom
 	}
 
 	// Step 2: build URL and request
-	url := c.AnkhoraCloudUrl + "/workspaces"
+	endpoint := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if !strings.HasSuffix(endpoint, "/api") {
+		endpoint += "/api"
+	}
+	url := endpoint + "/workspaces"
 	utils.LogPretty("TracecoreClient - CreateWorkspace - URL", url)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -183,7 +188,11 @@ func (c *TracecoreClient) CreateWorkspaceDirect(ctx context.Context, vaultID str
 }
 
 func (c *TracecoreClient) ListWorkspaces(ctx context.Context, vaultID string) ([]tracecore_types.Workspace, error) {
-	url := c.AnkhoraCloudUrl + "/workspaces?vault_id=" + vaultID
+	endpoint := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if !strings.HasSuffix(endpoint, "/api") {
+		endpoint += "/api"
+	}
+	url := endpoint + "/workspaces?vault_id=" + vaultID
 	utils.LogPretty("[Workspace] Cloud GET URL", url)
 	log.Printf("[CLOUD-TRACE] LEDGER REQUEST: client_pointer=%p token_length=%d token_fingerprint=%s authorization_header=%v vault_id=%s",
 		c, len(c.Token), traceTokenFingerprint(c.Token), c.Token != "", vaultID)

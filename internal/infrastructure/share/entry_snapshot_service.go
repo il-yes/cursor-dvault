@@ -6,7 +6,6 @@ import (
 
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/logger/logger"
-	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vault_ui "vault-app/internal/vault/ui"
 )
 
@@ -15,7 +14,6 @@ import (
 // ---------------------------------------------------------------------------------
 type Vaulthandler interface {
 	UploadAttachementToIPFSWithEncryption(userID string, ur vault_ui.UploadAttachRequest) (string, error)
-	LoadAttachment(userID string, vaultName string, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error)
 }
 
 type EntrySnapshotService struct {

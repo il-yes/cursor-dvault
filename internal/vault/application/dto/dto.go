@@ -111,3 +111,8 @@ type VaultPayloadAddEntryRequest struct {
 	EntryType string
 	Entry     any
 }
+
+type LoadAttachmentResponse struct {
+	File string `json:"file"`
+	Hash string `json:"hash"`
+}

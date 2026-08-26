@@ -16,8 +16,8 @@ import (
 	share_entry_domain "vault-app/internal/share_entry/domain"
 	share_entry_infrastructure "vault-app/internal/share_entry/infrastructure"
 	"vault-app/internal/utils"
+	vault_dto "vault-app/internal/vault/application/dto"
 	vaults_domain "vault-app/internal/vault/domain"
-	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vault_ui "vault-app/internal/vault/ui"
 )
 
@@ -27,13 +27,13 @@ import (
 //
 // -----------------------------------------------------------------------------------------------
 type MockVaultHandler struct {
-	LoadAttachmentFn                        func(userID, vaultName, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error)
+	LoadAttachmentFn                        func(userID, vaultName, hash string, formatReturned string) (*vault_dto.LoadAttachmentResponse, error)
 	UploadAttachementToIPFSWithEncryptionFn func(userID string, req vault_ui.UploadAttachRequest) (string, error)
 }
 
 // Implement the real method
 func (m *MockVaultHandler) LoadAttachment(
-	userID, vaultName, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error) {
+	userID, vaultName, hash string, formatReturned string) (*vault_dto.LoadAttachmentResponse, error) {
 	return m.LoadAttachmentFn(userID, vaultName, hash, formatReturned)
 }
 
@@ -54,11 +54,11 @@ func (m *MockIPFSDownloader) GetFromIpfs(ctx context.Context, cid string) ([]byt
 
 // MockVaultHandler is a simple mock that implements VaultHandler's interface methods
 type mockVaultHandler struct {
-	loadAttachmentFunc func(userID, vaultName, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error)
+	loadAttachmentFunc func(userID, vaultName, hash string, formatReturned string) (*vault_dto.LoadAttachmentResponse, error)
 	uploadFunc         func(userID string, req vault_ui.UploadAttachRequest) (string, error)
 }
 
-func (m *mockVaultHandler) LoadAttachment(userID, vaultName, hash string, formatReturned string) (*vaults_service.LoadAttachmentResponse, error) {
+func (m *mockVaultHandler) LoadAttachment(userID, vaultName, hash string, formatReturned string) (*vault_dto.LoadAttachmentResponse, error) {
 	if m.loadAttachmentFunc != nil {
 		return m.loadAttachmentFunc(userID, vaultName, hash, formatReturned)
 	}
@@ -87,11 +87,11 @@ func TestEntrySnapshotService_Build_CIDShared(t *testing.T) {
 			vaultName,
 			hash,
 			formatReturned string,
-		) (*vaults_service.LoadAttachmentResponse, error) {
+		) (*vault_dto.LoadAttachmentResponse, error) {
 
 			if hash == "hash1" {
-				return &vaults_service.LoadAttachmentResponse{
-					File: []byte("file data for hash1"),
+				return &vault_dto.LoadAttachmentResponse{
+					File: "base64-encoded-file",
 					Hash: "base64-encoded-file",
 				}, nil
 			}
@@ -317,10 +317,10 @@ func TestEntrySnapshotService_Build_RecipientCIDMap(
 			vaultName,
 			hash,
 			formatReturned string,
-		) (*vaults_service.LoadAttachmentResponse, error) {
+		) (*vault_dto.LoadAttachmentResponse, error) {
 
-			return &vaults_service.LoadAttachmentResponse{
-				File: []byte("file"),
+			return &vault_dto.LoadAttachmentResponse{
+				File: "file",
 				Hash: "base64-encoded-file",
 			}, nil
 		},
@@ -486,16 +486,12 @@ func TestEntrySnapshotService_Process_ShouldUploadAttachmentForRecipients(
 				hash,
 				formatReturned string,
 			) (
-				*vaults_service.LoadAttachmentResponse,
+				*vault_dto.LoadAttachmentResponse,
 				error,
 			) {
 
-				return &vaults_service.
-					LoadAttachmentResponse{
-					File: []byte(
-						"fake bytes",
-					),
-
+				return &vault_dto.LoadAttachmentResponse{
+					File: "fake bytes",
 					Hash: "base64-file",
 				}, nil
 			},

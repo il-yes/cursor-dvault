@@ -322,6 +322,16 @@ export const useNotificationsStore =
 						}
 
 						await acceptChannelInvitation(invitationId);
+
+						// Re-query Cloud for accessible workspaces after invitation acceptance
+						const workspaceStore = (await import("@/components/C3/infrastructure/store/useC3WorkspaceStore")).useC3WorkspaceStore;
+						await workspaceStore.getState().fetchWorkspaces();
+
+						const activeWorkspaceId = workspaceStore.getState().activeWorkspaceId;
+						if (activeWorkspaceId) {
+							const channelStore = (await import("@/components/C3/infrastructure/store/useC3ChannelStore")).useC3ChannelStore;
+							await channelStore.getState().fetchChannels(activeWorkspaceId);
+						}
 					} catch (err) {
 						set(
 							() => ({ notifications: snapshot, error: "Failed to accept workspace invitation" }),

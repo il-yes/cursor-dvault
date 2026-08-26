@@ -147,19 +147,7 @@ func (s *VaultService) CommitVaultLegacy(session vault_session.Session, mode Syn
 	// =========================
 	// 0. BUILD ATTACHEMENTS
 	// =========================
-	// attachements := vp.GetAttachments()
-	// attachementLinks, err := s.buildAttachmentLinks(session.UserID, session.Runtime.VaultName, attachements, mode)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
 
-	// // =========================
-	// // 6. ATTACHEMENTS ROOT
-	// // =========================
-	// attachementCIDs, _, err := s.BuildAttachmentsRoot(attachementLinks)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
 
 	attachementCIDs, err := s.BuildAttachmentsBranch(session, *vp, mode)
 	if err != nil {
@@ -169,19 +157,7 @@ func (s *VaultService) CommitVaultLegacy(session vault_session.Session, mode Syn
 	// =========================
 	// 1. BUILD ENTRIES
 	// =========================
-	// entries := vp.Entries
-	// entryLinks, indexByType, indexByFolder, entryUpdates, err := s.BuildEntries(entries, mode)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
 
-	// // =========================
-	// // 4. ENTRIES ROOT
-	// // =========================
-	// entriesCID, _, err := s.BuildEntriesRoot(entryLinks, mode)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
 
 	entriesCID, indexByType, indexByFolder, entryUpdates, err := s.BuildEntriesBranch(session, *vp, mode)
 	if err != nil {
@@ -191,18 +167,7 @@ func (s *VaultService) CommitVaultLegacy(session vault_session.Session, mode Syn
 	// =========================
 	// 2. FOLDERS
 	// =========================
-	// folders := vp.Folders
-	// folderLinks, err := s.BuildFolders(folders)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
-	// 	// =========================
-	// // 5. FOLDERS ROOT
-	// // =========================
-	// foldersCID, _, err := s.BuildFoldersRoot(folderLinks)
-	// if err != nil {
-	// 	return "", nil, 0, 0, err
-	// }
+
 
 	foldersCID, err := s.BuildFoldersBranch(session, *vp, mode)
 	if err != nil {

@@ -9,6 +9,23 @@ vi.mock("@/services/api", () => ({
 	revokeShare: vi.fn(),
 }));
 
+vi.mock("@/components/C3/infrastructure/store/useC3WorkspaceStore", () => ({
+	useC3WorkspaceStore: {
+		getState: () => ({
+			fetchWorkspaces: vi.fn().mockResolvedValue(undefined),
+			activeWorkspaceId: "ws_1",
+		}),
+	},
+}));
+
+vi.mock("@/components/C3/infrastructure/store/useC3ChannelStore", () => ({
+	useC3ChannelStore: {
+		getState: () => ({
+			fetchChannels: vi.fn().mockResolvedValue(undefined),
+		}),
+	},
+}));
+
 describe("notificationsStore - acceptWorkspaceInvitation", () => {
 	beforeEach(() => {
 		useNotificationsStore.setState({

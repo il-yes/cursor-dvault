@@ -27,7 +27,7 @@ func NewAvatarStore(root string) *AvatarStore {
 // ext: file extension including dot (e.g., ".png", ".jpg")
 func (s *AvatarStore) Save(userID string, data []byte) (string, error) {
 	fmt.Println("AvatarStore - Save - userID", userID)
-	dir := filepath.Join(s.Root, "avatars")		// "vault/<user_id>/<vault_name>/avatars"
+	dir := filepath.Join(s.Root, "avatars")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -35,11 +35,9 @@ func (s *AvatarStore) Save(userID string, data []byte) (string, error) {
 
 	contentType := http.DetectContentType(data)
 
-	ext := ".bin"
+	ext := ".png"
 
 	switch contentType {
-	case "image/png":
-		ext = ".png"
 	case "image/jpeg":
 		ext = ".jpg"
 	case "image/webp":
@@ -49,14 +47,15 @@ func (s *AvatarStore) Save(userID string, data []byte) (string, error) {
 	}
 
 	filename := userID + ext
-	path := filepath.Join(dir, filename)
+	relPath := filepath.Join("avatars", filename)
+	path := filepath.Join(s.Root, relPath)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		fmt.Println("AvatarStore - Save - error", err)
 		return "", err
 	}
 	fmt.Println("AvatarStore - Save - path", path)
 
-	return path, nil
+	return relPath, nil
 }
 
 // Load reads the avatar file for a user.

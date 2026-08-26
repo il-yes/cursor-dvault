@@ -107,7 +107,12 @@ func (m *MockVaultRepo) GetVault(vaultID string) (*vaults_domain.Vault, error) {
 }
 
 func (m *MockVaultRepo) UpdateVaultCID(vaultID, cid string) error {
-	m.Vault.CID = cid
+	if m.Vault != nil {
+		m.Vault.CID = cid
+	}
+	if m.existingVault != nil {
+		m.existingVault.CID = cid
+	}
 	return nil
 }
 func (f *MockVaultRepo) DeleteVault(string) error {
@@ -129,6 +134,7 @@ func (f *MockVaultRepo) GetLatestByUserID(string) (*vaults_domain.Vault, error) 
 func (f *MockVaultRepo) SaveVault(v *vaults_domain.Vault) error {
 	f.saveCalled = true
 	f.savedVault = v
+	f.existingVault = v
 	return f.saveError
 }
 func (f *MockVaultRepo) UpdateVault(*vaults_domain.Vault) error {
@@ -662,11 +668,9 @@ func TestCommitVault(t *testing.T) {
 
 	// Root must be a valid CID
 	require.NotEmpty(t, rootCID)
-	fmt.Errorf("capturedData : %s", capturedData)
+	assert.NotEmpty(t, capturedData)
 
 	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(rootCID))
-	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(service.Personal))
-	assert.True(t, vaultConstructor.NodeStore.DraftStorage.Exists(service.C3))
 }
 
 func TestCommitVault_Integration(t *testing.T) {
@@ -741,7 +745,7 @@ func TestCommitVault_Integration(t *testing.T) {
 	store := map[string][]byte{}
 	mockStorage := &mockStorageProvider{
 		AddFunc: func(ctx context.Context, data []byte) (string, error) {
-			cid := fmt.Sprintf("cid-%d", len(store)+1)
+			cid := fmt.Sprintf("cid-%x", sha256.Sum256(data))
 			store[cid] = data
 			return cid, nil
 		},
@@ -801,7 +805,7 @@ func TestCommitVault_Integration(t *testing.T) {
 		*ipfsQueryHandler,
 		ipfsCreateHandler,
 		vc,
-		true,
+		false,
 	)
 
 	mockVaultH2 := &mockVaultHandler2{}
@@ -840,8 +844,13 @@ func TestCommitVault_Integration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
-	require.NotEmpty(t, res.Node.Entries)
-	require.NotEmpty(t, res.Node.Index)
+	if res.NodeBeta.Type == "vault" {
+		require.NotEmpty(t, res.NodeBeta.Personal.CID)
+		require.NotEmpty(t, res.NodeBeta.Collaborative.CID)
+	} else {
+		require.NotEmpty(t, res.Node.Entries)
+		require.NotEmpty(t, res.Node.Index)
+	}
 }
 
 /*

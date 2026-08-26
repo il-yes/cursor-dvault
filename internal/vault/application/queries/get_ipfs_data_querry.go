@@ -123,6 +123,17 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	)
 
 
+	var node vaults_domain.VaultNode
+	_ = json.Unmarshal(plain, &node)
+	if node.Version == "" {
+		var meta struct {
+			Version string `json:"version"`
+		}
+		if err := json.Unmarshal(plain, &meta); err == nil && meta.Version != "" {
+			node.Version = meta.Version
+		}
+	}
+
 	// try to parse as VaultNodeBeta (optional)
 	// ==============================================
 	var nodeBeta vaults_domain.VaultNodeBeta
@@ -134,6 +145,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 			return &GetIPFSDataResponse{
 				Raw:      plain,
 				NodeBeta: nodeBeta,
+				Node:     node,
 			}, nil
 		}
 	}
@@ -158,8 +170,7 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 	
 	// try to parse as VaultNode (optional) == PersonalNode
 	// ==============================================
-	var node vaults_domain.VaultNode
-	if err := json.Unmarshal(plain, &node); err == nil && node.Type != "" {
+	if node.Type != "" || node.Version != "" {
 
 		return &GetIPFSDataResponse{
 			Raw:  plain,
@@ -177,21 +188,33 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
 	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
+
+	if h.IpfsService != nil {
+		bytes, err := h.IpfsService.Get(ctx, req.CID)
+		if err == nil && len(bytes) > 0 {
+			return bytes, nil
+		}
+	}
+
 	vc := app_config_domain.VaultContext{
-		Configs:            req.Configs,
-		StorageConfig:      req.Configs.App.Storage,
-		UserID:             req.UserID,
-		VaultName:          req.VaultName,
-		UserSubscriptionID: req.Configs.Subscription.UserID,
+		Configs:   req.Configs,
+		UserID:    req.UserID,
+		VaultName: req.VaultName,
+	}
+	if req.Configs.App != nil {
+		vc.StorageConfig = req.Configs.App.Storage
+	}
+	if req.Configs.Subscription != nil {
+		vc.UserSubscriptionID = req.Configs.Subscription.UserID
 	}
 
 	if h.StorageFactory == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - fail h.StorageFactory is nil", h.StorageFactory)
+		return nil, fmt.Errorf("StorageFactory is nil")
 	}
 
 	storageProvider := h.StorageFactory.New(&vc)
 	if storageProvider == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - fail h.StorageFactory is nil", h.StorageFactory)
+		return nil, fmt.Errorf("storageProvider is nil")
 	}
 
 	data, err := storageProvider.Get(ctx, req.CID)
@@ -204,7 +227,6 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 	if data == nil {
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned nil data")
 	}
-
 	if len(data) == 0 {
 		return nil, fmt.Errorf("GetIPFSDataQuerryHandler - GetFromIpfs: Get returned empty data")
 	}

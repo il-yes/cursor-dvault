@@ -88,8 +88,9 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 	vaultCtx app_config_domain.VaultContext,
 	data []byte,
 ) (string, error) {
-
-	// utils.LogPretty("CreateIPFSPayloadCommandHandler - StoreOnIpfs - vaultCtx", vaultCtx)
+	if h.IpfsService != nil {
+		return h.IpfsService.Add(ctx, data)
+	}
 	storageProvider := h.StorageFactory.New(&vaultCtx)
 	return storageProvider.Add(ctx, data)
 }

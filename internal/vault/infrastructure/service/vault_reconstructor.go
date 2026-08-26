@@ -25,6 +25,13 @@ func NewVaultReconstructor(q *vault_queries.GetIPFSDataQuerryHandler) *VaultReco
 	}
 }
 
+func (r *VaultReconstructor) Reconstruct(
+	ctx context.Context,
+	cmd vault_queries.GetIPFSDataQuerry,
+) (vaults_domain.VaultPayload, error) {
+	return r.BuildFromRoot(ctx, cmd)
+}
+
 func (r *VaultReconstructor) BuildFromRoot(
 	ctx context.Context,
 	cmd vault_queries.GetIPFSDataQuerry,

@@ -40,6 +40,11 @@ import (
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vaults_service "vault-app/internal/vault/infrastructure/service"
 	vaults_storage "vault-app/internal/vault/infrastructure/storage"
+	vaults_storage_engine "vault-app/internal/vault/infrastructure/storage/engine"
+	vaults_storage_engine_constructor "vault-app/internal/vault/infrastructure/storage/engine/constructor"
+	vaults_storage_engine_nodestore "vault-app/internal/vault/infrastructure/storage/engine/node_store"
+	vaults_storage_engine_reconstructor "vault-app/internal/vault/infrastructure/storage/engine/reconstructor"
+	vaults_storage_engine_serializer "vault-app/internal/vault/infrastructure/storage/engine/serializer"
 )
 
 type VaultHandler struct {
@@ -69,6 +74,7 @@ type VaultHandler struct {
 	Ctx                  context.Context
 	EventBus             vault_events.VaultEventBus
 	Reconstructor        vaults_service.VaultReconstructor
+	StorageEngine        vaults_storage_engine.StorageEngine
 	KeyringPath          string
 	KeyringService       *vault_infrastructure_security.KeyringService
 	UserOnboardingFinder onboarding_usecase.FindUsersUseCaseInterface
@@ -118,6 +124,14 @@ func NewVaultHandler(
 	ipfsDataQueryHandler := vault_queries.NewGetIPFSDataQuerryHandler(crypto, vc, &sf, &unlockVaultHandler)
 	reconstructor := vaults_service.NewVaultReconstructor(ipfsDataQueryHandler)
 
+	nodeStore := vaults_storage_engine_nodestore.NewNodeStore(*ipfsDataQueryHandler, createIpfsCommandHandler, app_config_domain.VaultContext{}, false)
+	serializer := vaults_storage_engine_serializer.NewSerializerReal(nodeStore, app_config_domain.VaultContext{}, nil)
+	constructorEngine := vaults_storage_engine_constructor.NewVaultConstructor(serializer, nodeStore, vaultRepo)
+	reconstructorEngine := vaults_storage_engine_reconstructor.NewVaultReconstructor(serializer, nodeStore)
+	storageEngine := vaults_storage_engine.NewStorageEngine(&constructorEngine, &reconstructorEngine)
+
+	createVaultCommand.SetStorageEngine(&storageEngine)
+
 	return &VaultHandler{
 		DB:                              db,
 		IPFS:                            ipfs,
@@ -136,6 +150,7 @@ func NewVaultHandler(
 		GetIPFSDataQuerryHandler:        ipfsDataQueryHandler,
 		UnlockVaultHandler:              &unlockVaultHandler,
 		Reconstructor:                   *reconstructor,
+		StorageEngine:                   storageEngine,
 		KeyringService:                  keyringService,
 	}
 }
@@ -281,7 +296,7 @@ func (vh *VaultHandler) Open(
 	}
 
 	openHandler := NewOpenVaultHandler(
-		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler, &vh.Reconstructor),
+		vault_commands.NewOpenVaultCommandHandler(vh.DB, *vh.GetIPFSDataQuerryHandler, &vh.StorageEngine),
 		vh.EventBus,
 	)
 	vh.logger.Info("✅ OpenVault - opening vault for user %s", req.UserID)

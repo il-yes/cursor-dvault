@@ -273,53 +273,67 @@ func (r *VaultReconstructor) resolveEntries(
 
 		// 1. Detect type first (light struct)
 		var meta struct {
-			Type string `json:"type"`
+			Type      string `json:"Type"`
+			TypeLower string `json:"type"`
 		}
 
 		if err := json.Unmarshal(res.Raw, &meta); err != nil {
 			return result, err
 		}
 
+		entryType := meta.Type
+		if entryType == "" {
+			entryType = meta.TypeLower
+		}
+
+		rawEntry := res.Raw
+		var wrapper struct {
+			Data json.RawMessage `json:"Data"`
+		}
+		if err := json.Unmarshal(res.Raw, &wrapper); err == nil && len(wrapper.Data) > 0 {
+			rawEntry = wrapper.Data
+		}
+
 		// 2. Dispatch by type (like reverse BuildEntries)
-		switch meta.Type {
+		switch entryType {
 
 		case "login":
 			var e vaults_domain.LoginEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
+			if err := json.Unmarshal(rawEntry, &e); err != nil {
 				return result, err
 			}
 			result.Login = append(result.Login, e)
 
 		case "card":
 			var e vaults_domain.CardEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
+			if err := json.Unmarshal(rawEntry, &e); err != nil {
 				return result, err
 			}
 			result.Card = append(result.Card, e)
 
 		case "identity":
 			var e vaults_domain.IdentityEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
+			if err := json.Unmarshal(rawEntry, &e); err != nil {
 				return result, err
 			}
 			result.Identity = append(result.Identity, e)
 
 		case "note":
 			var e vaults_domain.NoteEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
+			if err := json.Unmarshal(rawEntry, &e); err != nil {
 				return result, err
 			}
 			result.Note = append(result.Note, e)
 
 		case "sshkey":
 			var e vaults_domain.SSHKeyEntry
-			if err := json.Unmarshal(res.Raw, &e); err != nil {
+			if err := json.Unmarshal(rawEntry, &e); err != nil {
 				return result, err
 			}
 			result.SSHKey = append(result.SSHKey, e)
 
 		default:
-			return result, fmt.Errorf("unknown entry type: %s", meta.Type)
+			return result, fmt.Errorf("unknown entry type: %s", entryType)
 		}
 	}
 

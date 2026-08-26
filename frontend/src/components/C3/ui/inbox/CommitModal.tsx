@@ -88,7 +88,7 @@ export const CommitModal: React.FC<CommitModalProps> = ({
                     bottom: 0,
                     display: "flex",
                     alignItems: "center",
-                    justify: "center",
+                    justifyContent: "center",
                     zIndex: 1101,
                     pointerEvents: "none",
                 }}
@@ -157,7 +157,7 @@ export const CommitModal: React.FC<CommitModalProps> = ({
                                     borderRadius: "6px",
                                     display: "flex",
                                     alignItems: "center",
-                                    justify: "center",
+                                    justifyContent: "center",
                                     fontSize: "12px",
                                     color: "#888",
                                     cursor: "pointer",
@@ -437,7 +437,7 @@ export const CommitModal: React.FC<CommitModalProps> = ({
                             borderTop: "1px solid #ebebeb",
                             display: "flex",
                             alignItems: "center",
-                            justify: "space-between",
+                            justifyContent: "space-between",
                             gap: "10px",
                         }}
                     >

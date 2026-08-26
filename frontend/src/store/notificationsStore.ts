@@ -1,4 +1,4 @@
-import { acceptShare, rejectShare, revokeShare } from "@/services/api";
+import { acceptShare, acceptChannelInvitation, rejectShare, revokeShare } from "@/services/api";
 import { parseNotificationPayload } from "@/services/utils";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
@@ -14,6 +14,7 @@ export type NotificationType =
 	| "share.accepted"
 	| "share.rejected"
 	| "share.ready_to_accept"
+	| "workspace.invitation"
 	| "subscription.activated"
 	| "subscription.expired"
 	| string;
@@ -73,6 +74,8 @@ interface NotificationsState {
 	clearArchived: () => void;
 
 	acceptShare: (notification: Notification) => Promise<void>;
+
+	acceptWorkspaceInvitation: (notification: Notification) => Promise<void>;
 
 	rejectShare: (notification: Notification) => Promise<void>;
 
@@ -285,6 +288,45 @@ export const useNotificationsStore =
 							() => ({ notifications: snapshot, error: "Failed to accept share" }),
 							false,
 							"notifications/acceptShare:rollback"
+						);
+						throw err;
+					}
+				},
+
+				acceptWorkspaceInvitation: async (notification: Notification) => {
+					const snapshot = get().notifications;
+
+					set(
+						(state) => ({
+							notifications: state.notifications.map((n) =>
+								n.id === notification.id
+									? {
+										...n,
+										status: "read",
+										read_at: n.read_at ?? new Date().toISOString(),
+									}
+									: n
+							),
+						}),
+						false,
+						"notifications/acceptWorkspaceInvitation:optimistic"
+					);
+
+					try {
+						const payload = parseNotificationPayload(notification.payload);
+						const invitationId = payload?.invitation_id || payload?.invitationId || payload?.intent_id;
+						console.log("invitationId", invitationId);
+
+						if (!invitationId) {
+							throw new Error("Invalid notification payload: missing invitation_id");
+						}
+
+						await acceptChannelInvitation(invitationId);
+					} catch (err) {
+						set(
+							() => ({ notifications: snapshot, error: "Failed to accept workspace invitation" }),
+							false,
+							"notifications/acceptWorkspaceInvitation:rollback"
 						);
 						throw err;
 					}

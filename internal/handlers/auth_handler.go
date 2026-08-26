@@ -12,6 +12,7 @@ import (
 	app_config "vault-app/internal/config"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
@@ -59,6 +60,7 @@ type LoginRequest struct {
 	PrivateKey    string `json:"privateKey,omitempty"`    // optional
 	SignedMessage string `json:"signedMessage,omitempty"` // optional
 	Signature     string `json:"signature,omitempty"`     // optional
+	StellarSecret string `json:"stellarSecret,omitempty"` // optional (ephemeral in-memory Stellar secret)
 }
 
 type LoginResponse struct {
@@ -86,10 +88,12 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	if credentials.PublicKey != "" && credentials.SignedMessage != "" {
 		ah.logger.Info("🔑 Stellar login request: %s", credentials.SignedMessage)
 
-		user, _, err = ah.DB.GetUserByPublicKey(credentials.PublicKey)
-		if err != nil || user == nil {
-			return nil, fmt.Errorf("❌ user not found for public key %s: %w", credentials.PublicKey, err)
+		repo := identity_persistence.NewGormUserRepository(ah.DB.DB)
+		identityUser, errKey := repo.FindByPublicKey(context.Background(), credentials.PublicKey)
+		if errKey != nil || identityUser == nil {
+			return nil, fmt.Errorf("❌ user not found for public key %s: %w", credentials.PublicKey, errKey)
 		}
+		user = identityUser.ToFormerUser()
 
 		if !blockchain.VerifySignature(credentials.PublicKey, credentials.SignedMessage, credentials.Signature) {
 			return nil, fmt.Errorf("❌ stellar signature verification failed: %w", err)
@@ -224,8 +228,9 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 
 		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
 			cloudToken := cloudLoginResponse.AuthenticationToken.Token
+			existingSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"] = cloudToken
 			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudToken
-			ah.TracecoreClient.Token = cloudToken
+			ah.TracecoreClient.SetToken(cloudToken)
 			ah.logger.Info("☁️ [CLOUD-TRACE] Login existing session: token_fingerprint=%s token_length=%d",
 				tracecore.TraceTokenFingerprint(cloudToken), len(cloudToken))
 		}
@@ -265,15 +270,21 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		storedSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
 
 		// Restore Cloud bearer token from session if available
-		if cloud_jwt, ok := storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"]; ok && cloud_jwt != "" {
-			ah.TracecoreClient.SetToken(cloud_jwt)
+		token := storedSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"]
+		if token == "" {
+			token = storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"]
+		}
+		if token != "" {
+			ah.TracecoreClient.SetToken(token)
 			ah.logger.Info("☁️ [CLOUD-TRACE] Login restored session: token_fingerprint=%s token_length=%d",
-				tracecore.TraceTokenFingerprint(cloud_jwt), len(cloud_jwt))
+				tracecore.TraceTokenFingerprint(token), len(token))
 		} else if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
-			storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
-			ah.TracecoreClient.SetToken(cloudLoginResponse.AuthenticationToken.Token)
+			freshToken := cloudLoginResponse.AuthenticationToken.Token
+			storedSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"] = freshToken
+			storedSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = freshToken
+			ah.TracecoreClient.SetToken(freshToken)
 			ah.logger.Info("☁️ [CLOUD-TRACE] Login set fresh token: token_fingerprint=%s token_length=%d",
-				tracecore.TraceTokenFingerprint(cloudLoginResponse.AuthenticationToken.Token), len(cloudLoginResponse.AuthenticationToken.Token))
+				tracecore.TraceTokenFingerprint(freshToken), len(freshToken))
 		}
 
 		// Persist the modified session so cloud_jwt survives app restarts
@@ -348,7 +359,10 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		WorkingBranch:  "main",
 		LoadedEntries:  []vaults_domain.VaultEntry{},
 	}
-	runtimeCtx.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
+	if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+		runtimeCtx.SessionSecrets["cloud_auth_token"] = cloudLoginResponse.AuthenticationToken.Token
+		runtimeCtx.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
+	}
 
 	// -----------------------------
 	// 8. Start new session
@@ -359,12 +373,13 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// -----------------------------
 	// 10. Return login response
 	// -----------------------------
-	// Persist session so cloud_jwt survives app restarts
+	// Persist session so cloud_auth_token survives app restarts
 	session, saveErr := ah.Vaults.GetSession(user.ID)
-	if saveErr == nil && session != nil {
+	if saveErr == nil && session != nil && cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+		session.VaultRuntimeContext.SessionSecrets["cloud_auth_token"] = cloudLoginResponse.AuthenticationToken.Token
 		session.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
 		if persistErr := ah.DB.SaveSession(user.ID, session); persistErr != nil {
-			ah.logger.Error("❌ failed to persist session with cloud_jwt: %v", persistErr)
+			ah.logger.Error("❌ failed to persist session with cloud_auth_token: %v", persistErr)
 		}
 	}
 
@@ -498,24 +513,101 @@ func ParseVaultPayload(decrypted []byte) models.VaultPayload {
 }
 
 func (ah *AuthHandler) RequestChallenge(req blockchain.ChallengeRequest) (blockchain.ChallengeResponse, error) {
-	challenge := blockchain.GenerateChallenge(req.PublicKey)
+	if req.PublicKey == "" {
+		return blockchain.ChallengeResponse{}, errors.New("missing public_key")
+	}
+
+	repo := identity_persistence.NewGormUserRepository(ah.DB.DB)
+	user, err := repo.FindByPublicKey(context.Background(), req.PublicKey)
+	if err != nil || user == nil {
+		return blockchain.ChallengeResponse{}, fmt.Errorf("user not found for public key: %s", req.PublicKey)
+	}
+
+	challengeStr := blockchain.GenerateChallenge(req.PublicKey)
+
+	challengeRepo := identity_persistence.NewGormStellarChallengeRepository(ah.DB.DB)
+	challengeRecord, err := challengeRepo.CreateOrReplace(context.Background(), req.PublicKey, challengeStr, 5*time.Minute)
+	if err != nil {
+		return blockchain.ChallengeResponse{}, fmt.Errorf("failed to persist challenge: %w", err)
+	}
 
 	response := blockchain.ChallengeResponse{
-		Challenge: challenge,
-		ExpiresAt: time.Now().Add(5 * time.Minute).Format(time.RFC3339),
+		Challenge: challengeRecord.Challenge,
+		ExpiresAt: challengeRecord.ExpiresAt.Format(time.RFC3339),
 	}
 
 	return response, nil
 }
+
+func (ah *AuthHandler) StellarAuthenticate(ctx context.Context, req tracecore_types.StellarAuthenticateRequest) (*tracecore_types.LoginResponse, error) {
+	if req.PublicKey == "" || req.Signature == "" {
+		return nil, errors.New("missing public_key or signature")
+	}
+
+	// 1. Resolve identity via DDD Identity Repository
+	repo := identity_persistence.NewGormUserRepository(ah.DB.DB)
+	user, err := repo.FindByPublicKey(ctx, req.PublicKey)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("user not found for public key: %s", req.PublicKey)
+	}
+
+	// 2. Retrieve & atomically consume challenge for single-use replay protection
+	challengeRepo := identity_persistence.NewGormStellarChallengeRepository(ah.DB.DB)
+	expectedChallenge, err := challengeRepo.Consume(ctx, req.PublicKey)
+	if err != nil || expectedChallenge == "" {
+		// Fallback to in-memory store if DB record was absent
+		if mapChallenge, ok := blockchain.ChallengeStore[req.PublicKey]; ok && mapChallenge != "" {
+			expectedChallenge = mapChallenge
+			delete(blockchain.ChallengeStore, req.PublicKey)
+		} else {
+			return nil, fmt.Errorf("invalid or expired challenge: %w", err)
+		}
+	} else {
+		delete(blockchain.ChallengeStore, req.PublicKey)
+	}
+
+	// 3. Verify signature against expected challenge
+	if !blockchain.VerifySignature(req.PublicKey, expectedChallenge, req.Signature) {
+		return nil, errors.New("invalid cryptographic signature for challenge")
+	}
+
+	// 4. Generate & persist authentication token for resolved identity
+	u := auth.JwtUser{
+		ID:       user.ID,
+		Username: user.Email,
+		Email:    user.Email,
+	}
+	tokens, err := ah.auth.GenerateTokenPair(&u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token pair: %w", err)
+	}
+
+	_, err = ah.DB.SaveJwtToken(tokens)
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist token: %w", err)
+	}
+
+	return &tracecore_types.LoginResponse{
+		Token: tokens.Token,
+		AuthenticationToken: &struct {
+			Token  string    `json:"token"`
+			Expiry time.Time `json:"expiry"`
+		}{
+			Token:  tokens.Token,
+			Expiry: time.Now().Add(24 * time.Hour),
+		},
+	}, nil
+}
+
 func (ah *AuthHandler) AuthVerify(req *blockchain.SignatureVerification) (string, error) {
-	expectedChallenge, err := blockchain.ChallengeStore[req.PublicKey]
-	if !err || expectedChallenge != req.Challenge {
-		return "", fmt.Errorf("❌ Invalid or expired challenge: %w", err)
+	expectedChallenge, ok := blockchain.ChallengeStore[req.PublicKey]
+	if !ok || expectedChallenge != req.Challenge {
+		return "", errors.New("❌ Invalid or expired challenge")
 	}
 	if blockchain.VerifySignature(req.PublicKey, req.Challenge, req.Signature) {
 		return fmt.Sprintf("✅ Signature verified. Login successful."), nil
 	} else {
-		return "", fmt.Errorf("❌ Signature verification failed: %w", err)
+		return "", errors.New("❌ Signature verification failed")
 	}
 }
 

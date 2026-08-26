@@ -2096,7 +2096,13 @@ func (c *TracecoreClient) RequestVaultChallenge(ctx context.Context, vaultID str
 		return nil, fmt.Errorf("failed to marshal challenge request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/identity/challenge", bytes.NewReader(bodyBytes))
+	endpoint := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if !strings.HasSuffix(endpoint, "/api") {
+		endpoint += "/api"
+	}
+	endpoint += "/identity/challenge"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create challenge request: %w", err)
 	}
@@ -2138,7 +2144,13 @@ func (c *TracecoreClient) RegisterVaultIdentity(ctx context.Context, regReq Vaul
 		return nil, fmt.Errorf("failed to marshal register request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/identity/", bytes.NewReader(bodyBytes))
+	endpoint := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if !strings.HasSuffix(endpoint, "/api") {
+		endpoint += "/api"
+	}
+	endpoint += "/identity/"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create register request: %w", err)
 	}

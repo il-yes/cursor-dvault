@@ -47,6 +47,7 @@ export function StellarLoginForm({ onLogin }: { onLogin: (req: LoginRequest) => 
                 publicKey,
                 signedMessage: challenge,
                 signature,
+                stellarSecret: stellarKey,
             });
 
             toast({

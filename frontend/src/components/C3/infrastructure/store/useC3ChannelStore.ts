@@ -134,11 +134,21 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 			});
 		} catch (err: unknown) {
 			if (get().activeWorkspaceId !== workspaceId) return;
+			const msg = err instanceof Error ? err.message : String(err);
+			if (msg.includes("cloud authentication required")) {
+				console.info(`ℹ️ C3 Channel Store: Cloud authentication required for workspace ${workspaceId}`);
+				set({
+					channels: [],
+					isLoading: false,
+					error: null,
+				});
+				return;
+			}
 			console.error(`Failed to fetch channels for workspace ${workspaceId}:`, err);
 			set({
 				channels: [],
 				isLoading: false,
-				error: err instanceof Error ? err.message : "Failed to load channels.",
+				error: msg,
 			});
 		}
 	},

@@ -13,6 +13,7 @@ import (
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
 	share_domain "vault-app/internal/domain/shared"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	share_infrastructure "vault-app/internal/infrastructure/share"
 	"vault-app/internal/models"
 	onboarding_domain "vault-app/internal/onboarding/domain"
@@ -69,6 +70,7 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// Identity
 		&identity_domain.User{},
+		&identity_persistence.StellarAuthChallenge{},
 
 		// vault
 		&vaults_persistence.VaultMapper{},

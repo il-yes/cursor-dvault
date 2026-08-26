@@ -62,12 +62,22 @@ export const useC3ThreadEventStore = create<C3ThreadEventState>((set, get) => ({
 			if (get().activeThreadId !== threadId) {
 				return;
 			}
+			const msg = err?.message || String(err);
+			if (msg.includes("cloud authentication required")) {
+				console.info(`ℹ️ C3 ThreadEvent Store: Cloud authentication required for thread ${threadId}`);
+				set({
+					events: [],
+					isLoading: false,
+					error: null,
+				});
+				return;
+			}
 
 			console.error(`Failed to fetch events for thread ${threadId}:`, err);
 			set({
 				events: [],
 				isLoading: false,
-				error: err?.message || "Failed to load thread events.",
+				error: msg,
 			});
 		}
 	},

@@ -31,6 +31,7 @@ export const LedgerLayout = ({
         activeWorkspaceId,
         isLoading: isWorkspaceLoading,
         error: workspaceError,
+        isCloudAuthRequired,
         fetchWorkspaces,
         addWorkspace
     } = useC3WorkspaceStore();
@@ -182,7 +183,41 @@ export const LedgerLayout = ({
 
             {/* Main layout */}
             <div className="layout">
-                {!isWorkspaceLoading && workspaces.length === 0 && !workspaceError ? (
+                {isCloudAuthRequired ? (
+                    <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '60px 20px',
+                        textAlign: 'center',
+                        backgroundColor: '#0D1117',
+                        color: '#C9D1D9',
+                        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                    }}>
+                        <div style={{
+                            width: '56px',
+                            height: '56px',
+                            borderRadius: '14px',
+                            backgroundColor: 'rgba(56, 139, 253, 0.1)',
+                            border: '1px solid rgba(56, 139, 253, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '28px',
+                            marginBottom: '20px',
+                        }}>
+                            ☁️
+                        </div>
+                        <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#F0F6FC', margin: '0 0 8px 0' }}>
+                            Cloud collaboration unavailable
+                        </h2>
+                        <p style={{ fontSize: '13px', color: '#8B949E', margin: '0', maxWidth: '440px', lineHeight: 1.5 }}>
+                            Your local vault is available and secure. Cloud workspaces and remote ledger features require a connected Cloud identity.
+                        </p>
+                    </div>
+                ) : !isWorkspaceLoading && workspaces.length === 0 && !workspaceError ? (
                     <div style={{
                         flex: 1,
                         display: 'flex',
@@ -223,6 +258,8 @@ export const LedgerLayout = ({
                     onClose={() => setOpenNewThread(false)}
                 />
             </div>
+
+
 
             {/* Create Workspace Modal */}
             <CreateWorkspaceModal

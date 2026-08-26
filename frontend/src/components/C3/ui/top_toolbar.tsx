@@ -81,12 +81,12 @@ export const TopToolbar = ({
                                         Create your first workspace below.
                                     </div>
                                 ) : (
-                                    workspaces.map((ws) => (
+                                    workspaces.map((ws, idx) => (
                                         <button
-                                            key={ws.id}
+                                            key={ws.id || `ws-${idx}`}
                                             className={`workspace-option${ws.id === activeWorkspaceId ? " selected" : ""}`}
                                             onClick={() => handleSelectWorkspace(ws.id)}
-                                            id={`workspace-option-${ws.id}`}
+                                            id={`workspace-option-${ws.id || idx}`}
                                         >
                                             <span className="workspace-option-dot" />
                                             <span className="workspace-option-name">{ws.name}</span>

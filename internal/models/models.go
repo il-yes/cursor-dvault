@@ -531,7 +531,6 @@ func (m *DBModel) GetUserByPublicKey(pubKey string) (*User, *app_config.UserConf
 		return nil, nil, fmt.Errorf("❌ failed to find user from userCfg id: %s", userCfg.ID)
 	}
 
-	// utils.LogPretty("user from db", user)
 	return &user, &userCfg, nil
 }
 

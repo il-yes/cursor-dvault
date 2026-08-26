@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
@@ -122,7 +123,19 @@ func (c *TracecoreClient) doRequest(ctx context.Context, method, path string, bo
 		buf = bytes.NewBuffer(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, buf)
+	baseURL := strings.TrimRight(c.BaseURL, "/")
+	cleanPath := path
+	if strings.HasSuffix(baseURL, "/api") && strings.HasPrefix(cleanPath, "/api/") {
+		cleanPath = strings.TrimPrefix(cleanPath, "/api")
+	}
+	if !strings.HasPrefix(cleanPath, "/") {
+		cleanPath = "/" + cleanPath
+	}
+	targetURL := baseURL + cleanPath
+
+	log.Printf("[TRACECORE-HTTP] %s %s", method, targetURL)
+
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, buf)
 	if err != nil {
 		return err
 	}

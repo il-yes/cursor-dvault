@@ -216,11 +216,11 @@ export const ChannelTable = ({
                         <td >
 
                             {
-                                channel?.assets !== null && channel?.assets !== undefined ? channel?.assets?.items?.map(asset => (
+                                channel?.assets !== null && channel?.assets !== undefined ? channel?.assets?.items?.map((asset, idx) => (
 
                                     <div
                                         className="asset-box cursor-pointer"
-                                        key={asset.id}
+                                        key={asset.id || `asset-${idx}`}
 
                                         onClick={() => {
                                             onOpenAsset(asset);

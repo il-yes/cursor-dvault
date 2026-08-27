@@ -33,6 +33,7 @@ type IpfsServiceInterface interface {
 type GetIPFSDataQuerry struct {
 	CID              string
 	Password         string
+	VaultKey         []byte // 32-byte in-memory Vault DEK
 	Configs          app_config_domain.Config
 	UserID           string
 	VaultName        string
@@ -96,9 +97,9 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 		return nil, fmt.Errorf("rawBytes nil after IPFS get")
 	}
 
-	if h.UnlockVaultHandler == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - h.UnlockVaultHandler is nil", err)
-		return nil, fmt.Errorf("UnlockVaultHandler missing")
+	if len(cmd.VaultKey) != 32 && cmd.Password == "" && h.UnlockVaultHandler == nil {
+		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - missing unlock credential and UnlockVaultHandler is nil", nil)
+		return nil, fmt.Errorf("UnlockVaultHandler missing and no session VaultKey provided")
 	}
 	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - cmd", cmd)
 	// utils.LogPretty("GetIPFSDataQuerryHandler - Execute - rawBytes", rawBytes)
@@ -235,25 +236,30 @@ func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSD
 }
 
 func (h GetIPFSDataQuerryHandler) PrivateDecryption(cmd GetIPFSDataQuerry, rawBytes []byte) ([]byte, error) {
-	utils.LogPretty("GetIPFSDataQuerryHandler - ShareDecryption - ", "PrivateDecryption path")
-	// 1. Unlock vault key
-	// ==============================================
-	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
-		Password: cmd.Password,
-		UserID:   cmd.UserOnboardingID,
-	})
-	if err != nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", err)
-		return nil, fmt.Errorf("unlock failed: %w", err)
+	utils.LogPretty("GetIPFSDataQuerryHandler - PrivateDecryption - ", "PrivateDecryption path")
+	var vaultKey []byte
+
+	if len(cmd.VaultKey) == 32 {
+		vaultKey = cmd.VaultKey
+	} else if cmd.Password != "" {
+		unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+			Password: cmd.Password,
+			UserID:   cmd.UserOnboardingID,
+		})
+		if err != nil {
+			utils.LogPretty("GetIPFSDataQuerryHandler - Execute - unlockRes", err)
+			return nil, fmt.Errorf("unlock failed: %w", err)
+		}
+		vaultKey = unlockRes.VaultKey.Key
+	} else {
+		return nil, fmt.Errorf("PrivateDecryption: missing vault DEK and no unlock password provided")
 	}
 
-	if h.CryptoService == nil {
-		utils.LogPretty("GetIPFSDataQuerryHandler - Execute - fail CryptoService is nil", err)
+	if len(vaultKey) != 32 {
+		return nil, fmt.Errorf("PrivateDecryption: invalid vault DEK length (expected 32, got %d)", len(vaultKey))
 	}
 
-	// 2. Decrypt
-	// ==============================================
-	plain, err := h.CryptoService.Decrypt(rawBytes, unlockRes.VaultKey.Key)
+	plain, err := h.CryptoService.Decrypt(rawBytes, vaultKey)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt failed: %w", err)
 	}

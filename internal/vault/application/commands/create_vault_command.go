@@ -129,6 +129,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		}
 	}
 
+	/** TODO this should come from the cloud for the correct vault_id **/
 	// 2. Build initial domain Vault entity in memory (do NOT save to DB yet)
 	vault := vault_domain.NewVault(cmd.UserID, cmd.VaultName)
 	vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)

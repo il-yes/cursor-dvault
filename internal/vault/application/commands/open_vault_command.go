@@ -209,6 +209,7 @@ func (h *OpenVaultCommandHandler) Handle(
 		vault_queries.GetIPFSDataQuerry{
 			CID:              authoritativeVault.CID,
 			Password:         cmd.Password,
+			VaultKey:         cmd.Session.VaultKey,
 			Configs:          *cfgs,
 			UserID:           cmd.UserID,
 			VaultName:        authoritativeVault.Name,

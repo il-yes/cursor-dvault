@@ -1,16 +1,21 @@
 package vault_commands
 
-import "context"
+import (
+	"context"
+	vault_session "vault-app/internal/vault/application/session"
+)
 
-type CloseCommand struct{}
+type CloseCommand struct {
+	UserID string
+}
 
 type CloseCommandHandler struct {
+	SessionManager *vault_session.Manager
 }
 
 func (c *CloseCommandHandler) Execute(ctx context.Context, cmd CloseCommand) error {
-	// 1. wipe VaultKey from memory
-	// 2. clear decrypted cache
-	// 3. stop sync workers
-
+	if c.SessionManager != nil && cmd.UserID != "" {
+		c.SessionManager.CloseSession(cmd.UserID)
+	}
 	return nil
 }

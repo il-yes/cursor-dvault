@@ -140,6 +140,7 @@ func (m *Manager) GetSessions() map[string]*Session {
 // Close session and save to db	: duplication risk with LogoutUser
 func (m *Manager) EndSession(userID string) error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	s, ok := m.sessions[userID]
 	if ok {
 		err := m.SessionRepository.SaveSession(userID, s)
@@ -148,9 +149,9 @@ func (m *Manager) EndSession(userID string) error {
 			return err
 		}
 		utils.LogPretty("💾 EndSession - Session saved and closed", s)
+		s.WipeVaultKey()
 		delete(m.sessions, userID)
 	}
-	m.mu.Unlock()
 
 	return nil
 }
@@ -370,4 +371,17 @@ func (m *Manager) UpdateAppConfig(userID string, appCfgUpdated app_config_domain
 
 	return s.Runtime.AppConfig, nil
 }
-	
+
+func (m *Manager) CloseSession(userID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	s, ok := m.sessions[userID]
+	if ok && s != nil {
+		s.WipeVaultKey()
+		if s.Runtime != nil && s.Runtime.SessionSecrets != nil {
+			s.Runtime.SessionSecrets = make(map[string]string)
+		}
+		delete(m.sessions, userID)
+	}
+}

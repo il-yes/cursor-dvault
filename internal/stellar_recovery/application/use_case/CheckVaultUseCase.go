@@ -28,10 +28,10 @@ type CheckKeyResult struct {
 	Subscription *stellar_recovery_domain.Subscription
 }
 
-func (uc *CheckKeyUseCase) Execute(ctx context.Context, pub string) (*CheckKeyResult, error) {
+func (uc *CheckKeyUseCase) Execute(ctx context.Context, secret string) (*CheckKeyResult, error) {
 	// 1. -------------- Validate public key --------------
-	// pub, err := uc.verifier.ParseSecret(secret)
-	if pub == "" {
+	pub, err := uc.verifier.ParseSecret(secret)
+	if err != nil || pub == "" {
 		// invalid secret format -> return VaultExists false and the parsed public key empty
 		return &CheckKeyResult{
 			VaultExists: false,

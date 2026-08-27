@@ -383,7 +383,7 @@ func (db *DBModel) SaveVaultCID(vault VaultCID) (*VaultCID, error) {
 }
 
 func (m *DBModel) DeleteDraftVaultByUserIDAndCID(vault VaultContent) error {
-	if err := m.DB.Delete(&vault, "id = ?", vault.ID); err != nil {
+	if err := m.DB.Delete(&vault, "id = ?", vault.ID).Error; err != nil {
 		return fmt.Errorf("❌ failed to delete drafts: %w", err)
 	}
 	return nil
@@ -616,7 +616,7 @@ func (m *DBModel) GetJwtTokenByUserId(userId string) (*auth.TokenPairs, error) {
 	var token auth.TokenPairs
 	err := m.DB.Find(&token, "user_id = ?", userId).Error
 	if err != nil {
-		return nil, fmt.Errorf("❌ failed to find token for user: %d", userId)
+		return nil, fmt.Errorf("❌ failed to find token for user: %s", userId)
 	}
 	return &token, nil
 }

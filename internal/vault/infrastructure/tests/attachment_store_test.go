@@ -127,3 +127,30 @@ func TestAttachmentStore_HashDeterministic(t *testing.T) {
 		t.Fatalf("hash should be deterministic")
 	}
 }
+
+func TestAttachmentStore_MultiPathFallback(t *testing.T) {
+	root := t.TempDir()
+	store := vaults_storage.NewAttachmentStore(root)
+
+	data := []byte("legacy attachment data")
+	hash := vaults_storage.HashFile(data)
+
+	// Simulate legacy flat root file: root/<hash>.enc
+	flatPath := filepath.Join(root, hash+".enc")
+	if err := os.WriteFile(flatPath, data, 0644); err != nil {
+		t.Fatalf("failed to write flat legacy file: %v", err)
+	}
+
+	if !store.Exists(hash) {
+		t.Fatalf("store.Exists should return true for legacy flat file")
+	}
+
+	loaded, err := store.Load(hash)
+	if err != nil {
+		t.Fatalf("store.Load failed on legacy flat file: %v", err)
+	}
+
+	if string(loaded) != string(data) {
+		t.Fatalf("loaded legacy data mismatch: got %q, want %q", string(loaded), string(data))
+	}
+}

@@ -96,6 +96,16 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 }
 
 func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
+	// Diagnostic logging (Safe identifiers and booleans only)
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - DIAGNOSTIC", map[string]interface{}{
+		"authenticatedUserID": vaultCtx.UserID,
+		"cmdUserID":           cmd.UserID,
+		"userOnboardingID":    cmd.UserOnboardingID,
+		"hasPassword":         cmd.Password != "",
+		"hasVault":            cmd.Vault != nil,
+		"hasShareKey":         len(cmd.ShareKey) > 0,
+		"keyringUserID":       cmd.UserOnboardingID,
+	})
 
 	// 1. Unlock vault key
 	// ==============================================
@@ -104,9 +114,19 @@ func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloa
 		UserID:   cmd.UserOnboardingID, // userOnboarding required
 	})
 	if err != nil {
-		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - error", cmd)
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - unlock error", map[string]interface{}{
+			"userOnboardingID": cmd.UserOnboardingID,
+			"hasPassword":      cmd.Password != "",
+			"unlockSuccess":    false,
+			"error":            err.Error(),
+		})
 		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption - failed to unlock vault key: %w", err)
 	}
+
+	utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - unlock success", map[string]interface{}{
+		"userOnboardingID": cmd.UserOnboardingID,
+		"unlockSuccess":    true,
+	})
 	vaultKey := unlockRes.VaultKey.Key
 
 	encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)

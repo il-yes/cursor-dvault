@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"net"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -1247,28 +1249,31 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// It only performs the vault proof-of-possession/delegation.
 
 
-	// fetch vault from cloud
+	// fetch vault from cloud and pass cloudVaultID to ConnectVault
 	cloudVault, err := a.Vault.GetVaultFromCloud(subscription.ID)
 	if err != nil {
 		a.Logger.Error("App - SignIn - error: %v", err)
 		return nil, err
 	}
-	vaultRes.RuntimeContext.VaultID = cloudVault.Data.ID
+	cloudVaultID := ""
+	if cloudVault != nil {
+		cloudVaultID = cloudVault.Data.ID
+	}
 	
 	if cloudToken != "" &&
 		vaultRes.RuntimeContext != nil &&
-		vaultRes.RuntimeContext.VaultID != "" {
+		cloudVaultID != "" {
 
 		if err := a.ConnectVault(
 			userID,
-			vaultRes.RuntimeContext.VaultID,
+			cloudVaultID,
 		); err != nil {
 
 			// Cloud delegation failure does NOT block local sign-in.
 			a.Logger.Warn(
 				"☁️ [CLOUD-VAULT] ConnectVault delegation failed for user %s vault %s: %v",
 				userID,
-				vaultRes.RuntimeContext.VaultID,
+				cloudVaultID,
 				err,
 			)
 		}
@@ -1294,6 +1299,26 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		LastCID:             vaultRes.LastCID,
 		Dirty:               session.Dirty,
 	}
+
+	loginResAttCount := len(vaultRes.Content.Attachments) + len(vaultRes.Content.Personal.Attachments)
+	loginResNoteAttCIDs := []string{}
+	for _, note := range vaultRes.Content.Entries.Note {
+		loginResNoteAttCIDs = append(loginResNoteAttCIDs, note.AttachmentCIDs...)
+	}
+	for _, note := range vaultRes.Content.Personal.Entries.Note {
+		loginResNoteAttCIDs = append(loginResNoteAttCIDs, note.AttachmentCIDs...)
+	}
+	resBytes := vaultRes.Content.ToBytes()
+	hSignIn := sha256.Sum256(resBytes)
+	utils.LogPretty("BYTE IDENTITY TRACE 3 - App.SignIn Result", map[string]interface{}{
+		"userID":              userID,
+		"reusedExisting":      vaultRes.ReusedExisting,
+		"lastCID":             vaultRes.LastCID,
+		"vaultBytesLen":       len(resBytes),
+		"vaultSHA256":         fmt.Sprintf("%x", hSignIn[:]),
+		"loginResAttCount":    loginResAttCount,
+		"loginResNoteAttCIDs": loginResNoteAttCIDs,
+	})
 
 	return loginRes, nil
 }
@@ -1348,6 +1373,48 @@ func (a *App) GetSession(userID string) (*GetSessionResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	getSessionEntryAttCIDs := make(map[string][]string)
+	getSessionNodeCIDs := []string{}
+	entryCountsByType := map[string]int{}
+	vaultByteLen := 0
+
+	if userSession != nil && userSession.Vault != nil {
+		vaultByteLen = len(userSession.Vault)
+		parsedE := vaults_domain.ParseVaultPayload(userSession.Vault)
+
+		entryCountsByType["Login"] = len(parsedE.Personal.Entries.Login)
+		entryCountsByType["Card"] = len(parsedE.Personal.Entries.Card)
+		entryCountsByType["Identity"] = len(parsedE.Personal.Entries.Identity)
+		entryCountsByType["Note"] = len(parsedE.Personal.Entries.Note)
+		entryCountsByType["SSHKey"] = len(parsedE.Personal.Entries.SSHKey)
+
+		for _, login := range parsedE.Personal.Entries.Login {
+			if len(login.AttachmentCIDs) > 0 {
+				getSessionEntryAttCIDs["login:"+login.ID] = login.AttachmentCIDs
+			}
+		}
+		for _, note := range parsedE.Personal.Entries.Note {
+			if len(note.AttachmentCIDs) > 0 {
+				getSessionEntryAttCIDs["note:"+note.ID] = note.AttachmentCIDs
+			}
+		}
+		for _, att := range parsedE.Personal.Attachments {
+			getSessionNodeCIDs = append(getSessionNodeCIDs, att.NodeCID)
+		}
+	}
+	hGetSession := sha256.Sum256(userSession.Vault)
+	utils.LogPretty("BYTE IDENTITY TRACE 4 - App.GetSession Result", map[string]interface{}{
+		"userID":                       userID,
+		"activeSessionLastCID":         userSession.LastCID,
+		"activeSessionVaultPresent":    userSession != nil && userSession.Vault != nil,
+		"activeSessionVaultByteLength": vaultByteLen,
+		"vaultSHA256":                  fmt.Sprintf("%x", hGetSession[:]),
+		"parsedAttachmentCount":        len(getSessionNodeCIDs),
+		"parsedEntryCountsByType":      entryCountsByType,
+		"entryAttachmentCIDsMap":       getSessionEntryAttCIDs,
+		"parsedAttachmentNodeCIDs":     getSessionNodeCIDs,
+	})
 
 	response := map[string]interface{}{
 		"User":                user,
@@ -1580,36 +1647,46 @@ func (a *App) DeleteFolder(id string, jwtToken string) (string, error) {
 // Cloud Services
 // -----------------------------
 func (a *App) SynchronizeVault(jwtToken string, password string) (string, error) {
-	utils.LogPretty("App - SynchronizeVault - jwtToken", jwtToken) // ✅ log
+	opID := fmt.Sprintf("%06d", rand.Intn(1000000))
+	ctx := context.WithValue(a.ctx, "sync_op_id", opID)
+	a.Logger.Info("SYNC[%s] ENTER App.SynchronizeVault", opID)
+	a.Logger.Info("SYNC[%s] caller/trigger=Wails.App.SynchronizeVault (jwtToken_len=%d, hasPassword=%t)", opID, len(jwtToken), password != "")
+
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
-		a.Logger.Error("App - SynchronizeVault - error: %v", err)
+		a.Logger.Error("SYNC[%s] EXIT App.SynchronizeVault error=%v", opID, err)
 		return "", err
 	}
 	if err := a.RequireCloudAuthentication(); err != nil {
+		a.Logger.Error("SYNC[%s] EXIT App.SynchronizeVault error=%v", opID, err)
 		return "", err
+	}
+
+	session, sessErr := a.Vault.SessionManager.GetSession(claims.UserID)
+	if sessErr == nil && session != nil {
+		a.Logger.Info("SYNC[%s] currentCID=%s sessionDirty=%t", opID, session.LastCID, session.Dirty)
+	} else {
+		a.Logger.Info("SYNC[%s] sessionRetrievalErr=%v", opID, sessErr)
 	}
 
 	// Get Vault ==============================
 	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
 	if err != nil {
-		a.Logger.Error("App - SynchronizeVault - error: %v", err)
+		a.Logger.Error("SYNC[%s] EXIT App - GetLatestByUserID - error: %v", opID, err)
 		return "", err
 	}
-	a.Logger.LogPretty("App - SynchronizeVault - vault", vault)
 
 	// Get configs ==============================
 	cfgs, err := a.GetConfig(vault.Name, jwtToken)
 	if err != nil {
-		a.Logger.Error("App - SynchronizeVault - error: %v", err)
+		a.Logger.Error("SYNC[%s] EXIT App - GetConfig - error: %v", opID, err)
 		return "", err
 	}
-	a.Logger.LogPretty("App - SynchronizeVault - cfgs", cfgs)
 
 	// Get User onboarding ==============================
 	userOnboarding, err := a.OnBoardingHandler.UserRepo.FindByEmail(claims.Email)
 	if err != nil {
-		a.Logger.Error("App - GetConfigByUserID - error: %v", err)
+		a.Logger.Error("SYNC[%s] EXIT App - FindByEmail - error: %v", opID, err)
 		return "", err
 	}
 
@@ -1621,14 +1698,14 @@ func (a *App) SynchronizeVault(jwtToken string, password string) (string, error)
 		UserOnboarding: userOnboarding.ID,
 		Configs:        *cfgs,
 	}
-	a.Vault.Ctx = a.ctx
+	a.Vault.Ctx = ctx
 
-	res, err := a.Vault.SyncVault(a.ctx, input, *&a.Vault.TracecoreClient)
+	res, err := a.Vault.SyncVault(ctx, input, *&a.Vault.TracecoreClient)
 	if err != nil {
-		a.Logger.Error("App - SynchronizeVault - error: %v", err)
+		a.Logger.Error("SYNC[%s] EXIT App - SyncVault - error: %v", opID, err)
 		return "", err
 	}
-	utils.LogPretty("App - SynchronizeVault - res", res)
+	a.Logger.Info("SYNC[%s] EXIT - App.SynchronizeVault SUCCESS CID=%s", opID, res)
 	return res, err
 }
 

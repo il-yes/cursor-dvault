@@ -126,5 +126,22 @@ func (s *AttachmentStore) path(hash string) (string, error) {
 		s.logger.Error("AttachmentStore - path - Invalid hash: %s", hash)
 		return "", fmt.Errorf("invalid hash")
 	}
-	return filepath.Join(s.Root, "attachments", "sha256", hash[:2], hash+".enc"), nil
+
+	canonicalPath := filepath.Join(s.Root, "attachments", "sha256", hash[:2], hash+".enc")
+
+	// Candidate paths to support legacy / migrated attachment storage layouts:
+	candidates := []string{
+		canonicalPath,
+		filepath.Join(s.Root, hash[:2], hash+".enc"),
+		filepath.Join(s.Root, hash+".enc"),
+		filepath.Join(s.Root, "attachments", hash+".enc"),
+	}
+
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			return cand, nil
+		}
+	}
+
+	return canonicalPath, nil
 }

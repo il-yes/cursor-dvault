@@ -51,7 +51,7 @@ func (h *CardHandler) Add(userID string, anEntry any) (*any, error) {
 	// session.LastUpdated = h.NowUTC()
 	// session.Dirty = true
 
-	h.logger.Info("✅ Added card entry for user %d: %s\n", userID, entry.EntryName)
+	h.logger.Info("✅ Added card entry for user %s: %s\n", userID, entry.EntryName)
 
 
 	var result any = entry
@@ -82,14 +82,14 @@ func (h *CardHandler) Edit(userID string, entry any) (*any, error) {
 	}
 
 	if !updated {
-		return nil, fmt.Errorf("entry with ID %s not found for user %d", updatedEntry.ID, userID)
+		return nil, fmt.Errorf("entry with ID %s not found for user %s", updatedEntry.ID, userID)
 	}
 
 	session.Vault.Entries.Card = entries
 	// h.MarkDirty(userID)
 
 
-	h.logger.Info("✏️ Updated card entry for user %d: %s\n", userID, updatedEntry.EntryName)
+	h.logger.Info("✏️ Updated card entry for user %s: %s\n", userID, updatedEntry.EntryName)
 	// utils.LogPretty("session after update", session)
 
 	var result any = updatedEntry
@@ -116,7 +116,7 @@ func (h *CardHandler) TrashCardEntryAction(userID string, entryID string, trashe
 			if trashed {
 				state = "trashed"
 			}
-			h.logger.Info("🗑️ %s card entry %s for user %d", state, entryID, userID)
+			h.logger.Info("🗑️ %s card entry %s for user %s", state, entryID, userID)
 
 			return nil
 		}

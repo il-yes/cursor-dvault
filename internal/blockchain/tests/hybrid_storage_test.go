@@ -52,7 +52,8 @@ func TestHybridStorage_AddAndGet(t *testing.T) {
     // 6. Mock cloud Get to return data
     mockClient.GetDataFromCloudFunc = func(ctx context.Context, req types.IpfsCidRequest) (*types.IpfsCidResponse, error) {
         return &types.IpfsCidResponse{
-            Data: string(plaintext),
+            Success: true,
+            Data:    "dGVzdCB2YXVsdCBjb250ZW50IHZpYSBoeWJyaWQgSVBGUw==", // base64 encoded plaintext
         }, nil
     }
 

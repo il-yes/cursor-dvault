@@ -116,12 +116,12 @@ func (vh *VaultHandler) LogoutUser(userID string) error {
 	vh.SessionsMu.Unlock()
 
 	if !ok {
-		return fmt.Errorf("no active session for user %d", userID)
+		return fmt.Errorf("no active session for user %s", userID)
 	}
 
 	// Persist to DB
 	if err := vh.DB.SaveSession(userID, session); err != nil {
-		return fmt.Errorf("failed to save session for user %d: %w", userID, err)
+		return fmt.Errorf("failed to save session for user %s: %w", userID, err)
 	}
 
 	vh.pendingMu.Lock()
@@ -228,7 +228,7 @@ func (vh *VaultHandler) SyncVault0(userID string, password string) (string, erro
 	session.Dirty = false
 	vh.vaultDirty = false
 
-	vh.logger.Info("✅ Vault sync complete for user %d", userID)
+	vh.logger.Info("✅ Vault sync complete for user %s", userID)
 	// utils.LogPretty("session after sync", session)
 
 	return newCID, nil
@@ -293,7 +293,7 @@ func (vh *VaultHandler) SyncVault(userID string, password string) (string, error
 	session.Dirty = false
 	vh.vaultDirty = false
 
-	vh.logger.Info("✅ Vault sync complete for user %d", userID)
+	vh.logger.Info("✅ Vault sync complete for user %s", userID)
 	return newCID, nil
 }
 
@@ -303,7 +303,7 @@ func (vh *VaultHandler) EncryptFile(userID string, filePath []byte, password str
 	// 1. Get session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)
 	}
 	// ✅ Removed noisy LogPretty - too verbose for production
 	// 2. Marshal in-memory vault
@@ -372,19 +372,19 @@ func (vh *VaultHandler) CreateStellarCommit(userID string, newCID string) (strin
 	session.Dirty = false
 	vh.vaultDirty = false
 
-	vh.logger.Info("✅ Vault sync complete for user %d", userID)
+	vh.logger.Info("✅ Vault sync complete for user %s", userID)
 	// utils.LogPretty("session after sync", session)
 
 	return newCID, nil
 }
 
 func (vh *VaultHandler) EncryptVault(userID string, password string) (string, error) {
-	vh.logger.Info("🔄 Starting vault sync for UserID: %d", userID)
+	vh.logger.Info("🔄 Starting vault sync for UserID: %s", userID)
 
 	// 1. Get session
 	session, err := vh.GetSession(userID)
 	if err != nil {
-		return "", fmt.Errorf("❌ no active session for user %d: %w", userID, err)
+		return "", fmt.Errorf("❌ no active session for user %s: %w", userID, err)
 	}
 	// ✅ Removed noisy LogPretty - too verbose for production
 	// 2. Marshal in-memory vault
@@ -469,9 +469,8 @@ func (vh *VaultHandler) AddEntryFor(userID string, entry any) (*any, error) {
 func (vh *VaultHandler) AddEntry(userID string, entryType string, raw json.RawMessage) (any, error) {
 	parsed, err := vh.EntryRegistry.UnmarshalEntry(entryType, raw)
 	if err != nil {
-		vh.logger.Error("❌ Failed to unmarshal %s entry for user %d: %v", entryType, userID, err)
+		vh.logger.Error("❌ Failed to unmarshal %s entry for user %s: %v", entryType, userID, err)
 		return nil, fmt.Errorf("failed to parse %s entry: %w", entryType, err)
-
 	}
 	// ✅ Removed noisy debug log
 
@@ -1032,7 +1031,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry vaults_dom
 	// load app config (server source of truth)
 	appCfg, err := vh.DB.GetAppConfigByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("❌ failed to load app config for user %d: %w", userID, err)
+		return nil, fmt.Errorf("❌ failed to load app config for user %s: %w", userID, err)
 	}
 	appCfg.TracecoreEnabled = true
 	if !appCfg.TracecoreEnabled {
@@ -1041,7 +1040,7 @@ func (vh *VaultHandler) PrepareTracecoreEnvelope(userID string, entry vaults_dom
 
 	// prepare actor signature (from session user stellar private key)
 	userCfg := session.VaultRuntimeContext.CurrentUser
-	msgToSign := fmt.Sprintf("user-%d:%s:%d", userID, entry.GetTypeName(), time.Now().UnixNano())
+	msgToSign := fmt.Sprintf("user-%s:%s:%d", userID, entry.GetTypeName(), time.Now().UnixNano())
 
 	actorSig, err := blockchain.SignActorWithStellarPrivateKey(userCfg.StellarAccount.PrivateKey, msgToSign)
 	if err != nil {

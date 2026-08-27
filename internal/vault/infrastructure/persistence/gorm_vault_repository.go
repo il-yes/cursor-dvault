@@ -62,7 +62,7 @@ func (r *GormVaultRepository) GetByUserIDAndName(userID string, name string) (*v
 func (r *GormVaultRepository) UpdateVaultCID(vaultID, cid string) error {
 	vault, err := r.GetVault(vaultID)
 	if err != nil {
-		return  err
+		return err
 	}
 	vault.CID = cid
 	vdb := VaultDomainToMapper(vault)

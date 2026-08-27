@@ -67,7 +67,7 @@ type CreateIPFSPayloadHandler interface {
 }
 
 type StorageEngineCommitter interface {
-	Commit(session vault_session.Session, mode vaults_storage_engine_type.SyncMode, opts ...vaults_storage_engine_type.CommitOptions) (string, []vaults_storage_engine_type.EntryUpdate, int, int, error)
+	Commit(session *vault_session.Session, mode vaults_storage_engine_type.SyncMode, opts ...vaults_storage_engine_type.CommitOptions) (string, []vaults_storage_engine_type.EntryUpdate, int, int, error)
 }
 
 // -------- COMMAND handler --------
@@ -152,7 +152,7 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 
 		vc := buildVaultContext(cmd)
 
-		rootCID, _, _, _, err := h.storageEngine.Commit(*session, vaults_storage_engine_type.FullSync, vaults_storage_engine_type.CommitOptions{
+		rootCID, _, _, _, err := h.storageEngine.Commit(session, vaults_storage_engine_type.FullSync, vaults_storage_engine_type.CommitOptions{
 			VaultContext: vc,
 			Password:     cmd.Password,
 		})

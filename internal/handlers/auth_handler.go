@@ -200,7 +200,7 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	tokens, err := ah.auth.GenerateTokenPair(&u)
 	ah.logger.Info("Auth tokens", tokens)
 	if err != nil {
-		return nil, fmt.Errorf("❌ failed to generate token for user %d - %w", user.ID, err)
+		return nil, fmt.Errorf("❌ failed to generate token for user %s - %w", user.ID, err)
 	}
 	utils.LogPretty("Auth tokens", tokens)
 	//  Save tokens to DB (for persistence across restarts)
@@ -880,7 +880,7 @@ func (ah *AuthHandler) OnBoarding(setup OnBoarding) (*OnBoardingResponse, error)
 	}
 	tokens, err := ah.auth.GenerateTokenPair(&u)
 	if err != nil {
-		return nil, fmt.Errorf("❌ failed to generate token for user %d: %w", user.ID, err)
+		return nil, fmt.Errorf("❌ failed to generate token for user %s: %w", user.ID, err)
 	}
 
 	_, err = ah.DB.SaveJwtToken(tokens) // fixed arg

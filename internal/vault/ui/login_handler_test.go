@@ -43,22 +43,10 @@ func TestLoginHandlerAddNoSession(t *testing.T) {
 	handler := newTestLoginHandler()
 	entry := &vaults_domain.LoginEntry{}
 
-	// Force panic if Vault is nil, or handle it in production code.
-	// For testing purposes, we assume session is handled via handler.Vault.
-	// But the code as written doesn't check for session existence in handler.Add yet.
-	// Based on the old test, it expected "no active session for user 55".
-	// Let's keep it but expect it to fail if the current implementation doesn't check it.
-
 	result, err := handler.Add("55", entry)
-	// If the current implementation of Add (viewed in login_handler.go) doesn't check session,
-	// this test might need adjustment. Let's look at login_handler.go again.
-	// Line 31 in login_handler.go: no session check.
-	// I'll skip fixing the logic if it's out of scope, but I must fix the types.
-	if err != nil {
-		require.Contains(t, err.Error(), "no active session")
-	} else {
-		require.NotNil(t, result)
-	}
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Contains(t, err.Error(), "vault not initialized for user 55")
 }
 
 func TestLoginHandlerAddInvalidType(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,10 +29,11 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// In-Memory Test Infrastructure for End-to-End C3 Round-Trip
+// Thread-Safe Round-Trip Integration Test Repository
 // ---------------------------------------------------------------------------
 
 type roundTripRepo struct {
+	mu           sync.RWMutex
 	shareEntries map[string]c3_asset_domain.ShareEntry
 	trustGroups  map[string]trustgroup_domain.TrustGroup
 	threads      map[string]thread_domain.Thread
@@ -55,10 +57,14 @@ func newRoundTripRepo() *roundTripRepo {
 
 // ShareEntryRepository methods
 func (r *roundTripRepo) CreateShareEntry(_ context.Context, req *c3_asset_domain.CreateShareEntryRequest) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.shareEntries[req.ShareEntry.ID] = req.ShareEntry
 	return &tracecore_types.CloudResponse[c3_asset_domain.ShareEntry]{Data: req.ShareEntry}, nil
 }
 func (r *roundTripRepo) GetShareEntry(_ context.Context, req *c3_asset_domain.GetShareEntryRequest) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	se, ok := r.shareEntries[req.ShareEntryID]
 	if !ok {
 		return nil, nil
@@ -66,6 +72,8 @@ func (r *roundTripRepo) GetShareEntry(_ context.Context, req *c3_asset_domain.Ge
 	return &tracecore_types.CloudResponse[c3_asset_domain.ShareEntry]{Data: se}, nil
 }
 func (r *roundTripRepo) UpdateShareEntry(_ context.Context, req *c3_asset_domain.UpdateShareEntryRequest) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.shareEntries[req.ShareEntry.ID] = req.ShareEntry
 	return &tracecore_types.CloudResponse[c3_asset_domain.ShareEntry]{Data: req.ShareEntry}, nil
 }
@@ -75,6 +83,8 @@ func (r *roundTripRepo) DeleteShareEntry(_ context.Context, _ *c3_asset_domain.D
 
 // TrustGroupRepository methods
 func (r *roundTripRepo) GetTrustGroup(_ context.Context, req *trustgroup_domain.GetTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	tg, ok := r.trustGroups[req.TrustGroupID]
 	if !ok {
 		return nil, nil
@@ -82,10 +92,14 @@ func (r *roundTripRepo) GetTrustGroup(_ context.Context, req *trustgroup_domain.
 	return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Data: tg}, nil
 }
 func (r *roundTripRepo) UpdateTrustGroup(_ context.Context, req *trustgroup_domain.UpdateTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.trustGroups[req.TrustGroup.ID] = req.TrustGroup
 	return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Data: req.TrustGroup}, nil
 }
 func (r *roundTripRepo) CreateTrustGroup(_ context.Context, req *trustgroup_domain.CreateTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.trustGroups[req.TrustGroup.ID] = req.TrustGroup
 	return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Data: req.TrustGroup}, nil
 }
@@ -110,10 +124,14 @@ func (r *roundTripRepo) RotateTrustGroupKEK(_ context.Context, _ *trustgroup_dom
 
 // ThreadRepository methods
 func (r *roundTripRepo) CreateThread(_ context.Context, req *thread_domain.CreateThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.threads[req.Thread.ID] = req.Thread
 	return &tracecore_types.CloudResponse[thread_domain.Thread]{Data: req.Thread}, nil
 }
 func (r *roundTripRepo) GetThread(_ context.Context, req *thread_domain.GetThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	th, ok := r.threads[req.ThreadID]
 	if !ok {
 		return nil, thread_domain.ErrThreadNotFound
@@ -124,12 +142,15 @@ func (r *roundTripRepo) ListThreads(_ context.Context, _ *thread_domain.ListThre
 	return nil, nil
 }
 func (r *roundTripRepo) UpdateThread(_ context.Context, req *thread_domain.UpdateThreadRequest) (*tracecore_types.CloudResponse[thread_domain.Thread], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.threads[req.Thread.ID] = req.Thread
 	return &tracecore_types.CloudResponse[thread_domain.Thread]{Data: req.Thread}, nil
 }
 func (r *roundTripRepo) ListThreadEvents(_ context.Context, req *thread_domain.ListThreadEventsRequest) (*tracecore_types.CloudResponse[[]thread_domain.ThreadEvent], error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	evts := r.events[req.ThreadID]
-	// Return a sorted copy by Cursor
 	sortedEvts := make([]thread_domain.ThreadEvent, len(evts))
 	copy(sortedEvts, evts)
 	for i := 0; i < len(sortedEvts); i++ {
@@ -142,6 +163,8 @@ func (r *roundTripRepo) ListThreadEvents(_ context.Context, req *thread_domain.L
 	return &tracecore_types.CloudResponse[[]thread_domain.ThreadEvent]{Data: sortedEvts}, nil
 }
 func (r *roundTripRepo) AppendThreadEvent(_ context.Context, req *thread_domain.AppendThreadEventRequest) (*tracecore_types.CloudResponse[thread_domain.ThreadEvent], error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	th, ok := r.threads[req.ThreadID]
 	if !ok {
 		return nil, thread_domain.ErrThreadNotFound
@@ -172,6 +195,8 @@ func (r *roundTripRepo) AppendThreadEvent(_ context.Context, req *thread_domain.
 
 // Application Ports implementation
 func (r *roundTripRepo) FetchEncryptedAsset(_ context.Context, cid string) ([]byte, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	data, ok := r.assets[cid]
 	if !ok {
 		return nil, errors.New("asset CID not found in storage")
@@ -180,6 +205,8 @@ func (r *roundTripRepo) FetchEncryptedAsset(_ context.Context, cid string) ([]by
 }
 
 func (r *roundTripRepo) GetDeviceSeed(_ context.Context, userID string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	seed, ok := r.seeds[userID]
 	if !ok {
 		return "", errors.New("seed not found for user")
@@ -188,6 +215,8 @@ func (r *roundTripRepo) GetDeviceSeed(_ context.Context, userID string) (string,
 }
 
 func (r *roundTripRepo) GetVaultKeyring(_ context.Context, userID string) (*vaults_domain.VaultKeyring, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	kr, ok := r.keyrings[userID]
 	if !ok {
 		return &vaults_domain.VaultKeyring{UserID: userID, VaultID: "vault_rt"}, nil

@@ -88,8 +88,8 @@ import (
 	channel_eventbus "vault-app/internal/channel/infrastructure/eventbus"
 	channel_ui "vault-app/internal/channel/ui"
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
-	collaboration_ui "vault-app/internal/collaboration/ui"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	collaboration_ui "vault-app/internal/collaboration/ui"
 	"vault-app/internal/models"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
@@ -515,11 +515,12 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	go func() {
 		port := "4242" // your webhook port
-		http.HandleFunc("/stripe-webhook", payments.WebhookHandler)
+		mux := http.NewServeMux()
+		mux.HandleFunc("/stripe-webhook", payments.WebhookHandler)
 
 		log.Printf("🚀 Stripe webhook listener running on port %s", port)
-		if err := http.ListenAndServe(":"+port, nil); err != nil {
-			log.Fatalf("❌ Stripe webhook server failed: %v", err)
+		if err := http.ListenAndServe(":"+port, mux); err != nil {
+			log.Printf("⚠️ Stripe webhook server failed to start on port %s: %v", port, err)
 		}
 	}()
 
@@ -1248,7 +1249,6 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// ConnectVault must NOT authenticate Cloud.
 	// It only performs the vault proof-of-possession/delegation.
 
-
 	// fetch vault from cloud and pass cloudVaultID to ConnectVault
 	cloudVault, err := a.Vault.GetVaultFromCloud(subscription.ID)
 	if err != nil {
@@ -1259,7 +1259,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if cloudVault != nil {
 		cloudVaultID = cloudVault.Data.ID
 	}
-	
+
 	if cloudToken != "" &&
 		vaultRes.RuntimeContext != nil &&
 		cloudVaultID != "" {
@@ -1284,7 +1284,6 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// ============================================================
 
 	a.ConnectToRealtime(*result.User)
-
 
 	// ============================================================
 	// 9. RESPONSE
@@ -1526,6 +1525,7 @@ func (a *App) RequestChallenge(req blockchain.ChallengeRequest) (*blockchain.Cha
 	}
 	return response, nil
 }
+
 // func (a *App) AuthVerify(req blockchain.SignatureVerification) (string, error) {
 // 	return a.Auth.AuthVerify(&req)
 // }
@@ -3541,7 +3541,6 @@ func (a *App) ConnectVault(userID string, vaultID string) error {
 		log.Printf("[CLOUD-VAULT] CONNECT: FAILED vault_id is empty")
 		return fmt.Errorf("connect vault failed: vault_id is empty")
 	}
-
 
 	if a.Vault == nil || a.Vault.TracecoreClient == nil || a.Vault.TracecoreClient.Token == "" {
 		log.Printf("[CLOUD-VAULT] CONNECT: FAILED no cloud token present")

@@ -21,6 +21,7 @@ var (
 type CreateIPFSPayloadCommand struct {
 	Vault            *vaults_domain.Vault
 	Password         string
+	VaultKey         []byte // 32-byte in-memory Vault DEK from active session
 	Data             []byte
 	UserID           string // User app
 	ShareKey         []byte
@@ -96,38 +97,36 @@ func (h *CreateIPFSPayloadCommandHandler) StoreOnIpfs(
 }
 
 func (h *CreateIPFSPayloadCommandHandler) PrivateEncryption(cmd CreateIPFSPayloadCommand, vaultCtx app_config_domain.VaultContext) ([]byte, error) {
-	// Diagnostic logging (Safe identifiers and booleans only)
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - DIAGNOSTIC", map[string]interface{}{
-		"authenticatedUserID": vaultCtx.UserID,
-		"cmdUserID":           cmd.UserID,
-		"userOnboardingID":    cmd.UserOnboardingID,
-		"hasPassword":         cmd.Password != "",
-		"hasVault":            cmd.Vault != nil,
-		"hasShareKey":         len(cmd.ShareKey) > 0,
-		"keyringUserID":       cmd.UserOnboardingID,
-	})
+	var vaultKey []byte
 
-	// 1. Unlock vault key
-	// ==============================================
-	unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
-		Password: cmd.Password,
-		UserID:   cmd.UserOnboardingID, // userOnboarding required
-	})
-	if err != nil {
-		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - unlock error", map[string]interface{}{
-			"userOnboardingID": cmd.UserOnboardingID,
-			"hasPassword":      cmd.Password != "",
-			"unlockSuccess":    false,
-			"error":            err.Error(),
+	// 🟢 FAST-PATH: Use unlocked Vault DEK directly from in-memory session if available
+	if len(cmd.VaultKey) == 32 {
+		vaultKey = cmd.VaultKey
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - using session VaultKey DEK", map[string]interface{}{
+			"authenticatedUserID": vaultCtx.UserID,
+			"keyLength":           len(vaultKey),
 		})
-		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption - failed to unlock vault key: %w", err)
+	} else if cmd.Password != "" {
+		// Fallback for explicit unlock boundary (e.g. initial unlock with password)
+		utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - unlocking via keyring password boundary", map[string]interface{}{
+			"authenticatedUserID": vaultCtx.UserID,
+			"userOnboardingID":    cmd.UserOnboardingID,
+		})
+		unlockRes, err := h.UnlockVaultHandler.Execute(vault_dto.UnlockVaultCommand{
+			Password: cmd.Password,
+			UserID:   cmd.UserOnboardingID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption - failed to unlock vault keyring: %w", err)
+		}
+		vaultKey = unlockRes.VaultKey.Key
+	} else {
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption: missing vault DEK and no unlock password provided")
 	}
 
-	utils.LogPretty("CreateIPFSPayloadCommandHandler - PrivateEncryption - unlock success", map[string]interface{}{
-		"userOnboardingID": cmd.UserOnboardingID,
-		"unlockSuccess":    true,
-	})
-	vaultKey := unlockRes.VaultKey.Key
+	if len(vaultKey) != 32 {
+		return nil, fmt.Errorf("CreateIPFSPayloadCommandHandler - PrivateEncryption: invalid vault DEK length (expected 32, got %d)", len(vaultKey))
+	}
 
 	encrypted, err := h.CryptoService.Encrypt(cmd.Data, vaultKey)
 	if err != nil {

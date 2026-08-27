@@ -1117,11 +1117,17 @@ func (vh *VaultHandler) AddAttachement(ctx context.Context, req vault_dto.AddAtt
 		qh := vault_queries.NewGetIPFSDataQuerryHandler(vh.CryptoService, &vault_infrastructure_crypto.AESService{}, sf, vh.UnlockVaultHandler)
 		nodeStore = vaults_storage_engine_nodestore.NewNodeStore(*qh, vh.CreateIPFSPayloadCommandHandler, vaultCtx, false)
 	}
+	if session != nil {
+		vk := session.GetVaultKey()
+		if len(vk) == 32 {
+			nodeStore.VaultKey = vk
+		}
+	}
 	vaultPassword := req.Password
 	if vaultPassword == "" && session != nil && session.Runtime != nil && session.Runtime.SessionSecrets != nil {
 		vaultPassword = session.Runtime.SessionSecrets["vault_password"]
 	}
-	if vaultPassword == "" {
+	if len(nodeStore.VaultKey) != 32 && vaultPassword == "" {
 		return nil, fmt.Errorf("❌ VaultHandler - AddAttachement: missing vault unlock credential for user %s", req.UserID)
 	}
 	nodeStore.Password = vaultPassword

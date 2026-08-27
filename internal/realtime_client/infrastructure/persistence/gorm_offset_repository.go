@@ -9,21 +9,28 @@ import (
 	"vault-app/internal/realtime_client/domain"
 )
 
+type RealtimeOffsetModel struct {
+	UserID    string `gorm:"primaryKey"`
+	LastSeq   uint64
+	UpdatedAt time.Time
+}
+
+func (RealtimeOffsetModel) TableName() string {
+	return "realtime_offsets"
+}
+
 type gormOffsetRepository struct {
 	db *gorm.DB
 }
 
 func NewGORMOffsetRepository(db *gorm.DB) realtime_client_domain.OffsetRepository {
+	_ = db.AutoMigrate(&RealtimeOffsetModel{})
 	return &gormOffsetRepository{db: db}
 }
 
 // GetLastSeq implements realtime_client_domain.OffsetRepository
 func (r *gormOffsetRepository) GetLastSeq(userID string) (uint64, error) {
-	var offset struct {
-		UserID    string
-		LastSeq   uint64
-		UpdatedAt time.Time
-	}
+	var offset RealtimeOffsetModel
 
 	result := r.db.Where("user_id = ?", userID).First(&offset)
 	if result.Error != nil {
@@ -38,7 +45,7 @@ func (r *gormOffsetRepository) GetLastSeq(userID string) (uint64, error) {
 // SaveLastSeq implements realtime_client_domain.OffsetRepository
 func (r *gormOffsetRepository) SaveLastSeq(userID string, seq uint64) error {
 	now := time.Now()
-	offset := realtime_client_domain.RealtimeOffset{
+	offset := RealtimeOffsetModel{
 		UserID:    userID,
 		LastSeq:   seq,
 		UpdatedAt: now,

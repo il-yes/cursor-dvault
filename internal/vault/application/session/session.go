@@ -4,6 +4,7 @@ package vault_session
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 
 	tracecore_models "vault-app/internal/tracecore/models"
 	vaults_domain "vault-app/internal/vault/domain"
@@ -17,15 +18,57 @@ const (
 )
 
 type Session struct {
-	UserID         string `gorm:"uniqueIndex"`
-	VaultKey       []byte
-	Vault          []byte `json:"vault_blob,omitempty"`
+	mu             sync.RWMutex                      `json:"-" gorm:"-"`
+	UserID         string                            `gorm:"uniqueIndex"`
+	VaultKey       []byte                            `json:"-" gorm:"-"`
+	Vault          []byte                            `json:"vault_blob,omitempty"`
 	LastCID        string
 	LastSynced     string
 	LastUpdated    string
-	Runtime        *RuntimeContext `json:"runtime,omitempty" gorm:"-"`
+	Runtime        *RuntimeContext                   `json:"runtime,omitempty" gorm:"-"`
 	Dirty          bool
 	PendingCommits []tracecore_models.CommitEnvelope `json:"pending_commits,omitempty" gorm:"-"`
+}
+
+func (s *Session) GetVaultKey() []byte {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.VaultKey) == 0 {
+		return nil
+	}
+	cpy := make([]byte, len(s.VaultKey))
+	copy(cpy, s.VaultKey)
+	return cpy
+}
+
+func (s *Session) WipeVaultKey() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.VaultKey {
+		s.VaultKey[i] = 0
+	}
+	s.VaultKey = nil
+}
+
+func (s *Session) SetVaultKey(key []byte) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(key) == 0 {
+		s.VaultKey = nil
+		return
+	}
+	cpy := make([]byte, len(key))
+	copy(cpy, key)
+	s.VaultKey = cpy
 }
 
 func InitNewSession(userID string) *Session {

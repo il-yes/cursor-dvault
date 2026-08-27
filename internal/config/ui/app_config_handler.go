@@ -188,7 +188,53 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get device configs: %v", err)
 	}
 
-	vh.Logger.LogPretty("AppConfigHandler: GetConfig - session", session)
+	vaultBlobByteLen := 0
+	vaultVersion := ""
+	vaultNameStr := ""
+	parsedAttCount := 0
+	parsedNodeCIDs := []string{}
+	entryCountsByType := map[string]int{}
+	entryAttCIDsMap := make(map[string][]string)
+
+	if session != nil && session.Vault != nil {
+		vaultBlobByteLen = len(session.Vault)
+		parsed := vaults_domain.ParseVaultPayload(session.Vault)
+		vaultVersion = parsed.Version
+		vaultNameStr = parsed.Name
+		parsedAttCount = len(parsed.Personal.Attachments)
+
+		for _, att := range parsed.Personal.Attachments {
+			parsedNodeCIDs = append(parsedNodeCIDs, att.NodeCID)
+		}
+
+		entryCountsByType["Login"] = len(parsed.Personal.Entries.Login)
+		entryCountsByType["Card"] = len(parsed.Personal.Entries.Card)
+		entryCountsByType["Identity"] = len(parsed.Personal.Entries.Identity)
+		entryCountsByType["Note"] = len(parsed.Personal.Entries.Note)
+		entryCountsByType["SSHKey"] = len(parsed.Personal.Entries.SSHKey)
+
+		for _, login := range parsed.Personal.Entries.Login {
+			if len(login.AttachmentCIDs) > 0 {
+				entryAttCIDsMap["login:"+login.ID] = login.AttachmentCIDs
+			}
+		}
+		for _, note := range parsed.Personal.Entries.Note {
+			if len(note.AttachmentCIDs) > 0 {
+				entryAttCIDsMap["note:"+note.ID] = note.AttachmentCIDs
+			}
+		}
+	}
+
+	vh.Logger.LogPretty("TRACE-VAULT-BLOB (AppConfigHandler)", map[string]interface{}{
+		"userID":                 userID,
+		"vaultBlobByteLen":       vaultBlobByteLen,
+		"vaultVersion":           vaultVersion,
+		"vaultName":              vaultNameStr,
+		"parsedAttachmentCount":  parsedAttCount,
+		"parsedNodeCIDs":         parsedNodeCIDs,
+		"parsedEntryCounts":      entryCountsByType,
+		"entryAttachmentCIDsMap": entryAttCIDsMap,
+	})
 
 	// vh.Logger.LogPretty("AppConfigHandler: GetConfig - AppConfig.Branch", session.Runtime.AppConfig.Branch)
 

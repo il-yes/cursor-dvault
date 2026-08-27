@@ -217,6 +217,14 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     const attachments = useMemo(() => {
         const cids = current?.attachmentCIDs ?? [];
         const all = vaultContext?.Vault?.attachments ?? [];
+
+        console.log("DIAGNOSTIC F (Frontend Boundary)", {
+            vaultAttachmentCount: all.length,
+            selectedEntryAttachmentCIDs: cids,
+            matchingAttachmentCount: all.filter((a) => cids.includes(a.node_cid)).length,
+            reconstructedNodeCIDs: all.map((a) => a.node_cid),
+        });
+
         return all.filter((a) => cids.includes(a.node_cid));
     }, [vaultContext?.Vault?.attachments, current?.attachmentCIDs]);
 
@@ -980,22 +988,56 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
         useEffect(() => {
             let isMounted = true;
 
-            // 🧠 1. Use cache FIRST (instant, no flicker)
+            const ext = (attachment?.ext || attachment?.name?.split('.').pop() || '').toLowerCase();
+            const mimeType = ext === 'png' ? 'image/png' : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'application/octet-stream';
+
+            console.log("ATTACHMENT RENDER BOUNDARY:", {
+                ID: attachment?.id,
+                FileCID: attachment?.file_cid,
+                NodeCID: attachment?.node_cid,
+                MIME: mimeType,
+                filename: attachment?.name,
+                hash: attachment?.hash,
+                storage: attachment?.storage,
+            });
+
+            const processUrl = (rawUrl: string) => {
+                let formattedUrl = rawUrl;
+                // If rawUrl is data:application/octet-stream;base64,... replace with correct image MIME type
+                if (rawUrl && rawUrl.startsWith("data:application/octet-stream;base64,") && mimeType.startsWith("image/")) {
+                    formattedUrl = rawUrl.replace("data:application/octet-stream;base64,", `data:${mimeType};base64,`);
+                }
+
+                console.log("ATTACHMENT SRC PROCESSED:", {
+                    filename: attachment?.name,
+                    rawSrcSample: rawUrl ? rawUrl.substring(0, 60) + "..." : "EMPTY",
+                    finalSrcSample: formattedUrl ? formattedUrl.substring(0, 60) + "..." : "EMPTY",
+                    srcType: formattedUrl?.startsWith("data:") ? "DATA_URI" : (formattedUrl?.startsWith("blob:") ? "BLOB_URL" : "HTTP/PATH"),
+                    length: formattedUrl?.length,
+                });
+                return formattedUrl;
+            };
+
+            // 🧠 1. Use cache FIRST
             if (attachmentUrlCache.has(attachment?.hash)) {
-                setSrc(attachmentUrlCache.get(attachment?.hash)!);
+                const cachedUrl = attachmentUrlCache.get(attachment?.hash)!;
+                setSrc(processUrl(cachedUrl));
                 return;
             }
 
             // 🧠 2. Fetch only if not cached
             fetchAttachment(attachment?.hash)
                 .then((url) => {
-                    if (!isMounted || !url) return;
-
-                    attachmentUrlCache.set(attachment?.hash, url);
-                    setSrc(url);
+                    if (!isMounted || !url) {
+                        console.warn("ATTACHMENT FETCH RETURNED EMPTY URL/UNMOUNTED", { isMounted, url });
+                        return;
+                    }
+                    const processed = processUrl(url);
+                    attachmentUrlCache.set(attachment?.hash, processed);
+                    setSrc(processed);
                 })
                 .catch((err) => {
-                    console.error(err)
+                    console.error("ATTACHMENT FETCH ERROR:", err);
                 });
 
             return () => {

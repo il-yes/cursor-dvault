@@ -98,15 +98,15 @@ func (c *CommitPayloadFactory) BuildAccessEntryPayload() tracecore_models.Commit
 func  (c *CommitPayloadFactory) Build() (*tracecore_models.CommitMetadata, error) {
 	switch c.Action {
 	case CREATE_ENTRY:
-		fmt.Println("%s action", CREATE_ENTRY)
+		fmt.Printf("%s action\n", CREATE_ENTRY)
 		response := c.BuildPostEntryPayload()
 		return &response, nil
 	case SHARE_ENTRY:
-		fmt.Println("%s action", SHARE_ENTRY)
+		fmt.Printf("%s action\n", SHARE_ENTRY)
 		response := c.BuildShareEntryPayload()
 		return &response, nil
 	case ACCESS_ENTRY:
-		fmt.Println("%s action", ACCESS_ENTRY)
+		fmt.Printf("%s action\n", ACCESS_ENTRY)
 		response := c.BuildAccessEntryPayload()
 		return &response, nil
 	}

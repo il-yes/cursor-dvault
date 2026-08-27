@@ -40,7 +40,8 @@ func (m *mockTracecoreClient) GetDataFromCloudStorage(
         return m.GetDataFromCloudFunc(ctx, req)
     }
     return &tracecore_types.IpfsCidResponse{
-        Data: "encodedData",
+        Success: true,
+        Data:    "encodedData",
     }, nil
 }
 func (m *mockTracecoreClient) AddToS3(
@@ -108,7 +109,8 @@ func TestCloudIPFSStorage_AddAndGet(t *testing.T) {
             t.Errorf("GetDataFromCloudStorage got wrong request: %+v", req)
         }
         return &tracecore_types.IpfsCidResponse{
-            Data: string(plaintext),
+            Success: true,
+            Data:    "dGVzdCB2YXVsdCBjb250ZW50IHZpYSBjbG91ZCBJUEZT", // base64 encoded plaintext
         }, nil
     }
 

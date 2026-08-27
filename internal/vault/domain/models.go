@@ -459,74 +459,70 @@ func (v *VaultPayload) GetAttachments() []Attachment {
 }
 
 // AddEntryAttachment adds a new attachment to the entry with entryID.
-// If the entry is not found, returns an error.
+// If the entry is not found, returns an error
 func (v *VaultPayload) AddEntryAttachment(
 	entryID string,
 	att Attachment,
 ) error {
 	v.Attachments = append(v.Attachments, att)
+	v.Personal.Attachments = append(v.Personal.Attachments, att)
 
-	find := func(entries interface{}) bool {
-		switch xs := entries.(type) {
-		case []LoginEntry:
-			for i := range xs {
-				if xs[i].BaseEntry.ID == entryID {
-					xs[i].BaseEntry.AttachmentCIDs = append(xs[i].BaseEntry.AttachmentCIDs, att.NodeCID)
-					return true
-				}
+	checkAndAdd := func(entries *Entries) bool {
+		for i := range entries.Login {
+			if entries.Login[i].BaseEntry.ID == entryID {
+				entries.Login[i].BaseEntry.Attachments = append(entries.Login[i].BaseEntry.Attachments, att)
+				entries.Login[i].BaseEntry.AttachmentCIDs = append(entries.Login[i].BaseEntry.AttachmentCIDs, att.NodeCID)
+				entries.Login[i].BaseEntry.IsDirty = true
+				entries.Login[i].BaseEntry.CID = ""
+				return true
 			}
-		case []CardEntry:
-			for i := range xs {
-				if xs[i].BaseEntry.ID == entryID {
-					xs[i].BaseEntry.AttachmentCIDs = append(xs[i].BaseEntry.AttachmentCIDs, att.NodeCID)
-					return true
-				}
+		}
+		for i := range entries.Card {
+			if entries.Card[i].BaseEntry.ID == entryID {
+				entries.Card[i].BaseEntry.Attachments = append(entries.Card[i].BaseEntry.Attachments, att)
+				entries.Card[i].BaseEntry.AttachmentCIDs = append(entries.Card[i].BaseEntry.AttachmentCIDs, att.NodeCID)
+				entries.Card[i].BaseEntry.IsDirty = true
+				entries.Card[i].BaseEntry.CID = ""
+				return true
 			}
-		case []IdentityEntry:
-			for i := range xs {
-				if xs[i].BaseEntry.ID == entryID {
-					xs[i].BaseEntry.AttachmentCIDs = append(xs[i].BaseEntry.AttachmentCIDs, att.NodeCID)
-					return true
-				}
+		}
+		for i := range entries.Identity {
+			if entries.Identity[i].BaseEntry.ID == entryID {
+				entries.Identity[i].BaseEntry.Attachments = append(entries.Identity[i].BaseEntry.Attachments, att)
+				entries.Identity[i].BaseEntry.AttachmentCIDs = append(entries.Identity[i].BaseEntry.AttachmentCIDs, att.NodeCID)
+				entries.Identity[i].BaseEntry.IsDirty = true
+				entries.Identity[i].BaseEntry.CID = ""
+				return true
 			}
-		case []NoteEntry:
-			for i := range xs {
-				if xs[i].BaseEntry.ID == entryID {
-					xs[i].BaseEntry.AttachmentCIDs = append(xs[i].BaseEntry.AttachmentCIDs, att.NodeCID)
-					return true
-				}
+		}
+		for i := range entries.Note {
+			if entries.Note[i].BaseEntry.ID == entryID {
+				entries.Note[i].BaseEntry.Attachments = append(entries.Note[i].BaseEntry.Attachments, att)
+				entries.Note[i].BaseEntry.AttachmentCIDs = append(entries.Note[i].BaseEntry.AttachmentCIDs, att.NodeCID)
+				entries.Note[i].BaseEntry.IsDirty = true
+				entries.Note[i].BaseEntry.CID = ""
+				return true
 			}
-		case []SSHKeyEntry:
-			for i := range xs {
-				if xs[i].BaseEntry.ID == entryID {
-					xs[i].BaseEntry.AttachmentCIDs = append(xs[i].BaseEntry.AttachmentCIDs, att.NodeCID)
-					return true
-				}
+		}
+		for i := range entries.SSHKey {
+			if entries.SSHKey[i].BaseEntry.ID == entryID {
+				entries.SSHKey[i].BaseEntry.Attachments = append(entries.SSHKey[i].BaseEntry.Attachments, att)
+				entries.SSHKey[i].BaseEntry.AttachmentCIDs = append(entries.SSHKey[i].BaseEntry.AttachmentCIDs, att.NodeCID)
+				entries.SSHKey[i].BaseEntry.IsDirty = true
+				entries.SSHKey[i].BaseEntry.CID = ""
+				return true
 			}
 		}
 		return false
 	}
 
-	found := false
-	found = find(v.Entries.Login)
-	if !found {
-		found = find(v.Entries.Card)
-	}
-	if !found {
-		found = find(v.Entries.Identity)
-	}
-	if !found {
-		found = find(v.Entries.Note)
-	}
-	if !found {
-		found = find(v.Entries.SSHKey)
+	foundEntries := checkAndAdd(&v.Entries)
+	foundPersonal := checkAndAdd(&v.Personal.Entries)
+	if foundEntries || foundPersonal {
+		return nil
 	}
 
-	if !found {
-		return errors.New("entry not found")
-	}
-
-	return nil
+	return errors.New("entry not found")
 }
 func (v *VaultPayload) GetEntryAttachments(entryID string) []Attachment {
 	find := func(es interface{}) []Attachment {

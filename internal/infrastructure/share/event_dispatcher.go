@@ -42,31 +42,31 @@ func InitializeEventDispatcher() share_application.EventDispatcher {
 	dispatcher := NewInMemoryEventDispatcher()
 	dispatcher.Register("RecipientAdded", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.RecipientAdded)
-		log.Printf("📩 New recipient added to share %d: %s\n", e.ShareID, e.Email)
+		log.Printf("📩 New recipient added to share %s: %s\n", e.ShareID, e.Email)
 	})
 	dispatcher.Register("ShareAccepted", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.ShareAccepted)
-		log.Printf("✔ Recipient %d accepted shared entry %d\n", e.RecipientID, e.ShareID)
+		log.Printf("✔ Recipient %s accepted shared entry %s\n", e.RecipientID, e.ShareID)
 	})
 	dispatcher.Register("ShareRejected", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.ShareRejected)
-		log.Printf("❌ Recipient %d rejected shared entry %d\n", e.RecipientID, e.ShareID)
+		log.Printf("❌ Recipient %s rejected shared entry %s\n", e.RecipientID, e.ShareID)
 	})
 	dispatcher.Register("AccessRevoked", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.AccessRevoked)
-		log.Printf("❌ Access revoked for recipient %d on shared entry %d\n", e.RecipientID, e.ShareID)
+		log.Printf("❌ Access revoked for recipient %s on shared entry %s\n", e.RecipientID, e.ShareID)
 	})
 	dispatcher.Register("AccessRenewalRequested", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.AccessRenewalRequested)
-		log.Printf("🔄 Access renewal requested for recipient %d on shared entry %d\n", e.RecipientID, e.ShareID)
+		log.Printf("🔄 Access renewal requested for recipient %s on shared entry %s\n", e.RecipientID, e.ShareID)
 	})
 	dispatcher.Register("AccessRenewalApproved", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.AccessRenewalApproved)
-		log.Printf("✅ Access renewal approved for recipient %d on shared entry %d\n", e.RecipientID, e.ShareID)
+		log.Printf("✅ Access renewal approved for recipient %s on shared entry %s\n", e.RecipientID, e.ShareID)
 	})
 	dispatcher.Register("ShareCreated", func(evt share_domain.DomainEvent) {
 		e := evt.(share_domain.ShareCreated)
-		log.Printf("🎉 Share created: ShareID=%d, OwnerID=%d\n", e.ShareID, e.OwnerID)
+		log.Printf("🎉 Share created: ShareID=%s, OwnerID=%s\n", e.ShareID, e.OwnerID)
 		utils.LogPretty("InMemoryEventDispatcher - InitializeEventDispatcher - ShareCreated", e)
 	})
 	return dispatcher

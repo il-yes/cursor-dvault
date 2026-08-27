@@ -44,7 +44,6 @@ export function FileUploadWidget({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>(value);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const vaultPassword = "vaultPassword";
   const { jwtToken } = useAuthStore.getState();
   // const updateEntryAttachements = useVaultStore((state) => state.updateEntryAttachements);
   const updateEntryAttachments = useVaultStore((state) => state.updateEntryAttachments);
@@ -146,7 +145,7 @@ export function FileUploadWidget({
       const payload = vault_dto.AddAttachementsRequest.createFrom({
         vault_name: vaultName,
         entry_id: entry.id,
-        password: vaultPassword,
+        password: "",
         attachments: attachments,
       });
 

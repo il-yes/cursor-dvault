@@ -242,10 +242,40 @@ func (m *Manager) SetVault(userID string, vault *vaults_domain.VaultPayload) err
 		return errors.New("no active session")
 	}
 
+	newBytes := vault.ToBytes()
+	parsedNew := vaults_domain.ParseVaultPayload(newBytes)
+	attCountNew := len(parsedNew.Attachments) + len(parsedNew.Personal.Attachments)
+	entryAttRefsNew := make(map[string][]string)
+	for _, n := range parsedNew.Entries.Note {
+		if len(n.AttachmentCIDs) > 0 {
+			entryAttRefsNew["note:"+n.ID] = n.AttachmentCIDs
+		}
+	}
+	for _, n := range parsedNew.Personal.Entries.Note {
+		if len(n.AttachmentCIDs) > 0 {
+			entryAttRefsNew["note:"+n.ID] = n.AttachmentCIDs
+		}
+	}
+
+	utils.LogPretty("SET-VAULT TRACE", map[string]interface{}{
+		"userID":                      userID,
+		"currentLastCID":              s.LastCID,
+		"oldVaultByteLength":          len(s.Vault),
+		"newVaultByteLength":          len(newBytes),
+		"newVaultAttachmentCount":     attCountNew,
+		"newVaultEntryAttachmentRefs": entryAttRefsNew,
+	})
+
 	// 2. ---------- Set vault ----------
-	s.Vault = vault.ToBytes()
+	s.Vault = newBytes
 	s.LastUpdated = m.NowUTC()
-	// 3. ---------- Mark session as dirty ----------	
+
+	// 3. ---------- Save session to DB ----------
+	if m.SessionRepository != nil {
+		if err := m.SessionRepository.SaveSession(userID, s); err != nil {
+			return fmt.Errorf("failed to save updated session to repo: %w", err)
+		}
+	}
 	return nil
 }	
 
@@ -266,6 +296,29 @@ func (m *Manager) Sync(userID string, newCID string) {
 	defer m.mu.Unlock()
 
 	if s, ok := m.sessions[userID]; ok {
+		parsed := vaults_domain.ParseVaultPayload(s.Vault)
+		attCount := len(parsed.Attachments) + len(parsed.Personal.Attachments)
+		entryAttRefs := make(map[string][]string)
+		for _, n := range parsed.Entries.Note {
+			if len(n.AttachmentCIDs) > 0 {
+				entryAttRefs["note:"+n.ID] = n.AttachmentCIDs
+			}
+		}
+		for _, n := range parsed.Personal.Entries.Note {
+			if len(n.AttachmentCIDs) > 0 {
+				entryAttRefs["note:"+n.ID] = n.AttachmentCIDs
+			}
+		}
+
+		utils.LogPretty("SYNC TRACE", map[string]interface{}{
+			"userID":                   userID,
+			"oldLastCID":               s.LastCID,
+			"newLastCID":               newCID,
+			"vaultByteLength":          len(s.Vault),
+			"vaultAttachmentCount":     attCount,
+			"vaultEntryAttachmentRefs": entryAttRefs,
+		})
+
 		s.LastCID = newCID
 		s.LastUpdated = m.NowUTC()	
 		s.LastSynced = time.Now().Format(time.RFC3339)

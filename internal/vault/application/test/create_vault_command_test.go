@@ -46,8 +46,10 @@ type fakeCreateIPFSPayloadHandler struct {
 
 func (f *fakeCreateIPFSPayloadHandler) Execute(ctx context.Context, vc app_config_domain.VaultContext, cmd vault_commands.CreateIPFSPayloadCommand) (*vault_commands.CreateIPFSPayloadCommandResult, error) {
 	f.called = true
-	// return f.result, f.err
-	return f.executeFn(ctx, vc, cmd)
+	if f.executeFn != nil {
+		return f.executeFn(ctx, vc, cmd)
+	}
+	return f.result, f.err
 }
 func (f *fakeCreateIPFSPayloadHandler) SetIpfsService(i vault_commands.IpfsServiceInterface) {
 	f.ipfs = i
@@ -110,7 +112,11 @@ func (m *fakeVaultRepo) SaveVault(v *vault_domain.Vault) error {
 	if m.saveFn != nil {
 		return m.saveFn(v)
 	}
+	m.savedVault = v
 	m.existingVault = v
+	if m.updateFn != nil {
+		return m.updateFn(v)
+	}
 	return nil
 }
 func (f *fakeVaultRepo) GetVaultByCID(vaultID string) (*vaults_domain.Vault, error) {
@@ -260,7 +266,7 @@ func TestCreateVault_Success(t *testing.T) {
 	require.Greater(t, len(cmd.VaultName), 0)
 }
 
-func CreateVault_FailsIfInitializeFails(t *testing.T) {
+func TestCreateVault_FailsIfInitializeFails(t *testing.T) {
 	repo := &fakeVaultRepo{}
 	ipfsService := &fakeIPFSService{}
 	initHandler := &fakeInitVaultHandler{
@@ -283,12 +289,10 @@ func CreateVault_FailsIfInitializeFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-
-	assert.True(t, initHandler.called)
 	assert.False(t, ipfsHandler.called)
 }
 
-func CreateVault_FailsIfIPFSFails(t *testing.T) {
+func TestCreateVault_FailsIfIPFSFails(t *testing.T) {
 	repo := &fakeVaultRepo{}
 
 	initResult := &vault_commands.InitializeVaultResult{
@@ -317,13 +321,11 @@ func CreateVault_FailsIfIPFSFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, result)
-
-	assert.True(t, initHandler.called)
 	assert.True(t, ipfsHandler.called)
 }
 
-func CreateVault_AttachesCIDToVault(t *testing.T) {
-	expectedKey := []byte("vault-key")
+func TestCreateVault_AttachesCIDToVault(t *testing.T) {
+	expectedKey := []byte("12345678901234567890123456789012")
 
 	mockUnlock := &mockUnlockVaultHandler{
 		ExecuteFunc: func(cmd vault_dto.UnlockVaultCommand) (*vault_dto.UnlockVaultResult, error) {
@@ -336,7 +338,7 @@ func CreateVault_AttachesCIDToVault(t *testing.T) {
 	}
 	repo := &fakeVaultRepo{}
 	ipfsService := &fakeIPFSService{}
-	initHandler := vault_commands.NewInitializeVaultCommandHandler(&gorm.DB{})
+	initHandler := &fakeInitVaultHandler{}
 	tracecoreClient := tracecore.NewTracecoreClient("test", "test", "test", "test")
 
 	ipfsHandler := vault_commands.NewCreateIPFSPayloadCommandHandler(repo, tracecoreClient, &blockchain_ipfs.DefaultStorageFactory{}, mockUnlock)

@@ -76,13 +76,13 @@ func (s *stubUserConfigRepo) DeleteUserConfig(id string) error {
 func TestConnectVault_NewDelegation_Success(t *testing.T) {
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultRegisterResponse{
 				VaultID:      "vault_123",
@@ -107,13 +107,13 @@ func TestConnectVault_NewDelegation_Success(t *testing.T) {
 func TestConnectVault_ExistingActiveDelegation_IdempotentSuccess(t *testing.T) {
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"message": "active delegation already exists"}`))
 		default:
@@ -134,13 +134,13 @@ func TestConnectVault_ExistingActiveDelegation_IdempotentSuccess(t *testing.T) {
 func TestConnectVault_ConflictOtherReason_Failure(t *testing.T) {
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"message": "vault_id already bound to another organization"}`))
 		default:
@@ -163,13 +163,13 @@ func TestConnectVault_ConflictOtherReason_Failure(t *testing.T) {
 func TestConnectVault_UnauthorizedOrForbidden_Failure(t *testing.T) {
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"message": "unauthorized"}`))
 		default:
@@ -191,13 +191,13 @@ func TestConnectVault_UnauthorizedOrForbidden_Failure(t *testing.T) {
 func TestConnectVault_ServerError_Failure(t *testing.T) {
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"message": "internal server error"}`))
 		default:
@@ -220,13 +220,13 @@ func TestConnectVault_MultipleInvocations_Idempotent(t *testing.T) {
 	registrationCount := 0
 	app, ts, userCfg := setupTestAppWithServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
 				ChallengeID:    "chal_123",
 				SigningPayload: "payload_to_sign",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			registrationCount++
 			if registrationCount == 1 {
 				w.WriteHeader(http.StatusCreated)
@@ -264,7 +264,7 @@ func TestConnectVault_MultipleInvocations_Idempotent(t *testing.T) {
 func TestRequestVaultChallenge_SendsBearerToken(t *testing.T) {
 	receivedAuthHeader := ""
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/identity/challenge" {
+		if r.URL.Path == "/api/identity/challenge" || r.URL.Path == "/identity/challenge" {
 			receivedAuthHeader = r.Header.Get("Authorization")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultChallengeResponse{
@@ -331,7 +331,7 @@ func TestSignIn_StellarChallenge_EstablishesCloudTokenAndConnectVault(t *testing
 					"token": "valid_cloud_token_999",
 				},
 			})
-		case "/identity/challenge", "/identity/", "/identity":
+		case "/api/identity/challenge", "/api/identity/", "/api/identity", "/identity/challenge", "/identity/", "/identity":
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -368,7 +368,7 @@ func TestSignIn_CloudAuthFailure_DoesNotBlockLocalSession(t *testing.T) {
 			cloudAuthAttempted = true
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error": true, "message": "invalid credentials"}`))
-		case "/identity/challenge", "/identity/", "/identity":
+		case "/api/identity/challenge", "/api/identity/", "/api/identity", "/identity/challenge", "/identity/", "/identity":
 			connectVaultCalled = true
 			w.WriteHeader(http.StatusOK)
 		default:
@@ -478,7 +478,7 @@ func TestSignInWithStellar_ChallengeResponse_AuthenticatesCloud_ConnectsVault(t 
 					"token": "stellar_recovered_cloud_token_777",
 				},
 			})
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			callOrder = append(callOrder, "vault_challenge")
 			receivedConnectBearer = r.Header.Get("Authorization")
 			w.WriteHeader(http.StatusOK)
@@ -486,7 +486,7 @@ func TestSignInWithStellar_ChallengeResponse_AuthenticatesCloud_ConnectsVault(t 
 				ChallengeID:    "chal_777",
 				SigningPayload: "payload_777",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			callOrder = append(callOrder, "vault_register")
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultRegisterResponse{
@@ -586,7 +586,7 @@ func TestSignIn_EndToEnd_ProvisionedUser_EstablishesCloudTokenAndVaultDelegation
 					"token": "cloud_bearer_token_user28",
 				},
 			})
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			callOrder = append(callOrder, "vault_challenge")
 			receivedConnectBearer = r.Header.Get("Authorization")
 			w.WriteHeader(http.StatusOK)
@@ -594,7 +594,7 @@ func TestSignIn_EndToEnd_ProvisionedUser_EstablishesCloudTokenAndVaultDelegation
 				ChallengeID:    "chal_user28",
 				SigningPayload: "payload_user28",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			callOrder = append(callOrder, "vault_register")
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(tracecore.VaultRegisterResponse{
@@ -889,13 +889,13 @@ func TestStellarBootstrap_EndToEnd_11StepAcceptance(t *testing.T) {
 			}
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(resp)
-		case "/identity/challenge":
+		case "/api/identity/challenge", "/identity/challenge":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"challenge_id":    "chal_e2e_11",
 				"signing_payload": "challenge_payload_11",
 			})
-		case "/identity/", "/identity":
+		case "/api/identity/", "/api/identity", "/identity/", "/identity":
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"vault_id":      "vault_e2e_11",

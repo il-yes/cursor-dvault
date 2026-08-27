@@ -1710,6 +1710,12 @@ func (c *TracecoreClient) AddToIPFS0(ctx context.Context, req tracecore_types.Sy
 	return &cloudResp, nil
 }
 func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.SyncVaultStreamRequest) (*tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse], error) {
+	opID := "anon"
+	if ctx != nil {
+		if val, ok := ctx.Value("sync_op_id").(string); ok && val != "" {
+			opID = val
+		}
+	}
 	// Step 1: build JSON body
 	body := &bytes.Buffer{}
 	if err := json.NewEncoder(body).Encode(req); err != nil {
@@ -1718,7 +1724,7 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 
 	// Step 2: build URL and request
 	url := c.BaseURL + "/vaults/" + req.UserID + "/storage/" + req.VaultName
-	utils.LogPretty("TracecoreClient - AddToIPFS - URL", url)
+	utils.LogPretty(fmt.Sprintf("SYNC[%s] → ADDTOIPFS ENTER", opID), url)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, err
@@ -1727,9 +1733,6 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 	if c.Token != "" {
 		request.Header.Set("Authorization", "Bearer "+c.Token)
 	}
-
-	utils.LogPretty("TracecoreClient - AddToIPFS - URL", url)
-	// utils.LogPretty("TracecoreClient - AddToIPFS - request body", body.String())
 
 	// Step 3: do the request
 	resp, err := c.HTTPClient.Do(request)
@@ -1740,16 +1743,8 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("TracecoreClient - AddToIPFS - read body failed: %v", err)
+		log.Printf("SYNC[%s] TracecoreClient - AddToIPFS - read body failed: %v", opID, err)
 		return nil, fmt.Errorf("read body failed: %w", err)
-	}
-	utils.LogPretty("TracecoreClient - AddToIPFS - raw body (string)", string(respBytes))
-
-	// if body is empty or very short, log raw bytes
-	if len(respBytes) == 0 {
-		utils.LogPretty("TracecoreClient - AddToIPFS - raw body", "(empty)")
-	} else {
-		utils.LogPretty("TracecoreClient - AddToIPFS - raw body (hex)", fmt.Sprintf("%x", respBytes))
 	}
 
 	if len(respBytes) == 0 {
@@ -1763,7 +1758,7 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 		return nil, fmt.Errorf("TracecoreClient - AddToIPFS - cloud response unmarshal failed: %w", err)
 	}
 
-	utils.LogPretty("✅ TracecoreClient - AddToIPFS - cloudResp", cloudResp)
+	utils.LogPretty(fmt.Sprintf("SYNC[%s] ← ADDTOIPFS EXIT CID=%s", opID, cloudResp.Data.CID), cloudResp)
 	return &cloudResp, nil
 }
 func (c *TracecoreClient) GetDataFromCloudStorage(ctx context.Context, req tracecore_types.IpfsCidRequest) (*tracecore_types.IpfsCidResponse, error) {

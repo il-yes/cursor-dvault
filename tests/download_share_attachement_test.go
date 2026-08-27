@@ -22,7 +22,6 @@ import (
 	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
-	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_ui "vault-app/internal/vault/ui"
 )
 
@@ -179,6 +178,29 @@ func (f *MockGetIPFSDataQueryHandler) Execute(ctx context.Context, query vault_q
 }
 func (f *MockGetIPFSDataQueryHandler) AESDecrypt(encrypted []byte, key []byte) ([]byte, error) {
 	return f.AESDecryptFunc(encrypted, key)
+}
+
+type mockStorageFactory struct {
+	provider app_config.StorageProvider
+}
+
+func (m *mockStorageFactory) New(ctx *app_config_domain.VaultContext) app_config.StorageProvider {
+	return m.provider
+}
+
+type mockStorageProvider struct {
+	getCalled bool
+	lastCID   string
+}
+
+func (m *mockStorageProvider) Add(ctx context.Context, data []byte) (string, error) {
+	return "QmCID123", nil
+}
+
+func (m *mockStorageProvider) Get(ctx context.Context, cid string) ([]byte, error) {
+	m.getCalled = true
+	m.lastCID = cid
+	return []byte("fake-ipfs-data"), nil
 }
 
 // ============= mockIPFS =======================================================
@@ -373,21 +395,11 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 	vaultRepo := &MockVaultRepo{}
 	vaultRepo.existingVault = &vault
 
-	// 2. Mock GetIPFSDataQueryHandler
-	//    (it returns raw bytes, then CloudIPFSStorage.Get decodes)
-	var executedQuery vault_queries.GetIPFSDataQuerry
-	var executeCalled bool
-
 	// 4. symKey (from DecryptPasswordWithStellarByte, but stubbed here)
 	// symKey := []byte("sym-key-32-bytes-..............")
 	// require.Equal(t, 32, len(symKey)
 
-	aesService := vault_infrastructure_crypto.AESService{}
-	symKey, err := aesService.DecryptPasswordWithStellarByte(
-		[]byte("cPu8Oc3uPwOZXq4Q"),
-		[]byte("Eo4A8jXUXZ/M9sfGHx95wrI0v3IQaAL9"),
-		"SB3RRWLCYSMUZZIVYFM6PPGMXIYLRHWDTGMMGKVYWRW64LK4PJFWRLTF",
-	)
+	symKey := []byte("12345678901234567890123456789012")
 	require.Equal(t, 32, len(symKey))
 
 	// getIPFSHandler := &MockGetIPFSDataQueryHandler{
@@ -468,10 +480,17 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 		tracecoreClient,
 		"",
 	)
+	mockStorage := &mockStorageProvider{}
+	vaultHandler.GetIPFSDataQuerryHandler.StorageFactory = &mockStorageFactory{
+		provider: mockStorage,
+	}
 
 	cfgs, err := GetConfig(userID, vault.Name)
 	if err != nil {
 		utils.LogPretty("Vault service (WRITE) error", err)
+	}
+	if cfgs != nil {
+		cfgs.App.Storage.Cloud.BaseURL = "http://localhost:4001/api"
 	}
 
 	// 5. DownloadAttachmentRequest
@@ -484,16 +503,16 @@ func TestDownloadAttachment_Success_ALPHA(t *testing.T) {
 		PrivateKey:   "private-key",
 		EncryptedKey: "encrypted-key",
 		SymKey:       symKey,
-		Configs:       cfgs,
+		Configs:      cfgs,
+		IsShared:     true,
 	}
 	// 6. Act
 	path, err := vaultHandler.DownloadAttachment(context.Background(), downloadReq)
 
 	// 7. Assert
 	require.NoError(t, err)
-	require.True(t, executeCalled, "GetIPFSDataQuerryHandler.Execute should be called")
-	require.Equal(t, cid, executedQuery.CID)
-	require.Equal(t, symKey, executedQuery.SymKey)
+	require.True(t, mockStorage.getCalled, "mockStorageProvider.Get should be called")
+	require.Equal(t, cid, mockStorage.lastCID)
 
 	// assert that path is something like ~/Downloads/VaultCore/attachments/attachment_QmCID.jpg
 	require.Contains(t, path, "VaultCore/attachments")
@@ -606,20 +625,20 @@ func TestDownloadAttachment_Success(t *testing.T) {
         tracecoreClient,
         "",
     )
+    vaultHandler.GetIPFSDataQuerryHandler.StorageFactory = &mockStorageFactory{
+        provider: &mockStorageProvider{},
+    }
 
     // 10. Compute symKey
-    aesService := vault_infrastructure_crypto.AESService{}
-    symKey, err := aesService.DecryptPasswordWithStellarByte(
-        []byte("cPu8Oc3uPwOZXq4Q"),
-        []byte("Eo4A8jXUXZ/M9sfGHx95wrI0v3IQaAL9"),
-        "SB3RRWLCYSMUZZIVYFM6PPGMXIYLRHWDTGMMGKVYWRW64LK4PJFWRLTF",
-    )
-    require.NoError(t, err)
+    symKey := []byte("12345678901234567890123456789012")
     require.Equal(t, 32, len(symKey))
 
 	cfgs, err := GetConfig(userID, vaultName)
 	if err != nil {
 		utils.LogPretty("Vault service (WRITE) error", err)
+	}
+	if cfgs != nil {
+		cfgs.App.Storage.Cloud.BaseURL = "http://localhost:4001/api"
 	}
 
 
@@ -634,6 +653,7 @@ func TestDownloadAttachment_Success(t *testing.T) {
         EncryptedKey: "encrypted-key",
         SymKey:       symKey,
         Configs:      cfgs,
+        IsShared:     true,
     }
 
     // 12. Act

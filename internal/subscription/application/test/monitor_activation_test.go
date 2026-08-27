@@ -22,8 +22,6 @@ import (
 	subscription_usecase "vault-app/internal/subscription/application/usecase"
 	subscription_domain "vault-app/internal/subscription/domain"
 	vault_commands "vault-app/internal/vault/application/commands"
-
-	"gorm.io/gorm"
 )
 
 /* ---------------------------------------------------
@@ -351,7 +349,7 @@ func TestSubscriptionActivationMonitor_Success(t *testing.T) {
 		identityHandler,
 		billingHandler,
 		appConfigHandler,
-		&gorm.DB{},
+		nil,
 	)
 
 	go monitor.Listen(ctx)
@@ -395,7 +393,7 @@ func TestSubscriptionActivationMonitor_SubscriptionLookupFails(t *testing.T) {
 		&fakeIdentityHandler{},
 		&fakeBillingHandler{},
 		&fakeAppConfigHandler{},
-		&gorm.DB{},
+		nil,
 	)
 
 	go monitor.Listen(ctx)
@@ -442,7 +440,7 @@ func TestSubscriptionActivationMonitor_UnknownTierDoesNotFail(t *testing.T) {
 		identityHandler,
 		billingHandler,
 		&fakeAppConfigHandler{},
-		&gorm.DB{},
+		nil,
 	)
 
 	go monitor.Listen(ctx)

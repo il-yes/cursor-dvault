@@ -85,9 +85,9 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 		cfgGetter := &MockOnboardingConfigGetter{}
 
 		cfgGetter.
-			On("GetOnboardingConfigByUserID", mock.Anything, "user-123", (map[string]interface{})(nil)).
+			On("GetOnboardingConfigByUserID", mock.Anything, userOnboardingID, (map[string]interface{})(nil)).
 			Return(&app_config_domain.OnboardingConfig{
-				UserID:         "user-123",
+				UserID:         userOnboardingID,
 				Packs:          nil,
 				InstalledSeeds: nil,
 				PacksApplied:   false,
@@ -117,9 +117,9 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 		cfgGetter := &MockOnboardingConfigGetter{}
 
 		cfgGetter.
-			On("GetOnboardingConfigByUserID", mock.Anything, "user-123", (map[string]interface{})(nil)).
+			On("GetOnboardingConfigByUserID", mock.Anything, userOnboardingID, (map[string]interface{})(nil)).
 			Return(&app_config_domain.OnboardingConfig{
-				UserID:         "user-123",
+				UserID:         userOnboardingID,
 				Packs:          []string{"pack-1"},
 				InstalledSeeds: []string{},
 				PacksApplied:   false,
@@ -127,14 +127,14 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 			}, nil)
 
 		cfgGetter.
-			On("GetOnboardingConfigByUserID", mock.Anything, "user-123",
+			On("GetOnboardingConfigByUserID", mock.Anything, userOnboardingID,
 				mock.MatchedBy(func(opts map[string]interface{}) bool {
 					_, ok := opts["db_transaction"]
 					return ok
 				}),
 			).
 			Return(&app_config_domain.OnboardingConfig{
-				UserID:         "user-123",
+				UserID:         userOnboardingID,
 				Packs:          []string{"pack-1"},
 				InstalledSeeds: []string{},
 				PacksApplied:   false,
@@ -167,23 +167,17 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 				},
 			}, nil)
 
-		entry := vaults_domain.NoteEntry{
-			BaseEntry: vaults_domain.BaseEntry{
-				ID:   "entry-1",
-				Type: "note",
-			},
-		}
 		entries.
-			On("AddEntryFor", "user-123", mock.Anything).
-			Return(&entry, nil)
+			On("VaultPayloadAddEntry", mock.Anything).
+			Return(nil)
 
 		cfgGetter.
-			On("Update", "user-123", mock.MatchedBy(func(cfg *app_config_domain.OnboardingConfig) bool {
-				return cfg.UserID == "user-123" &&
+			On("UpdateOnboardingConfig", userOnboardingID, mock.MatchedBy(func(cfg *app_config_domain.OnboardingConfig) bool {
+				return cfg.UserID == userOnboardingID &&
 					len(cfg.Packs) == 1 &&
 					cfg.Packs[0] == "pack-1" &&
 					len(cfg.InstalledSeeds) == 1 &&
-					cfg.InstalledSeeds[0] == "pack-1:seed-1" &&
+					cfg.InstalledSeeds[0] == "pack-1:tmpl-1" &&
 					cfg.PacksApplied
 			}), mock.Anything).
 			Return(nil)
@@ -211,9 +205,9 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 		cfgGetter := &MockOnboardingConfigGetter{}
 
 		cfgGetter.
-			On("GetOnboardingConfigByUserID", mock.Anything, "user-123", (map[string]interface{})(nil)).
+			On("GetOnboardingConfigByUserID", mock.Anything, userOnboardingID, (map[string]interface{})(nil)).
 			Return(&app_config_domain.OnboardingConfig{
-				UserID:         "user-123",
+				UserID:         userOnboardingID,
 				Packs:          []string{"pack-1"},
 				InstalledSeeds: []string{},
 				PacksApplied:   false,
@@ -221,14 +215,14 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 			}, nil)
 
 		cfgGetter.
-			On("GetOnboardingConfigByUserID", mock.Anything, "user-123",
+			On("GetOnboardingConfigByUserID", mock.Anything, userOnboardingID,
 				mock.MatchedBy(func(opts map[string]interface{}) bool {
 					_, ok := opts["db_transaction"]
 					return ok
 				}),
 			).
 			Return(&app_config_domain.OnboardingConfig{
-				UserID:         "user-123",
+				UserID:         userOnboardingID,
 				Packs:          []string{"pack-1"},
 				InstalledSeeds: []string{},
 				PacksApplied:   false,
@@ -261,8 +255,8 @@ func TestApplyOnboardingPacksWorker_HandleOnboardingCompleted(t *testing.T) {
 			}, nil)
 
 		entries.
-			On("AddEntryFor", "user-123", mock.Anything).
-			Return((*vaults_domain.VaultEntry)(nil), errors.New("failed to create entry"))
+			On("VaultPayloadAddEntry", mock.Anything).
+			Return(errors.New("failed to create entry"))
 
 		worker := app_config_worker.NewApplyOnboardingPacksWorker(
 			db,

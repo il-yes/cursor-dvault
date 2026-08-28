@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { desktopResourceService, OpenedResourceResult } from "@/services/desktopResourceService";
+import { C3ActionMenu } from "./actions/C3ActionMenu";
 
 interface C3ResourceCardProps {
   refType: "share_entry" | "storage_asset" | string;
@@ -41,6 +42,11 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
     }
   };
 
+  const resourceRef = {
+    resourceType: refType || "share_entry",
+    resourceId: shareEntryId || cid || "resource_ref",
+  };
+
   return (
     <div
       className="c3-resource-card"
@@ -61,11 +67,14 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
             Protected Resource
           </strong>
         </div>
-        {author && (
-          <span style={{ fontSize: "11px", color: "#8B949E" }}>
-            Shared by {author}
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {author && (
+            <span style={{ fontSize: "11px", color: "#8B949E" }}>
+              Shared by {author}
+            </span>
+          )}
+          <C3ActionMenu resourceRef={resourceRef} onView={handleOpen} />
+        </div>
       </div>
 
       {/* ID & Context Details */}

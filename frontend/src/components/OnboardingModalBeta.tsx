@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,6 +156,7 @@ export function OnboardingModalBeta({ open, onOpenChange, upgradeMode = false }:
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl p-0 backdrop-blur-3xl border-white/20 shadow-2xl max-h-[90vh] overflow-auto scrollbar-glassmorphism thin-scrollbar">
+        <DialogTitle className="sr-only">Vault Setup & Subscription</DialogTitle>
         {/* Outer gradient shell */}
         <div className="h-full rounded-3xl p-[1px] bg-gradient-to-br from-white/30 via-white/20 to-zinc-100/10">
           {/* Inner glass container */}

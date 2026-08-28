@@ -5,6 +5,7 @@ import {vault_dto} from '../models';
 import {vaults_domain} from '../models';
 import {json} from '../models';
 import {share_entry_use_cases} from '../models';
+import {collaboration_dtos} from '../models';
 import {main} from '../models';
 import {auth} from '../models';
 import {identity_domain} from '../models';
@@ -25,7 +26,6 @@ import {billing_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {notification_center_domain} from '../models';
 import {blockchain} from '../models';
-import {collaboration_dtos} from '../models';
 import {tracecore} from '../models';
 
 export function AcceptChannelInvitation(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
@@ -48,6 +48,10 @@ export function AddRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore
 
 export function AppendThreadEvent(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ThreadEventDTO>;
 
+export function ApproveAction(arg1:string,arg2:collaboration_dtos.ApproveRequest):Promise<collaboration_dtos.ApproveResponse>;
+
+export function ApproveTransferAction(arg1:string,arg2:collaboration_dtos.ApproveTransferRequest):Promise<collaboration_dtos.ApproveTransferResponse>;
+
 export function Archive(arg1:string,arg2:string):Promise<void>;
 
 export function CancelSubscription(arg1:string,arg2:string):Promise<void>;
@@ -64,6 +68,8 @@ export function CheckUserEmail(arg1:string,arg2:string):Promise<tracecore_types.
 
 export function CompleteOnboarding():Promise<void>;
 
+export function CompleteTransferAction(arg1:string,arg2:collaboration_dtos.CompleteTransferRequest):Promise<collaboration_dtos.CompleteTransferResponse>;
+
 export function ConnectToRealtime(arg1:identity_domain.User):Promise<void>;
 
 export function ConnectVault(arg1:string,arg2:string):Promise<void>;
@@ -74,6 +80,8 @@ export function CountUnread(arg1:string):Promise<number>;
 
 export function CreateAccount(arg1:onboarding_usecase.AccountCreationRequest):Promise<onboarding_ui_wails.AccountCreationResponse>;
 
+export function CreateApproval(arg1:string,arg2:collaboration_dtos.CreateApprovalRequest):Promise<collaboration_dtos.CreateApprovalResponse>;
+
 export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>,arg7:Array<channel_domain.ChannelProperty>,arg8:Record<string, any>,arg9:string):Promise<tracecore_types.ChannelDTO>;
 
 export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:number):Promise<tracecore_types.ShareEntryRefDTO>;
@@ -82,9 +90,13 @@ export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.Vaul
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
 
+export function CreateReject(arg1:string,arg2:collaboration_dtos.CreateRejectRequest):Promise<collaboration_dtos.CreateRejectResponse>;
+
 export function CreateShare(arg1:main.CreateShareInput):Promise<share_entry_domain.ShareEntry>;
 
 export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ThreadDTO>;
+
+export function CreateTransfer(arg1:string,arg2:collaboration_dtos.CreateTransferRequest):Promise<collaboration_dtos.CreateTransferResponse>;
 
 export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
@@ -184,6 +196,8 @@ export function ListPendingIntentSharesWithMe(arg1:string):Promise<tracecore_typ
 
 export function ListReceivedShares(arg1:string):Promise<any>;
 
+export function ListResourceActions(arg1:string,arg2:collaboration_dtos.ListResourceActionsRequest):Promise<collaboration_dtos.ListResourceActionsResponse>;
+
 export function ListSharedEntries(arg1:string):Promise<any>;
 
 export function ListThreadEvents(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadEventDTO>>;
@@ -221,6 +235,8 @@ export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain
 export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 
 export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
+
+export function RejectTransferAction(arg1:string,arg2:collaboration_dtos.RejectTransferRequest):Promise<collaboration_dtos.RejectTransferResponse>;
 
 export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
 

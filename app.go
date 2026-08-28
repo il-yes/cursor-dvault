@@ -89,6 +89,7 @@ import (
 	channel_ui "vault-app/internal/channel/ui"
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	"vault-app/internal/models"
 	thread_usecase "vault-app/internal/thread/application/usecases"
@@ -629,7 +630,9 @@ func NewApp() *App {
 	// /api/c3/share-entries).
 	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, tracecore.NewCloudShareEntryRepository(tracecoreClient))
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetWithTrustGroupUC, nil)
-	collaborationHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendThreadEventUC)
+	actionRepo := collaboration_infra.NewMemoryActionRepository()
+	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
+	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, nil, appendThreadEventUC, actionUseCases)
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -1259,6 +1262,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if cloudVault != nil {
 		cloudVaultID = cloudVault.Data.ID
 	}
+	vaultRes.RuntimeContext.VaultID = cloudVaultID
 
 	if cloudToken != "" &&
 		vaultRes.RuntimeContext != nil &&
@@ -1278,6 +1282,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 			)
 		}
 	}
+	
 
 	// ============================================================
 	// 8. REALTIME
@@ -3526,6 +3531,115 @@ func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, de
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
 	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, shareEntryID, deviceID)
+}
+
+func (a *App) CreateApproval(JwtToken string, req collaboration_dtos.CreateApprovalRequest) (*collaboration_dtos.CreateApprovalResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.CreatedBy == "" {
+		req.CreatedBy = claims.UserID
+	}
+	return a.CollaborationHandler.CreateApproval(a.ctx, req)
+}
+
+func (a *App) ApproveAction(JwtToken string, req collaboration_dtos.ApproveRequest) (*collaboration_dtos.ApproveResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.ApprovedBy == "" {
+		req.ApprovedBy = claims.UserID
+	}
+	return a.CollaborationHandler.ApproveAction(a.ctx, req)
+}
+
+func (a *App) CreateReject(JwtToken string, req collaboration_dtos.CreateRejectRequest) (*collaboration_dtos.CreateRejectResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.CreatedBy == "" {
+		req.CreatedBy = claims.UserID
+	}
+	return a.CollaborationHandler.CreateReject(a.ctx, req)
+}
+
+func (a *App) CreateTransfer(JwtToken string, req collaboration_dtos.CreateTransferRequest) (*collaboration_dtos.CreateTransferResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.CreatedBy == "" {
+		req.CreatedBy = claims.UserID
+	}
+	return a.CollaborationHandler.CreateTransfer(a.ctx, req)
+}
+
+func (a *App) ApproveTransferAction(JwtToken string, req collaboration_dtos.ApproveTransferRequest) (*collaboration_dtos.ApproveTransferResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.ApprovedBy == "" {
+		req.ApprovedBy = claims.UserID
+	}
+	return a.CollaborationHandler.ApproveTransferAction(a.ctx, req)
+}
+
+func (a *App) RejectTransferAction(JwtToken string, req collaboration_dtos.RejectTransferRequest) (*collaboration_dtos.RejectTransferResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.RejectedBy == "" {
+		req.RejectedBy = claims.UserID
+	}
+	return a.CollaborationHandler.RejectTransferAction(a.ctx, req)
+}
+
+func (a *App) CompleteTransferAction(JwtToken string, req collaboration_dtos.CompleteTransferRequest) (*collaboration_dtos.CompleteTransferResponse, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	if req.CompletedBy == "" {
+		req.CompletedBy = claims.UserID
+	}
+	return a.CollaborationHandler.CompleteTransferAction(a.ctx, req)
+}
+
+func (a *App) ListResourceActions(JwtToken string, req collaboration_dtos.ListResourceActionsRequest) (*collaboration_dtos.ListResourceActionsResponse, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+	return a.CollaborationHandler.ListResourceActions(a.ctx, req)
 }
 
 // ConnectVault explicitly registers vault identity delegation with Ankhora Cloud.

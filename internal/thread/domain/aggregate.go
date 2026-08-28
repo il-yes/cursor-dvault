@@ -59,6 +59,15 @@ const (
 	EventReceiptIssued         ThreadEventType = "receipt.issued"
 	EventFederationEntryShared ThreadEventType = "federation.shared.created"
 	EventThreadEventAppended   ThreadEventType = "thread.event.appended"
+
+	// Generic C3 Collaboration Actions
+	EventC3ApprovalRequested ThreadEventType = "c3.approval.requested"
+	EventC3ApprovalApproved  ThreadEventType = "c3.approval.approved"
+	EventC3RejectCreated     ThreadEventType = "c3.reject.created"
+	EventC3TransferRequested ThreadEventType = "c3.transfer.requested"
+	EventC3TransferApproved  ThreadEventType = "c3.transfer.approved"
+	EventC3TransferRejected  ThreadEventType = "c3.transfer.rejected"
+	EventC3TransferCompleted ThreadEventType = "c3.transfer.completed"
 )
 
 type ResourceType string
@@ -66,6 +75,7 @@ type ResourceType string
 const (
 	ResourceStorageAsset ResourceType = "storage_asset"
 	ResourceShareEntry   ResourceType = "share_entry"
+	ResourceC3Action     ResourceType = "c3_action"
 )
 
 type EventResourceRef struct {
@@ -80,6 +90,13 @@ type EventResourceRef struct {
 	// C3 ShareEntry reference fields (populated when RefType == ResourceShareEntry)
 	ShareEntryID string `json:"share_entry_id,omitempty"`
 	TrustGroupID string `json:"trust_group_id,omitempty"`
+
+	// Generic C3 Action reference fields (populated when RefType == ResourceC3Action or C3 Action event)
+	ActionID           string `json:"action_id,omitempty"`
+	ResourceTypeVal    string `json:"resource_type,omitempty"`
+	ResourceIDVal      string `json:"resource_id,omitempty"`
+	SourceEventID      string `json:"source_event_id,omitempty"`
+	TargetTrustGroupID string `json:"target_trust_group_id,omitempty"`
 }
 
 type ThreadEvent struct {

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
     Dialog,
     DialogContent,
+    DialogTitle,
 } from "@/components/ui/dialog";
 
 import { createEmptyChannelDraft } from "../../domain/channel/channel.types";
@@ -107,6 +108,7 @@ export function CreateChannelDialog({ open, onClose }: Props) {
             <DialogContent
                 className="border-0 bg-transparent shadow-none max-w-[45rem] p-0"
             >
+                <DialogTitle className="sr-only">Create Channel</DialogTitle>
                 {step === 1 && (
                     <Step1
                         templates={templates}

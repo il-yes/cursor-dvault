@@ -42,6 +42,14 @@ export function AppendThreadEvent(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AppendThreadEvent'](arg1, arg2, arg3, arg4);
 }
 
+export function ApproveAction(arg1, arg2) {
+  return window['go']['main']['App']['ApproveAction'](arg1, arg2);
+}
+
+export function ApproveTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['ApproveTransferAction'](arg1, arg2);
+}
+
 export function Archive(arg1, arg2) {
   return window['go']['main']['App']['Archive'](arg1, arg2);
 }
@@ -74,6 +82,10 @@ export function CompleteOnboarding() {
   return window['go']['main']['App']['CompleteOnboarding']();
 }
 
+export function CompleteTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['CompleteTransferAction'](arg1, arg2);
+}
+
 export function ConnectToRealtime(arg1) {
   return window['go']['main']['App']['ConnectToRealtime'](arg1);
 }
@@ -94,6 +106,10 @@ export function CreateAccount(arg1) {
   return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
+export function CreateApproval(arg1, arg2) {
+  return window['go']['main']['App']['CreateApproval'](arg1, arg2);
+}
+
 export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
@@ -110,12 +126,20 @@ export function CreateLinkShare(arg1, arg2) {
   return window['go']['main']['App']['CreateLinkShare'](arg1, arg2);
 }
 
+export function CreateReject(arg1, arg2) {
+  return window['go']['main']['App']['CreateReject'](arg1, arg2);
+}
+
 export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
 }
 
 export function CreateThread(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateThread'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CreateTransfer(arg1, arg2) {
+  return window['go']['main']['App']['CreateTransfer'](arg1, arg2);
 }
 
 export function CreateWorkspace(arg1, arg2, arg3, arg4) {
@@ -314,6 +338,10 @@ export function ListReceivedShares(arg1) {
   return window['go']['main']['App']['ListReceivedShares'](arg1);
 }
 
+export function ListResourceActions(arg1, arg2) {
+  return window['go']['main']['App']['ListResourceActions'](arg1, arg2);
+}
+
 export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
 }
@@ -388,6 +416,10 @@ export function RefreshToken(arg1) {
 
 export function RejectShare(arg1, arg2, arg3) {
   return window['go']['main']['App']['RejectShare'](arg1, arg2, arg3);
+}
+
+export function RejectTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['RejectTransferAction'](arg1, arg2);
 }
 
 export function RequestChallenge(arg1) {

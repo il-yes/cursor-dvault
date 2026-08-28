@@ -9,6 +9,7 @@ import { listThreads, listThreadEvents, ThreadResponse, ThreadEventResponse } fr
 import { CommitModal } from "./CommitModal";
 import { SharedEntryDetails } from "@/components/SharedEntryDetails";
 import { SharedEntry } from "@/types/sharing";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export interface DerivedInboxItem {
     id: string;
@@ -430,74 +431,25 @@ export const InboxTable = () => {
                 />
             )}
 
-            {/* SHARED ENTRY DECRYPTION DETAILS MODAL VIA PORTAL */}
-            {isShareDetailsOpen && selectedShareEntry && createPortal(
-                <>
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: "rgba(0, 0, 0, 0.4)",
-                            zIndex: 1100,
-                        }}
-                        onClick={() => setIsShareDetailsOpen(false)}
-                    />
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: "5%",
-                            right: "5%",
-                            width: "600px",
-                            height: "90vh",
-                            backgroundColor: "#ffffff",
-                            borderRadius: "12px",
-                            boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
-                            zIndex: 1101,
-                            display: "flex",
-                            flexDirection: "column",
-                            overflow: "hidden",
-                        }}
-                    >
-                        <div
-                            style={{
-                                padding: "12px 16px",
-                                borderBottom: "1px solid #e5e7eb",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                backgroundColor: "#f9fafb",
-                            }}
-                        >
-                            <span style={{ fontWeight: 700, fontSize: "14px", color: "#111827" }}>
-                                Decrypted Share Entry View
-                            </span>
-                            <button
-                                onClick={() => setIsShareDetailsOpen(false)}
-                                style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    fontSize: "16px",
-                                    cursor: "pointer",
-                                    color: "#6b7280",
-                                }}
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        <div style={{ flex: 1, overflowY: "auto" }}>
+            {/* SHARED ENTRY DECRYPTION DETAILS MODAL VIA RADIX DIALOG */}
+            <Dialog open={isShareDetailsOpen && !!selectedShareEntry} onOpenChange={(open) => !open && setIsShareDetailsOpen(false)}>
+                <DialogContent className="sm:max-w-[640px] max-h-[90vh] p-0 overflow-hidden bg-background border border-border rounded-xl shadow-2xl">
+                    <DialogHeader className="p-4 border-b border-border bg-muted/30 flex flex-row items-center justify-between space-y-0">
+                        <DialogTitle className="text-sm font-bold text-foreground">
+                            Referenced Vault Entry
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto p-4 max-h-[calc(90vh-60px)]">
+                        {selectedShareEntry && (
                             <SharedEntryDetails
                                 entry={selectedShareEntry}
                                 view="metadata"
                                 updateRecipients={updateRecipients}
                             />
-                        </div>
+                        )}
                     </div>
-                </>,
-                document.body
-            )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

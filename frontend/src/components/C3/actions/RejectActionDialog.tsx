@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { ResourceReference, C3ResourceTypes } from "../domain/resource";
 import { CreateReject } from "../../../../wailsjs/go/main/App";
 
+import { useAuthStore } from "@/store/useAuthStore";
+
 interface RejectActionDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,7 +39,7 @@ export const RejectActionDialog: React.FC<RejectActionDialogProps> = ({
 
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await CreateReject(token, {
         resource_type: resType,
         resource_id: resId,
@@ -51,7 +53,9 @@ export const RejectActionDialog: React.FC<RejectActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to submit rejection.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] CreateReject Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 

@@ -3,6 +3,8 @@ import { ResourceReference, C3ResourceTypes } from "../domain/resource";
 import { CreateApproval, ApproveAction } from "../../../../wailsjs/go/main/App";
 import { C3ActionStatus } from "./C3ActionStatus";
 
+import { useAuthStore } from "@/store/useAuthStore";
+
 interface ApprovalActionDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -38,7 +40,7 @@ export const ApprovalActionDialog: React.FC<ApprovalActionDialogProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await CreateApproval(token, {
         resource_type: resType,
         resource_id: resId,
@@ -51,7 +53,9 @@ export const ApprovalActionDialog: React.FC<ApprovalActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to request approval.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] CreateApproval Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 
@@ -60,7 +64,7 @@ export const ApprovalActionDialog: React.FC<ApprovalActionDialogProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await ApproveAction(token, {
         approval_id: approvalId,
         thread_id: threadId,
@@ -70,7 +74,9 @@ export const ApprovalActionDialog: React.FC<ApprovalActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to approve.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] ApproveAction Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 

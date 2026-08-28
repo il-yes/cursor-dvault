@@ -30,6 +30,7 @@ import LedgerPage from "./components/C3/ui/ledger/LedgerPage";
 import InboxPage from "./components/C3/ui/inbox/InboxPage";
 import AssetPage from "./components/C3/ui/thread/AssetPage";
 import ChannelPage from "./components/C3/ui/channel/ChannelPage";
+import C3ConfigurationPage from "./components/C3/configuration/C3ConfigurationPage";
 import * as ROUTES from './constants/routes';
 
 
@@ -162,6 +163,7 @@ function AppContent() {
 			<Route path={ROUTES.INBOX} element={<InboxPage />} />
 			<Route path={ROUTES.THREAD} element={<AssetPage />} />
 			<Route path={ROUTES.CHANNEL} element={<ChannelPage />} />
+			<Route path={ROUTES.C3_CONFIG} element={<C3ConfigurationPage />} />
 
 
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

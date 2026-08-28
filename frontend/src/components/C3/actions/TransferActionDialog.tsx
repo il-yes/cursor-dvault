@@ -9,6 +9,8 @@ import {
   CompleteTransferAction,
 } from "../../../../wailsjs/go/main/App";
 
+import { useAuthStore } from "@/store/useAuthStore";
+
 interface TransferActionDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,7 +32,7 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
   targetTrustGroupId,
   onSuccess,
 }) => {
-  const [selectedTrustGroup, setSelectedTrustGroup] = useState(targetTrustGroupId || "tg_engineering");
+  const [selectedTrustGroup, setSelectedTrustGroup] = useState(targetTrustGroupId || "");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,7 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
 
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await CreateTransfer(token, {
         resource_type: resType,
         resource_id: resId,
@@ -68,7 +70,9 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to request transfer.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] CreateTransfer Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 
@@ -77,7 +81,7 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await ApproveTransferAction(token, {
         transfer_id: transferId,
         thread_id: threadId,
@@ -87,7 +91,9 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to approve transfer.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] ApproveTransferAction Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 
@@ -96,7 +102,7 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await RejectTransferAction(token, {
         transfer_id: transferId,
         thread_id: threadId,
@@ -106,7 +112,9 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to reject transfer.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] RejectTransferAction Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 
@@ -115,7 +123,7 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       await CompleteTransferAction(token, {
         transfer_id: transferId,
         thread_id: threadId,
@@ -125,7 +133,9 @@ export const TransferActionDialog: React.FC<TransferActionDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to complete transfer.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] CompleteTransferAction Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 

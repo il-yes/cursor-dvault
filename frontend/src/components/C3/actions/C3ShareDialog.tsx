@@ -3,6 +3,8 @@ import { ResourceReference, C3ResourceTypes } from "../domain/resource";
 import { TrustGroupSelect } from "./TrustGroupSelect";
 import { CreateCollaborativeShare } from "../../../../wailsjs/go/main/App";
 
+import { useAuthStore } from "@/store/useAuthStore";
+
 interface C3ShareDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,7 +20,7 @@ export const C3ShareDialog: React.FC<C3ShareDialogProps> = ({
   threadId = "default_thread",
   onShareCreated,
 }) => {
-  const [trustGroupId, setTrustGroupId] = useState("tg_engineering");
+  const [trustGroupId, setTrustGroupId] = useState("");
   const [targetVaultId, setTargetVaultId] = useState("vault_target_member");
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +43,7 @@ export const C3ShareDialog: React.FC<C3ShareDialogProps> = ({
     setIsLoading(true);
     try {
       // Execute C3 Collaborative Share Wails API
-      const token = localStorage.getItem("jwt_token") || "mock_token";
+      const token = useAuthStore.getState().jwtToken || localStorage.getItem("jwt_token") || "";
       const shareRef = await CreateCollaborativeShare(
         token,
         threadId,
@@ -58,7 +60,9 @@ export const C3ShareDialog: React.FC<C3ShareDialogProps> = ({
       onClose();
     } catch (err: any) {
       setIsLoading(false);
-      setError(err?.message || "Failed to create C3 Share.");
+      const errMsg = typeof err === "string" ? err : err?.message || JSON.stringify(err);
+      console.error("[C3 Diagnostic] CreateCollaborativeShare Error:", errMsg, err);
+      setError(errMsg);
     }
   };
 

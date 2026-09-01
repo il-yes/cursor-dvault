@@ -270,6 +270,10 @@ export function GetSession(arg1) {
   return window['go']['main']['App']['GetSession'](arg1);
 }
 
+export function GetShareEntry(arg1, arg2) {
+  return window['go']['main']['App']['GetShareEntry'](arg1, arg2);
+}
+
 export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }

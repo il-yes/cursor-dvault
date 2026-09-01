@@ -55,14 +55,18 @@ class DesktopResourceService {
    */
   async openResource(input: ResourceRefInput): Promise<OpenedResourceResult> {
     const jwtToken = useAuthStore.getState().jwtToken;
-    const deviceId = input.deviceId || localStorage.getItem("device_id") || "default_desktop_device";
+    const deviceId = input.deviceId || (typeof localStorage !== "undefined" ? localStorage.getItem("device_id") : null) || "default_desktop_device";
 
     if (input.refType === "share_entry" && input.shareEntryId) {
       try {
         const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
         
         let contentText = "";
-        if (response.plaintext && Array.isArray(response.plaintext)) {
+        if (typeof response.plaintext === "string") {
+          contentText = response.plaintext;
+        } else if (response.plaintext instanceof Uint8Array) {
+          contentText = new TextDecoder().decode(response.plaintext);
+        } else if (Array.isArray(response.plaintext)) {
           contentText = new TextDecoder().decode(new Uint8Array(response.plaintext));
         }
 

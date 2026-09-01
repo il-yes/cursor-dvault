@@ -1993,12 +1993,37 @@ export interface TrustGroupRefResponse {
 	created_at?: string;
 }
 
+export interface EventResourceRefResponse {
+	ref_type?: string;
+	share_entry_id?: string;
+	trust_group_id?: string;
+	cid?: string;
+	content_hash?: string;
+	size?: number;
+	asset_type?: string;
+}
+
+export interface C3ShareEntryResponse {
+	id: string;
+	asset_cid: string;
+	trust_group_id: string;
+	wrapped_dek: string;
+	kek_version: number;
+	created_by: string;
+	created_at: string;
+	status: string;
+	metadata?: Record<string, string>;
+	is_draft?: boolean;
+	is_dirty?: boolean;
+}
+
 export interface ThreadEventResponse {
 	id: string;
 	thread_id: string;
 	previous_event_id?: string;
 	type: string;
 	payload?: Record<string, any>;
+	resource_ref?: EventResourceRefResponse;
 	payload_ref?: PayloadRefResponse;
 	share_entry_ref?: ShareEntryRefResponse;
 	trust_group_ref?: TrustGroupRefResponse;
@@ -2007,6 +2032,18 @@ export interface ThreadEventResponse {
 	headers?: Record<string, string>;
 	signature?: string;
 	created_at?: string;
+}
+
+export async function getShareEntry(shareEntryId: string): Promise<C3ShareEntryResponse> {
+	if (!shareEntryId) {
+		throw new Error('Share Entry ID is required');
+	}
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.GetShareEntry(jwtToken, shareEntryId);
+	return result as C3ShareEntryResponse;
 }
 
 export async function listThreadEvents(threadId: string): Promise<ThreadEventResponse[]> {

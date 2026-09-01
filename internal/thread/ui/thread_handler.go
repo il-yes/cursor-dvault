@@ -146,9 +146,13 @@ func toTracecoreThreadEventDTO(evt *thread_domain.ThreadEvent) *tracecore_types.
 		return nil
 	}
 	var payloadMap map[string]any
-	if evt.Payload.RefType == thread_domain.ResourceShareEntry {
+	if evt.Payload.RefType == thread_domain.ResourceShareEntry || evt.Payload.ShareEntryID != "" || evt.Type == thread_domain.EventEntryShared {
+		refTypeStr := string(evt.Payload.RefType)
+		if refTypeStr == "" {
+			refTypeStr = string(thread_domain.ResourceShareEntry)
+		}
 		payloadMap = map[string]any{
-			"ref_type":       string(evt.Payload.RefType),
+			"ref_type":       refTypeStr,
 			"share_entry_id": evt.Payload.ShareEntryID,
 			"trust_group_id": evt.Payload.TrustGroupID,
 		}

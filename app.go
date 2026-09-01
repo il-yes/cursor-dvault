@@ -40,6 +40,7 @@ import (
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
+	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_dtos "vault-app/internal/identity/application/dtos"
 	identity_domain "vault-app/internal/identity/domain"
@@ -3693,6 +3694,24 @@ func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, de
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
 	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, shareEntryID, deviceID)
+}
+
+func (a *App) GetShareEntry(JwtToken string, shareEntryID string) (*c3_asset_domain.ShareEntry, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	if shareEntryID == "" {
+		return nil, fmt.Errorf("share entry id is required")
+	}
+
+	resp, err := a.tracecoreClient.GetShareEntryDirect(a.ctx, shareEntryID)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
 }
 
 func (a *App) CreateApproval(JwtToken string, req collaboration_dtos.CreateApprovalRequest) (*collaboration_dtos.CreateApprovalResponse, error) {

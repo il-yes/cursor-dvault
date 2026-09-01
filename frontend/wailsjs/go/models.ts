@@ -1177,6 +1177,42 @@ export namespace collaboration_domain {
 
 }
 
+export namespace c3_asset_domain {
+	export class ShareEntry {
+	    id: string;
+	    asset_cid: string;
+	    trust_group_id: string;
+	    wrapped_dek: string;
+	    kek_version: number;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    status: string;
+	    metadata?: Record<string, string>;
+	    is_draft?: boolean;
+	    is_dirty?: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ShareEntry(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.asset_cid = source["asset_cid"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.wrapped_dek = source["wrapped_dek"];
+	        this.kek_version = source["kek_version"];
+	        this.created_by = source["created_by"];
+	        this.created_at = source["created_at"];
+	        this.status = source["status"];
+	        this.metadata = source["metadata"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	}
+}
+
 export namespace collaboration_dtos {
 	
 	export class ApproveRequest {

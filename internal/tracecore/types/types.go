@@ -434,6 +434,26 @@ type PayloadRefDTO struct {
 	Name        string `json:"name,omitempty"`
 }
 
+type TrustGroupRequestDTO struct {
+	ShareEntryID string `json:"share_entry_id"`
+}
+
+type RemoteVaultDTO struct {
+	ID           string `json:"id"`
+	Endpoint     string `json:"endpoint"`
+	Status       string `json:"status"`
+	LastSeen     string `json:"last_seen"`
+	Cursor       string `json:"cursor"`
+	Proto        string `json:"proto"`
+	PendingItems string `json:"pending_items"`
+	Alert        bool   `json:"alert"`
+}
+
+type FederationSnapshotDTO struct {
+	WorkspaceID  string           `json:"workspace_id"`
+	RemoteVaults []RemoteVaultDTO `json:"remote_vaults"`
+}
+
 type ShareEntryRefDTO struct {
 	ShareEntryID string `json:"share_entry_id"`
 	TrustGroupID string `json:"trust_group_id,omitempty"`

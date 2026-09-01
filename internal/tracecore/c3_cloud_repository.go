@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
@@ -21,6 +23,18 @@ import (
 // TrustGroupRepository port.
 var _ trustgroup_domain.TrustGroupRepository = (*TracecoreClient)(nil)
 
+func (c *TracecoreClient) getCloudBaseURL() string {
+	baseUrl := c.AnkhoraCloudUrl
+	if baseUrl == "" {
+		baseUrl = c.BaseURL
+	}
+	endpoint := strings.TrimRight(baseUrl, "/")
+	if !strings.HasSuffix(endpoint, "/api") {
+		endpoint += "/api"
+	}
+	return endpoint
+}
+
 // GetTrustGroup fetches a trust group from Ankhora Cloud
 // (GET /api/trustgroups/{id}). The Cloud response mirrors the desktop
 // trust_group.TrustGroup wire contract, so it is decoded directly.
@@ -29,7 +43,7 @@ func (c *TracecoreClient) GetTrustGroup(ctx context.Context, req *trustgroup_dom
 		return nil, fmt.Errorf("trust group id is required")
 	}
 
-	url := c.AnkhoraCloudUrl + "/trustgroups/" + req.TrustGroupID
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroupID
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -64,40 +78,280 @@ func (c *TracecoreClient) GetTrustGroup(ctx context.Context, req *trustgroup_dom
 	return &cloudResp, nil
 }
 
-// CreateTrustGroup has no Cloud endpoint yet. It fails explicitly rather
-// than fabricating local state.
+// CreateTrustGroup creates a new trust group via POST /api/trustgroups.
 func (c *TracecoreClient) CreateTrustGroup(ctx context.Context, req *trustgroup_domain.CreateTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("CreateTrustGroup is not supported by Cloud yet")
+	if req == nil {
+		return nil, fmt.Errorf("create trust group request is required")
+	}
+
+	workspaceID := req.TrustGroup.ChannelID
+	if workspaceID == "" {
+		workspaceID = "default_workspace"
+	}
+
+	payload := map[string]interface{}{
+		"workspace_id": workspaceID,
+		"name":         req.TrustGroup.Name,
+		"members":      []interface{}{},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	url := c.getCloudBaseURL() + "/trustgroups"
+
+	log.Printf("[TRUSTGROUP][CREATE] HTTP_REQUEST method=POST url=%s payload=%s", url, string(body))
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		log.Printf("[TRUSTGROUP][CREATE] HTTP_ERROR error=%v", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[TRUSTGROUP][CREATE] HTTP_RESPONSE status=%d body=%s", resp.StatusCode, string(respBytes))
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
+	}
+
+	return &cloudResp, nil
 }
 
-// GetTrustGroupMember has no Cloud endpoint yet.
+// GetTrustGroupMember fetches a specific member.
 func (c *TracecoreClient) GetTrustGroupMember(ctx context.Context, req *trustgroup_domain.GetTrustGroupMemberRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroupMember], error) {
-	return nil, fmt.Errorf("GetTrustGroupMember is not supported by Cloud yet")
+	tgResp, err := c.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: req.TrustGroupID})
+	if err != nil {
+		return nil, err
+	}
+	for _, env := range tgResp.Data.KeyEnvelopes {
+		if env.MemberID == req.MemberID || env.ID == req.MemberID {
+			return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroupMember]{
+				Data: trustgroup_domain.TrustGroupMember{
+					ID:       env.ID,
+					VaultID:  env.MemberID,
+					Role:     "member",
+					JoinedAt: env.CreatedAt,
+				},
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("member not found: %s", req.MemberID)
 }
 
-// ListTrustGroups has no Cloud endpoint yet.
+// ListTrustGroups fetches all trust groups from GET /api/trustgroups.
 func (c *TracecoreClient) ListTrustGroups(ctx context.Context, req *trustgroup_domain.ListTrustGroupsRequest) (*tracecore_types.CloudResponse[[]trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("ListTrustGroups is not supported by Cloud yet")
+	url := c.getCloudBaseURL() + "/trustgroups"
+	if req != nil && req.ChannelID != "" {
+		url += "?workspace_id=" + req.ChannelID
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[[]trustgroup_domain.TrustGroup]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trust groups list response: %w", err)
+	}
+
+	return &cloudResp, nil
 }
 
-// UpdateTrustGroup has no Cloud endpoint yet.
+// UpdateTrustGroup updates a trust group via PUT /api/trustgroups/{id}.
 func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_domain.UpdateTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("UpdateTrustGroup is not supported by Cloud yet")
+	if req == nil || req.TrustGroup.ID == "" {
+		return nil, fmt.Errorf("trust group id is required")
+	}
+
+	body, err := json.Marshal(req.TrustGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroup.ID
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
+	}
+
+	return &cloudResp, nil
 }
 
-// DeleteTrustGroup has no Cloud endpoint yet.
+// DeleteTrustGroup deletes a trust group via DELETE /api/trustgroups/{id}.
 func (c *TracecoreClient) DeleteTrustGroup(ctx context.Context, req *trustgroup_domain.DeleteTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("DeleteTrustGroup is not supported by Cloud yet")
+	if req == nil || req.TrustGroupID == "" {
+		return nil, fmt.Errorf("trust group id is required")
+	}
+
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroupID
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Success: true}, nil
 }
 
-// AddMemberToTrustGroup has no Cloud endpoint yet.
+// AddMemberToTrustGroup adds a member via POST /api/trustgroups/{id}/members.
 func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustgroup_domain.AddMemberToTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("AddMemberToTrustGroup is not supported by Cloud yet")
+	if req == nil || req.TrustGroupID == "" {
+		return nil, fmt.Errorf("trust group id is required")
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroupID + "/members"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
+	}
+
+	return &cloudResp, nil
 }
 
-// RemoveMemberFromTrustGroup has no Cloud endpoint yet.
+// RemoveMemberFromTrustGroup revokes/removes a member via DELETE /api/trustgroups/{id}/members/{vaultID}.
 func (c *TracecoreClient) RemoveMemberFromTrustGroup(ctx context.Context, req *trustgroup_domain.RemoveMemberFromTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
-	return nil, fmt.Errorf("RemoveMemberFromTrustGroup is not supported by Cloud yet")
+	if req == nil || req.TrustGroupID == "" || req.MemberID == "" {
+		return nil, fmt.Errorf("trust group id and member id are required")
+	}
+
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroupID + "/members/" + req.MemberID
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
+	}
+
+	return &cloudResp, nil
 }
 
 // RotateTrustGroupKEK has no Cloud endpoint yet.
@@ -125,7 +379,7 @@ func (c *TracecoreClient) CreateShareEntryDirect(ctx context.Context, entry c3_a
 		return nil, err
 	}
 
-	url := c.AnkhoraCloudUrl + "/c3/share-entries"
+	url := c.getCloudBaseURL() + "/c3/share-entries"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -163,7 +417,7 @@ func (c *TracecoreClient) CreateShareEntryDirect(ctx context.Context, entry c3_a
 // GetShareEntryDirect fetches a persisted C3 share entry from Ankhora Cloud
 // (GET /api/c3/share-entries/{id}).
 func (c *TracecoreClient) GetShareEntryDirect(ctx context.Context, shareEntryID string) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
-	url := c.AnkhoraCloudUrl + "/c3/share-entries/" + shareEntryID
+	url := c.getCloudBaseURL() + "/c3/share-entries/" + shareEntryID
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

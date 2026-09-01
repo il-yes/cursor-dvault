@@ -1,18 +1,90 @@
 import React, { useState } from "react";
-import { useC3ConfigurationStore } from "../store/useC3ConfigurationStore";
+import { useC3ConfigurationStore, AssignmentDraft } from "../store/useC3ConfigurationStore";
 
 export const AssignmentsTab: React.FC = () => {
-  const { channels, trustGroups } = useC3ConfigurationStore();
+  const {
+    draftAssignments,
+    setDraftAssignments,
+    isDirty,
+    isSaving,
+    saveFeedback,
+    saveChannelConfig,
+    discardChanges,
+  } = useC3ConfigurationStore();
+
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [editingAssignmentKey, setEditingAssignmentKey] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<number>(3);
   const [selectedVault, setSelectedVault] = useState<string>("vault_finance");
   const [isVaultDropdownOpen, setIsVaultDropdownOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<"primary" | "backup" | "observer">("primary");
   const [note, setNote] = useState("");
 
+  const getAssignmentKey = (a: AssignmentDraft) =>
+    `${a.slot_id}::${a.vault_address || a.owner_id}`;
+
   const handleOpenAddPanel = (slotNum?: number) => {
+    setEditingAssignmentKey(null);
     if (slotNum) setSelectedSlot(slotNum);
+    setNote("");
     setIsPanelOpen(true);
+  };
+
+  const handleEditAssignment = (assign: AssignmentDraft) => {
+    setEditingAssignmentKey(getAssignmentKey(assign));
+    setSelectedSlot(Number(assign.slot_id) || 1);
+    setSelectedVault(assign.vault_address || assign.owner_id || "vault_finance");
+    setSelectedRole((assign.role as any) || "primary");
+    setNote(assign.by || "");
+    setIsPanelOpen(true);
+  };
+
+  const handleSaveAssignment = () => {
+    const updatedAssignment: AssignmentDraft = {
+      slot_id: String(selectedSlot),
+      owner_id: selectedVault,
+      public_key: `pk_${selectedVault}_01`,
+      vault_address: selectedVault,
+      role: selectedRole,
+      since: "just now",
+      by: note.trim() || "admin@acme.io",
+    };
+
+    if (editingAssignmentKey) {
+      setDraftAssignments(
+        draftAssignments.map((a) =>
+          getAssignmentKey(a) === editingAssignmentKey ? updatedAssignment : a
+        )
+      );
+    } else {
+      setDraftAssignments([...draftAssignments, updatedAssignment]);
+    }
+
+    setEditingAssignmentKey(null);
+    setIsPanelOpen(false);
+    setNote("");
+  };
+
+  const handleDeleteAssignment = (assignToDelete: AssignmentDraft) => {
+    const targetKey = getAssignmentKey(assignToDelete);
+    setDraftAssignments(
+      draftAssignments.filter((a) => getAssignmentKey(a) !== targetKey)
+    );
+  };
+
+  const getVaultBadgeStyle = (vault: string) => {
+    switch (vault) {
+      case "vault_legal":
+        return { bgClass: "vc-pur", color: "#7C3AED" };
+      case "vault_finance":
+        return { bgClass: "vc-blu", color: "#2563EB" };
+      case "vault_direction":
+        return { bgClass: "vc-dar", color: "#444" };
+      case "vault_treasury":
+        return { bgClass: "", color: "#059669", style: { background: "#F0FDF4", border: "1px solid #86EFAC", color: "#059669" } };
+      default:
+        return { bgClass: "vc-ext", color: "#C8922A" };
+    }
   };
 
   return (
@@ -35,21 +107,31 @@ export const AssignmentsTab: React.FC = () => {
               + Add assignee
             </span>
           </div>
-          <div className="assign-row">
-            <span className="vault-chip vc-pur">
-              <span className="vcdot" style={{ background: "#7C3AED" }}></span>vault_legal
-            </span>
-            <div style={{ flex: 1 }}></div>
-            <span className="role-badge rb-primary">Primary</span>
-            <div className="ar-since">since Jun 10</div>
-            <div className="ar-by">
-              <code>ch_a8f2e4b1</code> (template)
-            </div>
-            <div className="ar-acts">
-              <div className="icon-btn" onClick={() => handleOpenAddPanel(1)} style={{ cursor: "pointer" }}>✎</div>
-              <div className="icon-btn" style={{ cursor: "pointer" }}>✕</div>
-            </div>
-          </div>
+          {draftAssignments
+            .filter((a) => a.slot_id === "1")
+            .map((assign, idx) => {
+              const badge = getVaultBadgeStyle(assign.vault_address || assign.owner_id);
+              return (
+                <div className="assign-row" key={idx}>
+                  <span className={`vault-chip ${badge.bgClass}`} style={badge.style}>
+                    <span className="vcdot" style={{ background: badge.color }}></span>
+                    {assign.vault_address || assign.owner_id}
+                  </span>
+                  <div style={{ flex: 1 }}></div>
+                  <span className={`role-badge ${assign.role === "backup" ? "rb-backup" : "rb-primary"}`}>
+                    {(assign.role || "primary").toUpperCase()}
+                  </span>
+                  <div className="ar-since">{assign.since || "since Jun 10"}</div>
+                  <div className="ar-by">
+                    <code>{assign.by || "ch_a8f2e4b1 (template)"}</code>
+                  </div>
+                  <div className="ar-acts">
+                    <div className="icon-btn" onClick={() => handleEditAssignment(assign)} style={{ cursor: "pointer" }}>✎</div>
+                    <div className="icon-btn" onClick={() => handleDeleteAssignment(assign)} style={{ cursor: "pointer" }}>✕</div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
 
         {/* Slot Group 2 */}
@@ -63,36 +145,31 @@ export const AssignmentsTab: React.FC = () => {
               + Add assignee
             </span>
           </div>
-          <div className="assign-row">
-            <span className="vault-chip vc-blu">
-              <span className="vcdot" style={{ background: "#2563EB" }}></span>vault_finance
-            </span>
-            <div style={{ flex: 1 }}></div>
-            <span className="role-badge rb-primary">Primary</span>
-            <div className="ar-since">since Jun 10</div>
-            <div className="ar-by">
-              <code>ch_a8f2e4b1</code> (template)
-            </div>
-            <div className="ar-acts">
-              <div className="icon-btn" onClick={() => handleOpenAddPanel(2)} style={{ cursor: "pointer" }}>✎</div>
-              <div className="icon-btn" style={{ cursor: "pointer" }}>✕</div>
-            </div>
-          </div>
-          <div className="assign-row">
-            <span className="vault-chip" style={{ background: "#F0FDF4", border: "1px solid #86EFAC", color: "#059669" }}>
-              <span className="vcdot" style={{ background: "#059669" }}></span>vault_treasury
-            </span>
-            <div style={{ flex: 1 }}></div>
-            <span className="role-badge rb-backup">Backup</span>
-            <div className="ar-since">since Jun 11</div>
-            <div className="ar-by">
-              <code>admin@acme.io</code>
-            </div>
-            <div className="ar-acts">
-              <div className="icon-btn" onClick={() => handleOpenAddPanel(2)} style={{ cursor: "pointer" }}>✎</div>
-              <div className="icon-btn" style={{ cursor: "pointer" }}>✕</div>
-            </div>
-          </div>
+          {draftAssignments
+            .filter((a) => a.slot_id === "2")
+            .map((assign, idx) => {
+              const badge = getVaultBadgeStyle(assign.vault_address || assign.owner_id);
+              return (
+                <div className="assign-row" key={idx}>
+                  <span className={`vault-chip ${badge.bgClass}`} style={badge.style}>
+                    <span className="vcdot" style={{ background: badge.color }}></span>
+                    {assign.vault_address || assign.owner_id}
+                  </span>
+                  <div style={{ flex: 1 }}></div>
+                  <span className={`role-badge ${assign.role === "backup" ? "rb-backup" : "rb-primary"}`}>
+                    {(assign.role || "primary").toUpperCase()}
+                  </span>
+                  <div className="ar-since">{assign.since || "since Jun 10"}</div>
+                  <div className="ar-by">
+                    <code>{assign.by || "ch_a8f2e4b1 (template)"}</code>
+                  </div>
+                  <div className="ar-acts">
+                    <div className="icon-btn" onClick={() => handleEditAssignment(assign)} style={{ cursor: "pointer" }}>✎</div>
+                    <div className="icon-btn" onClick={() => handleDeleteAssignment(assign)} style={{ cursor: "pointer" }}>✕</div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
 
         {/* Slot Group 3 */}
@@ -106,32 +183,63 @@ export const AssignmentsTab: React.FC = () => {
               + Add assignee
             </span>
           </div>
-          <div className="assign-row">
-            <span className="vault-chip vc-dar">
-              <span className="vcdot" style={{ background: "#444" }}></span>vault_direction
-            </span>
-            <div style={{ flex: 1 }}></div>
-            <span className="role-badge rb-primary">Primary</span>
-            <div className="ar-since">since Jun 10</div>
-            <div className="ar-by">
-              <code>ch_a8f2e4b1</code> (template)
-            </div>
-            <div className="ar-acts">
-              <div className="icon-btn" onClick={() => handleOpenAddPanel(3)} style={{ cursor: "pointer" }}>✎</div>
-              <div className="icon-btn" style={{ cursor: "pointer" }}>✕</div>
-            </div>
-          </div>
+          {draftAssignments
+            .filter((a) => a.slot_id === "3")
+            .map((assign, idx) => {
+              const badge = getVaultBadgeStyle(assign.vault_address || assign.owner_id);
+              return (
+                <div className="assign-row" key={idx}>
+                  <span className={`vault-chip ${badge.bgClass}`} style={badge.style}>
+                    <span className="vcdot" style={{ background: badge.color }}></span>
+                    {assign.vault_address || assign.owner_id}
+                  </span>
+                  <div style={{ flex: 1 }}></div>
+                  <span className={`role-badge ${assign.role === "backup" ? "rb-backup" : "rb-primary"}`}>
+                    {(assign.role || "primary").toUpperCase()}
+                  </span>
+                  <div className="ar-since">{assign.since || "since Jun 10"}</div>
+                  <div className="ar-by">
+                    <code>{assign.by || "ch_a8f2e4b1 (template)"}</code>
+                  </div>
+                  <div className="ar-acts">
+                    <div className="icon-btn" onClick={() => handleEditAssignment(assign)} style={{ cursor: "pointer" }}>✎</div>
+                    <div className="icon-btn" onClick={() => handleDeleteAssignment(assign)} style={{ cursor: "pointer" }}>✕</div>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       </div>
 
       <div className="assign-footer">
         <span className="af-pill ok">3 slots — all assigned</span>
-        <span className="af-pill">4 vault assignments total</span>
+        <span className="af-pill">{draftAssignments.length} vault assignments total</span>
         <div className="af-sp"></div>
         <button className="btn-add-assign" onClick={() => handleOpenAddPanel(3)}>
           + Add Assignment
         </button>
       </div>
+
+      {(isDirty || saveFeedback) && (
+        <div className="dirty-bar" style={{ margin: "0 -28px -12px" }}>
+          <span className="db-icon">⚠</span>
+          <div className="db-msg">
+            {saveFeedback ? (
+              <span>{saveFeedback}</span>
+            ) : (
+              <span>
+                <strong>Unsaved changes</strong> — assignment updates take effect on the next thread instantiation.
+              </span>
+            )}
+          </div>
+          <button className="btn-discard" onClick={discardChanges} disabled={isSaving}>
+            Discard
+          </button>
+          <button className="btn-save" onClick={saveChannelConfig} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      )}
 
       {/* Sliding Side Drawer Panel */}
       {isPanelOpen && (
@@ -285,10 +393,7 @@ export const AssignmentsTab: React.FC = () => {
               </button>
               <button
                 className="btn-save-assign"
-                onClick={() => {
-                  setIsPanelOpen(false);
-                  setNote("");
-                }}
+                onClick={handleSaveAssignment}
               >
                 Save Assignment
               </button>
@@ -299,3 +404,5 @@ export const AssignmentsTab: React.FC = () => {
     </div>
   );
 };
+
+

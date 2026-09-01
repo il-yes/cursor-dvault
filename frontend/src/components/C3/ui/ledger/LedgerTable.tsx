@@ -1,8 +1,10 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ActivationChannel } from "../channel/ChannelActivation";
 import { ChannelRow } from "../../domain/channel/channel.types";
 import { DisputeRow, LedgerRowView } from "./LedgerRow";
 import { useC3DialogStore } from "../../infrastructure/store/c3DialogStore";
+import * as ROUTES from "@/constants/routes";
 
 
 export const LedgerTable = ({
@@ -34,12 +36,34 @@ export const List = ({
     hasConflict: boolean;
     onOpenChannel: (channelId: string) => void;
 }) => {
+    const navigate = useNavigate();
     const visibleRows = useMemo(() => ledgerRow, []);
 
     return (
         <div className="ledger-area">
             <div className="ledger-topbar">
-                <div className="ledger-title">LEDGER</div>
+                <div className="ledger-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span>LEDGER</span>
+                    <button
+                        title="Workspace / Ledger Federation"
+                        style={{
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            background: "#fafafa",
+                            border: "1px solid #e0e0e0",
+                            color: "#555",
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                        }}
+                        onClick={() => navigate(ROUTES.FEDERATION)}
+                    >
+                        ⚙ Federation
+                    </button>
+                </div>
                 <div className="ledger-controls">
                     <button className="ctrl-btn">Filter ▾</button>
                     <button className="ctrl-btn">📅 June 2026 ▾</button>
@@ -81,10 +105,33 @@ export const List = ({
 };
 
 
-export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: boolean, channelId?: string) => void }) => (
+export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: boolean, channelId?: string) => void }) => {
+    const navigate = useNavigate();
+    return (
     <div className="ledger-area">
         <div className="ledger-topbar">
-            <div className="ledger-title">LEDGER</div>
+            <div className="ledger-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span>LEDGER</span>
+                <button
+                    title="Workspace / Ledger Federation"
+                    style={{
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        padding: "3px 8px",
+                        borderRadius: "4px",
+                        background: "#fafafa",
+                        border: "1px solid #e0e0e0",
+                        color: "#555",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                    }}
+                    onClick={() => navigate(ROUTES.FEDERATION)}
+                >
+                    ⚙ Federation
+                </button>
+            </div>
             <div className="ledger-controls">
                 <div className="ctrl-btn">Filter ▾</div>
                 <div className="ctrl-btn">📅 June 2026 ▾</div>
@@ -130,4 +177,5 @@ export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: b
             0 threads · Start a template above to populate the ledger
         </div>
     </div>
-);
+  );
+};

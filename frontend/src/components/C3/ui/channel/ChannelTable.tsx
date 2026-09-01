@@ -50,7 +50,7 @@ export const ChannelTable = ({
             </p>
             <div className="ledger-topbar">
 
-                <div className="ledger-title">
+                <div className="ledger-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span className="ledger-title-text">
                         {channel?.title || "CHANNEL"}
                     </span>
@@ -58,9 +58,44 @@ export const ChannelTable = ({
                     <span className={`c3-status-badge ${statusView.dotClass}`}>
                         {statusView.label}
                     </span>
+
+                    <button
+                        className="c3-header-config-icon"
+                        title="C3 Configuration"
+                        onClick={() => navigate(ROUTES.C3_CONFIG)}
+                        style={{
+                            background: "#fafafa",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "4px",
+                            padding: "2px 6px",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            color: "#555"
+                        }}
+                    >
+                        ⚙️
+                    </button>
                 </div>
 
                 <div className="ledger-controls">
+                    <button
+                        className="ctrl-btn c3-config-btn"
+                        onClick={() => navigate(ROUTES.C3_CONFIG)}
+                        title="C3 Configuration"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            fontWeight: 600,
+                            color: "#C8922A",
+                            borderColor: "#E8C87A",
+                            background: "#FFFDF8"
+                        }}
+                    >
+                        ⚙️ C3 Config
+                    </button>
 
                     {channel?.status === 'pending' && (
                         <button

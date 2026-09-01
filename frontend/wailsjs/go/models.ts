@@ -4058,6 +4058,65 @@ export namespace tracecore_types {
 		}
 	}
 	
+	export class RemoteVaultDTO {
+	    id: string;
+	    endpoint: string;
+	    status: string;
+	    last_seen: string;
+	    cursor: string;
+	    proto: string;
+	    pending_items: string;
+	    alert: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteVaultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.endpoint = source["endpoint"];
+	        this.status = source["status"];
+	        this.last_seen = source["last_seen"];
+	        this.cursor = source["cursor"];
+	        this.proto = source["proto"];
+	        this.pending_items = source["pending_items"];
+	        this.alert = source["alert"];
+	    }
+	}
+	export class FederationSnapshotDTO {
+	    workspace_id: string;
+	    remote_vaults: RemoteVaultDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FederationSnapshotDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workspace_id = source["workspace_id"];
+	        this.remote_vaults = this.convertValues(source["remote_vaults"], RemoteVaultDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	
 	export class ShareEntryRefDTO {
@@ -4308,6 +4367,103 @@ export namespace tracecore_types {
 	        this.owner_id = source["owner_id"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace trustgroup_domain {
+	
+	export class TrustGroupKeyEnvelope {
+	    id: string;
+	    trust_group_id: string;
+	    member_id: string;
+	    device_id: string;
+	    kek_version: number;
+	    wrapped_kek: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    revoked_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroupKeyEnvelope(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.member_id = source["member_id"];
+	        this.device_id = source["device_id"];
+	        this.kek_version = source["kek_version"];
+	        this.wrapped_kek = source["wrapped_kek"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.revoked_at = this.convertValues(source["revoked_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TrustGroup {
+	    id: string;
+	    channel_id: string;
+	    name: string;
+	    kek_version: number;
+	    member_cids: string[];
+	    key_envelopes: TrustGroupKeyEnvelope[];
+	    created_at: string;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel_id = source["channel_id"];
+	        this.name = source["name"];
+	        this.kek_version = source["kek_version"];
+	        this.member_cids = source["member_cids"];
+	        this.key_envelopes = this.convertValues(source["key_envelopes"], TrustGroupKeyEnvelope);
+	        this.created_at = source["created_at"];
 	        this.is_draft = source["is_draft"];
 	        this.is_dirty = source["is_dirty"];
 	    }

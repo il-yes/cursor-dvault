@@ -5,6 +5,7 @@ import {vault_dto} from '../models';
 import {vaults_domain} from '../models';
 import {json} from '../models';
 import {share_entry_use_cases} from '../models';
+import {trustgroup_domain} from '../models';
 import {collaboration_dtos} from '../models';
 import {main} from '../models';
 import {auth} from '../models';
@@ -45,6 +46,10 @@ export function AddParticipant(arg1:string,arg2:string,arg3:string,arg4:string,a
 export function AddReceiver(arg1:string,arg2:share_entry_use_cases.AddReceiverInput):Promise<share_entry_use_cases.AddReceiverResult>;
 
 export function AddRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
+
+export function AddRemoteVaultToWorkspace(arg1:string,arg2:string,arg3:tracecore_types.RemoteVaultDTO):Promise<tracecore_types.FederationSnapshotDTO>;
+
+export function AddTrustGroupMember(arg1:string,arg2:string,arg3:string,arg4:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function AppendThreadEvent(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ThreadEventDTO>;
 
@@ -98,6 +103,8 @@ export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg
 
 export function CreateTransfer(arg1:string,arg2:collaboration_dtos.CreateTransferRequest):Promise<collaboration_dtos.CreateTransferResponse>;
 
+export function CreateTrustGroup(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
+
 export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
 export function DecryptAttachment(arg1:string,arg2:Array<number>,arg3:string):Promise<Array<number>>;
@@ -107,6 +114,8 @@ export function DeleteChannel(arg1:string,arg2:string):Promise<void>;
 export function DeleteEntry(arg1:string,arg2:json.RawMessage,arg3:string):Promise<any>;
 
 export function DeleteFolder(arg1:string,arg2:string):Promise<string>;
+
+export function DeleteTrustGroup(arg1:string,arg2:string):Promise<void>;
 
 export function DownloadAttachment(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
@@ -174,6 +183,8 @@ export function GetVaultAvatar(arg1:string,arg2:string):Promise<string>;
 
 export function GetVaultFromCloud(arg1:string,arg2:string):Promise<tracecore_types.Vault>;
 
+export function GetWorkspaceFederation(arg1:string,arg2:string):Promise<tracecore_types.FederationSnapshotDTO>;
+
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
 export function InviteToChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
@@ -203,6 +214,8 @@ export function ListSharedEntries(arg1:string):Promise<any>;
 export function ListThreadEvents(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadEventDTO>>;
 
 export function ListThreads(arg1:string,arg2:string):Promise<Array<tracecore_types.ThreadDTO>>;
+
+export function ListTrustGroups(arg1:string,arg2:string):Promise<Array<trustgroup_domain.TrustGroup>>;
 
 export function ListWorkspaces(arg1:string,arg2:string):Promise<Array<tracecore_types.Workspace>>;
 
@@ -237,6 +250,8 @@ export function RefreshToken(arg1:string):Promise<auth.TokenPairs>;
 export function RejectShare(arg1:string,arg2:string,arg3:string):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_PendingShareIntent_>;
 
 export function RejectTransferAction(arg1:string,arg2:collaboration_dtos.RejectTransferRequest):Promise<collaboration_dtos.RejectTransferResponse>;
+
+export function RemoveTrustGroupMember(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function RequestChallenge(arg1:blockchain.ChallengeRequest):Promise<blockchain.ChallengeResponse>;
 
@@ -287,6 +302,8 @@ export function UpdateFolder(arg1:string,arg2:string,arg3:boolean,arg4:string):P
 export function UpdatePaymentMethod(arg1:string,arg2:main.UpdatePaymentMethodRequest):Promise<void>;
 
 export function UpdateRecipient(arg1:string,arg2:json.RawMessage):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_CloudCryptographicShare_>;
+
+export function UpdateTrustGroup(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function UpgradeSubscription(arg1:string,arg2:main.UpgradeRequest):Promise<void>;
 

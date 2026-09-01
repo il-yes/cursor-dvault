@@ -5,13 +5,9 @@ import { LedgerList, LedgerRow } from "./ledger_list";
 import { ChannelView as ChannelViewType } from "./channel-view";
 import { ReceiptAckModal } from "./receipt_ack_modal";
 import { AddThreadSlidingPanel } from "./add_thread";
-import { Step1 } from "./channel-creation-steps/step-1.name";
-import { Step2 } from "./channel-creation-steps/step-2.configure";
-import { Step3 } from "./channel-creation-steps/step-3.vaults";
-import { C3Step4 } from "./channel-creation-steps/step-4.activate";
 import ThreadDetailSlidingPanel from "./thread_detail";
 import { ChannelView } from "./channel-view";
-import { ChannelRow } from "./ui/ledger/LedgerRow";
+import { ChannelRow } from "./domain/channel/channel.types";
 
 
 const rows: LedgerRow[] = [

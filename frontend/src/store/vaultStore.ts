@@ -117,8 +117,8 @@ interface PreloadedVaultResponse {
   dirty?: boolean;
 }
 
-const CLOUD_BASE_URL = import.meta.env.VITE_API_URL || 'http://164.90.213.173:4001';
-const USE_MOCK = import.meta.env.VITE_MOCK_VAULT === 'true';
+const CLOUD_BASE_URL = import.meta.env?.VITE_API_URL || 'http://164.90.213.173:4001';
+const USE_MOCK = import.meta.env?.VITE_MOCK_VAULT === 'true';
 
 export const useVaultStore = create<VaultStoreState>()(
   persist(

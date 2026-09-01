@@ -239,7 +239,9 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 	// Cloud-provided aggregate. The backend is the single source of truth for
 	// channel existence; a missing channel surfaces as an error.
 	refreshChannel: async (channelId: string) => {
+		console.log(`[BOUNDARIES][READ] refreshChannel enter channelId=${channelId}`);
 		const fetched = await apiGetChannel(channelId);
+		console.log(`[BOUNDARIES][READ] refreshChannel apiGetChannel returned slots=`, JSON.stringify(fetched?.slots));
 		set((state) => {
 			const channels = state.channels.map((c) => (c.id === channelId ? { ...c, ...fetched } : c));
 			return {
@@ -253,11 +255,14 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 		return fetched;
 	},
 
+
 	// updateChannelDetails persists a Channel update through the authoritative
 	// Cloud backend (PUT /channels/{id}) and replaces the local copy with the
 	// Cloud-returned Channel, which is authoritative for what was applied.
 	updateChannelDetails: async (payload: UpdateChannelPayload) => {
+		console.log(`[BOUNDARIES][④ useC3ChannelStore.updateChannelDetails] STEP=04 payload=`, JSON.stringify(payload));
 		const updated = await apiUpdateChannel(payload);
+		console.log(`[BOUNDARIES][④ useC3ChannelStore.updateChannelDetails] STEP=04 returned=`, JSON.stringify(updated));
 		set((state) => {
 			const channels = state.channels.map((c) => (c.id === updated.id ? { ...c, ...updated } : c));
 			return {
@@ -270,6 +275,7 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 		});
 		return updated;
 	},
+
 
 	// deleteChannel deletes a Channel through the authoritative Cloud backend
 	// (DELETE /channels/{id}). The Cloud delete response carries no Channel

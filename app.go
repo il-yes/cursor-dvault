@@ -96,6 +96,10 @@ import (
 	thread_domain "vault-app/internal/thread/domain"
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
+	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
+	trustgroup_domain "vault-app/internal/trust_group/domain"
+	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
 	workspace_usecase "vault-app/internal/workspace/application/usecases"
 	workspace_infrastructure_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
 	workspace_ui "vault-app/internal/workspace/ui"
@@ -193,6 +197,9 @@ type App struct {
 	ChannelHandler       *channel_ui.ChannelHandler
 	ThreadHandler        *thread_ui.ThreadHandler
 	CollaborationHandler *collaboration_ui.CollaborationHandler
+
+	addTrustGroupMemberUC *trustgroup_member_usecases.AddMemberToTrustGroupUsecase
+	tracecoreClient       *tracecore.TracecoreClient
 
 	// New: Global state
 	RuntimeContext *vault_session.RuntimeContext
@@ -633,6 +640,7 @@ func NewApp() *App {
 	actionRepo := collaboration_infra.NewMemoryActionRepository()
 	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
 	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, nil, appendThreadEventUC, actionUseCases)
+	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, trustgroup_infrastructure_eventbus.NewMemoryBus())
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -662,6 +670,8 @@ func NewApp() *App {
 		ChannelHandler:            channelHandler,
 		ThreadHandler:             threadHandler,
 		CollaborationHandler:      collaborationHandler,
+		addTrustGroupMemberUC:     addTrustGroupMemberUC,
+		tracecoreClient:           tracecoreClient,
 		// Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
 		version: version,
 	}
@@ -1282,7 +1292,6 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 			)
 		}
 	}
-	
 
 	// ============================================================
 	// 8. REALTIME
@@ -3258,6 +3267,28 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 	return res, nil
 }
 
+func (a *App) GetWorkspaceFederation(JwtToken string, workspaceID string) (*tracecore_types.FederationSnapshotDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.WorkspaceHandler == nil {
+		return nil, fmt.Errorf("workspace handler is not initialized")
+	}
+	return a.WorkspaceHandler.GetWorkspaceFederation(a.ctx, workspaceID)
+}
+
+func (a *App) AddRemoteVaultToWorkspace(JwtToken string, workspaceID string, remoteVault tracecore_types.RemoteVaultDTO) (*tracecore_types.FederationSnapshotDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.WorkspaceHandler == nil {
+		return nil, fmt.Errorf("workspace handler is not initialized")
+	}
+	return a.WorkspaceHandler.AddRemoteVaultToWorkspace(a.ctx, workspaceID, remoteVault)
+}
+
 func (a *App) CreateChannel(JwtToken string, workspaceID string, title string, templateID string, slots []channel_domain.Slot, assignments []channel_domain.Assignment, properties []channel_domain.ChannelProperty, policy map[string]interface{}, federation string) (*tracecore_types.ChannelDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
@@ -3290,6 +3321,7 @@ func (a *App) ListChannels(JwtToken string, workspaceID string) ([]tracecore_typ
 // (GET /channels/{id}). The returned Channel is the Cloud-persisted aggregate;
 // no local channel is ever fabricated.
 func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.ChannelDTO, error) {
+	fmt.Printf("[BOUNDARIES][READ] Go App.GetChannel enter channelID=%s\n", channelID)
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -3300,24 +3332,41 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
-	return a.ChannelHandler.GetChannel(a.ctx, claims.UserID, channelID)
+	res, err := a.ChannelHandler.GetChannel(a.ctx, claims.UserID, channelID)
+	if res != nil {
+		fmt.Printf("[BOUNDARIES][READ] Go App.GetChannel return channelID=%s slotsCount=%d slots=%+v\n", channelID, len(res.Slots), res.Slots)
+	}
+	return res, err
 }
+
 
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no
 // local mutation is performed.
 func (a *App) UpdateChannel(JwtToken string, channelID string, title string, slots []channel_domain.Slot, assignments []channel_domain.Assignment, properties []channel_domain.ChannelProperty, policy map[string]interface{}) (*tracecore_types.ChannelDTO, error) {
+	fmt.Printf("[SLOTS][SAVE] STEP=09 EVENT=GO_UPDATE_CHANNEL_ENTER channelId=%s slotsCount=%d slots=%+v\n", channelID, len(slots), slots)
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
+		fmt.Printf("[SLOTS][SAVE] STEP=09 EVENT=GO_UPDATE_CHANNEL_ERROR error=%v\n", err)
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
 	if err := a.RequireCloudAuthentication(); err != nil {
+		fmt.Printf("[SLOTS][SAVE] STEP=09 EVENT=GO_UPDATE_CHANNEL_CLOUD_AUTH_ERROR error=%v\n", err)
 		return nil, err
 	}
 	if a.ChannelHandler == nil {
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
-	return a.ChannelHandler.UpdateChannel(a.ctx, claims.UserID, channelID, title, slots, assignments, properties, policy)
+	fmt.Printf(
+    "[BOUNDARIES][WAILS][WRITE] App.UpdateChannel channelID=%s slotsCount=%d slots=%+v\n",
+    channelID,
+    len(slots),
+    slots,
+)
+	fmt.Printf("[SLOTS][SAVE] STEP=10 EVENT=HANDLER_CALL channelId=%s\n", channelID)
+	res, err := a.ChannelHandler.UpdateChannel(a.ctx, claims.UserID, channelID, title, slots, assignments, properties, policy)
+	fmt.Printf("[SLOTS][SAVE] STEP=11 EVENT=HANDLER_RETURN success=%v error=%v\n", err == nil, err)
+	return res, err
 }
 
 // DeleteChannel deletes a Channel through the authoritative Cloud backend
@@ -3436,6 +3485,119 @@ func (a *App) AcceptChannelInvitation(JwtToken string, invitationID string, invi
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
 	return a.ChannelHandler.AcceptChannelInvitation(a.ctx, claims.UserID, invitationID, inviteeVaultID, inviteePublicKey)
+}
+
+// ListTrustGroups fetches active trust groups from Ankhora Cloud backend.
+func (a *App) ListTrustGroups(JwtToken string, workspaceID string) ([]trustgroup_domain.TrustGroup, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	resp, err := a.tracecoreClient.ListTrustGroups(a.ctx, &trustgroup_domain.ListTrustGroupsRequest{ChannelID: workspaceID})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Data, nil
+}
+
+// CreateTrustGroup creates a new trust group via Ankhora Cloud backend.
+func (a *App) CreateTrustGroup(JwtToken string, workspaceID string, name string) (*trustgroup_domain.TrustGroup, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	resp, err := a.tracecoreClient.CreateTrustGroup(a.ctx, &trustgroup_domain.CreateTrustGroupRequest{
+		TrustGroup: trustgroup_domain.TrustGroup{
+			ChannelID: workspaceID,
+			Name:      name,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
+}
+
+// AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
+func (a *App) AddTrustGroupMember(JwtToken string, trustGroupID string, channelID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	_ = claims
+
+	if a.addTrustGroupMemberUC == nil {
+		return nil, fmt.Errorf("add trust group member usecase is not initialized")
+	}
+
+	req := trustgroup_dtos.AddMemberToTrustGroupRequest{
+		TrustGroupID: trustGroupID,
+		ChannelID:    channelID,
+		MemberID:     memberID,
+	}
+
+	return a.addTrustGroupMemberUC.Execute(a.ctx, req)
+}
+
+// RemoveTrustGroupMember removes/revokes a member from a trust group.
+func (a *App) RemoveTrustGroupMember(JwtToken string, trustGroupID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	resp, err := a.tracecoreClient.RemoveMemberFromTrustGroup(a.ctx, &trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+		TrustGroupID: trustGroupID,
+		MemberID:     memberID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
+}
+
+// UpdateTrustGroup updates a trust group via Ankhora Cloud backend.
+func (a *App) UpdateTrustGroup(JwtToken string, id string, name string) (*trustgroup_domain.TrustGroup, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	resp, err := a.tracecoreClient.UpdateTrustGroup(a.ctx, &trustgroup_domain.UpdateTrustGroupRequest{
+		TrustGroup: trustgroup_domain.TrustGroup{
+			ID:   id,
+			Name: name,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
+}
+
+// DeleteTrustGroup deletes a trust group via Ankhora Cloud backend.
+func (a *App) DeleteTrustGroup(JwtToken string, id string) error {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return fmt.Errorf("tracecore client is not initialized")
+	}
+
+	_, err := a.tracecoreClient.DeleteTrustGroup(a.ctx, &trustgroup_domain.DeleteTrustGroupRequest{
+		TrustGroupID: id,
+	})
+	return err
 }
 
 func (a *App) CreateThread(JwtToken string, channelID string, title string, subtitle string, assetType string) (*tracecore_types.ThreadDTO, error) {

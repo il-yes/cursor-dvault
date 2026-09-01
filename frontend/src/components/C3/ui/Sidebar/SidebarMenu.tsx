@@ -32,8 +32,6 @@ export const C3SidebarMenu = () => {
 		}
 	}
 
-	const isC3ContextConfig = location.pathname.startsWith(ROUTES.C3_CONFIG);
-
 	return (
 		<div>
 			<div className="sidebar-section-label">Navigation</div>
@@ -46,10 +44,6 @@ export const C3SidebarMenu = () => {
 				<span className="nav-icon">📥</span>
 				<span className="nav-label">Inbox</span>
 				<span className="nav-badge">5</span>
-			</div>
-			<div className={`nav-row ${isC3ContextConfig ? "active" : ""}`} onClick={() => navigate(ROUTES.C3_CONFIG)}>
-				<span className="nav-icon">⚙️</span>
-				<span className="nav-label">C3 Configuration</span>
 			</div>
 			<hr className="sidebar-divider" />
 			<div className="sidebar-section-label">Vaults</div>

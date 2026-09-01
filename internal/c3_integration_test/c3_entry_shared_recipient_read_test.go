@@ -337,3 +337,143 @@ func TestC3EntryShared_RecipientReadFlow_UnauthorizedRecipient_MetadataVisible_D
 	assert.Nil(t, resolvedDTO, "NO plaintext must be returned to unauthorized recipient")
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember, "Must return ErrUnauthorizedMember")
 }
+
+func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
+	ctx := context.Background()
+	repo := newRoundTripRepo()
+
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(nil, aesSvc, asymSvc)
+
+	// 1. Setup Identities
+	kpAlice, _ := keypair.Random()
+	kpBob, _ := keypair.Random()
+	kpCharlie, _ := keypair.Random()
+
+	userAliceID := "usr_alice_owner"
+	userBobID := "usr_bob_recipient"
+	userCharlieID := "usr_charlie_eavesdropper"
+
+	deviceAliceLaptop := "dev_alice_m2"
+	deviceBobLaptop := "dev_bob_thinkpad"
+	deviceCharlieLaptop := "dev_charlie_dell"
+
+	repo.seeds[userAliceID] = kpAlice.Seed()
+	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "v_alice"}
+
+	repo.seeds[userBobID] = kpBob.Seed()
+	repo.keyrings[userBobID] = &vaults_domain.VaultKeyring{UserID: userBobID, VaultID: "v_bob"}
+
+	repo.seeds[userCharlieID] = kpCharlie.Seed()
+	repo.keyrings[userCharlieID] = &vaults_domain.VaultKeyring{UserID: userCharlieID, VaultID: "v_charlie"}
+
+	// 2. TrustGroup contains Alice & Bob (Charlie excluded)
+	tg := trustgroup_domain.NewTrustGroup("ch_production_1", "Sovereign Board", []string{userAliceID, userBobID})
+	tg.KEKVersion = 1
+	repo.trustGroups[tg.ID] = *tg
+
+	thread := thread_domain.NewThread("ch_production_1", "contract", "Sovereign Asset Shares", "")
+	_, err := repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thread})
+	require.NoError(t, err)
+
+	// 3. Alice prepares & encrypts raw payload
+	rawOriginalContent := []byte("top_secret_sovereign_blueprint_2026")
+	assetCID := "bafybeisovereignblueprint2026"
+
+	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      "asset_blueprint",
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		RawPayload:   rawOriginalContent,
+		ActiveDevices: []trustgroup_orchestrator.ActiveDevice{
+			{DeviceID: deviceAliceLaptop, MemberID: userAliceID, PublicKey: kpAlice.Address(), IsActive: true},
+			{DeviceID: deviceBobLaptop, MemberID: userBobID, PublicKey: kpBob.Address(), IsActive: true},
+		},
+	}
+
+	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, prepPayload)
+	require.NoError(t, err)
+	repo.assets[assetCID] = prepared.EncryptedData
+
+	for _, envReq := range prepared.Envelopes {
+		err = tg.AddEnvelope(trustgroup_domain.TrustGroupKeyEnvelope{
+			TrustGroupID: envReq.TrustGroupID,
+			MemberID:     envReq.MemberID,
+			DeviceID:     envReq.DeviceID,
+			KEKVersion:   envReq.KEKVersion,
+			WrappedKEK:   envReq.WrappedKEK,
+		})
+		require.NoError(t, err)
+	}
+	repo.trustGroups[tg.ID] = *tg
+
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(repo, repo)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, repo, repo, orchestrator)
+	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(repo)
+
+	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC)
+
+	// 4. Alice creates ShareEntry & appends event
+	createResp, err := createCollabShareUC.Execute(ctx, collaboration_dtos.CreateCollaborativeShareRequest{
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		CreatedBy:    userAliceID,
+		AssetCID:     assetCID,
+		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
+		Envelopes:    prepared.Envelopes,
+		Metadata:     map[string]string{"title": "Sovereign Blueprint"},
+	})
+	require.NoError(t, err)
+	createdShareEntryID := createResp.ShareEntry.ID
+	repo.shareEntries[createdShareEntryID] = createResp.ShareEntry
+
+	_, err = appendThreadEventUC.Execute(ctx, thread.ID, "entry.shared", thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: createdShareEntryID,
+		TrustGroupID: tg.ID,
+	}, "evt_share_"+createdShareEntryID)
+	require.NoError(t, err)
+
+	// =========================================================================
+	// MATRIX STEP A: Authorized Recipient (Bob) Flow
+	// =========================================================================
+	bobEvents, err := listThreadEventsUC.Execute(ctx, thread.ID)
+	require.NoError(t, err)
+	require.Len(t, bobEvents, 1)
+
+	bobEvt := bobEvents[0]
+	assert.Equal(t, createdShareEntryID, bobEvt.Payload.ShareEntryID)
+
+	bobMeta, err := repo.GetShareEntry(ctx, &c3_asset_domain.GetShareEntryRequest{ShareEntryID: bobEvt.Payload.ShareEntryID})
+	require.NoError(t, err)
+	require.NotNil(t, bobMeta)
+	assert.Equal(t, tg.ID, bobMeta.Data.TrustGroupID)
+
+	bobResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, createdShareEntryID, deviceBobLaptop)
+	require.NoError(t, err, "Bob MUST be authorized to resolve and decrypt plaintext")
+	require.NotNil(t, bobResolved)
+	require.Equal(t, rawOriginalContent, bobResolved.Plaintext, "Bob MUST receive exact original plaintext")
+
+	// =========================================================================
+	// MATRIX STEP B: Unauthorized Recipient (Charlie) Flow
+	// =========================================================================
+	charlieMeta, err := repo.GetShareEntry(ctx, &c3_asset_domain.GetShareEntryRequest{ShareEntryID: createdShareEntryID})
+	require.NoError(t, err, "Charlie can read ShareEntry metadata")
+	require.NotNil(t, charlieMeta)
+
+	charlieResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userCharlieID, createdShareEntryID, deviceCharlieLaptop)
+	assert.Error(t, err, "Charlie MUST be denied decryption")
+	assert.Nil(t, charlieResolved, "NO plaintext must be returned to Charlie")
+	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
+
+	// =========================================================================
+	// MATRIX STEP C: Revoked Device Flow
+	// =========================================================================
+	aliceOldDeviceResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, createdShareEntryID, "dev_alice_revoked_laptop")
+	assert.Error(t, err, "Revoked/Unknown device MUST be denied decryption")
+	assert.Nil(t, aliceOldDeviceResolved)
+	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
+}

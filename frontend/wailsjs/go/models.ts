@@ -1018,8 +1018,557 @@ export namespace channel_domain {
 
 }
 
+export namespace collaboration_domain {
+	
+	export class ResourceReference {
+	    resource_type: string;
+	    resource_id: string;
+	    source_event_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResourceReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.resource_type = source["resource_type"];
+	        this.resource_id = source["resource_id"];
+	        this.source_event_id = source["source_event_id"];
+	    }
+	}
+	export class Approval {
+	    id: string;
+	    resource_reference: ResourceReference;
+	    message: string;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    status: string;
+	    approved_by?: string;
+	    // Go type: time
+	    approved_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Approval(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.resource_reference = this.convertValues(source["resource_reference"], ResourceReference);
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.status = source["status"];
+	        this.approved_by = source["approved_by"];
+	        this.approved_at = this.convertValues(source["approved_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Reject {
+	    id: string;
+	    resource_reference: ResourceReference;
+	    message: string;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Reject(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.resource_reference = this.convertValues(source["resource_reference"], ResourceReference);
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.status = source["status"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class Transfer {
+	    id: string;
+	    resource_reference: ResourceReference;
+	    target_trust_group_id: string;
+	    message: string;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    status: string;
+	    approved_by?: string;
+	    completed_by?: string;
+	    // Go type: time
+	    completed_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Transfer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.resource_reference = this.convertValues(source["resource_reference"], ResourceReference);
+	        this.target_trust_group_id = source["target_trust_group_id"];
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.status = source["status"];
+	        this.approved_by = source["approved_by"];
+	        this.completed_by = source["completed_by"];
+	        this.completed_at = this.convertValues(source["completed_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace collaboration_dtos {
 	
+	export class ApproveRequest {
+	    approval_id: string;
+	    approved_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApproveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.approval_id = source["approval_id"];
+	        this.approved_by = source["approved_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class ApproveResponse {
+	    approval: collaboration_domain.Approval;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApproveResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.approval = this.convertValues(source["approval"], collaboration_domain.Approval);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ApproveTransferRequest {
+	    transfer_id: string;
+	    approved_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApproveTransferRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer_id = source["transfer_id"];
+	        this.approved_by = source["approved_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class ApproveTransferResponse {
+	    transfer: collaboration_domain.Transfer;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApproveTransferResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer = this.convertValues(source["transfer"], collaboration_domain.Transfer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CompleteTransferRequest {
+	    transfer_id: string;
+	    completed_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CompleteTransferRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer_id = source["transfer_id"];
+	        this.completed_by = source["completed_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class CompleteTransferResponse {
+	    transfer: collaboration_domain.Transfer;
+	
+	    static createFrom(source: any = {}) {
+	        return new CompleteTransferResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer = this.convertValues(source["transfer"], collaboration_domain.Transfer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CreateApprovalRequest {
+	    resource_type: string;
+	    resource_id: string;
+	    source_event_id?: string;
+	    message?: string;
+	    created_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateApprovalRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.resource_type = source["resource_type"];
+	        this.resource_id = source["resource_id"];
+	        this.source_event_id = source["source_event_id"];
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class CreateApprovalResponse {
+	    approval: collaboration_domain.Approval;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateApprovalResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.approval = this.convertValues(source["approval"], collaboration_domain.Approval);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CreateRejectRequest {
+	    resource_type: string;
+	    resource_id: string;
+	    source_event_id?: string;
+	    message: string;
+	    created_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateRejectRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.resource_type = source["resource_type"];
+	        this.resource_id = source["resource_id"];
+	        this.source_event_id = source["source_event_id"];
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class CreateRejectResponse {
+	    reject: collaboration_domain.Reject;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateRejectResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reject = this.convertValues(source["reject"], collaboration_domain.Reject);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CreateTransferRequest {
+	    resource_type: string;
+	    resource_id: string;
+	    source_event_id?: string;
+	    target_trust_group_id: string;
+	    message?: string;
+	    created_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateTransferRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.resource_type = source["resource_type"];
+	        this.resource_id = source["resource_id"];
+	        this.source_event_id = source["source_event_id"];
+	        this.target_trust_group_id = source["target_trust_group_id"];
+	        this.message = source["message"];
+	        this.created_by = source["created_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class CreateTransferResponse {
+	    transfer: collaboration_domain.Transfer;
+	
+	    static createFrom(source: any = {}) {
+	        return new CreateTransferResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer = this.convertValues(source["transfer"], collaboration_domain.Transfer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ListResourceActionsRequest {
+	    resource_type: string;
+	    resource_id: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListResourceActionsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.resource_type = source["resource_type"];
+	        this.resource_id = source["resource_id"];
+	    }
+	}
+	export class ListResourceActionsResponse {
+	    approvals: collaboration_domain.Approval[];
+	    rejects: collaboration_domain.Reject[];
+	    transfers: collaboration_domain.Transfer[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ListResourceActionsResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.approvals = this.convertValues(source["approvals"], collaboration_domain.Approval);
+	        this.rejects = this.convertValues(source["rejects"], collaboration_domain.Reject);
+	        this.transfers = this.convertValues(source["transfers"], collaboration_domain.Transfer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class RejectTransferRequest {
+	    transfer_id: string;
+	    rejected_by: string;
+	    thread_id?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RejectTransferRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer_id = source["transfer_id"];
+	        this.rejected_by = source["rejected_by"];
+	        this.thread_id = source["thread_id"];
+	    }
+	}
+	export class RejectTransferResponse {
+	    transfer: collaboration_domain.Transfer;
+	
+	    static createFrom(source: any = {}) {
+	        return new RejectTransferResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transfer = this.convertValues(source["transfer"], collaboration_domain.Transfer);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ResolveCollaborativeShareResponse {
 	    share_entry_id: string;
 	    trust_group_id: string;
@@ -3509,6 +4058,65 @@ export namespace tracecore_types {
 		}
 	}
 	
+	export class RemoteVaultDTO {
+	    id: string;
+	    endpoint: string;
+	    status: string;
+	    last_seen: string;
+	    cursor: string;
+	    proto: string;
+	    pending_items: string;
+	    alert: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteVaultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.endpoint = source["endpoint"];
+	        this.status = source["status"];
+	        this.last_seen = source["last_seen"];
+	        this.cursor = source["cursor"];
+	        this.proto = source["proto"];
+	        this.pending_items = source["pending_items"];
+	        this.alert = source["alert"];
+	    }
+	}
+	export class FederationSnapshotDTO {
+	    workspace_id: string;
+	    remote_vaults: RemoteVaultDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FederationSnapshotDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workspace_id = source["workspace_id"];
+	        this.remote_vaults = this.convertValues(source["remote_vaults"], RemoteVaultDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	
 	export class ShareEntryRefDTO {
@@ -3759,6 +4367,103 @@ export namespace tracecore_types {
 	        this.owner_id = source["owner_id"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace trustgroup_domain {
+	
+	export class TrustGroupKeyEnvelope {
+	    id: string;
+	    trust_group_id: string;
+	    member_id: string;
+	    device_id: string;
+	    kek_version: number;
+	    wrapped_kek: string;
+	    // Go type: time
+	    created_at: any;
+	    // Go type: time
+	    revoked_at?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroupKeyEnvelope(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.member_id = source["member_id"];
+	        this.device_id = source["device_id"];
+	        this.kek_version = source["kek_version"];
+	        this.wrapped_kek = source["wrapped_kek"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.revoked_at = this.convertValues(source["revoked_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TrustGroup {
+	    id: string;
+	    channel_id: string;
+	    name: string;
+	    kek_version: number;
+	    member_cids: string[];
+	    key_envelopes: TrustGroupKeyEnvelope[];
+	    created_at: string;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrustGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel_id = source["channel_id"];
+	        this.name = source["name"];
+	        this.kek_version = source["kek_version"];
+	        this.member_cids = source["member_cids"];
+	        this.key_envelopes = this.convertValues(source["key_envelopes"], TrustGroupKeyEnvelope);
+	        this.created_at = source["created_at"];
 	        this.is_draft = source["is_draft"];
 	        this.is_dirty = source["is_dirty"];
 	    }

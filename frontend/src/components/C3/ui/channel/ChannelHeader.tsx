@@ -36,34 +36,51 @@ export const ChannelHeader = ({
 
 
 
-            <div
-                className={`c3-state c3-${channel.c3.status}`}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <button
+                    onClick={() => { window.location.href = "/dashboard/c3/config"; }}
+                    style={{
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        background: "#fff",
+                        border: "1px solid #e0e0e0",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "#C8922A",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px"
+                    }}
+                >
+                    ⚙️ C3 Config
+                </button>
 
-                <span>
+                <div className={`c3-state c3-${channel.c3.status}`}>
+                    <span>
+                        {
+                            channel.c3.status === 'active'
+                                ? '●'
+                                :
+                                channel.c3.status === 'linked'
+                                    ? '◐'
+                                    :
+                                    '○'
+                        }
+                    </span>
+
                     {
                         channel.c3.status === 'active'
-                            ? '●'
+                            ?
+                            'C3 Active'
                             :
                             channel.c3.status === 'linked'
-                                ? '◐'
+                                ?
+                                'C3 Linked'
                                 :
-                                '○'
+                                'Internal'
                     }
-                </span>
-
-                {
-                    channel.c3.status === 'active'
-                        ?
-                        'C3 Active'
-                        :
-                        channel.c3.status === 'linked'
-                            ?
-                            'C3 Linked'
-                            :
-                            'Internal'
-                }
-
+                </div>
             </div>
 
 

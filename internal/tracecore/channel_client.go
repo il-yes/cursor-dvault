@@ -285,6 +285,8 @@ func (c *TracecoreClient) GetChannel(ctx context.Context, req *channel_domain.Ge
 		return nil, channel_domain.ErrChannelIDRequired
 	}
 
+	fmt.Printf("[SLOTS][VERIFY] STEP=17 EVENT=FRESH_GET_START channelId=%s\n", req.ChannelID)
+
 	baseUrl := c.AnkhoraCloudUrl
 	if baseUrl == "" {
 		baseUrl = c.BaseURL
@@ -302,6 +304,7 @@ func (c *TracecoreClient) GetChannel(ctx context.Context, req *channel_domain.Ge
 
 	resp, err := c.HTTPClient.Do(request)
 	if err != nil {
+		fmt.Printf("[SLOTS][VERIFY] STEP=18 EVENT=FRESH_GET_ERROR error=%v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -310,6 +313,8 @@ func (c *TracecoreClient) GetChannel(ctx context.Context, req *channel_domain.Ge
 	if err != nil {
 		return nil, fmt.Errorf("read body failed: %w", err)
 	}
+
+	fmt.Printf("[SLOTS][VERIFY] STEP=18 EVENT=FRESH_GET_RESPONSE status=%d body=%s\n", resp.StatusCode, string(respBytes))
 
 	// Surface the Cloud outcome (e.g. record not found) verbatim. The Cloud is
 	// the single source of truth for channel existence.
@@ -320,9 +325,11 @@ func (c *TracecoreClient) GetChannel(ctx context.Context, req *channel_domain.Ge
 	// Cloud returns an envelope: { "status": 200, "data": { ... } }.
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.CloudChannelDTO]
 	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data.ID != "" {
+		domainChan := mapCloudChannelDTO(cloudResp.Data)
+		fmt.Printf("[SLOTS][VERIFY] STEP=19 EVENT=TARGET_SLOT_LOOKUP channelId=%s slotsCount=%d slots=%+v\n", domainChan.ID, len(domainChan.Slots), domainChan.Slots)
 		return &tracecore_types.CloudResponse[channel_domain.Channel]{
 			Status:  200,
-			Data:    mapCloudChannelDTO(cloudResp.Data),
+			Data:    domainChan,
 			Message: "success",
 			Success: true,
 		}, nil
@@ -403,14 +410,49 @@ func (c *TracecoreClient) UpdateChannel(ctx context.Context, req *channel_domain
 		return nil, channel_domain.ErrChannelIDRequired
 	}
 
+	fmt.Printf("[SLOTS][SAVE] STEP=12 EVENT=CLOUD_UPDATE_ENTER channelId=%s\n", req.Channel.ID)
+
+	cloudSlots := make([]tracecore_types.UpdateChannelSlotDTO, 0, len(req.Channel.Slots))
+	for _, s := range req.Channel.Slots {
+		cloudSlots = append(cloudSlots, tracecore_types.UpdateChannelSlotDTO{
+			ID:      s.ID,
+			Name:    s.Name,
+			Role:    s.Role,
+			VaultID: s.VaultID,
+			Gated:   s.Gated,
+			Order:   s.Order,
+		})
+	}
+
+	cloudAssignments := make([]tracecore_types.CloudChannelAssignment, 0, len(req.Channel.Assignments))
+	for _, a := range req.Channel.Assignments {
+		cloudAssignments = append(cloudAssignments, tracecore_types.CloudChannelAssignment{
+			SlotID:       a.SlotID,
+			OwnerID:      a.OwnerID,
+			PublicKey:    a.PublicKey,
+			VaultAddress: a.VaultAddress,
+		})
+	}
+
+	cloudProperties := make([]tracecore_types.CloudChannelProperty, 0, len(req.Channel.Properties))
+	for _, p := range req.Channel.Properties {
+		cloudProperties = append(cloudProperties, tracecore_types.CloudChannelProperty{
+			Key:   p.Key,
+			Value: p.Value,
+		})
+	}
+
 	payload := map[string]interface{}{
 		"id":          req.Channel.ID,
 		"title":       req.Channel.Title,
-		"slots":       req.Channel.Slots,
-		"properties":  req.Channel.Properties,
-		"assignments": req.Channel.Assignments,
+		"slots":       cloudSlots,
+		"properties":  cloudProperties,
+		"assignments": cloudAssignments,
 		"policy":      req.Channel.Policy,
 	}
+
+	payloadBytes, _ := json.Marshal(payload)
+	fmt.Printf("[SLOTS][SAVE] STEP=13 EVENT=CLOUD_PAYLOAD payload=%s\n", string(payloadBytes))
 
 	body := &bytes.Buffer{}
 	if err := json.NewEncoder(body).Encode(payload); err != nil {
@@ -423,8 +465,15 @@ func (c *TracecoreClient) UpdateChannel(ctx context.Context, req *channel_domain
 	}
 	url := baseUrl + "/channels/" + req.Channel.ID
 
+	authHeader := "authorization=Bearer <ABSENT>"
+	if c.Token != "" {
+		authHeader = "authorization=Bearer <PRESENT>"
+	}
+	fmt.Printf("[SLOTS][SAVE] STEP=14 EVENT=HTTP_REQUEST method=PUT url=%s %s\n", url, authHeader)
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, url, body)
 	if err != nil {
+		fmt.Printf("[SLOTS][SAVE] STEP=15 EVENT=HTTP_ERROR error=%v\n", err)
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
@@ -434,14 +483,19 @@ func (c *TracecoreClient) UpdateChannel(ctx context.Context, req *channel_domain
 
 	resp, err := c.HTTPClient.Do(request)
 	if err != nil {
+		fmt.Printf("[SLOTS][SAVE] STEP=15 EVENT=HTTP_ERROR error=%v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	fmt.Printf("[SLOTS][SAVE] STEP=15 EVENT=HTTP_RESPONSE status=%d\n", resp.StatusCode)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read body failed: %w", err)
 	}
+
+	fmt.Printf("[SLOTS][SAVE] STEP=16 EVENT=CLOUD_RESPONSE body=%s\n", string(respBytes))
 
 	// Surface the Cloud/domain outcome verbatim. The Cloud remains authoritative
 	// for the update.

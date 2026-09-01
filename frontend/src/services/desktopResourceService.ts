@@ -61,10 +61,15 @@ class DesktopResourceService {
       try {
         const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
         
+        let contentText = "";
+        if (response.plaintext && Array.isArray(response.plaintext)) {
+          contentText = new TextDecoder().decode(new Uint8Array(response.plaintext));
+        }
+
         return {
           resourceId: response.share_entry_id,
           title: response.metadata?.title || response.metadata?.name || "Collaborative Protected Resource",
-          content: response.content || "",
+          content: contentText,
           createdBy: response.created_by,
           createdAt: response.created_at,
           metadata: response.metadata || {},

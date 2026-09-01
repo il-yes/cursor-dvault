@@ -1,6 +1,9 @@
 import React from "react";
 import { ThreadEventResponse } from "@/services/api";
 import { C3ResourceCard } from "./C3ResourceCard";
+import { C3ActionStatus } from "./actions/C3ActionStatus";
+import { C3ActionMenu } from "./actions/C3ActionMenu";
+import { ResourceReference } from "./domain/resource";
 
 interface ThreadEventTimelineProps {
 	events: ThreadEventResponse[];
@@ -177,7 +180,30 @@ export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 							{/* Event Content */}
 							<div style={{ flex: 1, overflow: "hidden" }}>
 								<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-									<strong style={{ fontSize: "13px", color: "#F0F6FC" }}>{evt.type}</strong>
+									<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+										<strong style={{ fontSize: "13px", color: "#F0F6FC" }}>{evt.type}</strong>
+										{evt.type && evt.type.startsWith("c3.") && (
+											<C3ActionStatus
+												status={
+													evt.type === "c3.approval.requested"
+														? "requested"
+														: evt.type === "c3.approval.approved"
+														? "approved"
+														: evt.type === "c3.reject.created"
+														? "created"
+														: evt.type === "c3.transfer.requested"
+														? "transfer_requested"
+														: evt.type === "c3.transfer.approved"
+														? "transfer_approved"
+														: evt.type === "c3.transfer.rejected"
+														? "transfer_rejected"
+														: evt.type === "c3.transfer.completed"
+														? "transfer_completed"
+														: "pending"
+												}
+											/>
+										)}
+									</div>
 									<span style={{ fontSize: "11px", color: "#8B949E" }}>
 										{evt.created_at ? new Date(evt.created_at).toLocaleString() : "Just now"}
 									</span>

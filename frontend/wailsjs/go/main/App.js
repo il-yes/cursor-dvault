@@ -38,8 +38,24 @@ export function AddRecipient(arg1, arg2) {
   return window['go']['main']['App']['AddRecipient'](arg1, arg2);
 }
 
+export function AddRemoteVaultToWorkspace(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AddRemoteVaultToWorkspace'](arg1, arg2, arg3);
+}
+
+export function AddTrustGroupMember(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['AddTrustGroupMember'](arg1, arg2, arg3, arg4);
+}
+
 export function AppendThreadEvent(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AppendThreadEvent'](arg1, arg2, arg3, arg4);
+}
+
+export function ApproveAction(arg1, arg2) {
+  return window['go']['main']['App']['ApproveAction'](arg1, arg2);
+}
+
+export function ApproveTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['ApproveTransferAction'](arg1, arg2);
 }
 
 export function Archive(arg1, arg2) {
@@ -74,6 +90,10 @@ export function CompleteOnboarding() {
   return window['go']['main']['App']['CompleteOnboarding']();
 }
 
+export function CompleteTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['CompleteTransferAction'](arg1, arg2);
+}
+
 export function ConnectToRealtime(arg1) {
   return window['go']['main']['App']['ConnectToRealtime'](arg1);
 }
@@ -94,6 +114,10 @@ export function CreateAccount(arg1) {
   return window['go']['main']['App']['CreateAccount'](arg1);
 }
 
+export function CreateApproval(arg1, arg2) {
+  return window['go']['main']['App']['CreateApproval'](arg1, arg2);
+}
+
 export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
@@ -110,12 +134,24 @@ export function CreateLinkShare(arg1, arg2) {
   return window['go']['main']['App']['CreateLinkShare'](arg1, arg2);
 }
 
+export function CreateReject(arg1, arg2) {
+  return window['go']['main']['App']['CreateReject'](arg1, arg2);
+}
+
 export function CreateShare(arg1) {
   return window['go']['main']['App']['CreateShare'](arg1);
 }
 
 export function CreateThread(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateThread'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CreateTransfer(arg1, arg2) {
+  return window['go']['main']['App']['CreateTransfer'](arg1, arg2);
+}
+
+export function CreateTrustGroup(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CreateTrustGroup'](arg1, arg2, arg3);
 }
 
 export function CreateWorkspace(arg1, arg2, arg3, arg4) {
@@ -136,6 +172,10 @@ export function DeleteEntry(arg1, arg2, arg3) {
 
 export function DeleteFolder(arg1, arg2) {
   return window['go']['main']['App']['DeleteFolder'](arg1, arg2);
+}
+
+export function DeleteTrustGroup(arg1, arg2) {
+  return window['go']['main']['App']['DeleteTrustGroup'](arg1, arg2);
 }
 
 export function DownloadAttachment(arg1, arg2, arg3, arg4) {
@@ -270,6 +310,10 @@ export function GetVaultFromCloud(arg1, arg2) {
   return window['go']['main']['App']['GetVaultFromCloud'](arg1, arg2);
 }
 
+export function GetWorkspaceFederation(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkspaceFederation'](arg1, arg2);
+}
+
 export function ImportVaultWithKey(arg1) {
   return window['go']['main']['App']['ImportVaultWithKey'](arg1);
 }
@@ -314,6 +358,10 @@ export function ListReceivedShares(arg1) {
   return window['go']['main']['App']['ListReceivedShares'](arg1);
 }
 
+export function ListResourceActions(arg1, arg2) {
+  return window['go']['main']['App']['ListResourceActions'](arg1, arg2);
+}
+
 export function ListSharedEntries(arg1) {
   return window['go']['main']['App']['ListSharedEntries'](arg1);
 }
@@ -324,6 +372,10 @@ export function ListThreadEvents(arg1, arg2) {
 
 export function ListThreads(arg1, arg2) {
   return window['go']['main']['App']['ListThreads'](arg1, arg2);
+}
+
+export function ListTrustGroups(arg1, arg2) {
+  return window['go']['main']['App']['ListTrustGroups'](arg1, arg2);
 }
 
 export function ListWorkspaces(arg1, arg2) {
@@ -388,6 +440,14 @@ export function RefreshToken(arg1) {
 
 export function RejectShare(arg1, arg2, arg3) {
   return window['go']['main']['App']['RejectShare'](arg1, arg2, arg3);
+}
+
+export function RejectTransferAction(arg1, arg2) {
+  return window['go']['main']['App']['RejectTransferAction'](arg1, arg2);
+}
+
+export function RemoveTrustGroupMember(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RemoveTrustGroupMember'](arg1, arg2, arg3);
 }
 
 export function RequestChallenge(arg1) {
@@ -488,6 +548,10 @@ export function UpdatePaymentMethod(arg1, arg2) {
 
 export function UpdateRecipient(arg1, arg2) {
   return window['go']['main']['App']['UpdateRecipient'](arg1, arg2);
+}
+
+export function UpdateTrustGroup(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateTrustGroup'](arg1, arg2, arg3);
 }
 
 export function UpgradeSubscription(arg1, arg2) {

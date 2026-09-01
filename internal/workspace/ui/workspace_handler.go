@@ -3,6 +3,7 @@ package workspace_ui
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	tracecore_types "vault-app/internal/tracecore/types"
 	"vault-app/internal/utils"
@@ -14,6 +15,8 @@ import (
 type WorkspaceHandler struct {
 	createUseCase *workspace_usecase.CreateWorkspaceUsecase
 	listUseCase   *workspace_usecase.ListWorkspaceUsecase
+	mu            sync.RWMutex
+	snapshots     map[string]*tracecore_types.FederationSnapshotDTO
 }
 
 func NewWorkspaceHandler(
@@ -23,7 +26,73 @@ func NewWorkspaceHandler(
 	return &WorkspaceHandler{
 		createUseCase: createUC,
 		listUseCase:   listUC,
+		snapshots:     make(map[string]*tracecore_types.FederationSnapshotDTO),
 	}
+}
+
+func (h *WorkspaceHandler) GetWorkspaceFederation(ctx context.Context, workspaceID string) (*tracecore_types.FederationSnapshotDTO, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if snap, found := h.snapshots[workspaceID]; found {
+		return snap, nil
+	}
+
+	// Initial default snapshot for workspace
+	initialSnap := &tracecore_types.FederationSnapshotDTO{
+		WorkspaceID: workspaceID,
+		RemoteVaults: []tracecore_types.RemoteVaultDTO{
+			{
+				ID:           "vault:supplier-x",
+				Endpoint:     "https://afp.supplier-x.io/v1/sync",
+				Status:       "trusted",
+				LastSeen:     "2 min ago",
+				Cursor:       "1247",
+				Proto:        "AFP v1.2",
+				PendingItems: "4 items",
+				Alert:        true,
+			},
+			{
+				ID:           "vault:ey-auditors",
+				Endpoint:     "https://afp.ey.com/ankhora/v1/sync",
+				Status:       "trusted",
+				LastSeen:     "1 hr ago",
+				Cursor:       "892",
+				Proto:        "AFP v1.1",
+				PendingItems: "0 pending",
+				Alert:        false,
+			},
+			{
+				ID:           "vault:partner-bank",
+				Endpoint:     "https://afp.partnerbank.io/sync",
+				Status:       "pending",
+				LastSeen:     "1 day ago",
+				Cursor:       "0",
+				Proto:        "AFP v1.0",
+				PendingItems: "2 pending",
+				Alert:        false,
+			},
+		},
+	}
+	h.snapshots[workspaceID] = initialSnap
+	return initialSnap, nil
+}
+
+func (h *WorkspaceHandler) AddRemoteVaultToWorkspace(ctx context.Context, workspaceID string, remoteVault tracecore_types.RemoteVaultDTO) (*tracecore_types.FederationSnapshotDTO, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	snap, found := h.snapshots[workspaceID]
+	if !found {
+		snap = &tracecore_types.FederationSnapshotDTO{
+			WorkspaceID:  workspaceID,
+			RemoteVaults: make([]tracecore_types.RemoteVaultDTO, 0),
+		}
+		h.snapshots[workspaceID] = snap
+	}
+
+	snap.RemoteVaults = append(snap.RemoteVaults, remoteVault)
+	return snap, nil
 }
 
 func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context,  userID string,vaultId string, name string, description string) (*tracecore_types.Workspace, error) {

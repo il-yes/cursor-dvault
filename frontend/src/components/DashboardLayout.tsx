@@ -868,7 +868,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 	const { user } = useAuthStore();
 	const session = useAppStore.getState().session;
 	console.log({session})
-	console.log(session.vault_runtime_context.SessionSecrets)
+	console.log(session?.vault_runtime_context?.SessionSecrets)
+
 
 	if (!user) {
 		return <div>Loading session...</div>;

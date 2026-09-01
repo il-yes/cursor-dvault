@@ -442,3 +442,35 @@ A successful Frontend Engineer produces:
 The goal is not only beautiful screens.
 
 The goal is a trustworthy interface to the Ankhora platform.
+
+
+_____
+Every persistence test must cross the real HTTP boundary and perform a fresh read from the Cloud API. Zustand state, Go memory, PUT responses, and mocked repositories are never considered persistence evidence.
+
+
+REAL UI CLAIM POLICY
+
+The agent MUST NOT claim that a feature is working, visible,
+interactive, or user-visible based solely on:
+
+- source code inspection
+- React state
+- Zustand state
+- mocked components
+- unit tests
+- integration tests
+- DOM inspection in an isolated test environment
+- function execution
+- Wails method execution
+- HTTP client execution
+- HTTP 200 responses
+
+A claim that a feature is "working in the UI" requires observation
+of the actual running application.
+
+If the agent cannot launch/control/observe the actual application,
+the result MUST be:
+
+REAL UI VERIFICATION: UNAVAILABLE
+
+It MUST NOT report PASS.

@@ -219,6 +219,22 @@ func eventResourceRefToPayload(ref thread_domain.EventResourceRef) map[string]in
 		if ref.TrustGroupID != "" {
 			payload["trust_group_id"] = ref.TrustGroupID
 		}
+	} else if ref.RefType == thread_domain.ResourceC3Action {
+		if ref.ActionID != "" {
+			payload["action_id"] = ref.ActionID
+		}
+		if ref.ResourceTypeVal != "" {
+			payload["resource_type"] = ref.ResourceTypeVal
+		}
+		if ref.ResourceIDVal != "" {
+			payload["resource_id"] = ref.ResourceIDVal
+		}
+		if ref.SourceEventID != "" {
+			payload["source_event_id"] = ref.SourceEventID
+		}
+		if ref.TargetTrustGroupID != "" {
+			payload["target_trust_group_id"] = ref.TargetTrustGroupID
+		}
 	} else {
 		if ref.CID != "" {
 			payload["cid"] = ref.CID
@@ -232,6 +248,22 @@ func eventResourceRefToPayload(ref thread_domain.EventResourceRef) map[string]in
 		if ref.AssetType != "" {
 			payload["asset_type"] = ref.AssetType
 		}
+	}
+	// Always include generic action metadata fields if present
+	if ref.ActionID != "" {
+		payload["action_id"] = ref.ActionID
+	}
+	if ref.ResourceTypeVal != "" {
+		payload["resource_type"] = ref.ResourceTypeVal
+	}
+	if ref.ResourceIDVal != "" {
+		payload["resource_id"] = ref.ResourceIDVal
+	}
+	if ref.SourceEventID != "" {
+		payload["source_event_id"] = ref.SourceEventID
+	}
+	if ref.TargetTrustGroupID != "" {
+		payload["target_trust_group_id"] = ref.TargetTrustGroupID
 	}
 	return payload
 }
@@ -270,6 +302,23 @@ func payloadToEventResourceRef(payload map[string]any) thread_domain.EventResour
 	}
 	if v, ok := payload["trust_group_id"].(string); ok {
 		ref.TrustGroupID = v
+	}
+
+	// C3 Action fields
+	if v, ok := payload["action_id"].(string); ok {
+		ref.ActionID = v
+	}
+	if v, ok := payload["resource_type"].(string); ok {
+		ref.ResourceTypeVal = v
+	}
+	if v, ok := payload["resource_id"].(string); ok {
+		ref.ResourceIDVal = v
+	}
+	if v, ok := payload["source_event_id"].(string); ok {
+		ref.SourceEventID = v
+	}
+	if v, ok := payload["target_trust_group_id"].(string); ok {
+		ref.TargetTrustGroupID = v
 	}
 
 	// Storage asset fields

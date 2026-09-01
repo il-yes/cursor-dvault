@@ -79,8 +79,8 @@ export interface ShareEntryResponse {
 }
 
 // Backend API base URL (configure based on environment)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://164.90.213.173:4001/api';
-const CLOUD_BASE_URL = import.meta.env.CLOUD_BASE_URL || 'http://164.90.213.173:4001/api';
+const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://164.90.213.173:4001/api';
+const CLOUD_BASE_URL = import.meta.env?.CLOUD_BASE_URL || 'http://164.90.213.173:4001/api';
 
 /**
  * Mock data for preview/development mode
@@ -1597,9 +1597,16 @@ export async function getChannel(channelId: string): Promise<ChannelResponse> {
 		throw new Error('Authentication required');
 	}
 
+	console.trace("[READ] App.GetChannel EXECUTED");
+	console.log(`[BOUNDARIES][READ] api.getChannel channelId=${channelId}`);
 	const result = await AppAPI.GetChannel(jwtToken, channelId);
+	console.log(`[BOUNDARIES][READ] api.getChannel returned=`, JSON.stringify(result));
+  console.log("RAW slots:", result?.slots);
+  console.log("RAW Slots:", result?.Slots);
+  
 	return result as ChannelResponse;
 }
+
 
 export interface UpdateChannelPayload {
 	channel_id: string;
@@ -1624,16 +1631,24 @@ export async function updateChannel(payload: UpdateChannelPayload): Promise<Chan
 		throw new Error('Authentication required');
 	}
 
-	const result = await AppAPI.UpdateChannel(
-		jwtToken,
-		payload.channel_id,
-		payload.title,
-		payload.slots ?? [],
-		payload.assignments ?? [],
-		payload.properties ?? [],
-		payload.policy ?? {},
-	);
-	return result as ChannelResponse;
+	console.log(`[BOUNDARIES][⑤ frontend API updateChannel] STEP=05 channelId=${payload.channel_id} payload=`, JSON.stringify(payload));
+
+	try {
+		const result = await AppAPI.UpdateChannel(
+			jwtToken,
+			payload.channel_id,
+			payload.title,
+			payload.slots ?? [],
+			payload.assignments ?? [],
+			payload.properties ?? [],
+			payload.policy ?? {},
+		);
+		console.log(`[SLOTS][SAVE] STEP=08 EVENT=WAILS_UPDATE_CHANNEL_RETURN response=`, JSON.stringify(result));
+		return result as ChannelResponse;
+	} catch (err: any) {
+		console.log(`[SLOTS][SAVE] STEP=08 EVENT=WAILS_UPDATE_CHANNEL_ERROR error=`, err?.message || err);
+		throw err;
+	}
 }
 
 // Delete a Channel through the authoritative Cloud backend (DELETE
@@ -1651,6 +1666,89 @@ export async function deleteChannel(channelId: string): Promise<void> {
 	}
 
 	await AppAPI.DeleteChannel(jwtToken, channelId);
+}
+
+export async function getWorkspaceFederation(workspaceId: string): Promise<any> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	return await AppAPI.GetWorkspaceFederation(jwtToken, workspaceId);
+}
+
+export async function addRemoteVaultToWorkspace(workspaceId: string, remoteVault: any): Promise<any> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	return await AppAPI.AddRemoteVaultToWorkspace(jwtToken, workspaceId, remoteVault);
+}
+
+export async function listTrustGroups(workspaceId?: string): Promise<any[]> {
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	return await AppAPI.ListTrustGroups(jwtToken, workspaceId || '');
+}
+
+export async function createTrustGroup(name: string, workspaceId?: string): Promise<any> {
+	if (!name) {
+		throw new Error('Trust Group name is required');
+	}
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId || '', name);
+}
+
+export async function addTrustGroupMember(trustGroupId: string, channelId: string, memberId: string): Promise<any> {
+	if (!trustGroupId || !memberId) {
+		throw new Error('Trust Group ID and Member ID are required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	return await AppAPI.AddTrustGroupMember(jwtToken, trustGroupId, channelId || '', memberId);
+}
+
+export async function removeTrustGroupMember(trustGroupId: string, memberId: string): Promise<any> {
+	if (!trustGroupId || !memberId) {
+		throw new Error('Trust Group ID and Member ID are required');
+	}
+
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+
+	return await AppAPI.RemoveTrustGroupMember(jwtToken, trustGroupId, memberId);
+}
+
+export async function updateTrustGroup(id: string, name: string): Promise<any> {
+	if (!id || !name) {
+		throw new Error('Trust Group ID and name are required');
+	}
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	return await AppAPI.UpdateTrustGroup(jwtToken, id, name);
+}
+
+export async function deleteTrustGroup(id: string): Promise<void> {
+	if (!id) {
+		throw new Error('Trust Group ID is required');
+	}
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	await AppAPI.DeleteTrustGroup(jwtToken, id);
 }
 
 export interface ChannelParticipantResponse {

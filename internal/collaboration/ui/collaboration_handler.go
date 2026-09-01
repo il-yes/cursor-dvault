@@ -7,8 +7,8 @@ import (
 
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
-	thread_domain "vault-app/internal/thread/domain"
 	thread_usecase "vault-app/internal/thread/application/usecases"
+	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
 )
 
@@ -16,6 +16,7 @@ type CollaborationHandler struct {
 	createCollabShareUC  *collaboration_usecases.CreateCollaborativeShareUseCase
 	resolveCollabShareUC *collaboration_usecases.ResolveCollaborativeShareUseCase
 	appendEventUC        *thread_usecase.AppendThreadEventUsecase
+	actionUseCases       *collaboration_usecases.ActionUseCases
 }
 
 func NewCollaborationHandler(
@@ -30,14 +31,26 @@ func NewCollaborationHandler(
 	}
 }
 
+func NewCollaborationHandlerWithActions(
+	createCollabShareUC *collaboration_usecases.CreateCollaborativeShareUseCase,
+	resolveCollabShareUC *collaboration_usecases.ResolveCollaborativeShareUseCase,
+	appendEventUC *thread_usecase.AppendThreadEventUsecase,
+	actionUseCases *collaboration_usecases.ActionUseCases,
+) *CollaborationHandler {
+	return &CollaborationHandler{
+		createCollabShareUC:  createCollabShareUC,
+		resolveCollabShareUC: resolveCollabShareUC,
+		appendEventUC:        appendEventUC,
+		actionUseCases:       actionUseCases,
+	}
+}
+
+func (h *CollaborationHandler) SetActionUseCases(uc *collaboration_usecases.ActionUseCases) {
+	h.actionUseCases = uc
+}
+
 // CreateCollaborativeShare persists a C3 share entry through the real
 // Cloud persistence path and returns the authoritative ShareEntryRef.
-//
-// wrappedDEK and kekVersion are cryptographic material owned by the
-// desktop crypto layer (TrustGroupCryptoOrchestrator.PrepareCollaborativeAsset).
-// They must be supplied by the caller; this handler never invents them.
-// A successful response only ever contains the share_entry_id returned by
-// the Cloud C3 ShareEntry persistence path.
 func (h *CollaborationHandler) CreateCollaborativeShare(
 	ctx context.Context,
 	userID string,
@@ -128,4 +141,88 @@ func (h *CollaborationHandler) ResolveCollaborativeShare(
 	}
 
 	return h.resolveCollabShareUC.Execute(ctx, req)
+}
+
+// ---------------------------------------------------------------------------
+// C3 Collaboration Actions API
+// ---------------------------------------------------------------------------
+
+func (h *CollaborationHandler) CreateApproval(
+	ctx context.Context,
+	req collaboration_dtos.CreateApprovalRequest,
+) (*collaboration_dtos.CreateApprovalResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.CreateApproval(ctx, req)
+}
+
+func (h *CollaborationHandler) ApproveAction(
+	ctx context.Context,
+	req collaboration_dtos.ApproveRequest,
+) (*collaboration_dtos.ApproveResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.Approve(ctx, req)
+}
+
+func (h *CollaborationHandler) CreateReject(
+	ctx context.Context,
+	req collaboration_dtos.CreateRejectRequest,
+) (*collaboration_dtos.CreateRejectResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.CreateReject(ctx, req)
+}
+
+func (h *CollaborationHandler) CreateTransfer(
+	ctx context.Context,
+	req collaboration_dtos.CreateTransferRequest,
+) (*collaboration_dtos.CreateTransferResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.CreateTransfer(ctx, req)
+}
+
+func (h *CollaborationHandler) ApproveTransferAction(
+	ctx context.Context,
+	req collaboration_dtos.ApproveTransferRequest,
+) (*collaboration_dtos.ApproveTransferResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.ApproveTransfer(ctx, req)
+}
+
+func (h *CollaborationHandler) RejectTransferAction(
+	ctx context.Context,
+	req collaboration_dtos.RejectTransferRequest,
+) (*collaboration_dtos.RejectTransferResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.RejectTransfer(ctx, req)
+}
+
+func (h *CollaborationHandler) CompleteTransferAction(
+	ctx context.Context,
+	req collaboration_dtos.CompleteTransferRequest,
+) (*collaboration_dtos.CompleteTransferResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.CompleteTransfer(ctx, req)
+}
+
+func (h *CollaborationHandler) ListResourceActions(
+	ctx context.Context,
+	req collaboration_dtos.ListResourceActionsRequest,
+) (*collaboration_dtos.ListResourceActionsResponse, error) {
+	if h.actionUseCases == nil {
+		return nil, errors.New("action use cases are not initialized")
+	}
+	return h.actionUseCases.ListResourceActions(ctx, req)
 }

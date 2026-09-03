@@ -213,20 +213,14 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 		var str string
 
 		if rid.RecipientType == "trust_group" || rid.TrustGroupID != "" {
-			// TrustGroup mode: use TrustGroup ID as target key
+			// TrustGroup mode: target is TrustGroupID; DEK is wrapped by TrustGroup KEK, NOT recipient public key.
 			targetKey := rid.TrustGroupID
 			if targetKey == "" {
 				targetKey = rid.Email // Fallback if passed in Email field
 			}
 			primaryTrustGroupID = targetKey
-
-			if rid.PublicKey != "" {
-				encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to encrypt key for trust group: %w", err)
-				}
-				str = encKey.ToString()
-			}
+			// DEK wrapped via TrustGroup KEK (AES-256-GCM)
+			str = share.WrappedDEK
 
 			encryptedKeys[targetKey] = str
 			recipients[targetKey] = tracecore.CryptoRecipient{
@@ -280,6 +274,8 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			VaultPayload:    base64.StdEncoding.EncodeToString(encryptedPayload),
 			EncryptedKeys:   encryptedKeys,
 			TrustGroupID:    primaryTrustGroupID,
+			WrappedDEK:      share.WrappedDEK,
+			KEKVersion:      share.KEKVersion,
 			Title:           share.EntryName,
 			EntryType:       share.EntryType,
 			AccessMode:      share.AccessMode,
@@ -293,7 +289,6 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			Attachments: buildResponse.Attachments,
 		}, nil
 }
-
 // ------------------------------------------------
 // Use case: list shared entries by the user
 // ------------------------------------------------

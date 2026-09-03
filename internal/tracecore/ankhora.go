@@ -1023,6 +1023,8 @@ type ProdCreateCryptoShareRequest struct {
 	AccessMode      string                     `json:"AccessMode"`
 	ExpiresAt       *time.Time                 `json:"ExpiresAt,omitempty"`
 	DownloadAllowed bool                       `json:"DownloadAllowed,omitempty"`
+	WrappedDEK      string                     `json:"WrappedDEK,omitempty"`
+	KEKVersion      uint64                     `json:"KEKVersion,omitempty"`
 }
 type ProdCreateCryptoShareResponse struct {
 	Data    CloudCryptographicShare `json:"data"`

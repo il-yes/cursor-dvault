@@ -147,6 +147,16 @@ func (r *memorySovereignIdentityResolver) GetDevice(ctx context.Context, deviceI
 	return dev, nil
 }
 
+func (r *memorySovereignIdentityResolver) ListActiveDevices(ctx context.Context, memberID string) ([]trustgroup_ports.DeviceSummary, error) {
+	var list []trustgroup_ports.DeviceSummary
+	for _, dev := range r.devices {
+		if dev != nil && dev.VaultID == memberID && dev.IsActive {
+			list = append(list, *dev)
+		}
+	}
+	return list, nil
+}
+
 func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	ctx := context.Background()
 
@@ -295,4 +305,72 @@ func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	require.NoError(t, errBob3)
 	require.NotNil(t, resBob)
 	assert.Equal(t, string(rawAssetPayload), string(resBob.Plaintext))
+
+	// Find Bob's envelope for logging
+	var bobEnv *trustgroup_domain.TrustGroupKeyEnvelope
+	for _, env := range updatedTg.KeyEnvelopes {
+		if env.MemberID == userBobID && env.DeviceID == deviceBobID {
+			bobEnv = &env
+			break
+		}
+	}
+	require.NotNil(t, bobEnv)
+
+	persistedShareEntry := repo.shares[shareEntryID]
+	require.NotNil(t, persistedShareEntry)
+
+	t.Logf(`
+========== C3 SHARE FORENSICS ==========
+
+[TRUST GROUP]
+TrustGroupID: %s
+KEKVersion: %d
+
+[PAYLOAD]
+OriginalPayload: %s
+EncryptedPayloadLength: %d
+
+[DEK]
+GeneratedDEKLength: %d
+
+[SHARE ENTRY]
+ShareEntryID: %s
+AssetCID: %s
+TrustGroupID: %s
+KEKVersion: %d
+WrappedDEK: %s
+
+[ENVELOPE]
+MemberID: %s
+DeviceID: %s
+EnvelopeKEKVersion: %d
+WrappedKEK: %s
+
+[RESOLUTION]
+ResolvedShareEntryID: %s
+ResolvedKEKVersion: %d
+ResolvedPlaintext: %s
+
+[VERIFICATION]
+Original == Resolved: %t
+========================================`,
+		tg.ID,
+		tg.KEKVersion,
+		string(rawAssetPayload),
+		len(prepared.EncryptedData),
+		len(prepared.WrappedDEK),
+		persistedShareEntry.ID,
+		persistedShareEntry.AssetCID,
+		persistedShareEntry.TrustGroupID,
+		persistedShareEntry.KEKVersion,
+		string(persistedShareEntry.WrappedDEK),
+		bobEnv.MemberID,
+		bobEnv.DeviceID,
+		bobEnv.KEKVersion,
+		bobEnv.WrappedKEK,
+		shareEntryID,
+		persistedShareEntry.KEKVersion,
+		string(resBob.Plaintext),
+		string(rawAssetPayload) == string(resBob.Plaintext),
+	)
 }

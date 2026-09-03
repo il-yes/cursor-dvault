@@ -2946,6 +2946,8 @@ export namespace share_entry_domain {
 	    // Go type: time
 	    shared_at: any;
 	    download_allowed: boolean;
+	    wrapped_dek?: string;
+	    kek_version?: number;
 	    recipients: Recipient[];
 	
 	    static createFrom(source: any = {}) {
@@ -2971,6 +2973,8 @@ export namespace share_entry_domain {
 	        this.updated_at = this.convertValues(source["updated_at"], null);
 	        this.shared_at = this.convertValues(source["shared_at"], null);
 	        this.download_allowed = source["download_allowed"];
+	        this.wrapped_dek = source["wrapped_dek"];
+	        this.kek_version = source["kek_version"];
 	        this.recipients = this.convertValues(source["recipients"], Recipient);
 	    }
 	

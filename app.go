@@ -44,6 +44,7 @@ import (
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_dtos "vault-app/internal/identity/application/dtos"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	notification_center_usecases "vault-app/internal/notification_center/application/use_cases"
@@ -99,6 +100,8 @@ import (
 	thread_ui "vault-app/internal/thread/ui"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
+	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
+	trustgroup_adapters "vault-app/internal/trust_group/infrastructure/adapters"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
@@ -652,6 +655,9 @@ func NewApp() *App {
 	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
 	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
+	cloudIPFSStorage := blockchain.NewCloudIPFSStorage(tracecoreClient, "", "")
+	createCollabShareUC.WithCrypto(cryptoOrchestrator, cloudAssetResolver, identityResolver, cloudIPFSStorage)
+
 	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(
 		cloudShareRepo,
 		tracecoreClient,
@@ -663,7 +669,20 @@ func NewApp() *App {
 	actionRepo := collaboration_infra.NewMemoryActionRepository()
 	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
 	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC, actionUseCases)
-	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, trustgroup_infrastructure_eventbus.NewMemoryBus())
+	tgMemoryBus := trustgroup_infrastructure_eventbus.NewMemoryBus()
+	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, tgMemoryBus)
+
+	deviceRepo := identity_persistence.NewGormDeviceRepository(db.DB)
+	identityDeviceAdapter := trustgroup_adapters.NewIdentityDeviceAdapter(deviceRepo)
+	addEnvelopeUC := trustgroup_envelope_usecases.NewAddTrustGroupKeyEnvelopeUseCase(tracecoreClient, identityDeviceAdapter)
+	provisionEnvelopeUC := trustgroup_envelope_usecases.NewProvisionTrustGroupDeviceEnvelopeUseCase(
+		tracecoreClient,
+		identityDeviceAdapter,
+		cryptoOrchestrator,
+		addEnvelopeUC,
+		keyringSvc,
+	)
+	_ = provisionEnvelopeUC
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,

@@ -13,4 +13,5 @@ type DeviceSummary struct {
 
 type DeviceResolver interface {
 	GetDevice(ctx context.Context, deviceID string) (*DeviceSummary, error)
+	ListActiveDevices(ctx context.Context, memberID string) ([]DeviceSummary, error)
 }

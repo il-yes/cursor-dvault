@@ -144,7 +144,6 @@ func TestFederation_ProductionTransport_C3Share_EndToEnd(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	shareEntry := createResp.ShareEntry
@@ -333,7 +332,6 @@ func TestFederation_ProductionTransport_RetryReorderReplay_EndToEnd(t *testing.T
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	shareEntry := createResp.ShareEntry

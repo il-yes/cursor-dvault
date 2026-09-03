@@ -53,6 +53,8 @@ type ShareEntry struct {
 	UpdatedAt        time.Time      `json:"updated_at"`
 	SharedAt         time.Time      `json:"shared_at"`
 	DownloadAllowed  bool           `json:"download_allowed"`
+	WrappedDEK       string         `json:"wrapped_dek,omitempty"`
+	KEKVersion       uint64         `json:"kek_version,omitempty"`
 
 	Recipients     []Recipient `gorm:"foreignKey:ShareID;constraint:OnDelete:CASCADE" json:"recipients"`
 }

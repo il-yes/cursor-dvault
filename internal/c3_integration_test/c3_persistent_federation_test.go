@@ -122,7 +122,6 @@ func TestFederation_PersistentRuntime_FailureRecovery_EndToEnd(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	shareEntry := createResp.ShareEntry

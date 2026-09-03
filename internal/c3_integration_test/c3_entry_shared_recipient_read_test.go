@@ -187,7 +187,6 @@ func TestC3EntryShared_RecipientReadFlow_WithDecryption(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"title": "Confidential Settlement"},
 	}
 
@@ -314,7 +313,6 @@ func TestC3EntryShared_RecipientReadFlow_UnauthorizedRecipient_MetadataVisible_D
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"title": "Restricted Board Minutes"},
 	}
 
@@ -424,7 +422,6 @@ func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"title": "Sovereign Blueprint"},
 	})
 	require.NoError(t, err)

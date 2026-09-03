@@ -306,7 +306,6 @@ func TestC3CollaborativeShare_WriteReadRoundTrip(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"classification": "top_secret"},
 	}
 

@@ -32,6 +32,16 @@ func (r *fakeDeviceResolver) GetDevice(ctx context.Context, deviceID string) (*t
 	return d, nil
 }
 
+func (r *fakeDeviceResolver) ListActiveDevices(ctx context.Context, memberID string) ([]trustgroup_ports.DeviceSummary, error) {
+	var list []trustgroup_ports.DeviceSummary
+	for _, d := range r.devices {
+		if d != nil && d.VaultID == memberID && d.IsActive {
+			list = append(list, *d)
+		}
+	}
+	return list, nil
+}
+
 // Fake TrustGroupRepository for tests
 type fakeTrustGroupRepo struct {
 	groups map[string]*trustgroup_domain.TrustGroup

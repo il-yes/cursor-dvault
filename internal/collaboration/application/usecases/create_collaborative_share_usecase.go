@@ -7,13 +7,20 @@ import (
 	"strings"
 
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
-	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	collaboration_ports "vault-app/internal/collaboration/application/ports"
+	app_config "vault-app/internal/config"
+	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_usecases "vault-app/internal/trust_group/application/usecases/envelope"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type CreateCollaborativeShareUseCase struct {
 	shareAssetUseCase  *ShareAssetWithTrustGroupUsecase
 	addEnvelopeUseCase *trustgroup_usecases.AddTrustGroupKeyEnvelopeUseCase
+	cryptoOrchestrator *trustgroup_orchestrator.TrustGroupCryptoOrchestrator
+	assetResolver      collaboration_ports.AssetContentResolver
+	identityResolver   collaboration_ports.SovereignIdentityResolver
+	assetStorage       app_config.StorageProvider
 }
 
 func NewCreateCollaborativeShareUseCase(
@@ -24,6 +31,19 @@ func NewCreateCollaborativeShareUseCase(
 		shareAssetUseCase:  shareAssetUseCase,
 		addEnvelopeUseCase: addEnvelopeUseCase,
 	}
+}
+
+func (u *CreateCollaborativeShareUseCase) WithCrypto(
+	cryptoOrchestrator *trustgroup_orchestrator.TrustGroupCryptoOrchestrator,
+	assetResolver collaboration_ports.AssetContentResolver,
+	identityResolver collaboration_ports.SovereignIdentityResolver,
+	assetStorage app_config.StorageProvider,
+) *CreateCollaborativeShareUseCase {
+	u.cryptoOrchestrator = cryptoOrchestrator
+	u.assetResolver = assetResolver
+	u.identityResolver = identityResolver
+	u.assetStorage = assetStorage
+	return u
 }
 
 func (u *CreateCollaborativeShareUseCase) ValidateDependencies() error {
@@ -46,9 +66,6 @@ func (u *CreateCollaborativeShareUseCase) ValidateRequest(req collaboration_dtos
 	if strings.TrimSpace(req.AssetCID) == "" {
 		return errors.New("asset cid is required")
 	}
-	if strings.TrimSpace(req.WrappedDEK) == "" {
-		return errors.New("wrapped dek is required")
-	}
 	return nil
 }
 
@@ -63,11 +80,59 @@ func (u *CreateCollaborativeShareUseCase) Execute(
 		return nil, err
 	}
 
-	// 1. Create and persist ShareEntry via ShareAssetWithTrustGroupUsecase
+	wrappedDEKStr := req.WrappedDEK
+	assetCIDToPersist := req.AssetCID
+
+	// If cryptoOrchestrator is injected, execute single-DEK crypto preparation
+	if u.cryptoOrchestrator != nil {
+		var rawPayload []byte
+		var err error
+
+		if u.assetResolver != nil {
+			rawPayload, err = u.assetResolver.FetchEncryptedAsset(ctx, req.AssetCID)
+			if err != nil {
+				// Fallback to raw CID bytes if fetcher does not hold CID
+				rawPayload = []byte(req.AssetCID)
+			}
+		} else {
+			rawPayload = []byte(req.AssetCID)
+		}
+
+		var keyring *vaults_domain.VaultKeyring
+		if u.identityResolver != nil {
+			keyring, _ = u.identityResolver.GetVaultKeyring(ctx, req.CreatedBy)
+		}
+
+		prepared, err := u.cryptoOrchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+			AssetID:      req.AssetCID,
+			TrustGroupID: req.TrustGroupID,
+			KEKVersion:   req.KEKVersion,
+			RawPayload:   rawPayload,
+			Keyring:      keyring,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare collaborative asset crypto: %w", err)
+		}
+
+		wrappedDEKStr = string(prepared.WrappedDEK)
+
+		// Upload prepared encrypted bytes to storage to obtain the new encrypted CID
+		if u.assetStorage != nil {
+			encCID, errUpload := u.assetStorage.Add(ctx, prepared.EncryptedData)
+			if errUpload != nil {
+				return nil, fmt.Errorf("failed to upload encrypted asset to cloud storage: %w", errUpload)
+			}
+			if encCID != "" {
+				assetCIDToPersist = encCID
+			}
+		}
+	}
+
+	// Create and persist ShareEntry via ShareAssetWithTrustGroupUsecase
 	shareEntry, err := u.shareAssetUseCase.Execute(ctx, collaboration_dtos.ShareAssetWithTrustGroupRequest{
-		AssetCID:     req.AssetCID,
+		AssetCID:     assetCIDToPersist,
 		TrustGroupID: req.TrustGroupID,
-		WrappedDEK:   req.WrappedDEK,
+		WrappedDEK:   wrappedDEKStr,
 		KEKVersion:   req.KEKVersion,
 		CreatedBy:    req.CreatedBy,
 		Metadata:     req.Metadata,
@@ -76,28 +141,7 @@ func (u *CreateCollaborativeShareUseCase) Execute(
 		return nil, fmt.Errorf("failed to create collaborative share entry: %w", err)
 	}
 
-	// 2. Attach device key envelopes to TrustGroup
-	attachedEnvelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0, len(req.Envelopes))
-	if u.addEnvelopeUseCase != nil {
-		for _, envReq := range req.Envelopes {
-			// Ensure KEKVersion and TrustGroupID are populated from the request
-			if envReq.TrustGroupID == "" {
-				envReq.TrustGroupID = req.TrustGroupID
-			}
-			if envReq.KEKVersion == 0 {
-				envReq.KEKVersion = req.KEKVersion
-			}
-
-			_, err := u.addEnvelopeUseCase.Execute(ctx, envReq)
-			if err != nil {
-				return nil, fmt.Errorf("failed to attach key envelope for device %s: %w", envReq.DeviceID, err)
-			}
-			attachedEnvelopes = append(attachedEnvelopes, envReq)
-		}
-	}
-
 	return &collaboration_dtos.CreateCollaborativeShareResponse{
 		ShareEntry: *shareEntry,
-		Envelopes:  attachedEnvelopes,
 	}, nil
 }

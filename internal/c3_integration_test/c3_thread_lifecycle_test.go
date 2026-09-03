@@ -110,7 +110,6 @@ func TestC3ThreadLifecycle_ClosedThread_HistoricalReadabilityPreserved_CreationB
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	repo.shareEntries[createResp.ShareEntry.ID] = createResp.ShareEntry

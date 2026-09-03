@@ -109,7 +109,6 @@ func TestC3Federation_MultiNode_WriteOnNodeA_ResolveOnNodeB(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	repoNodeA.shareEntries[createResp.ShareEntry.ID] = createResp.ShareEntry

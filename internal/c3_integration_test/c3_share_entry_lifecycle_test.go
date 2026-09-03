@@ -91,7 +91,6 @@ func TestC3ShareEntryLifecycle_Revoked_HistoricalThreadPreserved(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"title": "Merger Agreement"},
 	}
 
@@ -211,7 +210,6 @@ func TestC3ShareEntryLifecycle_HardDeleted_HistoricalThreadPreserved(t *testing.
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"title": "Temporary Note"},
 	}
 

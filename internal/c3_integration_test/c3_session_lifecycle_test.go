@@ -120,7 +120,6 @@ func TestC3_CollaborativeShare_CryptographicIsolation(t *testing.T) {
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   wrappedDEKStr,
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"classification": "restricted"},
 	}
 

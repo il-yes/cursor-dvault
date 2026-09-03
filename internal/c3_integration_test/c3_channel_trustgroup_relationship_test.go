@@ -303,7 +303,6 @@ func TestC3ChannelTrustGroup_CryptoFlowsUseRealTrustGroupIdentity(t *testing.T) 
 		CreatedBy:    userAliceID,
 		AssetCID:     assetCID,
 		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 	})
 	require.NoError(t, err)
 	repo.shareEntries[shareResp.ShareEntry.ID] = shareResp.ShareEntry

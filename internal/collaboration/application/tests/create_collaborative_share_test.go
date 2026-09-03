@@ -112,6 +112,16 @@ func (r *fakeDeviceResolver) GetDevice(ctx context.Context, deviceID string) (*t
 	return d, nil
 }
 
+func (r *fakeDeviceResolver) ListActiveDevices(ctx context.Context, memberID string) ([]trustgroup_ports.DeviceSummary, error) {
+	var list []trustgroup_ports.DeviceSummary
+	for _, d := range r.devices {
+		if d != nil && d.VaultID == memberID && d.IsActive {
+			list = append(list, *d)
+		}
+	}
+	return list, nil
+}
+
 func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 
@@ -206,13 +216,25 @@ func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(tgRepo, deviceResolver)
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, addEnvelopeUC)
 
+	// Add envelopes to TrustGroup via member/device provisioning phase
+	for _, envReq := range prepared.Envelopes {
+		_ = tg.AddEnvelope(trustgroup_domain.TrustGroupKeyEnvelope{
+			ID:           envReq.DeviceID,
+			TrustGroupID: envReq.TrustGroupID,
+			MemberID:     envReq.MemberID,
+			DeviceID:     envReq.DeviceID,
+			KEKVersion:   envReq.KEKVersion,
+			WrappedKEK:   envReq.WrappedKEK,
+		})
+	}
+	_, _ = tgRepo.UpdateTrustGroup(ctx, &trustgroup_domain.UpdateTrustGroupRequest{TrustGroup: *tg})
+
 	collabReq := collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: tg.ID,
 		KEKVersion:   tg.KEKVersion,
 		CreatedBy:    "user-1",
 		AssetCID:     assetCID,
 		WrappedDEK:   string(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
 		Metadata:     map[string]string{"type": "blueprint"},
 	}
 
@@ -225,9 +247,6 @@ func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	assert.Equal(t, tg.ID, collabResp.ShareEntry.TrustGroupID, "TrustGroupID must match")
 	assert.Equal(t, tg.KEKVersion, collabResp.ShareEntry.KEKVersion, "KEKVersion must match")
 	assert.Equal(t, string(prepared.WrappedDEK), collabResp.ShareEntry.WrappedDEK)
-
-	// Verify envelopes created only for active devices (laptop & mobile = 2, revoked = 0)
-	assert.Len(t, collabResp.Envelopes, 2)
 
 	// Check persisted TrustGroup state in repository
 	updatedTgResp, err := tgRepo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})

@@ -378,3 +378,121 @@ func TestResolveCollaborativeShare_ZeroSecretLeakage(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Explicit Identity Boundary Tests (IdentityID vs VaultID)
+// ---------------------------------------------------------------------------
+
+// TEST 1: IdentityID != VaultID, MemberCIDs contains VaultID, Caller resolves through session to VaultID -> AUTHORIZED
+func TestResolveCollaborativeShare_IdentityBoundary_ResolvedVaultID_Authorized(t *testing.T) {
+	f := setupResolveTestFixture(t)
+	identityID := "user_identity_bob_100"
+	vaultID := "55a0ced5-b246-477a-a3a7-abcc26b78ed8"
+	deviceID := "dev_laptop_bob"
+
+	// TrustGroup MemberCIDs contains VaultID, not IdentityID
+	f.trustGroup.MemberCIDs = []string{vaultID}
+	f.trustGroup.KeyEnvelopes[0].MemberID = vaultID
+	f.trustGroup.KeyEnvelopes[0].DeviceID = deviceID
+	f.tgRepo.groups[f.trustGroup.ID] = f.trustGroup
+	f.identityResolver.seeds[identityID] = f.kp.Seed()
+	f.identityResolver.seeds[vaultID] = f.kp.Seed()
+
+	// Request has IdentityID != VaultID, with CallerVaultID properly resolved
+	res, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:     f.shareEntry.ID,
+		CallerIdentityID: identityID,
+		CallerVaultID:    vaultID,
+		DeviceID:         deviceID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, f.rawContent, res.Plaintext)
+}
+
+// TEST 2: IdentityID != VaultID, Caller incorrectly supplied as IdentityID -> ErrUnauthorizedMember
+func TestResolveCollaborativeShare_IdentityBoundary_RawIdentityID_Unauthorized(t *testing.T) {
+	f := setupResolveTestFixture(t)
+	identityID := "user_identity_bob_100"
+	vaultID := "55a0ced5-b246-477a-a3a7-abcc26b78ed8"
+
+	// TrustGroup MemberCIDs contains VaultID
+	f.trustGroup.MemberCIDs = []string{vaultID}
+	f.tgRepo.groups[f.trustGroup.ID] = f.trustGroup
+
+	// Request incorrectly supplies IdentityID as CallerVaultID
+	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:     f.shareEntry.ID,
+		CallerIdentityID: identityID,
+		CallerVaultID:    identityID, // Incorrect: IdentityID passed into VaultID position
+		DeviceID:         "dev_laptop",
+	})
+
+	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
+	assert.Equal(t, 0, f.assetResolver.fetchCount, "SECURITY INVARIANT: Unauthorized member MUST NOT trigger asset storage retrieval")
+}
+
+// TEST 3: Caller VaultID is not a TrustGroup member -> ErrUnauthorizedMember
+func TestResolveCollaborativeShare_IdentityBoundary_NonMemberVaultID_Unauthorized(t *testing.T) {
+	f := setupResolveTestFixture(t)
+	nonMemberVaultID := "vault_unauthorized_999"
+
+	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:  f.shareEntry.ID,
+		CallerVaultID: nonMemberVaultID,
+		DeviceID:      "dev_laptop",
+	})
+
+	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
+	assert.Equal(t, 0, f.assetResolver.fetchCount, "SECURITY INVARIANT: Non-member VaultID MUST NOT trigger asset storage retrieval")
+}
+
+// TEST 4: Correct member VaultID but wrong TrustGroup -> ErrUnauthorizedMember
+func TestResolveCollaborativeShare_IdentityBoundary_WrongTrustGroup_Unauthorized(t *testing.T) {
+	f := setupResolveTestFixture(t)
+	memberVaultID := "55a0ced5-b246-477a-a3a7-abcc26b78ed8"
+
+	// Create another TrustGroup that does NOT contain memberVaultID
+	otherTG := trustgroup_domain.NewTrustGroup("ch_other", "Other Group", []string{"vault_other_only"})
+	otherTG.KEKVersion = 1
+	f.tgRepo.groups[otherTG.ID] = otherTG
+
+	// Modify share entry to point to other TrustGroup
+	wrongShareEntry := f.shareEntry
+	wrongShareEntry.ID = "se_wrong_tg"
+	wrongShareEntry.TrustGroupID = otherTG.ID
+	f.shareRepo.entries[wrongShareEntry.ID] = wrongShareEntry
+
+	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:  wrongShareEntry.ID,
+		CallerVaultID: memberVaultID,
+		DeviceID:      "dev_laptop",
+	})
+
+	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
+	assert.Equal(t, 0, f.assetResolver.fetchCount, "SECURITY INVARIANT: Wrong TrustGroup MUST NOT trigger asset storage retrieval")
+}
+
+// TEST 5: Correct member + correct TrustGroup + valid envelope -> continue past membership authorization into envelope/decryption resolution
+func TestResolveCollaborativeShare_IdentityBoundary_FullValidResolution(t *testing.T) {
+	f := setupResolveTestFixture(t)
+	memberVaultID := "55a0ced5-b246-477a-a3a7-abcc26b78ed8"
+	deviceID := "dev_laptop_valid"
+
+	f.trustGroup.MemberCIDs = []string{memberVaultID}
+	f.trustGroup.KeyEnvelopes[0].MemberID = memberVaultID
+	f.trustGroup.KeyEnvelopes[0].DeviceID = deviceID
+	f.tgRepo.groups[f.trustGroup.ID] = f.trustGroup
+	f.identityResolver.seeds[memberVaultID] = f.kp.Seed()
+
+	res, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:  f.shareEntry.ID,
+		CallerVaultID: memberVaultID,
+		DeviceID:      deviceID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, f.rawContent, res.Plaintext, "Valid member and envelope MUST proceed through decryption and return plaintext")
+}

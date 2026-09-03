@@ -164,6 +164,53 @@ export function useNotificationsEvents() {
 
   };
 
+  const handleChannelInvitationCreated = (data: any) => {
+    console.log("[C3][NOTIFICATION_TRACE][EVENT_IN] eventType=channel.invitation.created data=", data);
+
+    const invId = data.InvitationID || data.invitation_id || data.ID || data.id;
+    const channelId = data.ChannelID || data.channel_id;
+    const inviterVaultId = data.InviterVaultID || data.inviter_vault_id;
+    const inviteeVaultId = data.InviteeVaultID || data.invitee_vault_id;
+    const occurredAt = data.OccurredAt || data.occurred_at || data.CreatedAt || new Date().toISOString();
+
+    if (!invId) {
+      console.warn("[C3][NOTIFICATION_TRACE] missing invitation id, skipping notification push");
+      return;
+    }
+
+    const notificationId = `inv_${invId}`;
+    const seq = data.seq || data.sequence || Date.now();
+
+    const notification: Notification = {
+      id: notificationId,
+      user_id: currentUser?.id ?? "",
+      type: "workspace.invitation",
+      title: "Channel Invitation",
+      body: `You have been invited to join channel ${channelId || invId}`,
+      status: "unread",
+      created_at: occurredAt,
+      read_at: null,
+      sequence: seq,
+      payload: {
+        invitation_id: invId,
+        channel_id: channelId,
+        inviter_vault_id: inviterVaultId,
+        invitee_vault_id: inviteeVaultId,
+        ...data,
+      },
+    };
+
+    console.log("[C3][NOTIFICATION_TRACE][PUSH] notificationId=", notificationId, "invitationID=", invId);
+    pushNotification(notification);
+
+    toast({
+      title: notification.title,
+      description: notification.body,
+    });
+
+    console.log("[C3][NOTIFICATION_TRACE][COMPLETE] invitationID=", invId, "notificationCreated=true");
+  };
+
   useEffect(() => {
     const unsubInvitation = window.runtime?.EventsOn(
       EVENTS.SHARE_INVITATION,
@@ -185,11 +232,17 @@ export function useNotificationsEvents() {
       handleShareReadyToAccept
     );
 
+    const unsubChannelInv = window.runtime?.EventsOn(
+      "channel.invitation.created",
+      handleChannelInvitationCreated
+    );
+
     return () => {
       unsubInvitation?.();
       unsubAccepted?.();
       unsubRejected?.();
       unsubReady?.();
+      unsubChannelInv?.();
     };
   }, [pushNotification, currentUser]);
 }

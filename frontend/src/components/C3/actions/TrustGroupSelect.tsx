@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useC3ChannelStore } from "@/components/C3/infrastructure/store/useC3ChannelStore";
+import { useC3ConfigurationStore } from "@/components/C3/configuration/store/useC3ConfigurationStore";
 import { useC3WorkspaceStore } from "@/components/C3/infrastructure/store/useC3WorkspaceStore";
-import { useAuthStore } from "@/store/useAuthStore";
-import { ListChannels } from "../../../../wailsjs/go/main/App";
+import { listTrustGroups } from "@/services/api";
 
 export interface TrustGroupOption {
   id: string;
@@ -26,44 +25,49 @@ export const TrustGroupSelect: React.FC<TrustGroupSelectProps> = ({
   const [options, setOptions] = useState<TrustGroupOption[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const channels = useC3ChannelStore((state) => state.channels);
+  const trustGroupsFromStore = useC3ConfigurationStore((state) => state.trustGroups);
   const activeWorkspaceId = useC3WorkspaceStore((state) => state.activeWorkspaceId);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadTrustGroups = async () => {
+    if (!activeWorkspaceId) {
+      setOptions([]);
+      return;
+    }
+
+    const loadAuthoritativeTrustGroups = async () => {
       setLoading(true);
       try {
-        let fetchedChannels = [...channels];
+        let fetched: any[] = [...trustGroupsFromStore];
 
-        // If channel store is empty, attempt to fetch from active workspace
-        if (fetchedChannels.length === 0 && activeWorkspaceId) {
-          await useC3ChannelStore.getState().fetchChannels(activeWorkspaceId);
-          fetchedChannels = useC3ChannelStore.getState().channels;
-        }
-
-        // Fallback directly to Wails API if still empty
-        if (fetchedChannels.length === 0) {
-          const jwtToken = useAuthStore.getState().jwtToken || "";
-          if (jwtToken) {
-            const res = await ListChannels(jwtToken, activeWorkspaceId || "me");
-            if (res && Array.isArray(res)) {
-              fetchedChannels = res;
+        // Fetch trust groups directly for activeWorkspaceId without invoking channel refresh
+        if (fetched.length === 0 && activeWorkspaceId) {
+          try {
+            const raw = await listTrustGroups(activeWorkspaceId);
+            const rawArray = Array.isArray(raw) ? raw : (raw as any)?.data || (raw as any)?.Data || [];
+            if (Array.isArray(rawArray)) {
+              fetched = rawArray;
             }
+          } catch (apiErr) {
+            console.warn("[TrustGroupSelect] listTrustGroups direct API fetch failed:", apiErr);
           }
         }
 
         if (isMounted) {
-          const mapped: TrustGroupOption[] = fetchedChannels.map((ch: any) => ({
-            id: ch.id,
-            name: ch.title || `Trust Group (${ch.id})`,
-            description: ch.subtitle || "Authoritative C3 Trust Group",
-          }));
+          // Strictly map authoritative TrustGroup fields (id/ID, name/Name)
+          // NEVER map channels or mock fallback options!
+          const mapped: TrustGroupOption[] = fetched
+            .filter((tg: any) => Boolean(tg.id || tg.ID))
+            .map((tg: any) => ({
+              id: tg.id || tg.ID,
+              name: tg.name || tg.Name || `Trust Group (${tg.id || tg.ID})`,
+              description: tg.description || tg.Description || "Authoritative C3 Trust Group",
+            }));
 
           setOptions(mapped);
 
-          // Auto-select first available Trust Group if current value is empty or invalid
+          // Auto-select first available real Trust Group if current value is empty or invalid
           if (mapped.length > 0) {
             const exists = mapped.some((opt) => opt.id === value);
             if (!value || !exists) {
@@ -78,12 +82,29 @@ export const TrustGroupSelect: React.FC<TrustGroupSelectProps> = ({
       }
     };
 
-    loadTrustGroups();
+    loadAuthoritativeTrustGroups();
 
     return () => {
       isMounted = false;
     };
-  }, [channels, activeWorkspaceId]);
+  }, [trustGroupsFromStore, activeWorkspaceId]);
+
+  if (!activeWorkspaceId) {
+    return (
+      <div
+        style={{
+          padding: "8px 12px",
+          backgroundColor: "rgba(245, 158, 11, 0.08)",
+          border: "1px solid rgba(245, 158, 11, 0.3)",
+          borderRadius: "6px",
+          color: "#F59E0B",
+          fontSize: "12px",
+        }}
+      >
+        ⚠️ Select an active workspace to view Trust Groups.
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: "100%" }}>
@@ -122,7 +143,7 @@ export const TrustGroupSelect: React.FC<TrustGroupSelectProps> = ({
             fontSize: "12px",
           }}
         >
-          {loading ? "Loading authoritative Trust Groups..." : "⚠️ No Trust Groups / Channels available in current workspace."}
+          {loading ? "Loading authoritative Trust Groups..." : "⚠️ No Trust Groups available in current workspace. Please create a Trust Group in C3 Configuration first."}
         </div>
       )}
     </div>

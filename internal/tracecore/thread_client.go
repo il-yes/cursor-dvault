@@ -187,6 +187,9 @@ func (c *TracecoreClient) ListThreadEventsDirect(ctx context.Context, userID str
 }
 
 func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID string, threadID string, eventType string, payload map[string]interface{}, idempotencyKey string) (*tracecore_types.ThreadEventDTO, error) {
+	log.Printf("[THREAD][CLOUD][PERSIST] type=%s payload.ref_type=%v payload.share_entry_id=%v payload.trust_group_id=%v",
+		eventType, payload["ref_type"], payload["share_entry_id"], payload["trust_group_id"])
+	fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect sending HTTP POST /threads/%s/events payload=%+v\n", threadID, payload)
 	reqPayload := map[string]interface{}{
 		"type":      eventType,
 		"thread_id": threadID,
@@ -197,6 +200,7 @@ func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID st
 	}
 	body, err := json.Marshal(reqPayload)
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect marshal error=%v\n", err)
 		return nil, err
 	}
 
@@ -207,6 +211,7 @@ func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID st
 	url := baseURL + "/threads/" + threadID + "/events"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect new request error=%v\n", err)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -215,27 +220,34 @@ func (c *TracecoreClient) AppendThreadEventDirect(ctx context.Context, userID st
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect HTTP Do error=%v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect ReadAll error=%v\n", err)
 		return nil, err
 	}
+	log.Printf("[THREAD][CLOUD][PERSISTED] status=%d body=%s", resp.StatusCode, string(respBytes))
+	fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect Cloud response status=%d body=%s\n", resp.StatusCode, string(respBytes))
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.ThreadEventDTO]
 	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data.ID != "" {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect parsed cloudResp ID=%s\n", cloudResp.Data.ID)
 		return &cloudResp.Data, nil
 	}
 
 	var evt tracecore_types.ThreadEventDTO
 	if err := json.Unmarshal(respBytes, &evt); err == nil && evt.ID != "" {
+		fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect parsed bare DTO ID=%s\n", evt.ID)
 		return &evt, nil
 	}
 
+	fmt.Printf("[APPEND][STEP=07] TracecoreClient.AppendThreadEventDirect unexpected response shape\n")
 	return nil, fmt.Errorf("unexpected response shape from Cloud POST /api/threads/%s/events: %s", threadID, string(respBytes))
 }

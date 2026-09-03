@@ -114,6 +114,7 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
 
     try {
       if (actionMode === "normal") {
+        console.log(`[APPEND][STEP=01] AppendThreadEventModal submit normal event: activeThreadId=${activeThreadId} selectedEntryId=${selectedEntryId}`);
         // Standard Append Thread Event
         const newEvent = await appendThreadEvent({
           thread_id: activeThreadId,
@@ -129,6 +130,7 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
         setSuccessMsg("✓ Normal Event appended to timeline.");
         if (onEventAppended) onEventAppended(newEvent);
       } else if (actionMode === "c3_share") {
+        console.log(`[APPEND][STEP=01] AppendThreadEventModal submit c3_share: activeThreadId=${activeThreadId} trustGroupId=${trustGroupId} selectedEntryId=${selectedEntryId}`);
         // Create Collaborative C3 Share
         if (!trustGroupId) {
           setError("Please select a Trust Group.");

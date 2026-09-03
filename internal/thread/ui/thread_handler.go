@@ -113,15 +113,18 @@ func (h *ThreadHandler) AppendThreadEvent(
 	eventType string,
 	payload thread_domain.EventResourceRef,
 ) (*tracecore_types.ThreadEventDTO, error) {
+	fmt.Printf("[APPEND][STEP=04] ThreadHandler.AppendThreadEvent enter threadID=%s eventType=%s refType=%s shareEntryID=%s trustGroupID=%s\n", threadID, eventType, payload.RefType, payload.ShareEntryID, payload.TrustGroupID)
 	if h.appendEventUseCase == nil {
+		fmt.Printf("[APPEND][STEP=04] ThreadHandler.AppendThreadEvent error: appendEventUseCase nil\n")
 		return nil, fmt.Errorf("append thread event use case is not initialized")
 	}
 
 	evt, err := h.appendEventUseCase.Execute(ctx, threadID, eventType, payload)
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=04] ThreadHandler.AppendThreadEvent execute error=%v\n", err)
 		return nil, err
 	}
-
+	fmt.Printf("[APPEND][STEP=04] ThreadHandler.AppendThreadEvent success eventID=%s\n", evt.ID)
 	return toTracecoreThreadEventDTO(evt), nil
 }
 
@@ -157,12 +160,39 @@ func toTracecoreThreadEventDTO(evt *thread_domain.ThreadEvent) *tracecore_types.
 			"trust_group_id": evt.Payload.TrustGroupID,
 		}
 	} else if evt.Payload.CID != "" || evt.Payload.AssetType != "" || evt.Payload.RefType == thread_domain.ResourceStorageAsset {
+		refTypeStr := string(evt.Payload.RefType)
+		if refTypeStr == "" {
+			refTypeStr = string(thread_domain.ResourceStorageAsset)
+		}
 		payloadMap = map[string]any{
-			"ref_type":     string(evt.Payload.RefType),
+			"ref_type":     refTypeStr,
 			"cid":          evt.Payload.CID,
 			"content_hash": evt.Payload.ContentHash,
 			"size":         evt.Payload.Size,
 			"asset_type":   evt.Payload.AssetType,
+		}
+	} else {
+		payloadMap = map[string]any{}
+		if evt.Payload.RefType != "" {
+			payloadMap["ref_type"] = string(evt.Payload.RefType)
+		}
+		if evt.Payload.ShareEntryID != "" {
+			payloadMap["share_entry_id"] = evt.Payload.ShareEntryID
+		}
+		if evt.Payload.TrustGroupID != "" {
+			payloadMap["trust_group_id"] = evt.Payload.TrustGroupID
+		}
+		if evt.Payload.CID != "" {
+			payloadMap["cid"] = evt.Payload.CID
+		}
+		if evt.Payload.ContentHash != "" {
+			payloadMap["content_hash"] = evt.Payload.ContentHash
+		}
+		if evt.Payload.Size != 0 {
+			payloadMap["size"] = evt.Payload.Size
+		}
+		if evt.Payload.AssetType != "" {
+			payloadMap["asset_type"] = evt.Payload.AssetType
 		}
 	}
 

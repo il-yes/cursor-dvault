@@ -101,6 +101,8 @@ import (
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
+	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	workspace_usecase "vault-app/internal/workspace/application/usecases"
 	workspace_infrastructure_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
 	workspace_ui "vault-app/internal/workspace/ui"
@@ -636,11 +638,31 @@ func NewApp() *App {
 	// implements both trustgroup_domain.TrustGroupRepository and
 	// c3_asset_domain.ShareEntryRepository against /api/trustgroups and
 	// /api/c3/share-entries).
-	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, tracecore.NewCloudShareEntryRepository(tracecoreClient))
+	cloudShareRepo := tracecore.NewCloudShareEntryRepository(tracecoreClient)
+	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, cloudShareRepo)
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetWithTrustGroupUC, nil)
+
+	cloudAssetResolver := collaboration_infra.NewCloudAssetContentResolver(tracecoreClient)
+	var keyringSvc *vault_infrastructure_security.KeyringService
+	if vaultHandler != nil {
+		keyringSvc = vaultHandler.KeyringService
+	}
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(
+		cloudShareRepo,
+		tracecoreClient,
+		cloudAssetResolver,
+		identityResolver,
+		cryptoOrchestrator,
+	)
+
 	actionRepo := collaboration_infra.NewMemoryActionRepository()
 	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
-	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, nil, appendThreadEventUC, actionUseCases)
+	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC, actionUseCases)
 	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, trustgroup_infrastructure_eventbus.NewMemoryBus())
 
 	application := &App{
@@ -3497,6 +3519,8 @@ func (a *App) ListTrustGroups(JwtToken string, workspaceID string) ([]trustgroup
 		return nil, fmt.Errorf("tracecore client is not initialized")
 	}
 
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][17] layer=WAILS_HANDLER file=app.go function=App.ListTrustGroups input.workspaceID=%s status=CALLING_TRACECORE_CLIENT\n", workspaceID)
+
 	resp, err := a.tracecoreClient.ListTrustGroups(a.ctx, &trustgroup_domain.ListTrustGroupsRequest{ChannelID: workspaceID})
 	if err != nil {
 		return nil, err
@@ -3526,21 +3550,27 @@ func (a *App) CreateTrustGroup(JwtToken string, workspaceID string, name string)
 }
 
 // AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
-func (a *App) AddTrustGroupMember(JwtToken string, trustGroupID string, channelID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+func (a *App) AddTrustGroupMember(JwtToken string, trustGroupID string, vaultID string, role string) (*trustgroup_domain.TrustGroup, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	_ = claims
+
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][03] layer=WAILS_HANDLER file=app.go function=App.AddTrustGroupMember input.trustGroupID=%s input.vaultID=%s input.role=%s callerID=%s\n", trustGroupID, vaultID, role, claims.UserID)
+	log.Printf("[TRUSTGROUP][WAILS_ADD] trustGroupID=%s vaultID=%s role=%s callerID=%s", trustGroupID, vaultID, role, claims.UserID)
 
 	if a.addTrustGroupMemberUC == nil {
 		return nil, fmt.Errorf("add trust group member usecase is not initialized")
 	}
 
+	if role == "" {
+		role = "member"
+	}
+
 	req := trustgroup_dtos.AddMemberToTrustGroupRequest{
 		TrustGroupID: trustGroupID,
-		ChannelID:    channelID,
-		MemberID:     memberID,
+		VaultID:      vaultID,
+		Role:         role,
 	}
 
 	return a.addTrustGroupMemberUC.Execute(a.ctx, req)
@@ -3693,7 +3723,18 @@ func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, de
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
-	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, shareEntryID, deviceID)
+
+	var callerVaultID string
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(claims.UserID); err == nil && session != nil && session.Runtime != nil {
+			callerVaultID = session.Runtime.VaultID
+		}
+	}
+	if callerVaultID == "" {
+		callerVaultID = claims.UserID
+	}
+
+	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, callerVaultID, shareEntryID, deviceID)
 }
 
 func (a *App) GetShareEntry(JwtToken string, shareEntryID string) (*c3_asset_domain.ShareEntry, error) {

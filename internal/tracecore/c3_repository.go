@@ -188,14 +188,17 @@ func (c *TracecoreClient) ListThreadEvents(ctx context.Context, req *thread_doma
 }
 
 func (c *TracecoreClient) AppendThreadEvent(ctx context.Context, req *thread_domain.AppendThreadEventRequest) (*tracecore_types.CloudResponse[thread_domain.ThreadEvent], error) {
+	fmt.Printf("[APPEND][STEP=06] TracecoreClient.AppendThreadEvent enter threadID=%s eventType=%s key=%s\n", req.ThreadID, req.EventType, req.IdempotencyKey)
 	payload := eventResourceRefToPayload(req.Payload)
 
 	dto, err := c.AppendThreadEventDirect(ctx, "me", req.ThreadID, req.EventType, payload, req.IdempotencyKey)
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=06] TracecoreClient.AppendThreadEvent AppendThreadEventDirect error=%v\n", err)
 		return nil, fmt.Errorf("cloud append thread event failed: %w", err)
 	}
 
 	domainEvent := mapThreadEventDTO(*dto)
+	fmt.Printf("[APPEND][STEP=06] TracecoreClient.AppendThreadEvent success domainEventID=%s\n", domainEvent.ID)
 
 	return &tracecore_types.CloudResponse[thread_domain.ThreadEvent]{
 		Status:  200,
@@ -211,8 +214,10 @@ func eventResourceRefToPayload(ref thread_domain.EventResourceRef) map[string]in
 	payload := map[string]interface{}{}
 	if ref.RefType != "" {
 		payload["ref_type"] = string(ref.RefType)
+	} else if ref.ShareEntryID != "" {
+		payload["ref_type"] = string(thread_domain.ResourceShareEntry)
 	}
-	if ref.RefType == thread_domain.ResourceShareEntry {
+	if ref.ShareEntryID != "" || ref.RefType == thread_domain.ResourceShareEntry {
 		if ref.ShareEntryID != "" {
 			payload["share_entry_id"] = ref.ShareEntryID
 		}
@@ -296,12 +301,37 @@ func payloadToEventResourceRef(payload map[string]any) thread_domain.EventResour
 		ref.RefType = thread_domain.ResourceType(rt)
 	}
 
-	// ShareEntry fields
-	if v, ok := payload["share_entry_id"].(string); ok {
+	// ShareEntry fields (support top-level and nested share_entry_ref/resource_ref/share_id/entry_id)
+	if v, ok := payload["share_entry_id"].(string); ok && v != "" {
+		ref.ShareEntryID = v
+	} else if sub, ok := payload["share_entry_ref"].(map[string]any); ok {
+		if v, ok := sub["share_entry_id"].(string); ok && v != "" {
+			ref.ShareEntryID = v
+		}
+		if v, ok := sub["trust_group_id"].(string); ok && v != "" && ref.TrustGroupID == "" {
+			ref.TrustGroupID = v
+		}
+	} else if sub, ok := payload["resource_ref"].(map[string]any); ok {
+		if v, ok := sub["share_entry_id"].(string); ok && v != "" {
+			ref.ShareEntryID = v
+		}
+		if v, ok := sub["trust_group_id"].(string); ok && v != "" && ref.TrustGroupID == "" {
+			ref.TrustGroupID = v
+		}
+	} else if v, ok := payload["share_id"].(string); ok && v != "" {
+		ref.ShareEntryID = v
+	} else if v, ok := payload["entry_id"].(string); ok && v != "" {
 		ref.ShareEntryID = v
 	}
-	if v, ok := payload["trust_group_id"].(string); ok {
-		ref.TrustGroupID = v
+
+	if ref.TrustGroupID == "" {
+		if v, ok := payload["trust_group_id"].(string); ok && v != "" {
+			ref.TrustGroupID = v
+		}
+	}
+
+	if ref.ShareEntryID != "" && ref.RefType == "" {
+		ref.RefType = thread_domain.ResourceShareEntry
 	}
 
 	// C3 Action fields

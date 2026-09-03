@@ -15,8 +15,9 @@ type GetTrustGroupMemberRequest struct {
 	MemberID     string
 }
 type AddMemberToTrustGroupRequest struct {
-	TrustGroupID string
-	MemberID     string
+	TrustGroupID string `json:"-"`
+	VaultID      string `json:"vault_id"`
+	Role         string `json:"role"`
 }
 type RemoveMemberFromTrustGroupRequest struct {
 	TrustGroupID string

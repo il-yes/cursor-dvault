@@ -489,3 +489,25 @@ func TestCreateThread_EmptySubtitle_EventPublishedWithCorrectContext(t *testing.
 	assert.Equal(t, "card", event.AssetType)
 	assert.False(t, event.Timestamp.IsZero())
 }
+
+func TestAppendThreadEvent_EntryShared_EmptyIDs_Rejected(t *testing.T) {
+	uc := thread_usecase.NewAppendThreadEventUsecase(&stubThreadRepo{})
+
+	// Case 1: Empty ShareEntryID -> rejected
+	_, err := uc.Execute(context.Background(), "th_123", "entry.shared", thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: "",
+		TrustGroupID: "tg_valid",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "requires a non-empty share_entry_id")
+
+	// Case 2: Empty TrustGroupID -> rejected
+	_, err = uc.Execute(context.Background(), "th_123", "entry.shared", thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: "se_valid",
+		TrustGroupID: "",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "requires a non-empty trust_group_id")
+}

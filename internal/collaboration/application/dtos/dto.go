@@ -32,9 +32,11 @@ type CreateCollaborativeShareResponse struct {
 }
 
 type ResolveCollaborativeShareRequest struct {
-	ShareEntryID string `json:"share_entry_id"`
-	CallerUserID string `json:"caller_user_id"`
-	DeviceID     string `json:"device_id"`
+	ShareEntryID     string `json:"share_entry_id"`
+	CallerIdentityID string `json:"caller_identity_id,omitempty"`
+	CallerVaultID    string `json:"caller_vault_id"`
+	CallerUserID     string `json:"caller_user_id,omitempty"`
+	DeviceID         string `json:"device_id"`
 }
 
 type ResolveCollaborativeShareResponse struct {

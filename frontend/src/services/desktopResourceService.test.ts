@@ -91,4 +91,26 @@ describe("DesktopResourceService & Plaintext Resolution", () => {
       })
     ).rejects.toThrow("This device is not authorized to access this resource");
   });
+
+  it("passes authoritative local sovereign device ID and NOT default_desktop_device", async () => {
+    vi.mocked(AppAPI.ResolveCollaborativeShare).mockResolvedValueOnce({
+      share_entry_id: "se_authoritative_999",
+      trust_group_id: "tg_authoritative_999",
+      created_by: "user_alice",
+      created_at: "2026-09-01T12:00:00Z",
+      plaintext: "test payload",
+    } as any);
+
+    await desktopResourceService.openResource({
+      refType: "share_entry",
+      shareEntryId: "se_authoritative_999",
+      trustGroupId: "tg_authoritative_999",
+    });
+
+    expect(AppAPI.ResolveCollaborativeShare).toHaveBeenCalledWith(
+      "test_jwt_token_123",
+      "se_authoritative_999",
+      expect.not.stringMatching("default_desktop_device")
+    );
+  });
 });

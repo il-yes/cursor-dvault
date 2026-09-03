@@ -50,6 +50,7 @@ export interface C3ChannelState {
 	inviteToChannel: (channelId: string, payload: InviteToChannelPayload) => Promise<ChannelInvitationResponse>;
 	acceptInvitation: (invitationId: string) => Promise<ChannelInvitationResponse>;
 	setInvitationsChannel: (channelId: string) => void;
+	handleRealtimeInvitationCreated: (payload: any) => void;
 	clearChannels: () => void;
 }
 
@@ -420,4 +421,35 @@ export const useC3ChannelStore = create<C3ChannelState>((set, get) => ({
 			invitationsError: null,
 		});
 	},
+
+	handleRealtimeInvitationCreated: (event: any) => {
+		console.log("[C3][FRONTEND] invitation store updated via realtime event:", event);
+		const inv = {
+			id: event.InvitationID || event.invitation_id || event.ID || event.id,
+			channel_id: event.ChannelID || event.channel_id,
+			inviter_vault_id: event.InviterVaultID || event.inviter_vault_id,
+			invitee_vault_id: event.InviteeVaultID || event.invitee_vault_id,
+			status: event.Status || event.status || "pending",
+			created_at: event.OccurredAt || event.occurred_at || event.CreatedAt || new Date().toISOString(),
+		};
+
+		if (!inv.id || !inv.channel_id) return;
+
+		set((state) => {
+			const existing = state.invitations.some((i) => i.id === inv.id);
+			return {
+				invitations: existing
+					? state.invitations.map((i) => (i.id === inv.id ? { ...i, ...inv } : i))
+					: [...state.invitations, inv as ChannelInvitationResponse],
+			};
+		});
+	},
 }));
+
+if (typeof window !== "undefined" && (window as any).runtime?.EventsOn) {
+	(window as any).runtime.EventsOn("channel.invitation.created", (data: any) => {
+		console.log("[C3][FRONTEND] channel.invitation.created event received", data);
+		useC3ChannelStore.getState().handleRealtimeInvitationCreated(data);
+	});
+}
+

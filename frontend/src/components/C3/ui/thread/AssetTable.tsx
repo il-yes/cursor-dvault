@@ -367,6 +367,8 @@ import { SharedEntry } from "@/types/sharing";
 import { getShareEntry, C3ShareEntryResponse } from "@/services/api";
 import { C3ResourceCard } from "@/components/C3/C3ResourceCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ParticipantsPanel } from "../channel/ParticipantsPanel";
+import { InvitationsPanel } from "../channel/InvitationsPanel";
 
 export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Channel | null, asset: ThreadAssetViewInterface, hasConflict: boolean }) {
     const hasC3Extension = true;
@@ -410,6 +412,8 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
             setIsResolvingC3Share(false);
         }
     };
+
+    events.length > 0 ? console.log(events) : null
 
     return (
         <div className="detail-panel">
@@ -647,6 +651,29 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                     {!hasC3Extension && <EmptyC3Extension />}
                     {hasC3Extension && <WithC3Extension />}
                 </div>}
+
+                {/* ACCESS & MEMBERSHIP (Add Participant vs Add Member) */}
+                {(asset?.channelId || channel?.id) && (
+                    <div className="dp-section">
+                        <div className="dp-section-title">
+                            Thread Access & Membership
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                            <div style={{ padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", backgroundColor: "#f9fafb" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1f2937", marginBottom: "6px" }}>
+                                    👤 Channel Participation ("Add Participant")
+                                </div>
+                                <ParticipantsPanel channelId={asset?.channelId || channel?.id || ""} />
+                            </div>
+                            <div style={{ padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", backgroundColor: "#f9fafb" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1f2937", marginBottom: "6px" }}>
+                                    🛡️ TrustGroup & Member Invitations ("Add Member")
+                                </div>
+                                <InvitationsPanel channelId={asset?.channelId || channel?.id || ""} />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ACTIONS */}

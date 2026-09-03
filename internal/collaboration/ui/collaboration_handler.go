@@ -126,7 +126,7 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 
 func (h *CollaborationHandler) ResolveCollaborativeShare(
 	ctx context.Context,
-	userID string,
+	callerVaultID string,
 	shareEntryID string,
 	deviceID string,
 ) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
@@ -135,9 +135,10 @@ func (h *CollaborationHandler) ResolveCollaborativeShare(
 	}
 
 	req := collaboration_dtos.ResolveCollaborativeShareRequest{
-		ShareEntryID: shareEntryID,
-		CallerUserID: userID,
-		DeviceID:     deviceID,
+		ShareEntryID:  shareEntryID,
+		CallerVaultID: callerVaultID,
+		CallerUserID:  callerVaultID,
+		DeviceID:      deviceID,
 	}
 
 	return h.resolveCollabShareUC.Execute(ctx, req)

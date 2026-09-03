@@ -899,6 +899,8 @@ func (c *TracecoreClient) InviteToChannel(ctx context.Context, req *channel_doma
 		return nil, fmt.Errorf("read body failed: %w", err)
 	}
 
+	fmt.Printf("[C3][INVITE][HTTP_RESPONSE] POST /channels/%s/invitations STATUS=%d BODY=%s\n", req.ChannelID, resp.StatusCode, string(respBytes))
+
 	// Surface the Cloud/domain outcome verbatim. The Cloud remains
 	// authoritative for the invitation decision.
 	if resp.StatusCode >= 400 {
@@ -987,6 +989,8 @@ func (c *TracecoreClient) AcceptChannelInvitation(ctx context.Context, req *chan
 	if err != nil {
 		return nil, fmt.Errorf("read body failed: %w", err)
 	}
+
+	fmt.Printf("[C3][INVITE][HTTP_RESPONSE] POST /channels/invitations/%s/accept STATUS=%d BODY=%s\n", req.InvitationID, resp.StatusCode, string(respBytes))
 
 	// Surface the Cloud/domain outcome (e.g. "invitation not for you", "record
 	// not found") verbatim. The Cloud remains authoritative for the accept.

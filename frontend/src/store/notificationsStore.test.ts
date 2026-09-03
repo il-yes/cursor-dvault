@@ -99,4 +99,85 @@ describe("notificationsStore - acceptWorkspaceInvitation", () => {
 		expect(restored.read_at).toBeNull();
 		expect(useNotificationsStore.getState().error).toBe("Failed to accept workspace invitation");
 	});
+
+	it("deduplicates notifications when same item id is pushed twice", () => {
+		const notification1: Notification = {
+			id: "inv_97090042",
+			sequence: 100,
+			user_id: "user-123",
+			type: "workspace.invitation",
+			title: "Channel Invitation",
+			body: "You have been invited to join channel c9fdacfb",
+			status: "unread",
+			created_at: new Date().toISOString(),
+			read_at: null,
+			payload: { invitation_id: "97090042", channel_id: "c9fdacfb" },
+		};
+
+		useNotificationsStore.getState().pushNotification(notification1);
+		expect(useNotificationsStore.getState().notifications.length).toBe(1);
+
+		// Replay exact same notification
+		useNotificationsStore.getState().pushNotification(notification1);
+		expect(useNotificationsStore.getState().notifications.length).toBe(1);
+	});
+
+	it("correctly adapts real channel.invitation.created payload and passes exact invitation_id on accept click", async () => {
+		const rawRealtimePayload = {
+			InvitationID: "real_inv_uuid_777888",
+			ChannelID: "c9fdacfb-d3da-45a4-9c94-c18923dfd781",
+			WorkspaceID: "ws_legal_deal_room_99",
+			InviterVaultID: "v_alice_123",
+			InviteeVaultID: "v_bob_456",
+			OccurredAt: "2026-09-02T11:17:47.520519-07:00",
+		};
+
+		const invId = rawRealtimePayload.InvitationID;
+		const notification: Notification = {
+			id: `inv_${invId}`,
+			user_id: "user_bob_123",
+			type: "workspace.invitation",
+			title: "Channel Invitation",
+			body: `You have been invited to join channel ${rawRealtimePayload.ChannelID}`,
+			status: "unread",
+			created_at: rawRealtimePayload.OccurredAt,
+			read_at: null,
+			sequence: 1001,
+			payload: {
+				invitation_id: invId,
+				channel_id: rawRealtimePayload.ChannelID,
+				inviter_vault_id: rawRealtimePayload.InviterVaultID,
+				invitee_vault_id: rawRealtimePayload.InviteeVaultID,
+				...rawRealtimePayload,
+			},
+		};
+
+		// 1. Push notification
+		useNotificationsStore.getState().pushNotification(notification);
+
+		const items = useNotificationsStore.getState().notifications;
+		expect(items.length).toBe(1);
+		expect(items[0].id).toBe("inv_real_inv_uuid_777888");
+		expect(items[0].type).toBe("workspace.invitation");
+		expect(items[0].status).toBe("unread");
+		expect(items[0].payload?.invitation_id).toBe("real_inv_uuid_777888");
+
+		// 2. Replay duplicate event delivery
+		useNotificationsStore.getState().pushNotification(notification);
+		expect(useNotificationsStore.getState().notifications.length).toBe(1);
+
+		// 3. User clicks Accept button
+		vi.mocked(api.acceptChannelInvitation).mockResolvedValueOnce({
+			id: invId,
+			channel_id: rawRealtimePayload.ChannelID,
+			inviter_vault_id: rawRealtimePayload.InviterVaultID,
+			invitee_vault_id: rawRealtimePayload.InviteeVaultID,
+			status: "accepted",
+			created_at: new Date().toISOString(),
+		});
+
+		await useNotificationsStore.getState().acceptWorkspaceInvitation(items[0]);
+		expect(api.acceptChannelInvitation).toHaveBeenCalledWith("real_inv_uuid_777888");
+		expect(useNotificationsStore.getState().notifications[0].status).toBe("read");
+	});
 });

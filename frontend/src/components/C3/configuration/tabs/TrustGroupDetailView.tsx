@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { C3TrustGroupSummary } from "../domain/configuration";
 import { useC3ConfigurationStore } from "../store/useC3ConfigurationStore";
-import { Shield, Users, Smartphone, KeyRound, Radio, History, ArrowLeft, CheckCircle2, AlertTriangle, Edit3, Trash2, Check, X } from "lucide-react";
+import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { addTrustGroupMember, removeTrustGroupMember } from "@/services/api";
+import { InvitationsPanel } from "../../ui/channel/InvitationsPanel";
+import { Shield, Users, Smartphone, KeyRound, Radio, History, ArrowLeft, CheckCircle2, AlertTriangle, Edit3, Trash2, Check, X, UserPlus } from "lucide-react";
 
 interface TrustGroupDetailViewProps {
   trustGroup: C3TrustGroupSummary;
@@ -21,6 +24,89 @@ export const TrustGroupDetailView: React.FC<TrustGroupDetailViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [newMemberId, setNewMemberId] = useState("");
+
+  const activeChannelId = useC3ChannelStore((state) => state.activeChannelId);
+  const targetChannelId = trustGroup.associatedChannelIds?.[0] || activeChannelId || "contract-execution";
+  const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+  const [addingMemberError, setAddingMemberError] = useState<string | null>(null);
+
+  const handleAddMember = async () => {
+    const memberId = newMemberId.trim();
+    if (!memberId || isSubmittingMember) return;
+
+    setIsSubmittingMember(true);
+    setAddingMemberError(null);
+
+    try {
+      console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][01] layer=DESKTOP_UI file=frontend/src/components/C3/configuration/tabs/TrustGroupDetailView.tsx function=handleAddMember input.trustGroupID=${trustGroup.id} input.vaultID=${memberId} input.role=member`);
+      console.log(`[TRUSTGROUP][UI_ADD] trustGroupID=${trustGroup.id} vaultID=${memberId} role=member`);
+      const resp = await addTrustGroupMember(trustGroup.id, memberId, "member");
+
+      const updatedTg = resp?.data || resp?.Data || resp;
+      const memberCids: string[] = updatedTg?.member_cids || updatedTg?.MemberCIDs || [];
+
+      const newMemberObj = {
+        id: `usr_${memberId}`,
+        identityName: memberId,
+        role: "member" as const,
+        status: "active" as const,
+        deviceCount: 1,
+        joinedAt: new Date().toISOString(),
+      };
+
+      useC3ConfigurationStore.setState((state) => ({
+        trustGroups: state.trustGroups.map((group) => {
+          if (group.id !== trustGroup.id) return group;
+          const existing = group.members || [];
+          const alreadyExists = existing.some((m) => m.identityName === memberId || m.id === memberId);
+          const updatedMembers = alreadyExists ? existing : [...existing, newMemberObj];
+          return {
+            ...group,
+            memberCount: memberCids.length > 0 ? memberCids.length : updatedMembers.length,
+            members: updatedMembers,
+          };
+        }),
+      }));
+
+      try {
+        console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][14] layer=DESKTOP_READBACK_TRIGGER file=frontend/src/components/C3/configuration/tabs/TrustGroupDetailView.tsx function=handleAddMember event=loadConfiguration() status=STARTING_READBACK`);
+        await useC3ConfigurationStore.getState().loadConfiguration();
+      } catch (reloadErr) {
+        console.warn("[TrustGroupDetailView] loadConfiguration reload failed after member add:", reloadErr);
+      }
+
+      setNewMemberId("");
+      setIsAddingMember(false);
+    } catch (err: any) {
+      console.error("[TrustGroupDetailView] Failed to add member to TrustGroup:", err);
+      setAddingMemberError(err?.message || "Failed to add member to TrustGroup.");
+    } finally {
+      setIsSubmittingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!window.confirm(`Are you sure you want to remove member "${memberId}" from Trust Group "${trustGroup.name}"?`)) return;
+    try {
+      await removeTrustGroupMember(trustGroup.id, memberId);
+      useC3ConfigurationStore.setState((state) => ({
+        trustGroups: state.trustGroups.map((group) => {
+          if (group.id !== trustGroup.id) return group;
+          const updatedMembers = (group.members || []).filter((m) => m.id !== memberId && m.identityName !== memberId);
+          return {
+            ...group,
+            memberCount: updatedMembers.length,
+            members: updatedMembers,
+          };
+        }),
+      }));
+    } catch (err: any) {
+      setSaveError(err?.message || "Failed to remove member.");
+    }
+  };
 
   const { updateTrustGroup, deleteTrustGroup } = useC3ConfigurationStore();
 
@@ -249,38 +335,108 @@ export const TrustGroupDetailView: React.FC<TrustGroupDetailViewProps> = ({
       )}
 
       {activeSubTab === "members" && (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <th className="py-3 px-4">Identity</th>
-                <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Devices</th>
-                <th className="py-3 px-4">Joined</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-xs">
-              {trustGroup.members.map((m) => (
-                <tr key={m.id} className="hover:bg-muted/50 transition-colors">
-                  <td className="py-3 px-4 font-medium text-foreground">
-                    <div>{m.identityName}</div>
-                    {m.email && <div className="text-[11px] text-muted-foreground">{m.email}</div>}
-                  </td>
-                  <td className="py-3 px-4 text-foreground capitalize">{m.role}</td>
-                  <td className="py-3 px-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {m.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-foreground font-mono">{m.deviceCount}</td>
-                  <td className="py-3 px-4 text-muted-foreground font-mono">
-                    {new Date(m.joinedAt).toLocaleDateString()}
-                  </td>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/20">
+            <div>
+              <div className="text-xs font-semibold text-foreground">Add Trust Group Member</div>
+              <div className="text-[11px] text-muted-foreground">Grant sovereign TrustGroup membership to an identity.</div>
+            </div>
+            {isAddingMember ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="vault_identity_id"
+                  value={newMemberId}
+                  onChange={(e) => setNewMemberId(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddMember();
+                    if (e.key === "Escape") setIsAddingMember(false);
+                  }}
+                  disabled={isSubmittingMember}
+                  autoFocus
+                  className="px-3 py-1.5 border border-[#C8922A] text-foreground bg-transparent rounded text-xs outline-none focus:ring-1 focus:ring-[#C8922A] w-48"
+                />
+                <button
+                  onClick={handleAddMember}
+                  disabled={isSubmittingMember || !newMemberId.trim()}
+                  className="px-3 py-1.5 bg-[#C8922A] text-white rounded text-xs font-semibold hover:bg-[#b07e22] transition-colors disabled:opacity-50"
+                >
+                  {isSubmittingMember ? "Adding..." : "+ Add"}
+                </button>
+                <button
+                  onClick={() => setIsAddingMember(false)}
+                  disabled={isSubmittingMember}
+                  className="px-2.5 py-1.5 border border-border text-muted-foreground rounded text-xs hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAddingMember(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C8922A] text-white rounded text-xs font-semibold hover:bg-[#b07e22] transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Add Member
+              </button>
+            )}
+          </div>
+
+          {addingMemberError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-md text-xs">
+              ⚠️ {addingMemberError}
+            </div>
+          )}
+
+          <div className="border border-border rounded-lg overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="py-3 px-4">Identity</th>
+                  <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Devices</th>
+                  <th className="py-3 px-4">Joined</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border text-xs">
+                {trustGroup.members.map((m) => (
+                  <tr key={m.id} className="hover:bg-muted/50 transition-colors">
+                    <td className="py-3 px-4 font-medium text-foreground">
+                      <div>{m.identityName}</div>
+                      {m.email && <div className="text-[11px] text-muted-foreground">{m.email}</div>}
+                    </td>
+                    <td className="py-3 px-4 text-foreground capitalize">{m.role}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        {m.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-foreground font-mono">{m.deviceCount}</td>
+                    <td className="py-3 px-4 text-muted-foreground font-mono">
+                      {new Date(m.joinedAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() => handleRemoveMember(m.id || m.identityName)}
+                        className="text-red-400 hover:text-red-300 font-medium text-[11px]"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {targetChannelId && (
+            <div className="pt-2 border-t border-border">
+              <div className="text-xs font-semibold text-foreground mb-2">Trust Group Member Invitations</div>
+              <InvitationsPanel channelId={targetChannelId} />
+            </div>
+          )}
         </div>
       )}
 

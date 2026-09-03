@@ -13,6 +13,25 @@ interface ThreadEventTimelineProps {
 	onOpenAppendModal: () => void;
 }
 
+export function extractThreadEventResourceRef(evt: any) {
+	const payload = evt.payload ?? (evt as { Payload?: Record<string, unknown> }).Payload ?? {};
+	const shareRef = (payload.share_entry_ref as any) || evt.share_entry_ref || {
+		share_entry_id: payload.share_entry_id,
+		trust_group_id: payload.trust_group_id,
+		asset_cid: payload.asset_cid,
+		created_by: payload.created_by,
+		status: payload.status || "active",
+	};
+
+	return {
+		refType: String(payload.ref_type || payload.refType || "share_entry"),
+		shareEntryId: shareRef.share_entry_id ? String(shareRef.share_entry_id) : undefined,
+		trustGroupId: shareRef.trust_group_id ? String(shareRef.trust_group_id) : undefined,
+		cid: shareRef.asset_cid ? String(shareRef.asset_cid) : undefined,
+		author: shareRef.created_by ? String(shareRef.created_by) : undefined,
+	};
+}
+
 export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 	events,
 	isLoading,
@@ -214,141 +233,142 @@ export const ThreadEventTimeline: React.FC<ThreadEventTimelineProps> = ({
 								</div>
 
 								{/* Payload details if safe metadata exists */}
-								{evt.payload && Object.keys(evt.payload).length > 0 && (
-									<div
-										style={{
-											marginTop: "8px",
-											padding: "8px 10px",
-											backgroundColor: "#161B22",
-											border: "1px solid rgba(255, 255, 255, 0.06)",
-											borderRadius: "4px",
-											fontSize: "12px",
-											color: "#C9D1D9",
-											display: "flex",
-											flexDirection: "column",
-											gap: "6px",
-										}}
-									>
-										{evt.payload.notes && (
-											<div>
-												<span style={{ color: "#8B949E" }}>Note:</span> {evt.payload.notes}
-											</div>
-										)}
+								{(() => {
+									const payload = evt.payload ?? (evt as { Payload?: Record<string, unknown> }).Payload ?? {};
+									if (Object.keys(payload).length === 0) return null;
 
-										{/* Safe PayloadRef Reference Metadata Card */}
-										{(evt.payload.payload_ref || evt.payload_ref || evt.payload.cid) && (() => {
-											const ref = evt.payload.payload_ref || evt.payload_ref || {
-												cid: evt.payload.cid,
-												content_hash: evt.payload.content_hash,
-												size: evt.payload.size,
-												name: evt.payload.name,
-											};
-
-											const formattedSize = ref.size
-												? (ref.size / 1024 / 1024).toFixed(2) + " MB"
-												: "Unknown size";
-
-											return (
-												<div
-													style={{
-														marginTop: "4px",
-														padding: "8px",
-														backgroundColor: "rgba(37, 99, 235, 0.08)",
-														border: "1px solid rgba(37, 99, 235, 0.2)",
-														borderRadius: "4px",
-														display: "flex",
-														flexDirection: "column",
-														gap: "4px",
-														fontSize: "11px",
-													}}
-												>
-													<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-														<strong style={{ color: "#58A6FF" }}>
-															📦 PayloadRef: {ref.name || "Asset Reference"}
-														</strong>
-														<span style={{ color: "#8B949E" }}>{formattedSize}</span>
-													</div>
-													{ref.cid && (
-														<div style={{ fontFamily: "monospace", color: "#C9D1D9", wordBreak: "break-all" }}>
-															<span style={{ color: "#8B949E" }}>CID:</span> {ref.cid}
-														</div>
-													)}
-													{ref.content_hash && (
-														<div style={{ fontFamily: "monospace", color: "#8B949E", wordBreak: "break-all", fontSize: "10px" }}>
-															SHA-256: {ref.content_hash}
-														</div>
-													)}
+									return (
+										<div
+											style={{
+												marginTop: "8px",
+												padding: "8px 10px",
+												backgroundColor: "#161B22",
+												border: "1px solid rgba(255, 255, 255, 0.06)",
+												borderRadius: "4px",
+												fontSize: "12px",
+												color: "#C9D1D9",
+												display: "flex",
+												flexDirection: "column",
+												gap: "6px",
+											}}
+										>
+											{payload.notes && (
+												<div>
+													<span style={{ color: "#8B949E" }}>Note:</span> {String(payload.notes)}
 												</div>
-											);
-										})()}
+											)}
 
-										{/* Safe ShareEntry Collaboration Reference Card with Interactive Open Action */}
-										{(evt.payload.share_entry_ref || evt.share_entry_ref || evt.payload.share_entry_id) && (() => {
-											const shareRef = evt.payload.share_entry_ref || evt.share_entry_ref || {
-												share_entry_id: evt.payload.share_entry_id,
-												trust_group_id: evt.payload.trust_group_id,
-												asset_cid: evt.payload.asset_cid,
-												created_by: evt.payload.created_by,
-												status: evt.payload.status || "active",
-											};
+											{/* Safe PayloadRef Reference Metadata Card */}
+											{(payload.payload_ref || evt.payload_ref || payload.cid) && (() => {
+												const ref = (payload.payload_ref as any) || evt.payload_ref || {
+													cid: payload.cid,
+													content_hash: payload.content_hash,
+													size: payload.size,
+													name: payload.name,
+												};
 
-											return (
-												<C3ResourceCard
-													refType={evt.payload.ref_type || "share_entry"}
-													shareEntryId={shareRef.share_entry_id}
-													trustGroupId={shareRef.trust_group_id}
-													cid={shareRef.asset_cid}
-													author={shareRef.created_by}
-													createdAt={evt.created_at}
-												/>
-											);
-										})()}
+												const formattedSize = ref.size
+													? (ref.size / 1024 / 1024).toFixed(2) + " MB"
+													: "Unknown size";
 
-										{/* Safe TrustGroup Governance Context Card */}
-										{(evt.payload.trust_group_ref || evt.trust_group_ref || evt.payload.trust_group_id) && (() => {
-											const tgRef = evt.payload.trust_group_ref || evt.trust_group_ref || {
-												id: evt.payload.trust_group_id,
-												name: evt.payload.trust_group_name || "TrustGroup Governance",
-												status: evt.payload.status || "active",
-												member_count: evt.payload.member_count || (evt.payload.members ? evt.payload.members.length : 1),
-												members: evt.payload.members,
-											};
-
-											return (
-												<div
-													style={{
-														marginTop: "4px",
-														padding: "8px",
-														backgroundColor: "rgba(124, 58, 237, 0.08)",
-														border: "1px solid rgba(124, 58, 237, 0.2)",
-														borderRadius: "4px",
-														display: "flex",
-														flexDirection: "column",
-														gap: "4px",
-														fontSize: "11px",
-													}}
-												>
-													<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-														<strong style={{ color: "#A78BFA" }}>
-															🛡️ TrustGroup: {tgRef.name || tgRef.id}
-														</strong>
-														<span style={{ color: "#8B949E", fontSize: "10px" }}>
-															{tgRef.member_count || 1} Member(s)
-														</span>
-													</div>
-													<div style={{ fontFamily: "monospace", color: "#C9D1D9" }}>
-														<span style={{ color: "#8B949E" }}>ID:</span> {tgRef.id}
-													</div>
-													{tgRef.members && tgRef.members.length > 0 && (
-														<div style={{ color: "#8B949E", fontSize: "10px", marginTop: "2px" }}>
-															Vaults: {tgRef.members.map((m: any) => m.vault_id || m).join(", ")}
+												return (
+													<div
+														style={{
+															marginTop: "4px",
+															padding: "8px",
+															backgroundColor: "rgba(37, 99, 235, 0.08)",
+															border: "1px solid rgba(37, 99, 235, 0.2)",
+															borderRadius: "4px",
+															display: "flex",
+															flexDirection: "column",
+															gap: "4px",
+															fontSize: "11px",
+														}}
+													>
+														<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+															<strong style={{ color: "#58A6FF" }}>
+																📦 PayloadRef: {ref.name || "Asset Reference"}
+															</strong>
+															<span style={{ color: "#8B949E" }}>{formattedSize}</span>
 														</div>
-													)}
-												</div>
-											);
-										})()}
-									</div>
-								)}
+														{ref.cid && (
+															<div style={{ fontFamily: "monospace", color: "#C9D1D9", wordBreak: "break-all" }}>
+																<span style={{ color: "#8B949E" }}>CID:</span> {ref.cid}
+															</div>
+														)}
+														{ref.content_hash && (
+															<div style={{ fontFamily: "monospace", color: "#8B949E", wordBreak: "break-all", fontSize: "10px" }}>
+																SHA-256: {ref.content_hash}
+															</div>
+														)}
+													</div>
+												);
+											})()}
+
+											{/* Safe ShareEntry Collaboration Reference Card with Interactive Open Action */}
+											{(payload.share_entry_ref || evt.share_entry_ref || payload.share_entry_id || payload.ref_type === "share_entry" || evt.type === "entry.shared") && (() => {
+												const resRef = extractThreadEventResourceRef(evt);
+
+												console.log(`[C3][READ] refType=${resRef.refType} shareEntryID=${resRef.shareEntryId} trustGroupID=${resRef.trustGroupId}`);
+
+												return (
+													<C3ResourceCard
+														refType={resRef.refType}
+														shareEntryId={resRef.shareEntryId}
+														trustGroupId={resRef.trustGroupId}
+														cid={resRef.cid}
+														author={resRef.author}
+														createdAt={evt.created_at}
+													/>
+												);
+											})()}
+
+											{/* Safe TrustGroup Governance Context Card */}
+											{(payload.trust_group_ref || evt.trust_group_ref || payload.trust_group_id) && (() => {
+												const tgRef = (payload.trust_group_ref as any) || evt.trust_group_ref || {
+													id: payload.trust_group_id,
+													name: payload.trust_group_name || "TrustGroup Governance",
+													status: payload.status || "active",
+													member_count: payload.member_count || (payload.members ? (payload.members as any[]).length : 1),
+													members: payload.members,
+												};
+
+												return (
+													<div
+														style={{
+															marginTop: "4px",
+															padding: "8px",
+															backgroundColor: "rgba(124, 58, 237, 0.08)",
+															border: "1px solid rgba(124, 58, 237, 0.2)",
+															borderRadius: "4px",
+															display: "flex",
+															flexDirection: "column",
+															gap: "4px",
+															fontSize: "11px",
+														}}
+													>
+														<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+															<strong style={{ color: "#A78BFA" }}>
+																🛡️ TrustGroup: {tgRef.name || tgRef.id}
+															</strong>
+															<span style={{ color: "#8B949E", fontSize: "10px" }}>
+																{tgRef.member_count || 1} Member(s)
+															</span>
+														</div>
+														<div style={{ fontFamily: "monospace", color: "#C9D1D9" }}>
+															<span style={{ color: "#8B949E" }}>ID:</span> {tgRef.id}
+														</div>
+														{tgRef.members && tgRef.members.length > 0 && (
+															<div style={{ color: "#8B949E", fontSize: "10px", marginTop: "2px" }}>
+																Vaults: {tgRef.members.map((m: any) => m.vault_id || m).join(", ")}
+															</div>
+														)}
+													</div>
+												);
+											})()}
+										</div>
+									);
+								})()}
 							</div>
 						</div>
 					))}

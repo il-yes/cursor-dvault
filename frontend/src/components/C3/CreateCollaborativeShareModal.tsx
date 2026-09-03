@@ -3,6 +3,7 @@ import { useC3WorkspaceStore } from "@/components/C3/infrastructure/store/useC3W
 import { useC3ChannelStore } from "@/components/C3/infrastructure/store/useC3ChannelStore";
 import { useC3ThreadStore } from "@/components/C3/infrastructure/store/useC3ThreadStore";
 import { useC3CollaborationStore } from "@/components/C3/infrastructure/store/useC3CollaborationStore";
+import { TrustGroupSelect } from "./actions/TrustGroupSelect";
 import { ShareEntryRefResponse } from "@/services/api";
 
 interface CreateCollaborativeShareModalProps {
@@ -21,7 +22,7 @@ export const CreateCollaborativeShareModal: React.FC<CreateCollaborativeShareMod
 	const { activeThread, activeThreadId } = useC3ThreadStore();
 	const { createShare, isLoading, error } = useC3CollaborationStore();
 
-	const [trustGroupId, setTrustGroupId] = useState("tg_legal_counsel");
+	const [trustGroupId, setTrustGroupId] = useState("");
 	const [targetVaultId, setTargetVaultId] = useState("vault_partner_02");
 	const [assetCid, setAssetCid] = useState("QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco");
 	const [notes, setNotes] = useState("");
@@ -30,7 +31,7 @@ export const CreateCollaborativeShareModal: React.FC<CreateCollaborativeShareMod
 	if (!isOpen) return null;
 
 	const handleReset = () => {
-		setTrustGroupId("tg_legal_counsel");
+		setTrustGroupId("");
 		setTargetVaultId("vault_partner_02");
 		setAssetCid("QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco");
 		setNotes("");
@@ -53,7 +54,12 @@ export const CreateCollaborativeShareModal: React.FC<CreateCollaborativeShareMod
 		}
 
 		if (!trustGroupId.trim()) {
-			setLocalError("TrustGroup ID is required.");
+			setLocalError("TrustGroup is required. Please select an authoritative TrustGroup.");
+			return;
+		}
+
+		if (trustGroupId.startsWith("mock_") || trustGroupId === "tg_legal_counsel" || trustGroupId === "tg_finance") {
+			setLocalError("Mock TrustGroup IDs are rejected. Please select an authoritative persisted TrustGroup.");
 			return;
 		}
 
@@ -191,28 +197,15 @@ export const CreateCollaborativeShareModal: React.FC<CreateCollaborativeShareMod
 						</div>
 					</div>
 
-					{/* TrustGroup ID Field */}
+					{/* TrustGroup Selection Field */}
 					<div>
 						<label style={{ display: "block", fontSize: "12px", color: "#8B949E", marginBottom: "6px" }}>
-							TrustGroup ID *
+							TrustGroup *
 						</label>
-						<input
-							type="text"
-							placeholder="tg_legal_counsel"
+						<TrustGroupSelect
 							value={trustGroupId}
-							onChange={(e) => setTrustGroupId(e.target.value)}
+							onChange={setTrustGroupId}
 							disabled={isLoading}
-							style={{
-								width: "100%",
-								padding: "8px 12px",
-								backgroundColor: "#0D1117",
-								border: "1px solid #30363D",
-								borderRadius: "6px",
-								color: "#F0F6FC",
-								fontSize: "13px",
-								fontFamily: "monospace",
-								boxSizing: "border-box",
-							}}
 						/>
 					</div>
 

@@ -3,6 +3,7 @@ package c3_integration_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/stellar/go/keypair"
@@ -476,4 +477,229 @@ func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
 	assert.Error(t, err, "Revoked/Unknown device MUST be denied decryption")
 	assert.Nil(t, aliceOldDeviceResolved)
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
+}
+
+func TestC3EntryShared_RealCloudPayloadShape_Regression(t *testing.T) {
+	// Test 1: JSON payload with nested share_entry_ref unmarshals into EventResourceRef
+	nestedJSON := `{"share_entry_ref":{"share_entry_id":"se_real_cloud_999","trust_group_id":"tg_real_cloud_111"}}`
+	var ref1 thread_domain.EventResourceRef
+	err := json.Unmarshal([]byte(nestedJSON), &ref1)
+	require.NoError(t, err)
+	assert.Equal(t, "se_real_cloud_999", ref1.ShareEntryID)
+	assert.Equal(t, "tg_real_cloud_111", ref1.TrustGroupID)
+	assert.Equal(t, thread_domain.ResourceShareEntry, ref1.RefType)
+
+	// Test 2: JSON payload with nested resource_ref unmarshals into EventResourceRef
+	resourceRefJSON := `{"resource_ref":{"share_entry_id":"se_real_cloud_888","trust_group_id":"tg_real_cloud_222"}}`
+	var ref2 thread_domain.EventResourceRef
+	err = json.Unmarshal([]byte(resourceRefJSON), &ref2)
+	require.NoError(t, err)
+	assert.Equal(t, "se_real_cloud_888", ref2.ShareEntryID)
+	assert.Equal(t, "tg_real_cloud_222", ref2.TrustGroupID)
+	assert.Equal(t, thread_domain.ResourceShareEntry, ref2.RefType)
+
+	// Test 3: JSON payload with share_id unmarshals into EventResourceRef
+	shareIDJSON := `{"share_id":"se_real_cloud_777","trust_group_id":"tg_real_cloud_333"}`
+	var ref3 thread_domain.EventResourceRef
+	err = json.Unmarshal([]byte(shareIDJSON), &ref3)
+	require.NoError(t, err)
+	assert.Equal(t, "se_real_cloud_777", ref3.ShareEntryID)
+	assert.Equal(t, "tg_real_cloud_333", ref3.TrustGroupID)
+
+	// Test 4: JSON payload with entry_id unmarshals into EventResourceRef
+	entryIDJSON := `{"entry_id":"se_real_cloud_666"}`
+	var ref4 thread_domain.EventResourceRef
+	err = json.Unmarshal([]byte(entryIDJSON), &ref4)
+	require.NoError(t, err)
+	assert.Equal(t, "se_real_cloud_666", ref4.ShareEntryID)
+}
+
+func TestC3WritePath_CreateCollaborativeShare_AppendsValidEventRef(t *testing.T) {
+	ctx := context.Background()
+	repo := newRoundTripRepo()
+
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(nil, aesSvc, asymSvc)
+
+	userAliceID := "user_alice_writer"
+
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+
+	repo.seeds[userAliceID] = kpAlice.Seed()
+	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "v_alice"}
+
+	tg := trustgroup_domain.NewTrustGroup("ch_write_path_test", "Write Path Group", []string{userAliceID})
+	tg.KEKVersion = 1
+	repo.trustGroups[tg.ID] = *tg
+
+	thread := thread_domain.NewThread("ch_write_path_test", "contract", "Write Path Thread", "")
+	_, err = repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thread})
+	require.NoError(t, err)
+
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(repo, repo)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, repo, repo, orchestrator)
+	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(repo)
+
+	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC)
+
+	// Execute REAL CreateCollaborativeShare operation on CollaborationHandler (which triggers AppendThreadEvent)
+	shareRefDTO, err := collabHandler.CreateCollaborativeShare(
+		ctx,
+		userAliceID,
+		thread.ID,
+		tg.ID,
+		"bafybeirealwritepathcid2026",
+		"target_v_bob",
+		"Production write path test",
+		"d3JhcHBlZF9kZWtfYmFzZTY0",
+		1,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, shareRefDTO)
+
+	// Assertions on returned ShareEntryRefDTO
+	require.NotEmpty(t, shareRefDTO.ShareEntryID, "createdShareEntry.ID MUST NOT be empty")
+	require.NotEmpty(t, shareRefDTO.TrustGroupID, "createdShareEntry.TrustGroupID MUST NOT be empty")
+	assert.Equal(t, tg.ID, shareRefDTO.TrustGroupID)
+
+	// Retrieve actual appended thread events
+	events, err := listThreadEventsUC.Execute(ctx, thread.ID)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "Creation MUST append exactly 1 event")
+
+	appendedEvt := events[0]
+	assert.Equal(t, "entry.shared", string(appendedEvt.Type))
+	assert.Equal(t, shareRefDTO.ShareEntryID, appendedEvt.Payload.ShareEntryID, "Appended event ShareEntryID MUST match created ShareEntry ID")
+	assert.Equal(t, shareRefDTO.TrustGroupID, appendedEvt.Payload.TrustGroupID, "Appended event TrustGroupID MUST match created TrustGroup ID")
+	assert.Equal(t, thread_domain.ResourceShareEntry, appendedEvt.Payload.RefType, "RefType MUST be share_entry")
+}
+
+func TestC3WritePath_MockTrustGroupID_Rejected_RealTrustGroup_Accepted(t *testing.T) {
+	ctx := context.Background()
+	repo := newRoundTripRepo()
+
+	userAliceID := "user_alice_tg_test"
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+	repo.seeds[userAliceID] = kpAlice.Seed()
+	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "v_alice"}
+
+	// 1. Create a REAL TrustGroup via TrustGroup domain API
+	realTG := trustgroup_domain.NewTrustGroup("ch_tg_real_test", "Real Persisted Group", []string{userAliceID})
+	realTG.KEKVersion = 1
+	repo.trustGroups[realTG.ID] = *realTG
+
+	thread := thread_domain.NewThread("ch_tg_real_test", "contract", "TG Real Thread", "")
+	_, err = repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thread})
+	require.NoError(t, err)
+
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(repo, repo)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendThreadEventUC)
+
+	// 2. Attempt CreateCollaborativeShare with MOCK / non-existent TrustGroup IDs -> MUST FAIL
+	mockTrustGroupIDs := []string{"tg_legal_counsel", "tg_finance", "mock_group_123", "ch_tg_real_test"}
+	for _, mockID := range mockTrustGroupIDs {
+		_, err := collabHandler.CreateCollaborativeShare(
+			ctx,
+			userAliceID,
+			thread.ID,
+			mockID,
+			"bafybeicidmocktg",
+			"v_target",
+			"Attempt with mock TrustGroup",
+			"d3JhcHBlZA==",
+			1,
+		)
+		assert.Error(t, err, "Creation MUST fail when TrustGroupID '%s' is not an authoritative persisted TrustGroup", mockID)
+	}
+
+	// 3. Attempt CreateCollaborativeShare with REAL persisted TrustGroup ID -> MUST SUCCEED
+	shareRefDTO, err := collabHandler.CreateCollaborativeShare(
+		ctx,
+		userAliceID,
+		thread.ID,
+		realTG.ID,
+		"bafybeicidrealtg",
+		"v_target",
+		"Attempt with real TrustGroup",
+		"d3JhcHBlZA==",
+		1,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, shareRefDTO)
+	assert.Equal(t, realTG.ID, shareRefDTO.TrustGroupID, "Returned TrustGroupID MUST match real persisted TrustGroup ID unchanged")
+}
+
+func TestC3EntryShared_CloudContract_POST_GET_RoundTrip(t *testing.T) {
+	ctx := context.Background()
+	repo := newRoundTripRepo()
+
+	thread := thread_domain.NewThread("ch_cloud_contract", "contract", "Contract Event Roundtrip", "")
+	_, err := repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thread})
+	require.NoError(t, err)
+
+	appendUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	listUC := thread_usecase.NewListThreadEventsUsecase(repo)
+
+	// 1. POST entry.shared event using exact payload shape: share_entry_id + trust_group_id
+	const expectedShareID = "22081c47-29e5-4b03-bd1e-626d3f6f87e3"
+	const expectedTrustGroupID = "ffc46329-6b01-4259-a101-22b6ccd48251"
+
+	refPayload := thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: expectedShareID,
+		TrustGroupID: expectedTrustGroupID,
+	}
+
+	appended, err := appendUC.Execute(ctx, thread.ID, "entry.shared", refPayload)
+	require.NoError(t, err)
+	require.NotNil(t, appended)
+
+	// Verify appended event domain representation
+	assert.Equal(t, thread_domain.ResourceShareEntry, appended.Payload.RefType)
+	assert.Equal(t, expectedShareID, appended.Payload.ShareEntryID)
+	assert.Equal(t, expectedTrustGroupID, appended.Payload.TrustGroupID)
+
+	// 2. GET /ListThreadEvents -> verify authoritative persistence round-trip
+	events, err := listUC.Execute(ctx, thread.ID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+
+	fetchedEvent := events[0]
+	assert.Equal(t, string(thread_domain.EventEntryShared), string(fetchedEvent.Type))
+	assert.Equal(t, thread_domain.ResourceShareEntry, fetchedEvent.Payload.RefType)
+	assert.Equal(t, expectedShareID, fetchedEvent.Payload.ShareEntryID, "share_entry_id MUST survive POST -> persistence -> GET round trip")
+	assert.Equal(t, expectedTrustGroupID, fetchedEvent.Payload.TrustGroupID, "trust_group_id MUST survive POST -> persistence -> GET round trip")
+
+	// 3. POST storage_asset event -> verify storage assets continue to use CID / ContentHash / Size
+	storagePayload := thread_domain.EventResourceRef{
+		RefType:     thread_domain.ResourceStorageAsset,
+		CID:         "bafybeistorageasset2026",
+		ContentHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		Size:        2048,
+		AssetType:   "document",
+	}
+
+	appendedStorage, err := appendUC.Execute(ctx, thread.ID, "asset.created", storagePayload)
+	require.NoError(t, err)
+	require.NotNil(t, appendedStorage)
+
+	assert.Equal(t, thread_domain.ResourceStorageAsset, appendedStorage.Payload.RefType)
+	assert.Equal(t, "bafybeistorageasset2026", appendedStorage.Payload.CID)
+	assert.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", appendedStorage.Payload.ContentHash)
+	assert.Equal(t, int64(2048), appendedStorage.Payload.Size)
+
+	// Verify all events via GET
+	allEvents, err := listUC.Execute(ctx, thread.ID)
+	require.NoError(t, err)
+	require.Len(t, allEvents, 2)
+
+	assert.Equal(t, expectedShareID, allEvents[0].Payload.ShareEntryID)
+	assert.Equal(t, "bafybeistorageasset2026", allEvents[1].Payload.CID)
 }

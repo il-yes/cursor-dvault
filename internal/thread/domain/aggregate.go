@@ -1,6 +1,7 @@
 package thread_domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,6 +98,53 @@ type EventResourceRef struct {
 	ResourceIDVal      string `json:"resource_id,omitempty"`
 	SourceEventID      string `json:"source_event_id,omitempty"`
 	TargetTrustGroupID string `json:"target_trust_group_id,omitempty"`
+}
+
+func (r *EventResourceRef) UnmarshalJSON(data []byte) error {
+	type Alias EventResourceRef
+	var aux struct {
+		Alias
+		ShareEntryRef *struct {
+			ShareEntryID string `json:"share_entry_id"`
+			TrustGroupID string `json:"trust_group_id"`
+		} `json:"share_entry_ref"`
+		ResourceRef *struct {
+			ShareEntryID string `json:"share_entry_id"`
+			TrustGroupID string `json:"trust_group_id"`
+		} `json:"resource_ref"`
+		ShareID string `json:"share_id"`
+		EntryID string `json:"entry_id"`
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*r = EventResourceRef(aux.Alias)
+
+	if r.ShareEntryID == "" {
+		if aux.ShareEntryRef != nil && aux.ShareEntryRef.ShareEntryID != "" {
+			r.ShareEntryID = aux.ShareEntryRef.ShareEntryID
+			if r.TrustGroupID == "" && aux.ShareEntryRef.TrustGroupID != "" {
+				r.TrustGroupID = aux.ShareEntryRef.TrustGroupID
+			}
+		} else if aux.ResourceRef != nil && aux.ResourceRef.ShareEntryID != "" {
+			r.ShareEntryID = aux.ResourceRef.ShareEntryID
+			if r.TrustGroupID == "" && aux.ResourceRef.TrustGroupID != "" {
+				r.TrustGroupID = aux.ResourceRef.TrustGroupID
+			}
+		} else if aux.ShareID != "" {
+			r.ShareEntryID = aux.ShareID
+		} else if aux.EntryID != "" {
+			r.ShareEntryID = aux.EntryID
+		}
+	}
+
+	if r.ShareEntryID != "" && r.RefType == "" {
+		r.RefType = ResourceShareEntry
+	}
+
+	return nil
 }
 
 type ThreadEvent struct {

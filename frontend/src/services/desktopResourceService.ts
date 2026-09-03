@@ -6,6 +6,7 @@
  */
 
 import { useAuthStore } from "@/store/useAuthStore";
+import { useC3ConfigurationStore } from "@/components/C3/configuration/store/useC3ConfigurationStore";
 import * as AppAPI from "../../wailsjs/go/main/App";
 
 export type ResourceKind = "share_entry" | "storage_asset";
@@ -55,9 +56,14 @@ class DesktopResourceService {
    */
   async openResource(input: ResourceRefInput): Promise<OpenedResourceResult> {
     const jwtToken = useAuthStore.getState().jwtToken;
-    const deviceId = input.deviceId || (typeof localStorage !== "undefined" ? localStorage.getItem("device_id") : null) || "default_desktop_device";
+    const localDeviceIdFromStore = useC3ConfigurationStore.getState().securityState?.localDeviceId;
+    const deviceId = input.deviceId ||
+      localDeviceIdFromStore ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("device_id") : null) ||
+      "dev_local_01";
 
     if (input.refType === "share_entry" && input.shareEntryId) {
+      console.log(`[C3][READ] Dispatching ResolveCollaborativeShare shareEntryID=${input.shareEntryId} deviceID=${deviceId}`);
       try {
         const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
         
@@ -79,7 +85,8 @@ class DesktopResourceService {
           metadata: response.metadata || {},
           kind: "share_entry",
         };
-      } catch (err) {
+      } catch (err: any) {
+        console.error("[C3][READ][ERROR] ResolveCollaborativeShare failed:", err?.message || err);
         throw new Error(translateResourceError(err));
       }
     } else if (input.refType === "storage_asset" && input.shareEntryId) {

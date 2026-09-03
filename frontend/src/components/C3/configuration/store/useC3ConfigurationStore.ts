@@ -23,6 +23,7 @@ import {
   deleteTrustGroup as deleteTrustGroupApi,
 } from "@/services/api";
 import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { useC3WorkspaceStore } from "../../infrastructure/store/useC3WorkspaceStore";
 
 export type C3ConfigurationTab =
   | "overview"
@@ -306,40 +307,67 @@ export const useC3ConfigurationStore = create<C3ConfigurationState>((set, get) =
 
         let trustGroupsFromBackend: C3TrustGroupSummary[] = [];
         try {
-          const rawGroups = await listTrustGroups(activeChannel.workspace_id || "");
+          const activeWsId = useC3WorkspaceStore.getState().activeWorkspaceId || useC3WorkspaceStore.getState().activeWorkspace?.id || activeChannel?.workspace_id || "";
+          console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][15] layer=FRONTEND_STORE file=frontend/src/components/C3/configuration/store/useC3ConfigurationStore.ts function=loadConfiguration operation=listTrustGroups activeWsId=${activeWsId}`);
+          const rawGroups = await listTrustGroups(activeWsId);
           const groupsArray = Array.isArray(rawGroups) ? rawGroups : (rawGroups as any)?.data || (rawGroups as any)?.Data || [];
           if (Array.isArray(groupsArray)) {
-            trustGroupsFromBackend = groupsArray.map((tg: any) => ({
-              id: tg.id || tg.ID,
-              name: tg.name || tg.Name || "Unnamed Trust Group",
-              description: tg.description || tg.Description || "Sovereign Trust Group",
-              memberCount: (tg.member_cids || tg.MemberCIDs || tg.members || []).length,
-              deviceCount: (tg.devices || []).length || 1,
-              status: "active",
-              kekVersion: tg.kek_version || tg.KEKVersion || 1,
-              createdDate: tg.created_at || tg.CreatedAt || new Date().toISOString(),
-              associatedChannelIds: activeChannel?.id ? [activeChannel.id] : [],
-              members: (tg.key_envelopes || tg.KeyEnvelopes || []).map((env: any) => ({
-                id: env.id || env.ID || env.member_id,
-                identityName: env.member_id || env.MemberID || "vault_member",
-                role: "member",
-                status: env.revoked_at ? "revoked" : "active",
-                deviceCount: 1,
-                joinedAt: env.created_at || new Date().toISOString(),
-              })),
-              devices: [],
-              cryptographicState: {
+            trustGroupsFromBackend = groupsArray.map((tg: any) => {
+              const memberCidsList = tg.member_cids || tg.MemberCIDs;
+              const deserializedMembers = (() => {
+                if (Array.isArray(memberCidsList) && memberCidsList.length > 0) {
+                  return memberCidsList.map((cidItem: any) => {
+                    const cidStr = typeof cidItem === "string" ? cidItem : (cidItem.id || cidItem.ID || cidItem.member_id || cidItem.MemberID || "vault_member");
+                    return {
+                      id: cidStr,
+                      identityName: cidStr,
+                      role: "member" as const,
+                      status: "active" as const,
+                      deviceCount: 1,
+                      joinedAt: tg.created_at || tg.CreatedAt || new Date().toISOString(),
+                    };
+                  });
+                }
+                const rawList = tg.members || tg.Members || tg.key_envelopes || tg.KeyEnvelopes || [];
+                return rawList.map((env: any) => ({
+                  id: typeof env === "string" ? env : (env.id || env.ID || env.member_id || env.MemberID || "usr_member"),
+                  identityName: typeof env === "string" ? env : (env.identityName || env.member_id || env.MemberID || env.id || env.ID || "vault_member"),
+                  role: typeof env === "string" ? "member" : (env.role || "member"),
+                  status: typeof env === "string" ? "active" : (env.status || (env.revoked_at ? "revoked" : "active")),
+                  deviceCount: typeof env === "string" ? 1 : (env.deviceCount || 1),
+                  joinedAt: typeof env === "string" ? new Date().toISOString() : (env.joinedAt || env.created_at || env.CreatedAt || new Date().toISOString()),
+                }));
+              })();
+
+              console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][24] layer=DESKTOP_DESERIALIZATION file=frontend/src/components/C3/configuration/store/useC3ConfigurationStore.ts function=loadConfiguration input.member_cids=${JSON.stringify(memberCidsList)} output.members.length=${deserializedMembers.length}`);
+
+              return {
+                id: tg.id || tg.ID,
+                name: tg.name || tg.Name || "Unnamed Trust Group",
+                description: tg.description || tg.Description || "Sovereign Trust Group",
+                memberCount: deserializedMembers.length,
+                deviceCount: (tg.devices || []).length || 1,
+                status: "active",
                 kekVersion: tg.kek_version || tg.KEKVersion || 1,
-                envelopeCount: (tg.key_envelopes || tg.KeyEnvelopes || []).length || 1,
-                activeEnvelopes: (tg.key_envelopes || tg.KeyEnvelopes || []).length || 1,
-                revokedEnvelopes: 0,
-                lastRotation: tg.created_at || tg.CreatedAt || new Date().toISOString(),
-              },
-            }));
+                createdDate: tg.created_at || tg.CreatedAt || new Date().toISOString(),
+                associatedChannelIds: activeChannel?.id ? [activeChannel.id] : [],
+                members: deserializedMembers,
+                devices: [],
+                cryptographicState: {
+                  kekVersion: tg.kek_version || tg.KEKVersion || 1,
+                  envelopeCount: (tg.key_envelopes || tg.KeyEnvelopes || []).length || 1,
+                  activeEnvelopes: (tg.key_envelopes || tg.KeyEnvelopes || []).length || 1,
+                  revokedEnvelopes: 0,
+                  lastRotation: tg.created_at || tg.CreatedAt || new Date().toISOString(),
+                },
+              };
+            });
           }
         } catch (tgErr) {
           console.warn("[C3_STORE] Failed to fetch trust groups from backend, preserving empty list:", tgErr);
         }
+
+        console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][25] layer=ZUSTAND_STORE file=frontend/src/components/C3/configuration/store/useC3ConfigurationStore.ts function=loadConfiguration output.trustGroupsCount=${trustGroupsFromBackend.length}`);
 
         console.log(`[C3_SLOTS_SOURCE]\nsource=LOAD_CONFIGURATION_BACKEND\nchannelId=${activeChannel.id}\nslotsCount=${slotsFromBackend.length}\nslots=${JSON.stringify(slotsFromBackend)}`);
 
@@ -567,8 +595,12 @@ export const useC3ConfigurationStore = create<C3ConfigurationState>((set, get) =
   createTrustGroup: async ({ name, description }) => {
     set({ isLoading: true, error: null });
     try {
+      const activeWsId = useC3WorkspaceStore.getState().activeWorkspaceId || useC3WorkspaceStore.getState().activeWorkspace?.id;
       const orig = get().originalChannel;
-      const workspaceId = orig?.workspace_id || "default_workspace";
+      const workspaceId = activeWsId || orig?.workspace_id || "";
+      if (!workspaceId) {
+        throw new Error("Cannot create Trust Group: no active workspace selected.");
+      }
       const res = await createTrustGroupApi(name.trim(), workspaceId);
       const tgData = res?.data || res?.Data || res;
 

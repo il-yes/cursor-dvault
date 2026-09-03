@@ -75,6 +75,10 @@ func (c *TracecoreClient) GetTrustGroup(ctx context.Context, req *trustgroup_dom
 		return nil, fmt.Errorf("trust group not found: %s", req.TrustGroupID)
 	}
 
+	memberCount := len(cloudResp.Data.MemberCIDs)
+	memberCIDsStr := strings.Join(cloudResp.Data.MemberCIDs, ", ")
+	fmt.Printf("[C3][MEMBERSHIP][LOAD] trustGroupID=%s memberCount=%d MemberCIDs=[%s]\n", req.TrustGroupID, memberCount, memberCIDsStr)
+
 	return &cloudResp, nil
 }
 
@@ -162,10 +166,12 @@ func (c *TracecoreClient) GetTrustGroupMember(ctx context.Context, req *trustgro
 
 // ListTrustGroups fetches all trust groups from GET /api/trustgroups.
 func (c *TracecoreClient) ListTrustGroups(ctx context.Context, req *trustgroup_domain.ListTrustGroupsRequest) (*tracecore_types.CloudResponse[[]trustgroup_domain.TrustGroup], error) {
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][18] layer=CLOUD_CLIENT file=internal/tracecore/c3_cloud_repository.go function=TracecoreClient.ListTrustGroups input.ChannelID=%s\n", req.ChannelID)
 	url := c.getCloudBaseURL() + "/trustgroups"
 	if req != nil && req.ChannelID != "" {
 		url += "?workspace_id=" + req.ChannelID
 	}
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][19] layer=HTTP_REQUEST method=GET path=%s status=SENDING\n", url)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -193,6 +199,12 @@ func (c *TracecoreClient) ListTrustGroups(ctx context.Context, req *trustgroup_d
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		return nil, fmt.Errorf("failed to decode trust groups list response: %w", err)
 	}
+
+	totalMembers := 0
+	for _, tg := range cloudResp.Data {
+		totalMembers += len(tg.MemberCIDs)
+	}
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][23] layer=HTTP_RESPONSE status=%d trustGroupCount=%d totalMembers=%d payload=%s\n", resp.StatusCode, len(cloudResp.Data), totalMembers, string(respBytes))
 
 	return &cloudResp, nil
 }
@@ -278,6 +290,14 @@ func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustg
 	if req == nil || req.TrustGroupID == "" {
 		return nil, fmt.Errorf("trust group id is required")
 	}
+	if req.VaultID == "" {
+		return nil, fmt.Errorf("vault id is required")
+	}
+	if req.Role == "" {
+		req.Role = "member"
+	}
+
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][05] layer=CLOUD_CLIENT file=internal/tracecore/c3_cloud_repository.go function=TracecoreClient.AddMemberToTrustGroup input.TrustGroupID=%s input.VaultID=%s input.Role=%s\n", req.TrustGroupID, req.VaultID, req.Role)
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -285,6 +305,8 @@ func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustg
 	}
 
 	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroupID + "/members"
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][06] layer=HTTP_REQUEST method=POST path=%s payload=%s\n", url, string(body))
+	log.Printf("[C3][MEMBERSHIP][HTTP_REQUEST] trustGroupID=%s vaultID=%s role=%s payload=%s", req.TrustGroupID, req.VaultID, req.Role, string(body))
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -312,6 +334,10 @@ func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustg
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
 	}
+
+	memberCount := len(cloudResp.Data.MemberCIDs)
+	memberCIDsStr := strings.Join(cloudResp.Data.MemberCIDs, ", ")
+	fmt.Printf("[C3][MEMBERSHIP][PERSIST] AddMemberToTrustGroup trustGroupID=%s memberCount=%d MemberCIDs=[%s]\n", req.TrustGroupID, memberCount, memberCIDsStr)
 
 	return &cloudResp, nil
 }

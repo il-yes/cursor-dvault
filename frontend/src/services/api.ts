@@ -1689,6 +1689,7 @@ export async function listTrustGroups(workspaceId?: string): Promise<any[]> {
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
+	console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][16] layer=FRONTEND_API file=frontend/src/services/api.ts function=listTrustGroups status=CALLING_WAILS workspaceId=${workspaceId || ''}`);
 	return await AppAPI.ListTrustGroups(jwtToken, workspaceId || '');
 }
 
@@ -1703,9 +1704,9 @@ export async function createTrustGroup(name: string, workspaceId?: string): Prom
 	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId || '', name);
 }
 
-export async function addTrustGroupMember(trustGroupId: string, channelId: string, memberId: string): Promise<any> {
-	if (!trustGroupId || !memberId) {
-		throw new Error('Trust Group ID and Member ID are required');
+export async function addTrustGroupMember(trustGroupId: string, vaultId: string, role?: string): Promise<any> {
+	if (!trustGroupId || !vaultId) {
+		throw new Error('Trust Group ID and Vault ID are required');
 	}
 
 	const jwtToken = useAuthStore.getState().jwtToken;
@@ -1713,7 +1714,9 @@ export async function addTrustGroupMember(trustGroupId: string, channelId: strin
 		throw new Error('Authentication required');
 	}
 
-	return await AppAPI.AddTrustGroupMember(jwtToken, trustGroupId, channelId || '', memberId);
+	console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][02] layer=FRONTEND_API file=frontend/src/services/api.ts function=addTrustGroupMember input.trustGroupId=${trustGroupId} input.vaultId=${vaultId} input.role=${role || 'member'}`);
+	console.log(`[TRUSTGROUP][API_ADD] trustGroupID=${trustGroupId} vaultID=${vaultId} role=${role || 'member'}`);
+	return await AppAPI.AddTrustGroupMember(jwtToken, trustGroupId, vaultId, role || 'member');
 }
 
 export async function removeTrustGroupMember(trustGroupId: string, memberId: string): Promise<any> {
@@ -2062,12 +2065,14 @@ export async function appendThreadEvent(payload: AppendThreadEventPayload): Prom
 	if (!jwtToken) {
 		jwtToken = "dev-jwt-token";
 	}
+	console.log(`[APPEND][STEP=02] api.appendThreadEvent thread_id=${payload.thread_id} type=${payload.type}`);
 	const result = await AppAPI.AppendThreadEvent(
 		jwtToken,
 		payload.thread_id,
 		payload.type.trim(),
 		JSON.stringify(payload.payload || {})
 	);
+	console.log(`[APPEND][STEP=02] api.appendThreadEvent returned=`, JSON.stringify(result));
 	return result as ThreadEventResponse;
 }
 

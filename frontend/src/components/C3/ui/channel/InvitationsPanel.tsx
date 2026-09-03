@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChannelInvitationResponse } from "@/services/api";
 import { useC3ChannelStore } from "../../infrastructure/store/useC3ChannelStore";
+import { useC3Invitation } from "./useC3Invitation";
 
 const rowStyle: React.CSSProperties = {
 	display: "flex",
@@ -56,16 +57,18 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 	const {
 		invitations,
 		invitationsError,
-		inviteToChannel,
-		acceptInvitation,
 		setInvitationsChannel,
 	} = useC3ChannelStore();
 
-	const [inviteeVaultId, setInviteeVaultId] = useState("");
-	const [inviting, setInviting] = useState(false);
-	const [inviteError, setInviteError] = useState<string | null>(null);
-	const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+	const {
+		sendInvitation,
+		inviting,
+		inviteError,
+		inviteSuccess,
+		acceptInvitation,
+	} = useC3Invitation(channelId);
 
+	const [inviteeVaultId, setInviteeVaultId] = useState("");
 	const [acceptId, setAcceptId] = useState("");
 	const [accepting, setAccepting] = useState(false);
 	const [acceptError, setAcceptError] = useState<string | null>(null);
@@ -80,17 +83,11 @@ export const InvitationsPanel = ({ channelId }: { channelId: string }) => {
 		const id = inviteeVaultId.trim();
 		if (!id || inviting) return;
 
-		setInviting(true);
-		setInviteError(null);
-		setInviteSuccess(null);
 		try {
-			const invited = await inviteToChannel(channelId, { invitee_vault_id: id });
+			await sendInvitation(id, channelId);
 			setInviteeVaultId("");
-			setInviteSuccess(`Invitation sent — ${invited.status} for ${invited.invitee_vault_id || id}.`);
-		} catch (err: unknown) {
-			setInviteError(err instanceof Error ? err.message : "Failed to invite vault.");
-		} finally {
-			setInviting(false);
+		} catch {
+			// handled by hook state
 		}
 	};
 

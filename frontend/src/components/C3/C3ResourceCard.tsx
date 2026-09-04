@@ -26,6 +26,7 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
   const handleOpen = async () => {
     setStatus("loading");
     setErrorMessage(null);
+    console.log(`[C3-FORENSIC][01] UI Open Resource clicked refType=${refType} shareEntryId=${shareEntryId} trustGroupId=${trustGroupId} cid=${cid}`);
 
     try {
       const res = await desktopResourceService.openResource({
@@ -36,9 +37,12 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
       });
       setResult(res);
       setStatus("resolved");
+      console.log(`[C3-FORENSIC][13] UI Open Resource resolved successfully resourceId=${res.resourceId}`);
     } catch (err: any) {
-      setErrorMessage(err?.message || "Unable to open protected resource");
+      const msg = err?.message || "Unable to open protected resource";
+      setErrorMessage(msg);
       setStatus("error");
+      console.log(`[C3-FORENSIC][13] UI Open Resource failed error="${msg}"`);
     }
   };
 

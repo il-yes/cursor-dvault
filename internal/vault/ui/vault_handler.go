@@ -918,6 +918,15 @@ func (vh *VaultHandler) AccessEncryptedEntry(ctx context.Context, id string, req
 
 	return response, nil
 }
+
+func (vh *VaultHandler) AccessThreadData(ctx context.Context, req tracecore_types.ThreadDataAccessRequest, tc *tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
+	response, err := tc.AccessThreadData(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to access thread data: %w", err)
+	}
+
+	return response, nil
+}
 func (vh *VaultHandler) DecryptVaultEntry(ctx context.Context, req tracecore_types.DecryptCryptoShareRequest, tc *tracecore.TracecoreClient) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	response, err := tc.DecryptVaultEntry(ctx, req)
 	if err != nil {

@@ -215,6 +215,13 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 		return nil, fmt.Errorf("trust group id is required")
 	}
 
+	fmt.Printf("[C3][REAL-E2E][08] UpdateTrustGroup outgoing membersCount=%d envelopesCount=%d trustGroupID=%s\n", len(req.TrustGroup.MemberCIDs), len(req.TrustGroup.KeyEnvelopes), req.TrustGroup.ID)
+	fmt.Printf("[C3][ADD_MEMBER][STEP_18] Calling TracecoreClient.UpdateTrustGroup trustGroupID=%s envelopesCount=%d\n", req.TrustGroup.ID, len(req.TrustGroup.KeyEnvelopes))
+	fmt.Printf("[C3][ENVELOPE][HTTP][OUT] trustGroupID=%s envelopesCount=%d\n", req.TrustGroup.ID, len(req.TrustGroup.KeyEnvelopes))
+	for i, env := range req.TrustGroup.KeyEnvelopes {
+		fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+	}
+
 	body, err := json.Marshal(req.TrustGroup)
 	if err != nil {
 		return nil, err
@@ -247,6 +254,13 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
+	}
+
+	fmt.Printf("[C3][REAL-E2E][09] Cloud Update received membersCount=%d envelopesCount=%d trustGroupID=%s\n", len(cloudResp.Data.MemberCIDs), len(cloudResp.Data.KeyEnvelopes), cloudResp.Data.ID)
+	fmt.Printf("[C3][ADD_MEMBER][STEP_19] TracecoreClient.UpdateTrustGroup return success trustGroupID=%s envelopesCount=%d\n", cloudResp.Data.ID, len(cloudResp.Data.KeyEnvelopes))
+	fmt.Printf("[C3][ENVELOPE][CLIENT][RECEIVED] trustGroupID=%s envelopesCount=%d\n", cloudResp.Data.ID, len(cloudResp.Data.KeyEnvelopes))
+	for i, env := range cloudResp.Data.KeyEnvelopes {
+		fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
 	}
 
 	return &cloudResp, nil
@@ -297,6 +311,7 @@ func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustg
 		req.Role = "member"
 	}
 
+	fmt.Printf("[C3][ADD_MEMBER][STEP_03] TracecoreClient.AddMemberToTrustGroup enter trustGroupID=%s vaultID=%s role=%s\n", req.TrustGroupID, req.VaultID, req.Role)
 	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][05] layer=CLOUD_CLIENT file=internal/tracecore/c3_cloud_repository.go function=TracecoreClient.AddMemberToTrustGroup input.TrustGroupID=%s input.VaultID=%s input.Role=%s\n", req.TrustGroupID, req.VaultID, req.Role)
 
 	body, err := json.Marshal(req)
@@ -337,6 +352,7 @@ func (c *TracecoreClient) AddMemberToTrustGroup(ctx context.Context, req *trustg
 
 	memberCount := len(cloudResp.Data.MemberCIDs)
 	memberCIDsStr := strings.Join(cloudResp.Data.MemberCIDs, ", ")
+	fmt.Printf("[C3][ADD_MEMBER][STEP_04] TracecoreClient.AddMemberToTrustGroup return success trustGroupID=%s memberCount=%d MemberCIDs=[%s]\n", req.TrustGroupID, memberCount, memberCIDsStr)
 	fmt.Printf("[C3][MEMBERSHIP][PERSIST] AddMemberToTrustGroup trustGroupID=%s memberCount=%d MemberCIDs=[%s]\n", req.TrustGroupID, memberCount, memberCIDsStr)
 
 	return &cloudResp, nil

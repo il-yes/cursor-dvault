@@ -193,6 +193,8 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 			return nil, errors.New("device private seed is required to unwrap KEK envelope")
 		}
 
+		fmt.Printf("[UNWRAP][STEP_01] Input WrappedKEK len=%d deviceSeedPresent=%t\n", len(req.WrappedKEK), req.DeviceSeed != "")
+
 		unwrappedKEK, err := o.aesService.AsymetricDecrypt(req.DeviceSeed, req.WrappedKEK)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unwrap KEK envelope for device: %w", err)
@@ -208,6 +210,8 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 		}
 	}
 
+	fmt.Printf("[UNWRAP][STEP_02] Unwrapped KEK with recipient private key len=%d matches32=%t\n", len(kek), len(kek) == 32)
+
 	// 3. Unwrap DEK using KEK (AES-256-GCM)
 	dek, err := o.aesService.Decrypt(req.WrappedDEK, kek)
 	if err != nil {
@@ -217,11 +221,17 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 		return nil, errors.New("unwrapped DEK must be exactly 32 bytes")
 	}
 
+	fmt.Printf("[UNWRAP][STEP_03] Unwrapped DEK with KEK v%d len=%d matches32=%t\n", req.KEKVersion, len(dek), len(dek) == 32)
+
 	// 4. Decrypt encrypted payload using DEK (AES-256-GCM)
 	plaintext, err := o.aesService.Decrypt(req.EncryptedData, dek)
 	if err != nil {
+		fmt.Printf("[C3-FORENSIC][11] (*TrustGroupCryptoOrchestrator).ResolveCollaborativeAsset payload decryption failed err=%v\n", err)
 		return nil, fmt.Errorf("failed to decrypt asset payload with DEK: %w", err)
 	}
+
+	fmt.Printf("[UNWRAP][STEP_04] AES-GCM decrypted plaintext len=%d matchesContent=%t\n", len(plaintext), len(plaintext) > 0)
+	fmt.Printf("[C3-FORENSIC][11] (*TrustGroupCryptoOrchestrator).ResolveCollaborativeAsset success assetID=%s trustGroupID=%s kekVersion=%d plaintextLen=%d\n", req.AssetID, req.TrustGroupID, req.KEKVersion, len(plaintext))
 
 	return &ResolvedCollaborativeAsset{
 		AssetID:      req.AssetID,

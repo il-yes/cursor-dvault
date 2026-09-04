@@ -1,4 +1,4 @@
-package trustgroup_usecases
+package trustgroup_usecases_envelope
 
 import (
 	"context"
@@ -71,11 +71,15 @@ func (uc *ProvisionTrustGroupDeviceEnvelopeUseCase) Execute(
 	req trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest,
 	keyring *vaults_domain.VaultKeyring,
 ) (*trustgroup_domain.TrustGroup, error) {
+	fmt.Printf("[C3][ADD_MEMBER][STEP_07] ProvisionTrustGroupDeviceEnvelopeUseCase.Execute enter trustGroupID=%s memberID=%s deviceID=%s hasPubKey=%t\n", req.TrustGroupID, req.MemberID, req.DeviceID, req.DevicePublicKey != "")
+
 	if err := uc.ValidateDependencies(); err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] ValidateDependencies failed: %v\n", err)
 		return nil, err
 	}
 
 	if err := uc.ValidateRequest(req); err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] ValidateRequest failed: %v\n", err)
 		return nil, err
 	}
 
@@ -84,12 +88,15 @@ func (uc *ProvisionTrustGroupDeviceEnvelopeUseCase) Execute(
 		TrustGroupID: req.TrustGroupID,
 	})
 	if err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] GetTrustGroup failed: %v\n", err)
 		return nil, fmt.Errorf("failed to fetch trust group %s: %w", req.TrustGroupID, err)
 	}
 	if tgResp == nil || tgResp.Data.ID == "" {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] GetTrustGroup returned empty\n")
 		return nil, trustgroup_domain.ErrTrustGroupNotFound
 	}
 	tg := tgResp.Data
+	fmt.Printf("[C3][ADD_MEMBER][STEP_09] GetTrustGroup fetched trustGroupID=%s kekVersion=%d envelopesCount=%d memberCIDsCount=%d\n", tg.ID, tg.KEKVersion, len(tg.KeyEnvelopes), len(tg.MemberCIDs))
 
 	// 2. Verify Member belongs to TrustGroup
 	memberFound := false
@@ -99,29 +106,42 @@ func (uc *ProvisionTrustGroupDeviceEnvelopeUseCase) Execute(
 			break
 		}
 	}
+	fmt.Printf("[C3][ADD_MEMBER][STEP_10] MemberID membership validation memberFound=%t memberID=%s\n", memberFound, req.MemberID)
 	if !memberFound {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] MemberID %s not in TrustGroup %s\n", req.MemberID, req.TrustGroupID)
 		return nil, trustgroup_domain.ErrMemberNotInTrustGroup
 	}
 
 	// 2.1 Check if a non-revoked envelope already exists for (MemberID, DeviceID, KEKVersion)
+	existingFound := false
 	for _, env := range tg.KeyEnvelopes {
 		if env.MemberID == req.MemberID && env.DeviceID == req.DeviceID && env.KEKVersion == tg.KEKVersion && env.RevokedAt == nil {
-			fmt.Printf("[C3][INVITE][ENVELOPE] Envelope already exists for trustGroupID=%s memberID=%s deviceID=%s kekVersion=%d (idempotent skip)\n", tg.ID, req.MemberID, req.DeviceID, tg.KEKVersion)
-			return &tg, nil
+			existingFound = true
+			break
 		}
+	}
+	fmt.Printf("[C3][ADD_MEMBER][STEP_11] Current KEKVersion=%d\n", tg.KEKVersion)
+	fmt.Printf("[C3][ADD_MEMBER][STEP_12] Existing active envelope check found=%t memberID=%s deviceID=%s\n", existingFound, req.MemberID, req.DeviceID)
+	if existingFound {
+		fmt.Printf("[C3][INVITE][ENVELOPE] Envelope already exists for trustGroupID=%s memberID=%s deviceID=%s kekVersion=%d (idempotent skip)\n", tg.ID, req.MemberID, req.DeviceID, tg.KEKVersion)
+		return &tg, nil
 	}
 
 	// 3. Resolve Device Public Key (via DeviceResolver or req.DevicePublicKey)
+	pubKeySource := "req.DevicePublicKey"
 	targetPubKey := strings.TrimSpace(req.DevicePublicKey)
 	if uc.deviceResolver != nil {
 		dev, devErr := uc.deviceResolver.GetDevice(ctx, req.DeviceID)
 		if devErr == nil && dev != nil && dev.IsActive {
 			if dev.PublicKey != "" {
 				targetPubKey = dev.PublicKey
+				pubKeySource = "deviceResolver"
 			}
 		}
 	}
+	fmt.Printf("[C3][ADD_MEMBER][STEP_13] Resolved DevicePublicKey source=%s pubKeyLen=%d\n", pubKeySource, len(targetPubKey))
 	if targetPubKey == "" {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] Device public key is empty\n")
 		return nil, errors.New("device public key is required for key envelope provisioning")
 	}
 
@@ -141,14 +161,20 @@ func (uc *ProvisionTrustGroupDeviceEnvelopeUseCase) Execute(
 			_, _ = uc.keyringService.StoreTrustGroupKEK(keyring, tg.ID, tg.KEKVersion, kek)
 		}
 	}
+	fmt.Printf("[C3][ADD_MEMBER][STEP_14] KEK resolution success=%t kekLen=%d\n", len(kek) == 32, len(kek))
 
 	// 5. Wrap KEK using target device public key (asymmetric box seal)
 	wrappedKEKPayload, err := uc.aesService.EncryptPayload(targetPubKey, kek)
 	if err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_08] EncryptPayload failed: %v\n", err)
 		return nil, fmt.Errorf("failed to wrap KEK for device %s: %w", req.DeviceID, err)
 	}
 
+	fmt.Printf("[C3][ENVELOPE][CLIENT][INPUT] trustGroupID=%s memberID=%s deviceID=%s kekVersion=%d publicKeyPresent=%t\n", tg.ID, req.MemberID, req.DeviceID, tg.KEKVersion, targetPubKey != "")
+	fmt.Printf("[C3][ENVELOPE][CLIENT][CREATED] memberID=%s deviceID=%s kekVersion=%d wrappedKEKPresent=%t wrappedKEKLen=%d\n", req.MemberID, req.DeviceID, tg.KEKVersion, wrappedKEKPayload.ToString() != "", len(wrappedKEKPayload.ToString()))
+
 	// 6. Delegate envelope attachment to AddTrustGroupKeyEnvelopeUseCase
+	fmt.Printf("[C3][ADD_MEMBER][STEP_15] Calling AddTrustGroupKeyEnvelopeUseCase.Execute trustGroupID=%s memberID=%s deviceID=%s kekVersion=%d\n", tg.ID, req.MemberID, req.DeviceID, tg.KEKVersion)
 	updatedTg, err := uc.addEnvelopeUseCase.Execute(ctx, trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
 		TrustGroupID: tg.ID,
 		MemberID:     req.MemberID,
@@ -156,8 +182,13 @@ func (uc *ProvisionTrustGroupDeviceEnvelopeUseCase) Execute(
 		KEKVersion:   tg.KEKVersion,
 		WrappedKEK:   wrappedKEKPayload.ToString(),
 	})
+	fmt.Printf("[C3][ADD_MEMBER][STEP_16] AddTrustGroupKeyEnvelopeUseCase.Execute returned err=%v\n", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach device key envelope: %w", err)
+	}
+
+	if updatedTg != nil {
+		fmt.Printf("[C3][ADD_MEMBER][STEP_17] Resulting TrustGroup.KeyEnvelopes count=%d\n", len(updatedTg.KeyEnvelopes))
 	}
 
 	return updatedTg, nil

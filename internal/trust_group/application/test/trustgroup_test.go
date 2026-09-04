@@ -1,4 +1,4 @@
-package trustgroup_test
+package trustgroup_usecases_test
 
 import (
 	"context"
@@ -198,6 +198,8 @@ func TestCreateTrustGroupUsecase_Execute_Success(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	req := validCreateTrustGroupRequest()
@@ -251,6 +253,8 @@ func TestCreateTrustGroupUsecase_Execute_RepositoryError(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	result, err := uc.Execute(
@@ -284,6 +288,8 @@ func TestCreateTrustGroupUsecase_Execute_EventBusError(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	result, err := uc.Execute(
@@ -304,6 +310,8 @@ func TestCreateTrustGroupUsecase_Execute_NilRepository(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		nil,
 		&trustGroupEventBusMock{},
+		nil,
+		nil,
 	)
 
 	result, err := uc.Execute(
@@ -325,6 +333,8 @@ func TestCreateTrustGroupUsecase_Execute_NilEventBus(t *testing.T) {
 
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		&trustGroupRepositoryMock{},
+		nil,
+		nil,
 		nil,
 	)
 
@@ -351,6 +361,8 @@ func TestCreateTrustGroupUsecase_Execute_MissingChannelID(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	req := validCreateTrustGroupRequest()
@@ -374,6 +386,8 @@ func TestCreateTrustGroupUsecase_Execute_MissingName(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	req := validCreateTrustGroupRequest()
@@ -419,6 +433,8 @@ func TestCreateTrustGroupUsecase_ValidateDependencies(t *testing.T) {
 			uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 				tt.repo,
 				tt.eventBus,
+				nil,
+				nil,
 			)
 
 			err := uc.ValidateDependencies()
@@ -440,6 +456,8 @@ func TestCreateTrustGroupUsecase_ValidateRequest(t *testing.T) {
 	uc := trustgroup_usecases.NewCreateTrustGroupUsecase(
 		repo,
 		eventBus,
+		nil,
+		nil,
 	)
 
 	tests := []struct {

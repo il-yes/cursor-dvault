@@ -1,4 +1,4 @@
-package trustgroup_test
+package trustgroup_usecases_test
 
 import (
 	"context"

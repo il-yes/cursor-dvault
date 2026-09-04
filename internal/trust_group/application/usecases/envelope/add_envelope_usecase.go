@@ -1,4 +1,4 @@
-package trustgroup_usecases
+package trustgroup_usecases_envelope
 
 import (
 	"context"

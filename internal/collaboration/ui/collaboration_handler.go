@@ -3,10 +3,13 @@ package collaboration_ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
+	collaboration_ports "vault-app/internal/collaboration/application/ports"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	app_config "vault-app/internal/config"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
@@ -47,6 +50,18 @@ func NewCollaborationHandlerWithActions(
 
 func (h *CollaborationHandler) SetActionUseCases(uc *collaboration_usecases.ActionUseCases) {
 	h.actionUseCases = uc
+}
+
+func (h *CollaborationHandler) SetAssetStorage(storage app_config.StorageProvider) {
+	if h.createCollabShareUC != nil {
+		h.createCollabShareUC.WithStorageProvider(storage)
+	}
+}
+
+func (h *CollaborationHandler) SetAssetResolver(resolver collaboration_ports.AssetContentResolver) {
+	if h.resolveCollabShareUC != nil {
+		h.resolveCollabShareUC.SetAssetResolver(resolver)
+	}
 }
 
 // CreateCollaborativeShare persists a C3 share entry through the real
@@ -130,6 +145,8 @@ func (h *CollaborationHandler) ResolveCollaborativeShare(
 	shareEntryID string,
 	deviceID string,
 ) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+	fmt.Printf("[C3-FORENSIC][04] (*CollaborationHandler).ResolveCollaborativeShare callerVaultID=%s shareEntryID=%s deviceID=%s\n", callerVaultID, shareEntryID, deviceID)
+
 	if h.resolveCollabShareUC == nil {
 		return nil, errors.New("resolve collaborative share use case is not initialized")
 	}
@@ -141,7 +158,13 @@ func (h *CollaborationHandler) ResolveCollaborativeShare(
 		DeviceID:      deviceID,
 	}
 
-	return h.resolveCollabShareUC.Execute(ctx, req)
+	resp, err := h.resolveCollabShareUC.Execute(ctx, req)
+	if err != nil {
+		fmt.Printf("[C3-FORENSIC][04] (*CollaborationHandler).ResolveCollaborativeShare failed shareEntryID=%s err=%v\n", shareEntryID, err)
+	} else {
+		fmt.Printf("[C3-FORENSIC][04] (*CollaborationHandler).ResolveCollaborativeShare succeeded shareEntryID=%s trustGroupID=%s\n", shareEntryID, resp.TrustGroupID)
+	}
+	return resp, err
 }
 
 // ---------------------------------------------------------------------------

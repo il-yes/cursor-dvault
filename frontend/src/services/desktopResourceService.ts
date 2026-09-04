@@ -63,9 +63,10 @@ class DesktopResourceService {
       "dev_local_01";
 
     if (input.refType === "share_entry" && input.shareEntryId) {
-      console.log(`[C3][READ] Dispatching ResolveCollaborativeShare shareEntryID=${input.shareEntryId} deviceID=${deviceId}`);
+      console.log(`[C3-FORENSIC][02] desktopResourceService.openResource refType=${input.refType} shareEntryID=${input.shareEntryId} deviceID=${deviceId}`);
       try {
         const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
+        console.log(`[C3-FORENSIC][12] ResolveCollaborativeShare response received shareEntryID=${response.share_entry_id} trustGroupID=${response.trust_group_id} createdBy=${response.created_by}`);
         
         let contentText = "";
         if (typeof response.plaintext === "string") {
@@ -86,7 +87,7 @@ class DesktopResourceService {
           kind: "share_entry",
         };
       } catch (err: any) {
-        console.error("[C3][READ][ERROR] ResolveCollaborativeShare failed:", err?.message || err);
+        console.error(`[C3-FORENSIC][12] ResolveCollaborativeShare IPC error=${err?.message || err}`);
         throw new Error(translateResourceError(err));
       }
     } else if (input.refType === "storage_asset" && input.shareEntryId) {

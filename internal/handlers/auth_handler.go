@@ -10,9 +10,10 @@ import (
 	"vault-app/internal/auth"
 	"vault-app/internal/blockchain"
 	app_config "vault-app/internal/config"
+	identity_domain "vault-app/internal/identity/domain"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
-	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	"vault-app/internal/registry"
 	"vault-app/internal/tracecore"
@@ -20,7 +21,7 @@ import (
 	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
 
-	// "os"
+	"github.com/stellar/go/keypair"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -34,6 +35,7 @@ type AuthHandler struct {
 	TracecoreClient          *tracecore.TracecoreClient
 	auth                     auth.Auth
 	UserOnboardingRepository onboarding_domain.UserRepository
+	DeviceRepo               identity_domain.DeviceRepository
 }
 
 func NewAuthHandler(db models.DBModel, vaults *VaultHandler, ipfs *blockchain.IPFSClient, logger *logger.Logger, tc *tracecore.TracecoreClient,
@@ -48,6 +50,11 @@ func NewAuthHandler(db models.DBModel, vaults *VaultHandler, ipfs *blockchain.IP
 		auth:                     auth,
 		UserOnboardingRepository: userOnboardingRepository,
 	}
+}
+
+func (ah *AuthHandler) WithDeviceRepository(repo identity_domain.DeviceRepository) *AuthHandler {
+	ah.DeviceRepo = repo
+	return ah
 }
 
 // -----------------------------
@@ -65,7 +72,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	User                models.User                 `json:"User"`
-	Vault               *models.VaultPayload         `json:"Vault"`
+	Vault               *models.VaultPayload        `json:"Vault"`
 	Tokens              *auth.TokenPairs            `json:"Tokens"`
 	CloudToken          string                      `json:"cloud_token"`
 	VaultRuntimeContext *models.VaultRuntimeContext `json:"vault_runtime_context"`
@@ -80,7 +87,6 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	var userOnboarding *onboarding_domain.User
 	var err error
 	var cloudLoginResponse *tracecore_types.LoginResponse
-	fmt.Println("🔥 SIGNIN ROUTE HIT AT:", time.Now())
 
 	// -----------------------------
 	// 1. Identify login method
@@ -188,6 +194,24 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	user.LastConnectedAt = time.Now().UTC()
 	ah.logger.Info("connexion - user last connected at", user.LastConnectedAt)
 
+	if ah.DeviceRepo != nil && user != nil && user.ID != "" {
+		activeDevs, devErr := ah.DeviceRepo.ListByVaultID(context.Background(), user.ID)
+		if devErr == nil && len(activeDevs) == 0 {
+			kp, kpErr := keypair.Random()
+			pubKey := "pub_device_" + user.ID
+			if kpErr == nil && kp != nil {
+				pubKey = kp.Address()
+			}
+			dev, newDevErr := identity_domain.NewDevice(user.ID, pubKey, identity_domain.DeviceKeyTypeEd25519)
+			if newDevErr == nil && dev != nil {
+				dev.ID = "dev_" + user.ID
+				if saveErr := ah.DeviceRepo.Save(context.Background(), dev); saveErr == nil {
+					ah.logger.Info("📱 Registered device %s for user %s on login", dev.ID, user.ID)
+				}
+			}
+		}
+	}
+
 	// 9. create a jwt user
 	u := auth.JwtUser{
 		ID:       user.ID,
@@ -205,7 +229,6 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	utils.LogPretty("Auth tokens", tokens)
 	//  Save tokens to DB (for persistence across restarts)
 	savedtoken, err := ah.DB.SaveJwtToken(tokens)
-	fmt.Println("savedtoken", savedtoken)
 	if err != nil {
 		ah.logger.Error("❌ failed to persist tokens: %v", err)
 		return nil, fmt.Errorf("❌ failed to persist tokens: %w", err)
@@ -217,7 +240,6 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// 3. Try to reuse existing session
 	// -----------------------------
 	if existingSession, ok := ah.Vaults.Sessions[user.ID]; ok {
-		fmt.Println("existingSession", existingSession)
 		if existingSession.Dirty {
 			ah.Vaults.MarkDirty(user.ID)
 		}
@@ -225,6 +247,9 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		ah.logger.Info("♻️ Reusing in-memory session for user %s", user.ID)
 
 		existingSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
+		if credentials.Password != "" {
+			existingSession.VaultRuntimeContext.SessionSecrets["password"] = credentials.Password
+		}
 
 		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
 			cloudToken := cloudLoginResponse.AuthenticationToken.Token
@@ -268,6 +293,9 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		}
 
 		storedSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
+		if credentials.Password != "" {
+			storedSession.VaultRuntimeContext.SessionSecrets["password"] = credentials.Password
+		}
 
 		// Restore Cloud bearer token from session if available
 		token := storedSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"]
@@ -316,23 +344,32 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		utils.LogPretty("✅ Minimal vault created", vaultPayload)
 	}
 
-	rawVault, err := ah.IPFS.GetData(vaultMeta.CID)
-	if err != nil {
-		return nil, fmt.Errorf("❌ failed to fetch vault from IPFS: %w", err)
-	}
-	if rawVault == nil || len(rawVault) == 0 {
-		return nil, fmt.Errorf("❌ empty vault data for CID %s", vaultMeta.CID)
-	}
+	var vaultPayload *models.VaultPayload
+	if ah.IPFS != nil && vaultMeta != nil {
+		rawVault, err := ah.IPFS.GetData(vaultMeta.CID)
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to fetch vault from IPFS: %w", err)
+		}
+		if rawVault == nil || len(rawVault) == 0 {
+			return nil, fmt.Errorf("❌ empty vault data for CID %s", vaultMeta.CID)
+		}
 
-	decrypted, err := blockchain.Decrypt(rawVault, credentials.Password)
-	if err != nil {
-		return nil, fmt.Errorf("❌ failed to decrypt vault: %w", err)
-	}
-	if len(decrypted) == 0 {
-		return nil, fmt.Errorf("❌ vault decryption returned empty result")
-	}
+		decrypted, err := blockchain.Decrypt(rawVault, credentials.Password)
+		if err != nil {
+			return nil, fmt.Errorf("❌ failed to decrypt vault: %w", err)
+		}
+		if len(decrypted) == 0 {
+			return nil, fmt.Errorf("❌ vault decryption returned empty result")
+		}
 
-	vaultPayload := ParseVaultPayload(decrypted)
+		parsedVP := ParseVaultPayload(decrypted)
+		vaultPayload = &parsedVP
+	} else {
+		vaultPayload = &models.VaultPayload{
+			Version: "1.0.0",
+			Name:    "vault",
+		}
+	}
 
 	// -----------------------------
 	// 6. Load App & User Config
@@ -363,11 +400,18 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		runtimeCtx.SessionSecrets["cloud_auth_token"] = cloudLoginResponse.AuthenticationToken.Token
 		runtimeCtx.SessionSecrets["cloud_jwt"] = cloudLoginResponse.AuthenticationToken.Token
 	}
+	if credentials.Password != "" {
+		runtimeCtx.SessionSecrets["password"] = credentials.Password
+	}
 
 	// -----------------------------
 	// 8. Start new session
 	// -----------------------------
-	ah.Vaults.StartSession(user.ID, vaultPayload, "main", runtimeCtx)
+	if vaultPayload != nil {
+		ah.Vaults.StartSession(user.ID, *vaultPayload, "main", runtimeCtx)
+	} else {
+		ah.Vaults.StartSession(user.ID, models.VaultPayload{Version: "1.0.0", Name: "vault"}, "main", runtimeCtx)
+	}
 	ah.logger.Info("✅ Vault session started for user %s", user.ID)
 
 	// -----------------------------
@@ -383,13 +427,23 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 		}
 	}
 
+	lastCID := ""
+	if vaultMeta != nil {
+		lastCID = vaultMeta.CID
+	}
+
+	cloudTok := ""
+	if cloudLoginResponse != nil {
+		cloudTok = cloudLoginResponse.AuthenticationToken.Token
+	}
+
 	return &LoginResponse{
 		User:                *user,
-		Vault:               &vaultPayload,
+		Vault:               vaultPayload,
 		Tokens:              &tokens,
-		CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
+		CloudToken:          cloudTok,
 		VaultRuntimeContext: runtimeCtx,
-		LastCID:             vaultMeta.CID,
+		LastCID:             lastCID,
 		Dirty:               false,
 	}, nil
 }
@@ -645,7 +699,6 @@ func (ah *AuthHandler) CheckEmail(email string) (*CheckEmailResponse, error) {
 	// if user.PublicKey != "" {
 	// 	authMethods = append(authMethods, "stellar")
 	// }
-	
 
 	return &CheckEmailResponse{
 		Status:      "EXISTS",
@@ -668,6 +721,7 @@ func (ah *AuthHandler) CheckUserEmail(email string, token string) (*tracecore_ty
 
 	return user, nil
 }
+
 // -----------------------------
 // Sign Up
 // -----------------------------
@@ -1094,7 +1148,3 @@ func (ah *AuthHandler) GetProfile(jwtToken string) (*models.User, error) {
 
 	return user, nil
 }
-
-
-
-	

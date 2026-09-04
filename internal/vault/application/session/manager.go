@@ -62,7 +62,10 @@ func (m *Manager) Prepare(userID string) (*Session, error) {
 		return s, nil
 	}
 
-	existing, _ := m.SessionRepository.GetSession(userID)
+	var existing *Session
+	if m.SessionRepository != nil {
+		existing, _ = m.SessionRepository.GetSession(userID)
+	}
 	var s *Session
 	if existing != nil {
 		s = existing
@@ -71,16 +74,20 @@ func (m *Manager) Prepare(userID string) (*Session, error) {
 		utils.LogPretty("Manager - Prepare - new session", userID)
 	}
 
-	// TODO Initialize vault if nil
-	// s.Normalize()
 	m.sessions[userID] = s
-	err := m.SessionRepository.SaveSession(userID, s)
-	if err != nil {
-		m.logger.Error("❌ Failed to save session for user %s: %v", userID, err)
-		return nil, err
+	if m.SessionRepository != nil {
+		err := m.SessionRepository.SaveSession(userID, s)
+		if err != nil {
+			if m.logger != nil {
+				m.logger.Error("❌ Failed to save session for user %s: %v", userID, err)
+			}
+			return nil, err
+		}
 	}
 
-	m.logger.Info("✅ Session prepared for user %s", userID)
+	if m.logger != nil {
+		m.logger.Info("✅ Session prepared for user %s", userID)
+	}
 	return s, nil
 }
 // TODO check the logic of this function	

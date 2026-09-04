@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
+	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	app_config "vault-app/internal/config"
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_worker "vault-app/internal/config/application/worker"
@@ -40,7 +42,6 @@ import (
 	share_domain "vault-app/internal/domain/shared"
 	"vault-app/internal/driver"
 	"vault-app/internal/handlers"
-	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_dtos "vault-app/internal/identity/application/dtos"
 	identity_domain "vault-app/internal/identity/domain"
@@ -99,12 +100,12 @@ import (
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
-	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
-	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
-	trustgroup_adapters "vault-app/internal/trust_group/infrastructure/adapters"
-	trustgroup_domain "vault-app/internal/trust_group/domain"
-	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
+	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
+	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
+	trustgroup_domain "vault-app/internal/trust_group/domain"
+	trustgroup_adapters "vault-app/internal/trust_group/infrastructure/adapters"
+	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	workspace_usecase "vault-app/internal/workspace/application/usecases"
 	workspace_infrastructure_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
@@ -205,6 +206,8 @@ type App struct {
 	CollaborationHandler *collaboration_ui.CollaborationHandler
 
 	addTrustGroupMemberUC *trustgroup_member_usecases.AddMemberToTrustGroupUsecase
+	provisionEnvelopeUC   *trustgroup_envelope_usecases.ProvisionTrustGroupDeviceEnvelopeUseCase
+	identityDeviceAdapter *trustgroup_adapters.IdentityDeviceAdapter
 	tracecoreClient       *tracecore.TracecoreClient
 
 	// New: Global state
@@ -682,8 +685,6 @@ func NewApp() *App {
 		addEnvelopeUC,
 		keyringSvc,
 	)
-	_ = provisionEnvelopeUC
-
 	application := &App{
 		AppConfigHandler: appConfigHandler,
 		// Auth:                      nil, // auth,
@@ -713,6 +714,8 @@ func NewApp() *App {
 		ThreadHandler:             threadHandler,
 		CollaborationHandler:      collaborationHandler,
 		addTrustGroupMemberUC:     addTrustGroupMemberUC,
+		provisionEnvelopeUC:       provisionEnvelopeUC,
+		identityDeviceAdapter:     identityDeviceAdapter,
 		tracecoreClient:           tracecoreClient,
 		// Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
 		version: version,
@@ -3381,7 +3384,6 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	return res, err
 }
 
-
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no
 // local mutation is performed.
@@ -3400,11 +3402,11 @@ func (a *App) UpdateChannel(JwtToken string, channelID string, title string, slo
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
 	fmt.Printf(
-    "[BOUNDARIES][WAILS][WRITE] App.UpdateChannel channelID=%s slotsCount=%d slots=%+v\n",
-    channelID,
-    len(slots),
-    slots,
-)
+		"[BOUNDARIES][WAILS][WRITE] App.UpdateChannel channelID=%s slotsCount=%d slots=%+v\n",
+		channelID,
+		len(slots),
+		slots,
+	)
 	fmt.Printf("[SLOTS][SAVE] STEP=10 EVENT=HANDLER_CALL channelId=%s\n", channelID)
 	res, err := a.ChannelHandler.UpdateChannel(a.ctx, claims.UserID, channelID, title, slots, assignments, properties, policy)
 	fmt.Printf("[SLOTS][SAVE] STEP=11 EVENT=HANDLER_RETURN success=%v error=%v\n", err == nil, err)
@@ -3548,51 +3550,360 @@ func (a *App) ListTrustGroups(JwtToken string, workspaceID string) ([]trustgroup
 }
 
 // CreateTrustGroup creates a new trust group via Ankhora Cloud backend.
-func (a *App) CreateTrustGroup(JwtToken string, workspaceID string, name string) (*trustgroup_domain.TrustGroup, error) {
-	if _, err := a.RequireAuth(JwtToken); err != nil {
-		return nil, fmt.Errorf("unauthorized: %w", err)
-	}
-	if a.tracecoreClient == nil {
-		return nil, fmt.Errorf("tracecore client is not initialized")
-	}
+// CreateTrustGroup creates a new trust group via Ankhora Cloud backend
+// and provisions a key envelope for every active device of every initial member.
+func (a *App) CreateTrustGroup(
+	JwtToken string,
+	workspaceID string,
+	name string,
+) (*trustgroup_domain.TrustGroup, error) {
 
-	resp, err := a.tracecoreClient.CreateTrustGroup(a.ctx, &trustgroup_domain.CreateTrustGroupRequest{
-		TrustGroup: trustgroup_domain.TrustGroup{
-			ChannelID: workspaceID,
-			Name:      name,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &resp.Data, nil
-}
-
-// AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
-func (a *App) AddTrustGroupMember(JwtToken string, trustGroupID string, vaultID string, role string) (*trustgroup_domain.TrustGroup, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
 
-	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][03] layer=WAILS_HANDLER file=app.go function=App.AddTrustGroupMember input.trustGroupID=%s input.vaultID=%s input.role=%s callerID=%s\n", trustGroupID, vaultID, role, claims.UserID)
-	log.Printf("[TRUSTGROUP][WAILS_ADD] trustGroupID=%s vaultID=%s role=%s callerID=%s", trustGroupID, vaultID, role, claims.UserID)
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
+	}
+
+	if a.identityDeviceAdapter == nil {
+		return nil, fmt.Errorf("identityDeviceAdapter is not initialized")
+	}
+
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, fmt.Errorf("keyring service is not initialized")
+	}
+
+	// 1. Create the TrustGroup.
+	resp, err := a.tracecoreClient.CreateTrustGroup(
+		a.ctx,
+		&trustgroup_domain.CreateTrustGroupRequest{
+			TrustGroup: trustgroup_domain.TrustGroup{
+				ChannelID: workspaceID,
+				Name:      name,
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tg := resp.Data
+
+	// 2. Load the creator's local keyring.
+	var keyring *vaults_domain.VaultKeyring
+	var pass, secret string
+
+	if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+		pass = userSession.Runtime.SessionSecrets["password"]
+		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+		if secret == "" {
+			secret = userSession.Runtime.SessionSecrets["device_seed"]
+		}
+	}
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err = a.Vault.KeyringService.LoadHybrid(claims.UserID, pass, secret)
+	if err != nil || keyring == nil {
+		keyring = &vaults_domain.VaultKeyring{UserID: claims.UserID}
+	}
+
+	fmt.Printf("[C3][CREATE][KEYRING] creator keyring unlocked=true\n")
+
+	// 3. Provision an envelope for every active device
+	//    belonging to every initial TrustGroup member.
+	for _, memberID := range tg.MemberCIDs {
+
+		devices, err := a.identityDeviceAdapter.ListActiveDevices(
+			a.ctx,
+			memberID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to resolve active devices for initial member %s: %w",
+				memberID,
+				err,
+			)
+		}
+
+		if len(devices) == 0 {
+			return nil, fmt.Errorf(
+				"no active device registered for initial member %s",
+				memberID,
+			)
+		}
+
+		for _, dev := range devices {
+			if !dev.IsActive {
+				continue
+			}
+
+			if dev.PublicKey == "" {
+				return nil, fmt.Errorf(
+					"active device %s for initial member %s has no public key",
+					dev.ID,
+					memberID,
+				)
+			}
+
+			tgPtr, err := a.provisionEnvelopeUC.Execute(
+				a.ctx,
+				trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+					TrustGroupID:    tg.ID,
+					MemberID:        memberID,
+					DeviceID:        dev.ID,
+					DevicePublicKey: dev.PublicKey,
+				},
+				keyring,
+			)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to provision envelope for member %s device %s: %w",
+					memberID,
+					dev.ID,
+					err,
+				)
+			}
+
+			if tgPtr != nil {
+				tg = *tgPtr
+			}
+		}
+	}
+
+	return &tg, nil
+}
+
+// AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
+func (a *App) AddTrustGroupMember(
+	JwtToken string,
+	trustGroupID string,
+	vaultID string,
+	role string,
+) (*trustgroup_domain.TrustGroup, error) {
+
+	fmt.Printf("[C3][REAL-E2E][01] UI -> App.AddTrustGroupMember trustGroupID=%s memberID=%s role=%s\n", trustGroupID, vaultID, role)
+	fmt.Printf("[C3][REAL-E2E][02] request trustGroupID=%s memberID=%s role=%s\n", trustGroupID, vaultID, role)
+	fmt.Printf("[FORENSIC][ADD_MEMBER][INPUT] TrustGroupID=%s MemberID=%s Role=%s\n", trustGroupID, vaultID, role)
+	fmt.Printf("[C3][ADD_MEMBER][STEP_01] App.AddTrustGroupMember enter trustGroupID=%s vaultID=%s role=%s\n", trustGroupID, vaultID, role)
+
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
 
 	if a.addTrustGroupMemberUC == nil {
 		return nil, fmt.Errorf("add trust group member usecase is not initialized")
+	}
+
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
+	}
+
+	if a.identityDeviceAdapter == nil {
+		return nil, fmt.Errorf("identityDeviceAdapter is not initialized")
 	}
 
 	if role == "" {
 		role = "member"
 	}
 
-	req := trustgroup_dtos.AddMemberToTrustGroupRequest{
-		TrustGroupID: trustGroupID,
-		VaultID:      vaultID,
-		Role:         role,
+	// 1. Add the member to the TrustGroup.
+	fmt.Printf("[C3][ADD_MEMBER][STEP_02] addTrustGroupMemberUC.Execute enter trustGroupID=%s vaultID=%s role=%s\n", trustGroupID, vaultID, role)
+	updatedTg, err := a.addTrustGroupMemberUC.Execute(
+		a.ctx,
+		trustgroup_dtos.AddMemberToTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+			VaultID:      vaultID,
+			Role:         role,
+		},
+	)
+	if err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][ERROR] addTrustGroupMemberUC.Execute failed: %v\n", err)
+		return nil, err
+	}
+	if updatedTg != nil {
+		fmt.Printf("[C3][REAL-E2E][04] membership after count=%d\n", len(updatedTg.MemberCIDs))
+		fmt.Printf("[FORENSIC][ADD_MEMBER][AFTER_CLOUD_MEMBER] TrustGroupID=%s MemberCIDsCount=%d KeyEnvelopesCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs), len(updatedTg.KeyEnvelopes))
+		fmt.Printf("[C3][ADD_MEMBER][STEP_04] addTrustGroupMemberUC.Execute return success trustGroupID=%s memberCIDsCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs))
 	}
 
-	return a.addTrustGroupMemberUC.Execute(a.ctx, req)
+	// 2. Resolve the member's active devices.
+	devices, err := a.identityDeviceAdapter.ListActiveDevices(
+		a.ctx,
+		vaultID,
+	)
+	if err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][ERROR] ListActiveDevices failed for member %s: %v\n", vaultID, err)
+		return nil, fmt.Errorf(
+			"failed to resolve active devices for member %s: %w",
+			vaultID,
+			err,
+		)
+	}
+
+	fmt.Printf("[C3][REAL-E2E][05] active devices count=%d for member %s\n", len(devices), vaultID)
+	fmt.Printf("[C3][ADD_MEMBER][STEP_05] ListActiveDevices returned devicesCount=%d for member %s\n", len(devices), vaultID)
+
+	// 3. Load the caller's local keyring using session credentials.
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, fmt.Errorf("keyring service is not initialized")
+	}
+
+	var pass, secret string
+	if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+		pass = userSession.Runtime.SessionSecrets["password"]
+		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+		if secret == "" {
+			secret = userSession.Runtime.SessionSecrets["device_seed"]
+		}
+	}
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		claims.UserID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		fmt.Printf("[C3][ADD_MEMBER][ERROR] LoadHybrid failed for caller %s: %v\n", claims.UserID, err)
+		return nil, fmt.Errorf(
+			"failed to load caller keyring %s: %w",
+			claims.UserID,
+			err,
+		)
+	}
+
+	// 4. Create KEK envelope for active device(s) or member public key.
+	if len(devices) > 0 {
+		for _, dev := range devices {
+			if !dev.IsActive {
+				continue
+			}
+
+			if dev.PublicKey == "" {
+				return nil, fmt.Errorf(
+					"active device %s for member %s has no public key",
+					dev.ID,
+					vaultID,
+				)
+			}
+
+			fmt.Printf("[C3][REAL-E2E][06] provisioning deviceID=%s memberID=%s\n", dev.ID, vaultID)
+			fmt.Printf("[FORENSIC][PROVISION][INPUT] TrustGroupID=%s MemberID=%s DeviceID=%s HasDevicePublicKey=%t\n", trustGroupID, vaultID, dev.ID, dev.PublicKey != "")
+			fmt.Printf("[C3][ADD_MEMBER][STEP_06] Calling provisionEnvelopeUC trustGroupID=%s memberID=%s deviceID=%s hasPubKey=%t\n", trustGroupID, vaultID, dev.ID, dev.PublicKey != "")
+			pTg, pErr := a.provisionEnvelopeUC.Execute(
+				a.ctx,
+				trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+					TrustGroupID:    trustGroupID,
+					MemberID:        vaultID,
+					DeviceID:        dev.ID,
+					DevicePublicKey: dev.PublicKey,
+				},
+				keyring,
+			)
+			if pErr != nil {
+				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=%v KeyEnvelopesCount=0\n", pErr)
+				fmt.Printf("[C3][ADD_MEMBER][ERROR] provisionEnvelopeUC.Execute failed for member %s device %s: %v\n", vaultID, dev.ID, pErr)
+				return nil, fmt.Errorf(
+					"failed to provision key envelope for member %s device %s: %w",
+					vaultID,
+					dev.ID,
+					pErr,
+				)
+			}
+			if pTg != nil {
+				updatedTg = pTg
+				lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
+				fmt.Printf("[C3][REAL-E2E][07] envelope created wrappedKEKLen=%d kekVersion=%d memberID=%s deviceID=%s\n", len(lastEnv.WrappedKEK), lastEnv.KEKVersion, lastEnv.MemberID, lastEnv.DeviceID)
+				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=<nil> KeyEnvelopesCount=%d env.MemberID=%s env.DeviceID=%s env.KEKVersion=%d WrappedKEKPresent=%t\n", len(pTg.KeyEnvelopes), lastEnv.MemberID, lastEnv.DeviceID, lastEnv.KEKVersion, lastEnv.WrappedKEK != "")
+			}
+		}
+	} else {
+		var email string
+		if strings.Contains(vaultID, "@") {
+			email = vaultID
+		} else if a.Identity != nil {
+			if idUser, idErr := a.Identity.FindUserById(a.ctx, vaultID); idErr == nil && idUser != nil {
+				email = idUser.Email
+			}
+		}
+
+		var targetPubKey string
+		if email != "" && a.tracecoreClient != nil {
+			user, tcErr := a.tracecoreClient.GetUserByEmail(a.ctx, email)
+			if tcErr == nil && user != nil && strings.TrimSpace(user.PublicKey) != "" {
+				targetPubKey = strings.TrimSpace(user.PublicKey)
+			}
+		}
+
+		if targetPubKey == "" {
+			fmt.Printf("[C3][ADD_MEMBER][ERROR] Failed to resolve public key for member %s (email=%s)\n", vaultID, email)
+			return nil, fmt.Errorf("no active device registered for member %s", vaultID)
+		}
+
+		fmt.Printf("[C3][REAL-E2E][06] provisioning deviceID=%s memberID=%s\n", vaultID, vaultID)
+		fmt.Printf("[FORENSIC][PROVISION][INPUT] TrustGroupID=%s MemberID=%s DeviceID=%s HasDevicePublicKey=%t\n", trustGroupID, vaultID, vaultID, targetPubKey != "")
+		fmt.Printf("[C3][ADD_MEMBER][STEP_06] Calling provisionEnvelopeUC for remote member trustGroupID=%s memberID=%s deviceID=%s hasPubKey=%t\n", trustGroupID, vaultID, vaultID, targetPubKey != "")
+		pTg, pErr := a.provisionEnvelopeUC.Execute(
+			a.ctx,
+			trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+				TrustGroupID:    trustGroupID,
+				MemberID:        vaultID,
+				DeviceID:        vaultID,
+				DevicePublicKey: targetPubKey,
+			},
+			keyring,
+		)
+		if pErr != nil {
+			fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=%v KeyEnvelopesCount=0\n", pErr)
+			fmt.Printf("[C3][ADD_MEMBER][ERROR] provisionEnvelopeUC.Execute failed for member %s: %v\n", vaultID, pErr)
+			return nil, fmt.Errorf(
+				"failed to provision key envelope for member %s: %w",
+				vaultID,
+				pErr,
+			)
+		}
+		if pTg != nil {
+			updatedTg = pTg
+			if len(pTg.KeyEnvelopes) > 0 {
+				lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
+				fmt.Printf("[C3][REAL-E2E][07] envelope created wrappedKEKLen=%d kekVersion=%d memberID=%s deviceID=%s\n", len(lastEnv.WrappedKEK), lastEnv.KEKVersion, lastEnv.MemberID, lastEnv.DeviceID)
+				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=<nil> KeyEnvelopesCount=%d env.MemberID=%s env.DeviceID=%s env.KEKVersion=%d WrappedKEKPresent=%t\n", len(pTg.KeyEnvelopes), lastEnv.MemberID, lastEnv.DeviceID, lastEnv.KEKVersion, lastEnv.WrappedKEK != "")
+			}
+		}
+	}
+
+	if updatedTg != nil {
+		fmt.Printf("[C3][REAL-E2E][11] fresh GetTrustGroup membersCount=%d envelopesCount=%d\n", len(updatedTg.MemberCIDs), len(updatedTg.KeyEnvelopes))
+		fmt.Printf("[FORENSIC][FINAL_GET] KeyEnvelopesCount=%d\n", len(updatedTg.KeyEnvelopes))
+		for i, env := range updatedTg.KeyEnvelopes {
+			fmt.Printf("  -> Envelope[%d] MemberID=%s DeviceID=%s KEKVersion=%d WrappedKEKPresent=%t\n", i, env.MemberID, env.DeviceID, env.KEKVersion, env.WrappedKEK != "")
+		}
+		fmt.Printf("[C3][ADD_MEMBER][STEP_20] App.AddTrustGroupMember completed successfully trustGroupID=%s envelopesCount=%d\n", updatedTg.ID, len(updatedTg.KeyEnvelopes))
+	}
+	return updatedTg, nil
 }
 
 // RemoveTrustGroupMember removes/revokes a member from a trust group.
@@ -3633,6 +3944,162 @@ func (a *App) UpdateTrustGroup(JwtToken string, id string, name string) (*trustg
 		return nil, err
 	}
 	return &resp.Data, nil
+}
+
+// ProvisionTrustGroupDeviceEnvelope provisions key envelope(s) for an existing member's active device(s) in a TrustGroup.
+func (a *App) ProvisionTrustGroupDeviceEnvelope(JwtToken string, trustGroupID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+
+	var callerVaultID string
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(claims.UserID); err == nil && session != nil && session.Runtime != nil {
+			callerVaultID = session.Runtime.VaultID
+		}
+	}
+	if callerVaultID == "" {
+		callerVaultID = claims.UserID
+	}
+	if memberID == "" {
+		memberID = callerVaultID
+	}
+
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
+	}
+	if a.identityDeviceAdapter == nil {
+		return nil, fmt.Errorf("identityDeviceAdapter is not initialized")
+	}
+
+	fmt.Printf("[PROVISION-FORENSIC] function/file: App.ProvisionTrustGroupDeviceEnvelope (app.go:L3673)\n")
+	fmt.Printf("[PROVISION-FORENSIC] TrustGroupID: %s\n", trustGroupID)
+	fmt.Printf("[PROVISION-FORENSIC] MemberID: %s\n", memberID)
+
+	var beforeCount int = 0
+	var kekVer uint64 = 1
+	if beforeResp, err := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID}); err == nil && beforeResp != nil {
+		beforeCount = len(beforeResp.Data.KeyEnvelopes)
+		if beforeResp.Data.KEKVersion > 0 {
+			kekVer = beforeResp.Data.KEKVersion
+		}
+	}
+	fmt.Printf("[PROVISION-FORENSIC] KEKVersion: %d\n", kekVer)
+	fmt.Printf("[PROVISION-FORENSIC] KeyEnvelopesCount BEFORE: %d\n", beforeCount)
+
+	devices, devErr := a.identityDeviceAdapter.ListActiveDevices(a.ctx, memberID)
+	if devErr != nil || len(devices) == 0 {
+		devices, _ = a.identityDeviceAdapter.ListActiveDevices(a.ctx, claims.UserID)
+	}
+	if devErr != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve active devices for member %s: %w",
+			memberID,
+			devErr,
+		)
+	}
+
+	if len(devices) == 0 {
+		return nil, fmt.Errorf(
+			"no active device registered for member %s",
+			memberID,
+		)
+	}
+
+	for _, dev := range devices {
+		if !dev.IsActive {
+			continue
+		}
+
+		if dev.PublicKey == "" {
+			return nil, fmt.Errorf(
+				"active device %s for member %s has no public key",
+				dev.ID,
+				memberID,
+			)
+		}
+	}
+
+	var kr *vaults_domain.VaultKeyring
+	if a.Vault != nil && a.Vault.KeyringService != nil {
+		var pass, secret string
+		if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+			pass = userSession.Runtime.SessionSecrets["password"]
+			secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+			if secret == "" {
+				secret = userSession.Runtime.SessionSecrets["device_seed"]
+			}
+		}
+		if secret == "" {
+			secret = os.Getenv("DEVICE_SEED")
+		}
+		if secret == "" {
+			secret = os.Getenv("STELLAR_SECRET")
+		}
+		if pass == "" {
+			pass = os.Getenv("VAULT_PASSWORD")
+		}
+		kr, _ = a.Vault.KeyringService.LoadHybrid(claims.UserID, pass, secret)
+	}
+
+	var updatedTg *trustgroup_domain.TrustGroup
+	var pErr error
+	for _, dev := range devices {
+		if dev.IsActive {
+			provReq := trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+				TrustGroupID:    trustGroupID,
+				MemberID:        memberID,
+				DeviceID:        dev.ID,
+				DevicePublicKey: dev.PublicKey,
+			}
+			pTg, errExec := a.provisionEnvelopeUC.Execute(a.ctx, provReq, kr)
+			if errExec != nil {
+				pErr = errExec
+				break
+			}
+			if pTg != nil {
+				updatedTg = pTg
+			}
+		}
+	}
+
+	if pErr != nil {
+		fmt.Printf("[PROVISION-FORENSIC] persistence/update result: error (%v)\n", pErr)
+		return nil, fmt.Errorf("failed to provision device key envelope for member %s: %w", memberID, pErr)
+	}
+	if updatedTg == nil {
+		fmt.Printf("[PROVISION-FORENSIC] persistence/update result: error (updatedTg is nil)\n")
+		return nil, fmt.Errorf("no active device envelope was provisioned for member %s", memberID)
+	}
+
+	fmt.Printf("[PROVISION-FORENSIC] KeyEnvelopesCount AFTER: %d\n", len(updatedTg.KeyEnvelopes))
+	fmt.Printf("[PROVISION-FORENSIC] persistence/update result: success\n")
+
+	// Reload from SAME Cloud persistence path
+	reloadedResp, reloadErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID})
+	if reloadErr != nil {
+		fmt.Printf("[PROVISION-FORENSIC] reload failed: %v\n", reloadErr)
+		return nil, reloadErr
+	}
+	reloadedTG := reloadedResp.Data
+	fmt.Printf("[PROVISION-FORENSIC] reload KeyEnvelopesCount: %d\n", len(reloadedTG.KeyEnvelopes))
+	for _, env := range reloadedTG.KeyEnvelopes {
+		revokedStr := "nil"
+		if env.RevokedAt != nil {
+			revokedStr = env.RevokedAt.Format(time.RFC3339)
+		}
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope MemberID: %s\n", env.MemberID)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope DeviceID: %s\n", env.DeviceID)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope KEKVersion: %d\n", env.KEKVersion)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope RevokedAt: %s\n", revokedStr)
+		fmt.Printf("[PROVISION-FORENSIC] reload WrappedKEKPresent: %t\n", env.WrappedKEK != "")
+	}
+
+	return updatedTg, nil
 }
 
 // DeleteTrustGroup deletes a trust group via Ankhora Cloud backend.
@@ -3731,6 +4198,24 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
+
+	// Resolve storage identity context via classical production providers
+	var vaultName string
+	if a.Vault != nil && a.Vault.VaultRepository != nil {
+		vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+		if err == nil && vault != nil {
+			vaultName = vault.Name
+		}
+	}
+
+	if a.SubscriptionHandler != nil && a.tracecoreClient != nil {
+		sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+		if err == nil && sub != nil {
+			userStorage := blockchain.NewCloudIPFSStorage(a.tracecoreClient, sub.UserID, vaultName)
+			a.CollaborationHandler.SetAssetStorage(userStorage)
+		}
+	}
+
 	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes, wrappedDEK, kekVersion)
 }
 
@@ -3753,7 +4238,25 @@ func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, de
 		callerVaultID = claims.UserID
 	}
 
-	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, callerVaultID, shareEntryID, deviceID)
+	fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare callerIdentityID=%s callerVaultID=%s shareEntryID=%s deviceID=%s\n", claims.UserID, callerVaultID, shareEntryID, deviceID)
+
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err == nil && vault != nil {
+		sub, errSub := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+		if errSub == nil && sub != nil {
+			userStorage := blockchain.NewCloudIPFSStorage(a.tracecoreClient, sub.UserID, vault.Name)
+			assetResolver := collaboration_infra.NewCloudAssetContentResolverWithStorage(userStorage)
+			a.CollaborationHandler.SetAssetResolver(assetResolver)
+		}
+	}
+
+	resp, err := a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, callerVaultID, shareEntryID, deviceID)
+	if err != nil {
+		fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed shareEntryID=%s err=%v\n", shareEntryID, err)
+	} else {
+		fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare succeeded shareEntryID=%s trustGroupID=%s\n", shareEntryID, resp.TrustGroupID)
+	}
+	return resp, err
 }
 
 func (a *App) GetShareEntry(JwtToken string, shareEntryID string) (*c3_asset_domain.ShareEntry, error) {

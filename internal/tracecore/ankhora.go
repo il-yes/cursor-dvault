@@ -1129,6 +1129,57 @@ func (c *TracecoreClient) AccessEncryptedEntry(ctx context.Context, id string, r
 	return &cloudResp, nil
 }
 
+func (c *TracecoreClient) AccessThreadData(ctx context.Context, req tracecore_types.ThreadDataAccessRequest) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP POST %s/thread-data/access threadID=%s eventID=%s trustGroupID=%s requestingVaultID=%s sourceVaultID=%s\n", c.AnkhoraCloudUrl, req.ThreadID, req.EventID, req.TrustGroupID, req.RequestingVaultID, req.SourceVaultID)
+	utils.LogPretty("TracecoreClient - AccessThreadData - payload", req)
+	bodyBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/thread-data/access", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP DO failed err=%v\n", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP response status=%d bodyLen=%d\n", resp.StatusCode, len(respBytes))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("cloud returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData success downloadAllowed=%t encryptedMaterialReturned=%t\n", cloudResp.Data.DownloadAllowed, len(cloudResp.Data.EncryptedPayload) > 0)
+	utils.LogPretty("TracecoreClient - AccessThreadData - cloud response", cloudResp)
+	return &cloudResp, nil
+}
+
 func (c *TracecoreClient) DecryptVaultEntry(ctx context.Context, req tracecore_types.DecryptCryptoShareRequest) (*tracecore_types.CloudResponse[tracecore_types.DecryptCryptoShareResponse], error) {
 	utils.LogPretty("TracecoreClient - DecryptVaultEntry - payload", req)
 	bodyBytes, _ := json.Marshal(req)
@@ -1751,6 +1802,11 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 
 	if len(respBytes) == 0 {
 		return nil, fmt.Errorf("TracecoreClient - AddToIPFS - empty body")
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("SYNC[%s] TracecoreClient - AddToIPFS - HTTP status %d, Content-Type: %s, body: %s", opID, resp.StatusCode, resp.Header.Get("Content-Type"), string(respBytes))
+		return nil, fmt.Errorf("TracecoreClient - AddToIPFS - cloud returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]

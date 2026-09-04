@@ -1,5 +1,4 @@
-package trustgroup_usecases
-
+package trustgroup_usecases_trustgroup
 
 import (
 	"context"
@@ -9,23 +8,32 @@ import (
 
 	"github.com/google/uuid"
 
-	trustgroup_domain "vault-app/internal/trust_group/domain"
-	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_events "vault-app/internal/trust_group/application/events"
+	trustgroup_ports "vault-app/internal/trust_group/application/ports"
+	trustgroup_usecases_envelope "vault-app/internal/trust_group/application/usecases/envelope"
+	trustgroup_domain "vault-app/internal/trust_group/domain"
 )
 
 type CreateTrustGroupUsecase struct {
 	repo     trustgroup_domain.TrustGroupRepository
 	eventBus trustgroup_events.TrustGroupEventBus
+
+	provisionEnvelopeUC   *trustgroup_usecases_envelope.ProvisionTrustGroupDeviceEnvelopeUseCase
+	identityDeviceAdapter trustgroup_ports.DeviceResolver
 }
 
 func NewCreateTrustGroupUsecase(
 	repo trustgroup_domain.TrustGroupRepository,
 	eventBus trustgroup_events.TrustGroupEventBus,
-) *CreateTrustGroupUsecase {
+	provisionEnvelopeUC *trustgroup_usecases_envelope.ProvisionTrustGroupDeviceEnvelopeUseCase,
+	identityDeviceAdapter trustgroup_ports.DeviceResolver,
+	) *CreateTrustGroupUsecase {
 	return &CreateTrustGroupUsecase{
 		repo:     repo,
 		eventBus: eventBus,
+		provisionEnvelopeUC:   provisionEnvelopeUC,
+		identityDeviceAdapter: identityDeviceAdapter,
 	}
 }
 

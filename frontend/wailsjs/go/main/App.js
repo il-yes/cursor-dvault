@@ -430,6 +430,10 @@ export function ProcessEncryptedPayment(arg1) {
   return window['go']['main']['App']['ProcessEncryptedPayment'](arg1);
 }
 
+export function ProvisionTrustGroupDeviceEnvelope(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ProvisionTrustGroupDeviceEnvelope'](arg1, arg2, arg3);
+}
+
 export function ReactivateSubscription(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReactivateSubscription'](arg1, arg2, arg3);
 }

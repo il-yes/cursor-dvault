@@ -164,6 +164,11 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 				w.WriteHeader(404)
 				return
 			}
+			fmt.Printf("[C3][ENVELOPE][DB][READ] trustGroupID=%s envelopeCount=%d\n", tgID, len(tg.KeyEnvelopes))
+			for i, env := range tg.KeyEnvelopes {
+				fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+			}
+
 			resp := tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{
 				Status:  200,
 				Success: true,
@@ -179,7 +184,16 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 			tgID := r.URL.Path[17:]
 			var updatedTG trustgroup_domain.TrustGroup
 			_ = json.Unmarshal(bodyBytes, &updatedTG)
+			fmt.Printf("[C3][ENVELOPE][CLOUD][IN] trustGroupID=%s envelopesCount=%d\n", tgID, len(updatedTG.KeyEnvelopes))
+			for i, env := range updatedTG.KeyEnvelopes {
+				fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+			}
+
 			m.trustGroups[tgID] = &updatedTG
+			fmt.Printf("[C3][ENVELOPE][DB][WRITE] trustGroupID=%s rowsWritten=%d\n", tgID, len(updatedTG.KeyEnvelopes))
+			for i, env := range updatedTG.KeyEnvelopes {
+				fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+			}
 
 			resp := tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{
 				Status:  200,
@@ -187,6 +201,11 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 				Message: "updated",
 				Data:    updatedTG,
 			}
+			fmt.Printf("[C3][ENVELOPE][HTTP][OUT_RESPONSE] trustGroupID=%s envelopesCount=%d\n", tgID, len(updatedTG.KeyEnvelopes))
+			for i, env := range updatedTG.KeyEnvelopes {
+				fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+			}
+
 			w.WriteHeader(200)
 			_ = json.NewEncoder(w).Encode(resp)
 			return

@@ -244,6 +244,8 @@ export function PollPaymentStatus(arg1:string,arg2:string,arg3:string):Promise<s
 
 export function ProcessEncryptedPayment(arg1:main.ClientPaymentRequest):Promise<void>;
 
+export function ProvisionTrustGroupDeviceEnvelope(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
+
 export function ReactivateSubscription(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function RecoverVaultWithKey(arg1:string):Promise<stellar_recovery_domain.RecoveredVault>;

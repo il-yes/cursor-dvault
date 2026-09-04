@@ -2,6 +2,7 @@ package collaboration_usecases
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -43,6 +44,11 @@ func (u *CreateCollaborativeShareUseCase) WithCrypto(
 	u.assetResolver = assetResolver
 	u.identityResolver = identityResolver
 	u.assetStorage = assetStorage
+	return u
+}
+
+func (u *CreateCollaborativeShareUseCase) WithStorageProvider(storage app_config.StorageProvider) *CreateCollaborativeShareUseCase {
+	u.assetStorage = storage
 	return u
 }
 
@@ -114,7 +120,7 @@ func (u *CreateCollaborativeShareUseCase) Execute(
 			return nil, fmt.Errorf("failed to prepare collaborative asset crypto: %w", err)
 		}
 
-		wrappedDEKStr = string(prepared.WrappedDEK)
+		wrappedDEKStr = base64.StdEncoding.EncodeToString(prepared.WrappedDEK)
 
 		// Upload prepared encrypted bytes to storage to obtain the new encrypted CID
 		if u.assetStorage != nil {

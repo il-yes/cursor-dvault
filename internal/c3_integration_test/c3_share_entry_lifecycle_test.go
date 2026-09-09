@@ -113,7 +113,6 @@ func TestC3ShareEntryLifecycle_Revoked_HistoricalThreadPreserved(t *testing.T) {
 	activeDTO, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createdShareEntryID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawOriginalContent, activeDTO.Plaintext)
@@ -138,7 +137,6 @@ func TestC3ShareEntryLifecycle_Revoked_HistoricalThreadPreserved(t *testing.T) {
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createdShareEntryID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked, "Accessing revoked ShareEntry must return ErrShareEntryRevoked")
 }
@@ -245,7 +243,6 @@ func TestC3ShareEntryLifecycle_HardDeleted_HistoricalThreadPreserved(t *testing.
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createdShareEntryID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryNotFound, "Accessing deleted ShareEntry must return ErrShareEntryNotFound")
 }
@@ -275,7 +272,6 @@ func TestC3ShareEntryLifecycle_RevokedBeforeTrustGroupOrCryptoResolution(t *test
 	_, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked)

@@ -145,7 +145,7 @@ func TestRotateKEK_FailureA_TrustGroupUpdateFails(t *testing.T) {
 		OldVersion:   1,
 		NewVersion:   2,
 		NewEnvelopes: []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-			{TrustGroupID: tg.ID, MemberID: "vault-1", DeviceID: "dev-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
+			{TrustGroupID: tg.ID, MemberID: "vault-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
 		},
 		RotatedShareEntries: []collaboration_usecases.RotatedShareEntryInput{
 			{ShareEntryID: shareEntry.ID, ReWrappedDEK: "wdek-v2"},
@@ -185,7 +185,7 @@ func TestRotateKEK_FailureB_ShareEntryUpdateFails(t *testing.T) {
 		OldVersion:   1,
 		NewVersion:   2,
 		NewEnvelopes: []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-			{TrustGroupID: tg.ID, MemberID: "vault-1", DeviceID: "dev-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
+			{TrustGroupID: tg.ID, MemberID: "vault-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
 		},
 		RotatedShareEntries: []collaboration_usecases.RotatedShareEntryInput{
 			{ShareEntryID: shareEntry.ID, ReWrappedDEK: "wdek-v2"},
@@ -214,7 +214,7 @@ func TestRotateKEK_FailureD_IdempotencyRetry(t *testing.T) {
 		OldVersion:   1,
 		NewVersion:   2,
 		NewEnvelopes: []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-			{TrustGroupID: tg.ID, MemberID: "vault-1", DeviceID: "dev-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
+			{TrustGroupID: tg.ID, MemberID: "vault-1", KEKVersion: 2, WrappedKEK: "wkek-v2"},
 		},
 		RotatedShareEntries: []collaboration_usecases.RotatedShareEntryInput{
 			{ShareEntryID: shareEntry.ID, ReWrappedDEK: "wdek-v2"},
@@ -276,7 +276,7 @@ func TestRotateKEK_FailureF_ConcurrentRotations(t *testing.T) {
 		OldVersion:   1,
 		NewVersion:   2,
 		NewEnvelopes: []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-			{TrustGroupID: tg.ID, MemberID: "vault-1", DeviceID: "dev-1", KEKVersion: 2, WrappedKEK: "wkek-v2-race1"},
+			{TrustGroupID: tg.ID, MemberID: "vault-1", KEKVersion: 2, WrappedKEK: "wkek-v2-race1"},
 		},
 		RotatedShareEntries: []collaboration_usecases.RotatedShareEntryInput{
 			{ShareEntryID: shareEntry.ID, ReWrappedDEK: "wdek-v2-race1"},
@@ -289,7 +289,7 @@ func TestRotateKEK_FailureF_ConcurrentRotations(t *testing.T) {
 		OldVersion:   1,
 		NewVersion:   2,
 		NewEnvelopes: []trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-			{TrustGroupID: tg.ID, MemberID: "vault-1", DeviceID: "dev-1", KEKVersion: 2, WrappedKEK: "wkek-v2-race2"},
+			{TrustGroupID: tg.ID, MemberID: "vault-1", KEKVersion: 2, WrappedKEK: "wkek-v2-race2"},
 		},
 		RotatedShareEntries: []collaboration_usecases.RotatedShareEntryInput{
 			{ShareEntryID: shareEntry.ID, ReWrappedDEK: "wdek-v2-race2"},

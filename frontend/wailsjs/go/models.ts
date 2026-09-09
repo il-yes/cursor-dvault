@@ -1682,16 +1682,19 @@ export namespace handlers {
 export namespace identity_domain {
 	
 	export class User {
-	    ID: string;
-	    Email: string;
-	    PasswordHash: string;
-	    IsAnonymous: boolean;
-	    Identity: string;
-	    StellarPublicKey: string;
+	    id: string;
+	    email: string;
+	    is_anonymous: boolean;
+	    identity: string;
+	    username: string;
+	    user_name?: string;
+	    first_name: string;
+	    last_name: string;
+	    stellar_public_key: string;
 	    // Go type: time
-	    CreatedAt: any;
+	    created_at: any;
 	    // Go type: time
-	    LastConnectedAt: any;
+	    last_connected_at: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -1699,14 +1702,17 @@ export namespace identity_domain {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Email = source["Email"];
-	        this.PasswordHash = source["PasswordHash"];
-	        this.IsAnonymous = source["IsAnonymous"];
-	        this.Identity = source["Identity"];
-	        this.StellarPublicKey = source["StellarPublicKey"];
-	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
-	        this.LastConnectedAt = this.convertValues(source["LastConnectedAt"], null);
+	        this.id = source["id"];
+	        this.email = source["email"];
+	        this.is_anonymous = source["is_anonymous"];
+	        this.identity = source["identity"];
+	        this.username = source["username"];
+	        this.user_name = source["user_name"];
+	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
+	        this.stellar_public_key = source["stellar_public_key"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.last_connected_at = this.convertValues(source["last_connected_at"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2489,6 +2495,8 @@ export namespace onboarding_usecase {
 	    password?: string;
 	    is_anonymous: boolean;
 	    stellar_key?: string;
+	    public_key?: string;
+	    device_seed?: string;
 	    use_cases?: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -2501,6 +2509,8 @@ export namespace onboarding_usecase {
 	        this.password = source["password"];
 	        this.is_anonymous = source["is_anonymous"];
 	        this.stellar_key = source["stellar_key"];
+	        this.public_key = source["public_key"];
+	        this.device_seed = source["device_seed"];
 	        this.use_cases = source["use_cases"];
 	    }
 	}
@@ -4458,7 +4468,7 @@ export namespace trustgroup_domain {
 	    id: string;
 	    trust_group_id: string;
 	    member_id: string;
-	    device_id: string;
+	    device_id?: string;
 	    kek_version: number;
 	    wrapped_kek: string;
 	    // Go type: time

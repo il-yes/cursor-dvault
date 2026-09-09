@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ActivationChannel } from "../channel/ChannelActivation";
 import { ChannelRow } from "../../domain/channel/channel.types";
 import { DisputeRow, LedgerRowView } from "./LedgerRow";
 import { useC3DialogStore } from "../../infrastructure/store/c3DialogStore";
+import { InviteModal } from "./InviteModal";
 import * as ROUTES from "@/constants/routes";
 
 
@@ -37,6 +38,7 @@ export const List = ({
     onOpenChannel: (channelId: string) => void;
 }) => {
     const navigate = useNavigate();
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const visibleRows = useMemo(() => ledgerRow, []);
 
     return (
@@ -44,6 +46,25 @@ export const List = ({
             <div className="ledger-topbar">
                 <div className="ledger-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span>LEDGER</span>
+                    <button
+                        title="Invite Member to Workspace / Channel"
+                        style={{
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            background: "#10b981",
+                            border: "1px solid #059669",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                        }}
+                        onClick={() => setIsInviteModalOpen(true)}
+                    >
+                        ✉ Invite
+                    </button>
                     <button
                         title="Workspace / Ledger Federation"
                         style={{
@@ -69,6 +90,11 @@ export const List = ({
                     <button className="ctrl-btn">📅 June 2026 ▾</button>
                 </div>
             </div>
+
+            <InviteModal
+                isOpen={isInviteModalOpen}
+                onClose={() => setIsInviteModalOpen(false)}
+            />
 
             <div className="table-wrap">
                 <table>
@@ -107,11 +133,31 @@ export const List = ({
 
 export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: boolean, channelId?: string) => void }) => {
     const navigate = useNavigate();
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     return (
     <div className="ledger-area">
         <div className="ledger-topbar">
             <div className="ledger-title" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span>LEDGER</span>
+                <button
+                    title="Invite Member to Workspace / Channel"
+                    style={{
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        padding: "3px 8px",
+                        borderRadius: "4px",
+                        background: "#10b981",
+                        border: "1px solid #059669",
+                        color: "#ffffff",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                    }}
+                    onClick={() => setIsInviteModalOpen(true)}
+                >
+                    ✉ Invite
+                </button>
                 <button
                     title="Workspace / Ledger Federation"
                     style={{
@@ -137,6 +183,11 @@ export const EmptyList = ({ openC3CreateDialog }: { openC3CreateDialog: (open: b
                 <div className="ctrl-btn">📅 June 2026 ▾</div>
             </div>
         </div>
+
+        <InviteModal
+            isOpen={isInviteModalOpen}
+            onClose={() => setIsInviteModalOpen(false)}
+        />
 
         <div className="empty-area">
             <div className="empty-headline">Start your first channel</div>

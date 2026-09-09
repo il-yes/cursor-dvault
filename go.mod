@@ -22,6 +22,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.33.0
 	gorm.io/datatypes v1.2.7
+	gorm.io/driver/mysql v1.5.6
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.0
 )
@@ -87,7 +88,6 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/driver/mysql v1.5.6 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 

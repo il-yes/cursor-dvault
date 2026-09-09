@@ -3,6 +3,7 @@ package trustgroup_adapters
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	identity_domain "vault-app/internal/identity/domain"
 	trustgroup_ports "vault-app/internal/trust_group/application/ports"
@@ -66,6 +67,7 @@ func (a *IdentityDeviceAdapter) ListActiveDevices(ctx context.Context, memberID 
 			})
 		}
 	}
+	fmt.Printf("[DIAGNOSTIC][IdentityDeviceAdapter.ListActiveDevices] memberID=%s totalDevices=%d activeDevices=%d\n", memberID, len(devices), len(active))
 	return active, nil
 }
 

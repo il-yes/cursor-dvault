@@ -216,13 +216,11 @@ func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(tgRepo, deviceResolver)
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, addEnvelopeUC)
 
-	// Add envelopes to TrustGroup via member/device provisioning phase
+	// Add envelopes to TrustGroup via member provisioning phase
 	for _, envReq := range prepared.Envelopes {
 		_ = tg.AddEnvelope(trustgroup_domain.TrustGroupKeyEnvelope{
-			ID:           envReq.DeviceID,
 			TrustGroupID: envReq.TrustGroupID,
 			MemberID:     envReq.MemberID,
-			DeviceID:     envReq.DeviceID,
 			KEKVersion:   envReq.KEKVersion,
 			WrappedKEK:   envReq.WrappedKEK,
 		})
@@ -251,21 +249,21 @@ func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	// Check persisted TrustGroup state in repository
 	updatedTgResp, err := tgRepo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
 	require.NoError(t, err)
-	assert.Len(t, updatedTgResp.Data.KeyEnvelopes, 2)
+	assert.Len(t, updatedTgResp.Data.KeyEnvelopes, 1)
 
 	// 8. END-TO-END CRYPTOGRAPHIC ROUND-TRIP TEST
-	// Recipient device (Laptop) fetches key envelope by DeviceID
-	var laptopEnvelope *trustgroup_domain.TrustGroupKeyEnvelope
+	// Recipient fetches key envelope by MemberID
+	var memberEnvelope *trustgroup_domain.TrustGroupKeyEnvelope
 	for _, env := range updatedTgResp.Data.KeyEnvelopes {
-		if env.DeviceID == "dev-laptop" {
-			laptopEnvelope = &env
+		if env.MemberID == "vault-user-1" {
+			memberEnvelope = &env
 			break
 		}
 	}
-	require.NotNil(t, laptopEnvelope, "Laptop device envelope must exist in TrustGroup")
+	require.NotNil(t, memberEnvelope, "Member envelope must exist in TrustGroup")
 
 	// Step A: Laptop unwraps WrappedKEK using its private key seed (kpLaptop.Seed())
-	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kpLaptop.Seed(), laptopEnvelope.WrappedKEK)
+	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kpLaptop.Seed(), memberEnvelope.WrappedKEK)
 	require.NoError(t, err, "Laptop should successfully unwrap WrappedKEK using its private key")
 
 	// Step B: Laptop unwraps WrappedDEK using unwrapped KEK

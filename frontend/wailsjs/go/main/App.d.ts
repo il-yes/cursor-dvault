@@ -188,6 +188,8 @@ export function GetVaultFromCloud(arg1:string,arg2:string):Promise<tracecore_typ
 
 export function GetWorkspaceFederation(arg1:string,arg2:string):Promise<tracecore_types.FederationSnapshotDTO>;
 
+export function HandleIncompleteDeviceConfigs(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<app_config_domain.DeviceConfig>>;
+
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
 export function InviteToChannel(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.ChannelInvitationDTO>;
@@ -264,7 +266,7 @@ export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RequireCloudAuthentication():Promise<void>;
 
-export function ResolveCollaborativeShare(arg1:string,arg2:string,arg3:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
+export function ResolveCollaborativeShare(arg1:string,arg2:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
 
 export function RestoreCloudTokenForUser(arg1:string):Promise<void>;
 

@@ -118,7 +118,6 @@ func setupResolveTestFixture(t *testing.T) *resolveTestFixture {
 	err = tg.AddEnvelope(trustgroup_domain.TrustGroupKeyEnvelope{
 		TrustGroupID: envReq.TrustGroupID,
 		MemberID:     envReq.MemberID,
-		DeviceID:     envReq.DeviceID,
 		KEKVersion:   envReq.KEKVersion,
 		WrappedKEK:   envReq.WrappedKEK,
 	})
@@ -187,7 +186,6 @@ func TestResolveCollaborativeShare_Success(t *testing.T) {
 	res, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	require.NoError(t, err)
@@ -207,7 +205,6 @@ func TestResolveCollaborativeShare_MissingShareEntry(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: "se_nonexistent",
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryNotFound)
@@ -223,7 +220,6 @@ func TestResolveCollaborativeShare_MissingTrustGroup(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrTrustGroupNotFound)
@@ -238,7 +234,6 @@ func TestResolveCollaborativeShare_UnauthorizedMember(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_eve", // Eve is not in MemberCIDs
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -255,7 +250,6 @@ func TestResolveCollaborativeShare_RevokedMember(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -266,11 +260,12 @@ func TestResolveCollaborativeShare_RevokedMember(t *testing.T) {
 // 6. Missing Device Envelope — Ensures Stop Before Storage & Crypto Resolution
 func TestResolveCollaborativeShare_MissingDeviceEnvelope(t *testing.T) {
 	f := setupResolveTestFixture(t)
+	f.trustGroup.KeyEnvelopes = nil
+	f.tgRepo.groups[f.trustGroup.ID] = f.trustGroup
 
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_desktop_unregistered",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
@@ -288,7 +283,6 @@ func TestResolveCollaborativeShare_RevokedDeviceEnvelope(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
@@ -305,7 +299,6 @@ func TestResolveCollaborativeShare_KEKVersionMismatch(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
@@ -321,7 +314,6 @@ func TestResolveCollaborativeShare_StorageFetchFailure(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorContains(t, err, "storage asset fetch failed")
@@ -337,7 +329,6 @@ func TestResolveCollaborativeShare_CryptoFailure(t *testing.T) {
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	assert.ErrorContains(t, err, "cryptographic resolution failed")
@@ -350,7 +341,6 @@ func TestResolveCollaborativeShare_ZeroSecretLeakage(t *testing.T) {
 	res, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: f.shareEntry.ID,
 		CallerUserID: "user_alice",
-		DeviceID:     "dev_laptop",
 	})
 
 	require.NoError(t, err)
@@ -403,7 +393,6 @@ func TestResolveCollaborativeShare_IdentityBoundary_ResolvedVaultID_Authorized(t
 		ShareEntryID:     f.shareEntry.ID,
 		CallerIdentityID: identityID,
 		CallerVaultID:    vaultID,
-		DeviceID:         deviceID,
 	})
 
 	require.NoError(t, err)
@@ -426,7 +415,6 @@ func TestResolveCollaborativeShare_IdentityBoundary_RawIdentityID_Unauthorized(t
 		ShareEntryID:     f.shareEntry.ID,
 		CallerIdentityID: identityID,
 		CallerVaultID:    identityID, // Incorrect: IdentityID passed into VaultID position
-		DeviceID:         "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -441,7 +429,6 @@ func TestResolveCollaborativeShare_IdentityBoundary_NonMemberVaultID_Unauthorize
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:  f.shareEntry.ID,
 		CallerVaultID: nonMemberVaultID,
-		DeviceID:      "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -467,7 +454,6 @@ func TestResolveCollaborativeShare_IdentityBoundary_WrongTrustGroup_Unauthorized
 	_, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:  wrongShareEntry.ID,
 		CallerVaultID: memberVaultID,
-		DeviceID:      "dev_laptop",
 	})
 
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -489,7 +475,6 @@ func TestResolveCollaborativeShare_IdentityBoundary_FullValidResolution(t *testi
 	res, err := f.useCase.Execute(context.Background(), collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:  f.shareEntry.ID,
 		CallerVaultID: memberVaultID,
-		DeviceID:      deviceID,
 	})
 
 	require.NoError(t, err)

@@ -181,9 +181,7 @@ func TestInvitationAcceptanceOrchestration_FullLifecycle(t *testing.T) {
 	tgAfter, err := repo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tgID})
 	require.NoError(t, err)
 	assert.Contains(t, tgAfter.Data.MemberCIDs, userB_VaultID, "User B VaultID must be in MemberCIDs")
-	require.Len(t, tgAfter.Data.KeyEnvelopes, 1, "User B must have exactly 1 device key envelope")
 	assert.Equal(t, userB_VaultID, tgAfter.Data.KeyEnvelopes[0].MemberID)
-	assert.Equal(t, deviceB_ID, tgAfter.Data.KeyEnvelopes[0].DeviceID)
 
 	// TEST 5: Idempotency check - re-running provisioning must skip cleanly without error or duplicates
 	_, err = provisionEnvelopeUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{

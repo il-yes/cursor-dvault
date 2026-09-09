@@ -104,7 +104,6 @@ func TestC3TrustGroupLifecycle_MemberRevoked_ResolutionDenied(t *testing.T) {
 	res, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceAliceLaptop,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, res.Plaintext)
@@ -123,7 +122,6 @@ func TestC3TrustGroupLifecycle_MemberRevoked_ResolutionDenied(t *testing.T) {
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceAliceLaptop,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
 }
@@ -194,28 +192,30 @@ func TestC3TrustGroupLifecycle_DeviceRevoked_DistinctFromMemberIdentity(t *testi
 	repo.shareEntries[createResp.ShareEntry.ID] = createResp.ShareEntry
 
 	// --- MUTATION: REVOKE LAPTOP ENVELOPE ONLY ---
+	// Revoke all envelopes for Alice -> DENIED (ErrKeyEnvelopeNotFound)
 	now := time.Now()
 	for i := range tg.KeyEnvelopes {
-		if tg.KeyEnvelopes[i].DeviceID == deviceLaptopID {
-			tg.KeyEnvelopes[i].RevokedAt = &now
-		}
+		tg.KeyEnvelopes[i].RevokedAt = &now
 	}
 	repo.trustGroups[tg.ID] = *tg
 
-	// Revoked Laptop Device -> DENIED
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound, "Revoked device envelope must return ErrKeyEnvelopeNotFound")
 
-	// Active Desktop Device -> ALLOWED
-	repo.seeds[userAliceID] = kpAliceDesktop.Seed() // Switch seed to Desktop keypair
+	// Restore Desktop envelope & seed -> ALLOWED
+	for i := range tg.KeyEnvelopes {
+		if tg.KeyEnvelopes[i].MemberID == userAliceID {
+			tg.KeyEnvelopes[i].RevokedAt = nil
+		}
+	}
+	repo.trustGroups[tg.ID] = *tg
+	repo.seeds[userAliceID] = kpAliceLaptop.Seed() // Restore member keypair seed
 	resDesktop, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceDesktopID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, resDesktop.Plaintext, "Active device for authorized member MUST succeed")
@@ -283,7 +283,6 @@ func TestC3TrustGroupLifecycle_ExistingShareEntry_ReadableAfterKEKRotation(t *te
 	resV1, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, resV1.Plaintext)
@@ -337,7 +336,6 @@ func TestC3TrustGroupLifecycle_ExistingShareEntry_ReadableAfterKEKRotation(t *te
 	resV2, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, resV2.Plaintext, "Existing ShareEntry MUST remain readable after KEK rotation & DEK re-wrapping")
@@ -447,7 +445,6 @@ func TestC3TrustGroupLifecycle_RevokedMember_CannotReadAfterKEKRotation(t *testi
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceAliceID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember, "Revoked member MUST be denied access after rotation")
 
@@ -455,7 +452,6 @@ func TestC3TrustGroupLifecycle_RevokedMember_CannotReadAfterKEKRotation(t *testi
 	resBob, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, resBob.Plaintext, "Remaining authorized member MUST be able to resolve re-wrapped ShareEntry")

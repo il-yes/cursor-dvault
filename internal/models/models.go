@@ -41,11 +41,13 @@ const (
 
 
 type User struct {
-	ID              string       `json:"id" gorm:"primaryKey"`
+	ID              string    `json:"id" gorm:"primaryKey"`
 	Username        string    `gorm:"column:username" json:"username"`
 	Email           string    `gorm:"column:email" json:"email"`
 	Password        string    `gorm:"column:password" json:"password"`
 	Role            string    `gorm:"column:role" json:"role"`
+	FirstName       string    `gorm:"column:first_name" json:"first_name"`
+	LastName        string    `gorm:"column:last_name" json:"last_name"`
 	CreatedAt       time.Time `json:"created_at" gorm:"varchar(100)"`
 	UpdatedAt       time.Time `json:"updated_at" gorm:"varchar(100)"`
 	LastConnectedAt time.Time `json:"last_connected_at"`

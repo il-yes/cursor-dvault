@@ -136,7 +136,6 @@ func (u *RotateTrustGroupKEKUseCase) Execute(
 		domainEnvelopes = append(domainEnvelopes, trustgroup_domain.TrustGroupKeyEnvelope{
 			TrustGroupID: req.TrustGroupID,
 			MemberID:     envReq.MemberID,
-			DeviceID:     envReq.DeviceID,
 			KEKVersion:   req.NewVersion,
 			WrappedKEK:   envReq.WrappedKEK,
 		})

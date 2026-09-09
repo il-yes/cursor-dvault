@@ -98,6 +98,15 @@ func NewKeyringSovereignIdentityResolver(keyringService *vault_infrastructure_se
 var _ collaboration_ports.SovereignIdentityResolver = (*KeyringSovereignIdentityResolver)(nil)
 
 func (r *KeyringSovereignIdentityResolver) GetDeviceSeed(ctx context.Context, userID string) (string, error) {
+	if r.keyringService != nil {
+		kr, err := r.keyringService.LoadHybrid(userID, "", "")
+		if err == nil && kr != nil {
+			seedBytes, err := r.keyringService.GetKeyByType(kr, vaults_domain.KeyTypeDeviceSeed)
+			if err == nil && len(seedBytes) > 0 {
+				return string(seedBytes), nil
+			}
+		}
+	}
 	if seed := os.Getenv("DEVICE_SEED"); seed != "" {
 		return seed, nil
 	}

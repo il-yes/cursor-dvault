@@ -1073,19 +1073,12 @@ type EditUserInfosResponse = {
 	last_name: string;
 }
 export const EditUserInfos = async (jwtToken: string, payload: EditUserInfosInput): Promise<EditUserInfosResponse> => {
-	const response = await AppAPI.EditUserInfos(jwtToken, payload);
-	console.log({ response })
-
-	// if (!response.ok) {
-	//   throw new Error(`Failed to edit user infos: ${response.statusText}`);
-	// }
-
-	const res: EditUserInfosResponse = {
-		user_name: "",
-		first_name: "",
-		last_name: "",
-	}
-	return res;
+	await AppAPI.EditUserInfos(jwtToken, payload);
+	return {
+		user_name: payload.user_name,
+		first_name: payload.first_name,
+		last_name: payload.last_name,
+	};
 };
 
 export const GetConfig = async (vaultName: string, jwtToken: string): Promise<SettingsState> => {
@@ -1286,6 +1279,8 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 	const editedSettings = await AppAPI.EditConfig(vault.name, settingsInstance, jwtToken)
 	console.log({ editedSettings })
 }
+
+
 
 export const uploadAvatar = async (jwtToken: string, vaultName: string, buffer: Uint8Array): Promise<string> => {
 	const response = await AppAPI.UploadAvatar(jwtToken, vaultName, Array.from(buffer));

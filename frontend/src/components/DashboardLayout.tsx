@@ -50,6 +50,8 @@ import { useVault } from "@/hooks/useVault";
 import { loadAvatar } from "@/services/api";
 import { useNotificationsEvents } from "@/hooks/useNotificationSocket";
 import { NotificationBell } from "./Notification/NotificationBell";
+import { list as fetchNotificationsList } from "@/services/notificationsApi";
+import { useNotificationsStore } from "@/store/notificationsStore";
 import { C3SidebarMenu } from "./C3/ui/Sidebar/SidebarMenu";
 import { useC3DialogStore } from "./C3/infrastructure/store/c3DialogStore";
 import { useC3ChannelStore } from "./C3/infrastructure/store/useC3ChannelStore";
@@ -208,6 +210,19 @@ function DashboardNavbar() {
 
 	const { isCreateC3DialogOpen, setCreateDialogOpen } = useC3DialogStore();
 
+	useEffect(() => {
+		const loadNotifications = async () => {
+			if (!jwtToken) return;
+			try {
+				const items = await fetchNotificationsList();
+				useNotificationsStore.getState().setNotifications(items);
+			} catch (err) {
+				console.error("[NOTIFICATIONS_SYNC] Failed to fetch initial notifications:", err);
+			}
+		};
+		loadNotifications();
+	}, [jwtToken]);
+
 	const isVaultContext = location.pathname.startsWith("/dashboard/vault");
 	const isC3Context = location.pathname.startsWith("/dashboard/c3");
 
@@ -365,27 +380,7 @@ function DashboardNavbar() {
 
 				<ThemeToggle />
 
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" size="icon" className="rounded-full">
-							<Bell style={{ cursor: "pointer" }} className="h-4 w-4 text-destructive" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-48">
-						<DropdownMenuItem onClick={() => navigate("/dashboard/notifications")} >
-							<NotificationBell className="mr-2 h-4 w-4" />
-							Unread notifications
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => navigate("/dashboard/profile")}>
-							<MessageCircleWarning className="mr-2 h-4 w-4 text-destructive" />
-							Alerts system
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-							<LogOut className="mr-2 h-4 w-4" />
-							Logout
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+				<NotificationBell onClick={() => navigate("/dashboard/notifications")} />
 
 				{/* <Settings style={{ cursor: "pointer" }} className="mr-4 ml-2 h-4 w-4  rounded-full" onClick={() => navigate("/dashboard/settings-beta")} />
 

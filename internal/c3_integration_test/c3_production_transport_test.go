@@ -254,7 +254,7 @@ func TestFederation_ProductionTransport_C3Share_EndToEnd(t *testing.T) {
 	resolveUC_B := collaboration_usecases.NewResolveCollaborativeShareUseCase(repoB, repoB, repoB, repoB, orchestratorB)
 	collabHandlerB := collaboration_ui.NewCollaborationHandler(nil, resolveUC_B, nil)
 
-	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, shareEntry.ID, deviceBobID)
+	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntry.ID)
 	assert.ErrorIs(t, errPostRevoke, collaboration_usecases.ErrShareEntryRevoked, "INVARIANT 6: Post-revocation resolution MUST return ErrShareEntryRevoked")
 
 	// Audit historical timeline on Vault B
@@ -386,6 +386,6 @@ func TestFederation_ProductionTransport_RetryReorderReplay_EndToEnd(t *testing.T
 	resolveUC_B := collaboration_usecases.NewResolveCollaborativeShareUseCase(repoB, repoB, repoB, repoB, orchestratorB)
 	collabHandlerB := collaboration_ui.NewCollaborationHandler(nil, resolveUC_B, nil)
 
-	_, errRes := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, shareEntry.ID, deviceBobID)
+	_, errRes := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntry.ID)
 	assert.ErrorIs(t, errRes, collaboration_usecases.ErrShareEntryRevoked, "Post-revocation resolution MUST return ErrShareEntryRevoked")
 }

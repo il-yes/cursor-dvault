@@ -262,9 +262,8 @@ func TestC3Share_KeyHierarchy(t *testing.T) {
 	require.Equal(t, uint64(1), prep.KEKVersion)
 	require.NotEmpty(t, prep.EncryptedData)
 
-	// 2. Member device gets a separate TrustGroupKeyEnvelope wrapping the KEK
+	// 2. Member gets a TrustGroupKeyEnvelope wrapping the KEK
 	require.Len(t, prep.Envelopes, 1)
-	require.Equal(t, "dev_a_01", prep.Envelopes[0].DeviceID)
 	require.Equal(t, "vault-user-a", prep.Envelopes[0].MemberID)
 	require.Equal(t, uint64(1), prep.Envelopes[0].KEKVersion)
 }
@@ -369,7 +368,6 @@ func TestC3Share_GroupMemberReads(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    userBVaultID,
 		CallerIdentityID: userBVaultID,
-		DeviceID:         deviceID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, rawPayload, resp.Plaintext)
@@ -504,7 +502,6 @@ func TestC3Share_NewMemberGetsExistingShares(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    userCVaultID,
 		CallerIdentityID: userCVaultID,
-		DeviceID:         deviceC,
 	})
 	require.NoError(t, err)
 	require.Equal(t, rawPayload, resp.Plaintext)
@@ -543,7 +540,6 @@ func TestC3Share_UnauthorizedMemberBlocked(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    "vault-stranger-danger",
 		CallerIdentityID: "vault-stranger-danger",
-		DeviceID:         "dev_stranger_01",
 	})
 	require.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
 }
@@ -582,7 +578,6 @@ func TestC3Share_MissingDeviceEnvelope(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    memberVaultID,
 		CallerIdentityID: memberVaultID,
-		DeviceID:         "dev_unprovisioned_01",
 	})
 	require.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
 }
@@ -630,7 +625,6 @@ func TestC3Share_KEKVersionMismatch(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    memberVaultID,
 		CallerIdentityID: memberVaultID,
-		DeviceID:         deviceID,
 	})
 	require.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
 }
@@ -736,7 +730,6 @@ func TestC3_EndToEndLifecycle(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    userBVaultID,
 		CallerIdentityID: userBVaultID,
-		DeviceID:         devB,
 	})
 	require.NoError(t, errB)
 	assert.Equal(t, rawPayload, respB.Plaintext)
@@ -766,7 +759,6 @@ func TestC3_EndToEndLifecycle(t *testing.T) {
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    userCVaultID,
 		CallerIdentityID: userCVaultID,
-		DeviceID:         devC,
 	})
 	require.NoError(t, errC)
 	assert.Equal(t, rawPayload, respC.Plaintext)

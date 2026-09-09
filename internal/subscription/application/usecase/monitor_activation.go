@@ -41,6 +41,7 @@ type AppConfigHandlerInterface interface {
 	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
 	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
+	GetDeviceConfigsByUserID(userID string, vaultName string) ([]app_config_domain.DeviceConfig, error)
 }
 
 // ----------- Struct -----------

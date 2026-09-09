@@ -4,88 +4,88 @@ import (
 	"context"
 	"errors"
 	"log"
+
+	gorm "gorm.io/gorm"
+
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_queries "vault-app/internal/identity/application/queries"
 	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
-	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	onboarding_domain "vault-app/internal/onboarding/domain"
-
-	gorm "gorm.io/gorm"
 )
 
 type IdentityHandler struct {
-	DB *gorm.DB
+	DB               *gorm.DB
 	IdentityUserRepo identity_domain.UserRepository
 
-	tokenService        identity_commands.TokenServiceInterface
-	eventBus            identity_eventbus.EventBus
+	tokenService identity_commands.TokenServiceInterface
 
-	loginHandler *LoginHandler
+	DeviceUseCase identity_usecase.CreateDeviceUseCase
+	loginHandler        *LoginHandler
 	registrationHandler *RegistrationHandler
-	finderHandler *FinderHandler
-	Bus identity_eventbus.EventBus
+	finderHandler       *FinderHandler
+	Bus                 identity_eventbus.EventBus
 }
 
 func NewIdentityHandler(
-	db *gorm.DB, 
+	db *gorm.DB,
 	tokenService identity_commands.TokenServiceInterface,
 	onboardingUserRepo onboarding_domain.UserRepository,
-	) *IdentityHandler {
-	
+	deviceUseCase identity_usecase.CreateDeviceUseCase,
+	identityMemoryBus identity_eventbus.EventBus,
+) *IdentityHandler {
+
 	identityUserRepo := identity_persistence.NewGormUserRepository(db)
-	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()	
 
 	return &IdentityHandler{
-		DB: db,
+		DB:               db,
 		IdentityUserRepo: identityUserRepo,
-		eventBus: identityMemoryBus,
-		tokenService:        tokenService,
-		Bus: identityMemoryBus,
+		DeviceUseCase:    deviceUseCase,
+		tokenService:     tokenService,
+		Bus:              identityMemoryBus,
 	}
 }
 
 func (h *IdentityHandler) Registers(req OnboardRequest) (*identity_domain.User, error) {
 	identityIdGen := identity_persistence.NewIDGenerator()
-	registerStandardUserUseCase := identity_usecase.NewRegisterStandardUserUseCase(h.IdentityUserRepo, h.eventBus, identityIdGen)
-	registerAnonymousUserUseCase := identity_usecase.NewRegisterAnonymousUserUseCase(h.IdentityUserRepo, h.eventBus, identityIdGen)
+	registerStandardUserUseCase := identity_usecase.NewRegisterStandardUserUseCase(h.IdentityUserRepo, h.Bus, identityIdGen)
+	registerAnonymousUserUseCase := identity_usecase.NewRegisterAnonymousUserUseCase(h.IdentityUserRepo, h.Bus, identityIdGen)
 	identityRegistrationHandler := NewRegistrationHandler(
 		identity_usecase.NewRegisterIdentityUseCase(
-			registerStandardUserUseCase, 
+			registerStandardUserUseCase,
 			registerAnonymousUserUseCase,
 		),
 	)
-	
+
 	return identityRegistrationHandler.Registers(context.Background(), req)
 }
 
-
 func (h *IdentityHandler) Login(req identity_commands.LoginCommand) (*identity_commands.LoginResult, error) {
-	if (h.tokenService == nil) {
+	if h.tokenService == nil {
 		return nil, errors.New("IdentityHandler - Login - token service is not initialized")
 	}
-	if (h.eventBus == nil) {
+	if h.Bus == nil {
 		return nil, errors.New("IdentityHandler - Login - event bus is not initialized")
 	}
-	if (h.DB == nil) {
+	if h.DB == nil {
 		return nil, errors.New("IdentityHandler - Login - database is not initialized")
-	}	
+	}
 	identityCommandHandler := identity_commands.NewLoginCommandHandler(h.DB)
-	if (identityCommandHandler == nil) {
+	if identityCommandHandler == nil {
 		return nil, errors.New("IdentityHandler - Login - identity command handler is not initialized")
 	}
 
 	loginHandler := NewLoginHandler(
 		identityCommandHandler,
 		h.tokenService,
-		h.eventBus,
+		h.Bus,
 	)
-	if (loginHandler == nil) {
+	if loginHandler == nil {
 		return nil, errors.New("IdentityHandler - Login - login handler is not initialized")
-	} 
-		
+	}
+
 	return loginHandler.Handle(req)
 }
 
@@ -104,13 +104,12 @@ func (h *IdentityHandler) FindUserById(ctx context.Context, req string) (*identi
 }
 
 func (h *IdentityHandler) UpdateUser(ctx context.Context, user *identity_domain.User) (*identity_domain.User, error) {
-	if err := h.IdentityUserRepo.Update(ctx, user ); err != nil {
+	if err := h.IdentityUserRepo.Update(ctx, user); err != nil {
 		log.Printf("❌ App - IdentityHandler - UpdateUser - failed to update user %s: %v", user.ID, err)
 		return nil, err
 	}
 	return user, nil
 }
-
 
 func (h *IdentityHandler) OnGenerateApiKey(ctx context.Context, userID string, publicKey string) (*identity_domain.User, error) {
 	user, err := h.FindUserById(ctx, userID)
@@ -137,3 +136,6 @@ func (h *IdentityHandler) OnGenerateApiKey(ctx context.Context, userID string, p
 // identityH := NewIdentityHandler(loginH, registrationH, finderH)
 
 
+func (h *IdentityHandler) OnCreateDevice(ctx context.Context, req identity_usecase.CreateDeviceRequest) (*identity_domain.Device, error) {
+	return h.DeviceUseCase.Execute(ctx, req)
+}

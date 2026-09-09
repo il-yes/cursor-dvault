@@ -127,7 +127,6 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 		_ = tg.AddEnvelope(trustgroup_domain.TrustGroupKeyEnvelope{
 			TrustGroupID: tg.ID,
 			MemberID:     envReq.MemberID,
-			DeviceID:     envReq.DeviceID,
 			KEKVersion:   1,
 			WrappedKEK:   envReq.WrappedKEK,
 		})
@@ -170,7 +169,7 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 	// Verify Desktop output
 	assert.Equal(t, uint64(2), rotResult.NewVersion)
 	assert.Len(t, rotResult.RotatedAssets, 2)
-	assert.Len(t, rotResult.NewEnvelopes, 2, "Only 2 active devices of Member B receive envelopes")
+	assert.Len(t, rotResult.NewEnvelopes, 1, "Only Member B receives envelope")
 
 	// Execute Backend Rotation Use Case
 	rotReq := collaboration_usecases.RotateTrustGroupKEKRequest{
@@ -214,10 +213,10 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dek1_v1, dek1_unwrappedWithNewKEK, "DEK 1 unwrapped with KEK v2 must equal original DEK 1")
 
-	// Requirement 7 & 8: Remaining active device (Dev B1) unwraps new KEK v2 and decrypts SAME CID asset
+	// Requirement 7 & 8: Remaining active member (Member B) unwraps new KEK v2 and decrypts SAME CID asset
 	var envDevB1 *trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest
 	for _, env := range rotResult.NewEnvelopes {
-		if env.DeviceID == "dev-B1" {
+		if env.MemberID == "vault-member-B" {
 			envDevB1 = &env
 			break
 		}
@@ -235,14 +234,14 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(rawPayloadAsset1), string(decryptedAsset1_B1), "Device B1 must decrypt SAME CID payload successfully with KEK v2")
 
-	// Requirement 9 & 10: Removed Device A1 CANNOT obtain or unwrap new KEK v2 (received no envelope for v2)
+	// Requirement 9 & 10: Removed Member A CANNOT obtain or unwrap new KEK v2 (received no envelope for v2)
 	for _, env := range rotResult.NewEnvelopes {
-		assert.NotEqual(t, "dev-A1", env.DeviceID, "Removed Device A1 must receive NO new envelope")
+		assert.NotEqual(t, "vault-member-A", env.MemberID, "Removed Member A must receive NO new envelope")
 	}
 
-	// Device A1 trying to decrypt new WrappedKEK of Dev B1 fails
+	// Device A1 trying to decrypt new WrappedKEK of Member B fails
 	_, err = aesSvc.AsymetricDecrypt(kpDevA1.Seed(), envDevB1.WrappedKEK)
-	assert.Error(t, err, "Device A1 cannot unwrap Device B1's key envelope")
+	assert.Error(t, err, "Device A1 cannot unwrap Member B's key envelope")
 
 	// Requirement 11: Stale version increment fails
 	_, err = rotateKEKUC.Execute(ctx, collaboration_usecases.RotateTrustGroupKEKRequest{
@@ -263,8 +262,8 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(2), se2Updated.Data.KEKVersion)
 
-	// Requirement 14: Multiple devices per remaining member handled cleanly
-	assert.Len(t, rotResult.NewEnvelopes, 2, "Both dev-B1 and dev-B2 of Member B received envelopes")
+	// Requirement 14: Member envelope created
+	assert.Len(t, rotResult.NewEnvelopes, 1, "Member B received envelope")
 
 	// Requirement 15: Zero-Knowledge boundary verified: Backend DTOs contain zero raw key material
 	assert.NotContains(t, rotResult.NewEnvelopes[0].WrappedKEK, "CONFIDENTIAL")

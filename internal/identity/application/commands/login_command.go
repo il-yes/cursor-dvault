@@ -84,6 +84,9 @@ func (h *LoginCommandHandler) Handle(
 	}
 
 
+	var onboardingUser *onboarding_domain.User
+	var errOnboarding error
+
 	// 2. Identity - Authenticate
 	if cmd.PublicKey != "" {
 		// 2.1. Resolve stellar credentials if publicKey login
@@ -101,8 +104,8 @@ func (h *LoginCommandHandler) Handle(
 		utils.LogPretty("Authenticated with stellar", creds.Email)
 	} else {
 		// 2.2. Onboarding - Load user
-		onboardingUser, err := h.onboardingRepo.FindByEmail(creds.Email)
-		if err != nil || onboardingUser == nil {
+		onboardingUser, errOnboarding = h.onboardingRepo.FindByEmail(creds.Email)
+		if errOnboarding != nil || onboardingUser == nil {
 			return nil, auth_domain.ErrInvalidCredentials
 		}
 		utils.LogPretty("LoginCommandHandler - Onboarded user", onboardingUser)
@@ -123,7 +126,23 @@ func (h *LoginCommandHandler) Handle(
 		return nil, errors.New("LoginCommandHandler - userRepo is not initialized")
 	}
 	user, err := h.userRepo.FindByEmail(context.Background(), creds.Email)
-	if err != nil {
+	if err != nil || user == nil {
+		if onboardingUser != nil {
+			user = &identity_domain.User{
+				ID:              onboardingUser.ID,
+				Email:           onboardingUser.Email,
+				IsAnonymous:     onboardingUser.IsAnonymous,
+				CreatedAt:       onboardingUser.CreatedAt,
+				LastConnectedAt: time.Now(),
+			}
+			if saveErr := h.userRepo.Save(context.Background(), user); saveErr != nil {
+				utils.LogPretty("LoginCommandHandler - userRepo.Save - Error", saveErr)
+				return nil, saveErr
+			}
+			err = nil
+		}
+	}
+	if err != nil || user == nil {
 		utils.LogPretty("LoginCommandHandler - userRepo.FindByEmail - Error", err)
 		return nil, err
 	}

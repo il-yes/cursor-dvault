@@ -141,21 +141,21 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 
 func (h *CollaborationHandler) ResolveCollaborativeShare(
 	ctx context.Context,
+	callerIdentityID string,
 	callerVaultID string,
 	shareEntryID string,
-	deviceID string,
 ) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
-	fmt.Printf("[C3-FORENSIC][04] (*CollaborationHandler).ResolveCollaborativeShare callerVaultID=%s shareEntryID=%s deviceID=%s\n", callerVaultID, shareEntryID, deviceID)
+	fmt.Printf("[C3-FORENSIC][04] (*CollaborationHandler).ResolveCollaborativeShare callerIdentityID=%s callerVaultID=%s shareEntryID=%s\n", callerIdentityID, callerVaultID, shareEntryID)
 
 	if h.resolveCollabShareUC == nil {
 		return nil, errors.New("resolve collaborative share use case is not initialized")
 	}
 
 	req := collaboration_dtos.ResolveCollaborativeShareRequest{
-		ShareEntryID:  shareEntryID,
-		CallerVaultID: callerVaultID,
-		CallerUserID:  callerVaultID,
-		DeviceID:      deviceID,
+		ShareEntryID:     shareEntryID,
+		CallerIdentityID: callerIdentityID,
+		CallerVaultID:    callerVaultID,
+		CallerUserID:     callerIdentityID,
 	}
 
 	resp, err := h.resolveCollabShareUC.Execute(ctx, req)

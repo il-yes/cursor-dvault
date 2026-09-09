@@ -320,6 +320,6 @@ func TestCollaborationHandler_ResolveCollaborativeShare_NilUseCase(t *testing.T)
 	ctx := context.Background()
 	handler := collaboration_ui.NewCollaborationHandler(nil, nil, nil)
 
-	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "se_100", "dev_laptop")
+	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "user_alice", "se_100")
 	assert.ErrorContains(t, err, "resolve collaborative share use case is not initialized")
 }

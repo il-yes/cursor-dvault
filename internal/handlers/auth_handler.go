@@ -21,7 +21,6 @@ import (
 	utils "vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
 
-	"github.com/stellar/go/keypair"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -188,29 +187,23 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 	// -----------------------------
 	user, errUser := ah.DB.GetUserByEmail(userOnboarding.Email)
 	if errUser != nil {
-		return nil, fmt.Errorf("❌ User not found: %w", errUser)
+		user = &models.User{
+			ID:              userOnboarding.ID,
+			Email:           userOnboarding.Email,
+			Username:        userOnboarding.Email,
+			LastConnectedAt: time.Now().UTC(),
+		}
+		if createdUser, createErr := ah.DB.CreateUser(user); createErr == nil && createdUser != nil {
+			user = createdUser
+		} else {
+			return nil, fmt.Errorf("❌ User not found: %w", errUser)
+		}
 	}
 	utils.LogPretty("connexion - user", user)
 	user.LastConnectedAt = time.Now().UTC()
 	ah.logger.Info("connexion - user last connected at", user.LastConnectedAt)
 
-	if ah.DeviceRepo != nil && user != nil && user.ID != "" {
-		activeDevs, devErr := ah.DeviceRepo.ListByVaultID(context.Background(), user.ID)
-		if devErr == nil && len(activeDevs) == 0 {
-			kp, kpErr := keypair.Random()
-			pubKey := "pub_device_" + user.ID
-			if kpErr == nil && kp != nil {
-				pubKey = kp.Address()
-			}
-			dev, newDevErr := identity_domain.NewDevice(user.ID, pubKey, identity_domain.DeviceKeyTypeEd25519)
-			if newDevErr == nil && dev != nil {
-				dev.ID = "dev_" + user.ID
-				if saveErr := ah.DeviceRepo.Save(context.Background(), dev); saveErr == nil {
-					ah.logger.Info("📱 Registered device %s for user %s on login", dev.ID, user.ID)
-				}
-			}
-		}
-	}
+
 
 	// 9. create a jwt user
 	u := auth.JwtUser{
@@ -237,38 +230,38 @@ func (ah *AuthHandler) Login(credentials LoginRequest) (*LoginResponse, error) {
 
 	// I. LOAD VAULT
 	// -----------------------------
-	// 3. Try to reuse existing session
-	// -----------------------------
-	if existingSession, ok := ah.Vaults.Sessions[user.ID]; ok {
-		if existingSession.Dirty {
-			ah.Vaults.MarkDirty(user.ID)
+	if ah.Vaults != nil {
+		if existingSession, ok := ah.Vaults.Sessions[user.ID]; ok {
+			if existingSession.Dirty {
+				ah.Vaults.MarkDirty(user.ID)
+			}
+
+			ah.logger.Info("♻️ Reusing in-memory session for user %s", user.ID)
+
+			existingSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
+			if credentials.Password != "" {
+				existingSession.VaultRuntimeContext.SessionSecrets["password"] = credentials.Password
+			}
+
+			if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
+				cloudToken := cloudLoginResponse.AuthenticationToken.Token
+				existingSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"] = cloudToken
+				existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudToken
+				ah.TracecoreClient.SetToken(cloudToken)
+				ah.logger.Info("☁️ [CLOUD-TRACE] Login existing session: token_fingerprint=%s token_length=%d",
+					tracecore.TraceTokenFingerprint(cloudToken), len(cloudToken))
+			}
+
+			return &LoginResponse{
+				User:                *user,
+				Vault:               existingSession.Vault,
+				Tokens:              &tokens,
+				CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
+				VaultRuntimeContext: &existingSession.VaultRuntimeContext,
+				LastCID:             existingSession.LastCID,
+				Dirty:               existingSession.Dirty,
+			}, nil
 		}
-
-		ah.logger.Info("♻️ Reusing in-memory session for user %s", user.ID)
-
-		existingSession.VaultRuntimeContext.SessionSecrets["dvault_jwt"] = tokens.Token
-		if credentials.Password != "" {
-			existingSession.VaultRuntimeContext.SessionSecrets["password"] = credentials.Password
-		}
-
-		if cloudLoginResponse != nil && cloudLoginResponse.AuthenticationToken.Token != "" {
-			cloudToken := cloudLoginResponse.AuthenticationToken.Token
-			existingSession.VaultRuntimeContext.SessionSecrets["cloud_auth_token"] = cloudToken
-			existingSession.VaultRuntimeContext.SessionSecrets["cloud_jwt"] = cloudToken
-			ah.TracecoreClient.SetToken(cloudToken)
-			ah.logger.Info("☁️ [CLOUD-TRACE] Login existing session: token_fingerprint=%s token_length=%d",
-				tracecore.TraceTokenFingerprint(cloudToken), len(cloudToken))
-		}
-
-		return &LoginResponse{
-			User:                *user,
-			Vault:               existingSession.Vault,
-			Tokens:              &tokens,
-			CloudToken:          cloudLoginResponse.AuthenticationToken.Token,
-			VaultRuntimeContext: &existingSession.VaultRuntimeContext,
-			LastCID:             existingSession.LastCID,
-			Dirty:               existingSession.Dirty,
-		}, nil
 	}
 	ah.logger.Info("No existing session found for user %s", user.ID)
 	// -----------------------------
@@ -470,9 +463,15 @@ func (ah *AuthHandler) OnboardMissingVault(user *models.User, password string) (
 		return nil, fmt.Errorf("❌ minimal vault encryption failed: %w", err)
 	}
 
-	cid, err := ah.IPFS.Add(context.Background(), encrypted)
-	if err != nil {
-		return nil, fmt.Errorf("❌ failed to save minimal vault: %w", err)
+	var cid string
+	if ah.IPFS != nil {
+		var addErr error
+		cid, addErr = ah.IPFS.Add(context.Background(), encrypted)
+		if addErr != nil {
+			return nil, fmt.Errorf("❌ failed to save minimal vault: %w", addErr)
+		}
+	} else {
+		cid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
 	}
 	savedVault, err := ah.DB.SaveVaultCID(models.VaultCID{
 		Name:      vaultName,

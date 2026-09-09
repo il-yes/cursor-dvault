@@ -130,17 +130,25 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 	}
 
 	/** TODO this should come from the cloud for the correct vault_id **/
-	// 2. Build initial domain Vault entity in memory (do NOT save to DB yet)
+	// 2. Build initial domain Vault entity in memory
 	vault := vault_domain.NewVault(cmd.UserID, cmd.VaultName)
 	vault.AttachUserSubscriptionID(cmd.UserSubscriptionID)
 	utils.LogPretty("CreateVaultCommandHandler - transient vault initialized", vault)
 
-	// 3. Vault - Build initial payload
+	// 3. Persist Vault metadata row to DB BEFORE DAG commit so VaultRepository.UpdateVaultCID can find the Vault record by ID
+	if h.vaultRepo != nil {
+		if err := h.vaultRepo.SaveVault(vault); err != nil {
+			utils.LogPretty("CreateVaultCommandHandler - SaveVault initial err", err)
+			return nil, fmt.Errorf("failed to persist initial vault metadata: %w", err)
+		}
+	}
+
+	// 4. Vault - Build initial payload
 	const InitialVaultVersion = "1.0.0"
 	vaultPayload := vault.BuildInitialPayload(InitialVaultVersion)
 	utils.LogPretty("CreateVaultCommandHandler - Execute - vaultPayload", vaultPayload)
 
-	// 4. Commit initial DAG via StorageEngine (if available) or fallback to flat IPFS payload
+	// 5. Commit initial DAG via StorageEngine (if available) or fallback to flat IPFS payload
 	if h.storageEngine != nil {
 		session := vault_session.InitNewSession(cmd.UserID)
 		session.Vault = vaultPayload.ToBytes()
@@ -159,6 +167,9 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		})
 		if err != nil {
 			utils.LogPretty("CreateVaultCommandHandler - StorageEngine.Commit err", err)
+			if h.vaultRepo != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+			}
 			return nil, fmt.Errorf("failed to commit initial vault DAG: %w", err)
 		}
 		vault.AttachCID(rootCID)
@@ -166,11 +177,17 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 		// Fallback for tests/environments where StorageEngine is not injected
 		vaultBytes, err := vaultPayload.GetContentBytes()
 		if err != nil {
+			if h.vaultRepo != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+			}
 			return nil, fmt.Errorf("❌ vault encryption failed: %w", err)
 		}
 		vc := buildVaultContext(cmd)
 
 		if h.createIPFSPayloadHandler == nil {
+			if h.vaultRepo != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+			}
 			return nil, errors.New("CreateVaultCommandHandler: createIPFSPayloadHandler is nil")
 		}
 
@@ -190,22 +207,38 @@ func (h *CreateVaultCommandHandler) CreateVault(cmd CreateVaultCommand) (*Create
 				UserOnboardingID: userOnboardingID,
 			})
 		if err != nil {
+			if h.vaultRepo != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+			}
 			return nil, err
 		}
 		if ipfsRecord == nil {
+			if h.vaultRepo != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+			}
 			return nil, errors.New("IPFS payload result is nil")
 		}
 		vault.AttachCID(ipfsRecord.CID)
+		if h.vaultRepo != nil {
+			if err := h.vaultRepo.UpdateVaultCID(vault.ID, ipfsRecord.CID); err != nil {
+				_ = h.vaultRepo.DeleteVault(vault.ID)
+				return nil, fmt.Errorf("failed to update vault CID: %w", err)
+			}
+		}
 	}
 
 	if vault == nil || vault.CID == "" {
-		return nil, errors.New("vault CID is empty before SaveVault")
+		if h.vaultRepo != nil {
+			_ = h.vaultRepo.DeleteVault(vault.ID)
+		}
+		return nil, errors.New("vault CID is empty after DAG commit")
 	}
 
-	// 5. Persist Vault metadata to DB ONLY AFTER DAG commit has succeeded with valid CID
-	if err := h.vaultRepo.SaveVault(vault); err != nil {
-		utils.LogPretty("CreateVaultCommandHandler - SaveVault err", err)
-		return nil, fmt.Errorf("failed to persist initial vault metadata: %w", err)
+	// Fetch updated vault from DB to ensure returned entity reflects persisted state (including CID)
+	if h.vaultRepo != nil {
+		if updated, err := h.vaultRepo.GetVault(vault.ID); err == nil && updated != nil {
+			vault = updated
+		}
 	}
 
 	return &CreateVaultResult{

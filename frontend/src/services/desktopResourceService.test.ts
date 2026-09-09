@@ -38,8 +38,7 @@ describe("DesktopResourceService & Plaintext Resolution", () => {
 
     expect(AppAPI.ResolveCollaborativeShare).toHaveBeenCalledWith(
       "test_jwt_token_123",
-      "se_authoritative_777",
-      expect.any(String)
+      "se_authoritative_777"
     );
 
     expect(result.resourceId).toBe("se_authoritative_777");
@@ -109,8 +108,7 @@ describe("DesktopResourceService & Plaintext Resolution", () => {
 
     expect(AppAPI.ResolveCollaborativeShare).toHaveBeenCalledWith(
       "test_jwt_token_123",
-      "se_authoritative_999",
-      expect.not.stringMatching("default_desktop_device")
+      "se_authoritative_999"
     );
   });
 });

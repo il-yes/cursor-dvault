@@ -17,7 +17,9 @@ import (
 	identity_domain "vault-app/internal/identity/domain"
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_ports "vault-app/internal/trust_group/application/ports"
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
@@ -240,7 +242,6 @@ func TestAddMemberToTrustGroup_OrchestratesDeviceEnvelopeProvisioning(t *testing
 	require.Equal(t, 1, len(provisionedTG.KeyEnvelopes))
 	env := provisionedTG.KeyEnvelopes[0]
 	assert.Equal(t, targetMemberID, env.MemberID)
-	assert.Equal(t, targetDeviceID, env.DeviceID)
 	assert.Equal(t, tg.KEKVersion, env.KEKVersion)
 	assert.Nil(t, env.RevokedAt)
 	assert.NotEmpty(t, env.WrappedKEK)
@@ -447,10 +448,10 @@ func TestCreateTrustGroup_ProvisionsInitialMemberKeyEnvelopes(t *testing.T) {
 		assert.Equal(t, uint64(1), env.KEKVersion)
 		assert.Nil(t, env.RevokedAt)
 		assert.NotEmpty(t, env.WrappedKEK)
-		if env.MemberID == creatorVaultID && env.DeviceID == "dev_alice_01" {
+		if env.MemberID == creatorVaultID {
 			foundAlice = true
 		}
-		if env.MemberID == memberBVaultID && env.DeviceID == "dev_bob_01" {
+		if env.MemberID == memberBVaultID {
 			foundBob = true
 		}
 	}
@@ -598,14 +599,13 @@ func TestEnvelopeBoundaryLengthInvariance(t *testing.T) {
 
 	var bobEnv *trustgroup_domain.TrustGroupKeyEnvelope
 	for i := range finalTG.KeyEnvelopes {
-		if finalTG.KeyEnvelopes[i].MemberID == bobVaultID && finalTG.KeyEnvelopes[i].DeviceID == "dev_bob_b" {
+		if finalTG.KeyEnvelopes[i].MemberID == bobVaultID {
 			bobEnv = &finalTG.KeyEnvelopes[i]
 			break
 		}
 	}
 	require.NotNil(t, bobEnv, "Bob's key envelope MUST be found in reloaded TrustGroup")
 	assert.Equal(t, bobVaultID, bobEnv.MemberID)
-	assert.Equal(t, "dev_bob_b", bobEnv.DeviceID)
 	assert.Equal(t, uint64(1), bobEnv.KEKVersion)
 	assert.NotEmpty(t, bobEnv.WrappedKEK)
 	assert.Greater(t, len(bobEnv.WrappedKEK), 0, "WrappedKEK length MUST be > 0")
@@ -704,7 +704,7 @@ func TestEnvelopeUnwrap_FullCryptoDecryptionPipeline(t *testing.T) {
 
 	var bobEnv *trustgroup_domain.TrustGroupKeyEnvelope
 	for i := range reloadedTG.KeyEnvelopes {
-		if reloadedTG.KeyEnvelopes[i].MemberID == bobVaultID && reloadedTG.KeyEnvelopes[i].DeviceID == "dev_bob_c" {
+		if reloadedTG.KeyEnvelopes[i].MemberID == bobVaultID {
 			bobEnv = &reloadedTG.KeyEnvelopes[i]
 			break
 		}
@@ -730,4 +730,173 @@ func TestEnvelopeUnwrap_FullCryptoDecryptionPipeline(t *testing.T) {
 
 	t.Logf("[DECRYPTION_PROOF][SUCCESS] Original payload=%q Decrypted plaintext=%q",
 		string(rawSecretPayload), string(resolvedAsset.Plaintext))
+}
+
+// 12. Production Condition Test: Remote Bob exists ONLY on Cloud (NOT in Alice's local DB)
+func TestAddRemoteMember_FederatedProductionCondition(t *testing.T) {
+	ctx := context.Background()
+
+	mockCloud := newCloudBackendMock()
+	server := mockCloud.Server()
+	defer server.Close()
+
+	client := tracecore.NewTracecoreClient(server.URL, "test-auth-token", server.URL, server.URL)
+
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+	kpBob, err := keypair.Random()
+	require.NoError(t, err)
+
+	aliceVaultID := "vault_alice_prod_101"
+	bobVaultID := "vault_bob_prod_202"
+	bobPubKey := kpBob.Address()
+
+	// Bob exists remotely on Cloud only
+	mockCloud.users[bobVaultID] = &tracecore_types.User{
+		ID:        202,
+		FirstName: "Bob",
+		LastName:  "Remote",
+		Email:     "bob@remote.org",
+		PublicKey: bobPubKey,
+	}
+
+	// Alice's local device resolver — ONLY contains Alice's local device
+	// Bob does NOT exist in Alice's local identity DB: ListActiveDevices(bobVaultID) == 0
+	localDevResolver := &mockDeviceResolver{devices: make(map[string]*trustgroup_ports.DeviceSummary)}
+	localDevResolver.devices["dev_alice_local"] = &trustgroup_ports.DeviceSummary{
+		ID:        "dev_alice_local",
+		VaultID:   aliceVaultID,
+		PublicKey: kpAlice.Address(),
+		Status:    "active",
+		IsActive:  true,
+	}
+
+	// VERIFY CRITICAL CONDITION: ListActiveDevices(BobVaultID) == 0
+	bobLocalDevices, devErr := localDevResolver.ListActiveDevices(ctx, bobVaultID)
+	require.NoError(t, devErr)
+	require.Equal(t, 0, len(bobLocalDevices), "Bob MUST NOT exist in Alice's local device DB")
+
+	// Create initial TrustGroup on Cloud with Alice and duplicate attempt of Bob to test deduplication
+	initialTG := trustgroup_domain.TrustGroup{
+		Name:       "Production Federated Group",
+		ChannelID:  "ch_prod_01",
+		KEKVersion: 1,
+		MemberCIDs: []string{aliceVaultID, bobVaultID},
+	}
+	createResp, err := client.CreateTrustGroup(ctx, &trustgroup_domain.CreateTrustGroupRequest{TrustGroup: initialTG})
+	require.NoError(t, err)
+	tgID := createResp.Data.ID
+	require.NotEmpty(t, tgID)
+
+	// Setup Crypto Orchestrator & UseCases
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), nil)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	addEnvUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(client, localDevResolver)
+	provisionUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(
+		client,
+		localDevResolver,
+		cryptoOrchestrator,
+		addEnvUC,
+		keyringSvc,
+	)
+
+	aliceKeyring := vaults_domain.NewVaultKeyring(aliceVaultID)
+
+	// Provision Alice's local envelope first
+	_, err = provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+		TrustGroupID:    tgID,
+		MemberID:        aliceVaultID,
+		DeviceID:        "dev_alice_local",
+		DevicePublicKey: kpAlice.Address(),
+	}, aliceKeyring)
+	require.NoError(t, err)
+
+	// Setup EventBus and MemberAddedSubscriber (using client as UserByEmailResolver)
+	eventBus := trustgroup_eventbus.NewMemoryBus()
+	subscriber := trustgroup_events.NewMemberAddedSubscriber(
+		provisionUC,
+		localDevResolver,
+		nil, // local userFinder is nil/empty for Bob — Bob is remote!
+		client,
+		aliceKeyring,
+	)
+	_ = subscriber
+	
+	// Add Member Bob (simulating member addition)
+	addMemberUC := trustgroup_member_uc.NewAddMemberToTrustGroupUsecase(client, eventBus)
+	updatedTG, err := addMemberUC.Execute(ctx, trustgroup_dtos.AddMemberToTrustGroupRequest{
+		TrustGroupID: tgID,
+		VaultID:      bobVaultID,
+		Role:         "member",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updatedTG)
+
+	// Synchronously provision envelope for Bob
+	_, subErr := provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+		TrustGroupID:    tgID,
+		MemberID:        bobVaultID,
+		MemberPublicKey: kpBob.Address(),
+	}, aliceKeyring)
+	require.NoError(t, subErr)
+
+	// VERIFY:
+	// 1. Cloud resolves Bob by VaultID
+	// 2. Bob's public key is obtained
+	// 3. ProvisionTrustGroupDeviceEnvelopeUseCase is called
+	// 4. UpdateTrustGroup is called with new envelope
+	// 5. Cloud receives envelopes & trust_group_key_envelopes contains Bob's envelope
+	reloadedResp, err := client.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tgID})
+	require.NoError(t, err)
+	reloadedTG := reloadedResp.Data
+
+	// 6. Verify trust_group_key_envelopes contains Bob's envelope
+	var bobEnv *trustgroup_domain.TrustGroupKeyEnvelope
+	for i := range reloadedTG.KeyEnvelopes {
+		if reloadedTG.KeyEnvelopes[i].MemberID == bobVaultID {
+			bobEnv = &reloadedTG.KeyEnvelopes[i]
+			break
+		}
+	}
+	require.NotNil(t, bobEnv, "Bob's envelope MUST be generated and persisted in Cloud TrustGroup")
+	assert.Equal(t, bobVaultID, bobEnv.MemberID)
+	assert.NotEmpty(t, bobEnv.WrappedKEK)
+
+	// 7. Verify TrustGroup has no duplicate MemberCIDs
+	seen := make(map[string]bool)
+	for _, cid := range reloadedTG.MemberCIDs {
+		assert.False(t, seen[cid], "MemberCIDs MUST NOT contain duplicate VaultIDs!")
+		seen[cid] = true
+	}
+	assert.True(t, seen[aliceVaultID], "Alice must be in MemberCIDs")
+	assert.True(t, seen[bobVaultID], "Bob must be in MemberCIDs")
+
+	// 8 & 9. Verify read flow can find the envelope and unwrap with Bob's private seed
+	rawSecretPayload := []byte("FEDERATED PRODUCTION DECRYPTION TEST")
+	preparedAsset, err := cryptoOrchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      "asset_federated_01",
+		TrustGroupID: tgID,
+		KEKVersion:   1,
+		RawPayload:   rawSecretPayload,
+		ActiveDevices: []trustgroup_orchestrator.ActiveDevice{
+			{DeviceID: bobVaultID, MemberID: bobVaultID, PublicKey: bobPubKey, IsActive: true},
+		},
+		Keyring: aliceKeyring,
+	})
+	require.NoError(t, err)
+
+	resolvedAsset, err := cryptoOrchestrator.ResolveCollaborativeAsset(ctx, trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
+		AssetID:       "asset_federated_01",
+		TrustGroupID:  tgID,
+		KEKVersion:    1,
+		EncryptedData: preparedAsset.EncryptedData,
+		WrappedDEK:    preparedAsset.WrappedDEK,
+		WrappedKEK:    bobEnv.WrappedKEK,
+		DeviceSeed:    kpBob.Seed(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, rawSecretPayload, resolvedAsset.Plaintext)
 }

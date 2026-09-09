@@ -240,8 +240,7 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 	_, err = provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
 		TrustGroupID:    tg.ID,
 		MemberID:        userBobID,
-		DeviceID:        deviceBobID,
-		DevicePublicKey: kpBob.Address(),
+		MemberPublicKey: kpBob.Address(),
 	}, aliceKeyring)
 	require.NoError(t, err)
 
@@ -319,7 +318,6 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 		ShareEntryID:     persistedShareEntry.ID,
 		CallerVaultID:    userBobID,
 		CallerIdentityID: userBobID,
-		DeviceID:         deviceBobID,
 		ThreadID:         appendedEvent.ThreadID,
 		EventID:          appendedEvent.ID,
 	})
@@ -398,7 +396,6 @@ func TestC3_SecurityNegatives_NonMember_Denied(t *testing.T) {
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_charlie_non_member",
 		CallerIdentityID: "vault_charlie_non_member",
-		DeviceID:         "dev_charlie",
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
@@ -438,8 +435,95 @@ func TestC3_SecurityNegatives_RevokedShare_Denied(t *testing.T) {
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_alice",
 		CallerIdentityID: "vault_alice",
-		DeviceID:         "dev_alice",
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked)
 }
+
+func TestResolveCollaborativeShare_UsesVaultIDForMembershipAndIdentityIDForKeyResolution(t *testing.T) {
+	ctx := context.Background()
+
+	callerIdentityID := "identity-alice"
+	callerVaultID := "vault-alice"
+
+	trustGroupID := "trust-group-1"
+	shareEntryID := "share-entry-1"
+
+	repo := newCombinedRepo()
+	assetStore := make(map[string][]byte)
+	assetResolver := &memoryAssetResolver{assets: assetStore}
+	identityResolver := &memoryIdentityResolver{
+		seeds:    map[string]string{},
+		keyrings: map[string]*vaults_domain.VaultKeyring{},
+		devices:  map[string]*trustgroup_ports.DeviceSummary{},
+	}
+
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+	identityResolver.seeds[callerIdentityID] = kpAlice.Seed()
+	identityResolver.seeds[callerVaultID] = kpAlice.Seed()
+	identityResolver.keyrings[callerIdentityID] = vaults_domain.NewVaultKeyring(callerIdentityID)
+	identityResolver.keyrings[callerVaultID] = vaults_domain.NewVaultKeyring(callerVaultID)
+
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "", nil)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      shareEntryID,
+		TrustGroupID: trustGroupID,
+		KEKVersion:   1,
+		RawPayload:   []byte("THE PROTECTED DATA"),
+		ActiveDevices: []trustgroup_orchestrator.ActiveDevice{
+			{DeviceID: "default", MemberID: callerVaultID, PublicKey: kpAlice.Address(), IsActive: true},
+		},
+		Keyring: identityResolver.keyrings[callerIdentityID],
+	}
+	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, prepPayload)
+	require.NoError(t, err)
+	assetStore["asset-cid"] = prepared.EncryptedData
+
+	shareEntry := c3_asset_domain.ShareEntry{
+		ID:           shareEntryID,
+		TrustGroupID: trustGroupID,
+		KEKVersion:   1,
+		Status:       c3_asset_domain.ShareEntryStatusActive,
+		AssetCID:     "asset-cid",
+		WrappedDEK:   string(prepared.WrappedDEK),
+	}
+	repo.entries[shareEntry.ID] = shareEntry
+
+	trustGroup := trustgroup_domain.TrustGroup{
+		ID:         trustGroupID,
+		MemberCIDs: []string{callerVaultID},
+		KEKVersion: 1,
+		KeyEnvelopes: []trustgroup_domain.TrustGroupKeyEnvelope{
+			{
+				ID:           "envelope-1",
+				TrustGroupID: trustGroupID,
+				MemberID:     callerVaultID,
+				DeviceID:     "default",
+				KEKVersion:   1,
+				WrappedKEK:   prepared.Envelopes[0].WrappedKEK,
+			},
+		},
+	}
+	repo.groups[trustGroupID] = &trustGroup
+
+	uc := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+
+	req := collaboration_dtos.ResolveCollaborativeShareRequest{
+		ShareEntryID:     shareEntry.ID,
+		CallerVaultID:    callerVaultID,
+		CallerIdentityID: callerIdentityID,
+		CallerUserID:     callerIdentityID,
+	}
+
+	result, err := uc.Execute(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "THE PROTECTED DATA", string(result.Plaintext))
+}
+
+

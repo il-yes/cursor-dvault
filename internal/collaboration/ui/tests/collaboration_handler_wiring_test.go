@@ -62,7 +62,7 @@ func TestCollaborationHandler_ResolveCollaborativeShare_InitializedUseCase(t *te
 	handler := collaboration_ui.NewCollaborationHandler(nil, resolveUC, nil)
 
 	// Call handler directly -> MUST NOT return "resolve collaborative share use case is not initialized"
-	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "se_wired_100", "dev_100")
+	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "user_alice", "se_wired_100")
 	if err != nil {
 		assert.NotContains(t, err.Error(), "resolve collaborative share use case is not initialized")
 	}

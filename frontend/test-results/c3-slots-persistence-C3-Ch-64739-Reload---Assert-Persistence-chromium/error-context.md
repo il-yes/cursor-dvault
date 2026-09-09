@@ -12,14 +12,11 @@
 # Error details
 
 ```
-Test timeout of 45000ms exceeded.
-```
-
-```
 Error: expect(locator).toBeVisible() failed
 
 Locator: locator('.tab:has-text("Slots")').or(locator('text=Slots')).first()
 Expected: visible
+Timeout: 15000ms
 Error: element(s) not found
 
 Call log:

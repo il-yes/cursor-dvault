@@ -144,7 +144,6 @@ func TestC3ThreadLifecycle_ClosedThread_HistoricalReadabilityPreserved_CreationB
 	res, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: createResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, res.Plaintext, "Authorized member MUST be able to resolve historical ShareEntries in a CLOSED thread")
@@ -217,14 +216,14 @@ func TestC3ThreadLifecycle_ThreadClosed_ShareEntryIndependentlyRevoked(t *testin
 
 	// INVARIANT 1: ShareEntry #1 in CLOSED Thread remains READABLE
 	res1, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
-		ShareEntryID: shareEntry1.ID, CallerUserID: userAliceID, DeviceID: deviceLaptopID,
+		ShareEntryID: shareEntry1.ID, CallerUserID: userAliceID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, content1, res1.Plaintext)
 
 	// INVARIANT 2: ShareEntry #2 in CLOSED Thread is DENIED (ErrShareEntryRevoked)
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
-		ShareEntryID: shareEntry2.ID, CallerUserID: userAliceID, DeviceID: deviceLaptopID,
+		ShareEntryID: shareEntry2.ID, CallerUserID: userAliceID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked, "Revoked ShareEntry MUST return ErrShareEntryRevoked regardless of Thread closure state")
 }

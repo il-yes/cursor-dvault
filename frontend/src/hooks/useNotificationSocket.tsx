@@ -72,7 +72,7 @@ export function useNotificationsEvents() {
 
     pushNotification({
       id: payload.id,
-      user_id: currentUser.id,  
+      user_id: currentUser?.id ?? "",  
       type: EVENTS.SHARE_INVITATION,
       title: payload.title,
       body: payload.body,
@@ -96,7 +96,7 @@ export function useNotificationsEvents() {
 
     pushNotification({
       id: payload.id,
-      user_id: currentUser.id,  
+      user_id: currentUser?.id ?? "",  
       type: EVENTS.SHARE_ACCEPTED,
       title: payload.title,
       body: payload.body,
@@ -119,7 +119,7 @@ export function useNotificationsEvents() {
 
     pushNotification({
       id: payload.id,
-      user_id: currentUser.id,  
+      user_id: currentUser?.id ?? "",  
       type: EVENTS.SHARE_REJECTED,
       title: payload.title,
       body: payload.body,
@@ -144,7 +144,7 @@ export function useNotificationsEvents() {
 
     pushNotification({
       id: payload.id,
-      user_id: currentUser.id,  
+      user_id: currentUser?.id ?? "",  
       type: EVENTS.SHARE_READY,
       title: payload.title,
       body: payload.body,

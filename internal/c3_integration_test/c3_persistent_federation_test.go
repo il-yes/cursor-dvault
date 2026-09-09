@@ -274,7 +274,7 @@ func TestFederation_PersistentRuntime_FailureRecovery_EndToEnd(t *testing.T) {
 	resolveUC_B := collaboration_usecases.NewResolveCollaborativeShareUseCase(repoB, repoB, repoB, repoB, orchestratorB)
 	collabHandlerB := collaboration_ui.NewCollaborationHandler(nil, resolveUC_B, nil)
 
-	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, shareEntry.ID, deviceBobID)
+	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntry.ID)
 	assert.ErrorIs(t, errPostRevoke, collaboration_usecases.ErrShareEntryRevoked, "Post-revocation resolution MUST return ErrShareEntryRevoked")
 
 	// -----------------------------------------------------------------------

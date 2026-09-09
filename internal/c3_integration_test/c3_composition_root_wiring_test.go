@@ -143,7 +143,7 @@ func TestCompositionRoot_ResolveCollaborativeShare_FullRuntimeTrace(t *testing.T
 	fmt.Printf("callerVaultID=%s shareEntryID=%s deviceID=%s\n", userBobID, shareEntry.ID, deviceBobID)
 	fmt.Println("========================================================")
 
-	resolvedShare, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, shareEntry.ID, deviceBobID)
+	resolvedShare, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntry.ID)
 
 	// Step 1 Check: No "uninitialized" error!
 	require.NoError(t, err, "ResolveCollaborativeShare must not return an uninitialized error!")

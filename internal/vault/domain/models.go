@@ -1161,6 +1161,7 @@ const (
 	KeyTypeIndex         KeyType = "index"
 	KeyTypeVault         KeyType = "vault"
 	KeyTypeTrustGroupKEK KeyType = "trust_group_kek"
+	KeyTypeDeviceSeed    KeyType = "device_seed"
 )
 const (
 	KeyWrapperPassword string = "password"

@@ -93,10 +93,22 @@ func (c *TracecoreClient) CreateTrustGroup(ctx context.Context, req *trustgroup_
 		workspaceID = "default_workspace"
 	}
 
+	membersList := make([]map[string]interface{}, 0, len(req.TrustGroup.MemberCIDs))
+	for i, m := range req.TrustGroup.MemberCIDs {
+		role := "member"
+		if i == 0 {
+			role = "admin"
+		}
+		membersList = append(membersList, map[string]interface{}{
+			"vault_id": m,
+			"role":     role,
+		})
+	}
+
 	payload := map[string]interface{}{
 		"workspace_id": workspaceID,
 		"name":         req.TrustGroup.Name,
-		"members":      []interface{}{},
+		"members":      membersList,
 	}
 
 	body, err := json.Marshal(payload)
@@ -215,11 +227,16 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 		return nil, fmt.Errorf("trust group id is required")
 	}
 
-	fmt.Printf("[C3][REAL-E2E][08] UpdateTrustGroup outgoing membersCount=%d envelopesCount=%d trustGroupID=%s\n", len(req.TrustGroup.MemberCIDs), len(req.TrustGroup.KeyEnvelopes), req.TrustGroup.ID)
-	fmt.Printf("[C3][ADD_MEMBER][STEP_18] Calling TracecoreClient.UpdateTrustGroup trustGroupID=%s envelopesCount=%d\n", req.TrustGroup.ID, len(req.TrustGroup.KeyEnvelopes))
-	fmt.Printf("[C3][ENVELOPE][HTTP][OUT] trustGroupID=%s envelopesCount=%d\n", req.TrustGroup.ID, len(req.TrustGroup.KeyEnvelopes))
+	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroup.ID
+	fmt.Printf("[TRUSTGROUP][PERSIST][CLIENT] trustGroupID=%s memberCount=%d keyEnvelopeCount=%d\n",
+		req.TrustGroup.ID, len(req.TrustGroup.MemberCIDs), len(req.TrustGroup.KeyEnvelopes))
 	for i, env := range req.TrustGroup.KeyEnvelopes {
-		fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
+		revokedStr := "false"
+		if env.RevokedAt != nil {
+			revokedStr = "true"
+		}
+		fmt.Printf("  -> envelope[%d]: envelopeID=%s memberID=%s deviceID=%s kekVersion=%d revoked=%s wrappedKEKLen=%d\n",
+			i, env.ID, env.MemberID, env.DeviceID, env.KEKVersion, revokedStr, len(env.WrappedKEK))
 	}
 
 	body, err := json.Marshal(req.TrustGroup)
@@ -227,7 +244,6 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 		return nil, err
 	}
 
-	url := c.getCloudBaseURL() + "/trustgroups/" + req.TrustGroup.ID
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -247,6 +263,7 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("[TRUSTGROUP][PERSIST][HTTP] method=PUT path=/trustgroups/%s status=%d\n", req.TrustGroup.ID, resp.StatusCode)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
 	}
@@ -254,13 +271,6 @@ func (c *TracecoreClient) UpdateTrustGroup(ctx context.Context, req *trustgroup_
 	var cloudResp tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		return nil, fmt.Errorf("failed to decode trust group response: %w", err)
-	}
-
-	fmt.Printf("[C3][REAL-E2E][09] Cloud Update received membersCount=%d envelopesCount=%d trustGroupID=%s\n", len(cloudResp.Data.MemberCIDs), len(cloudResp.Data.KeyEnvelopes), cloudResp.Data.ID)
-	fmt.Printf("[C3][ADD_MEMBER][STEP_19] TracecoreClient.UpdateTrustGroup return success trustGroupID=%s envelopesCount=%d\n", cloudResp.Data.ID, len(cloudResp.Data.KeyEnvelopes))
-	fmt.Printf("[C3][ENVELOPE][CLIENT][RECEIVED] trustGroupID=%s envelopesCount=%d\n", cloudResp.Data.ID, len(cloudResp.Data.KeyEnvelopes))
-	for i, env := range cloudResp.Data.KeyEnvelopes {
-		fmt.Printf("  -> envelope[%d]: memberID=%s deviceID=%s kekVersion=%d wrappedKEKLen=%d\n", i, env.MemberID, env.DeviceID, env.KEKVersion, len(env.WrappedKEK))
 	}
 
 	return &cloudResp, nil

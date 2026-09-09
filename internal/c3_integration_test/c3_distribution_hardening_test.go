@@ -71,6 +71,7 @@ func TestC3Distribution_LifecycleRace_EventArrivesAfterRevocation(t *testing.T) 
 	kpBob, _ := keypair.Random()
 	userBobID := "user_bob_dist_race"
 	deviceBobID := "dev_bob_desktop"
+	_ = deviceBobID
 
 	repo.seeds[userBobID] = kpBob.Seed()
 	repo.keyrings[userBobID] = &vaults_domain.VaultKeyring{UserID: userBobID, VaultID: "v_bob"}
@@ -105,7 +106,6 @@ func TestC3Distribution_LifecycleRace_EventArrivesAfterRevocation(t *testing.T) 
 	_, err = resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked, "Current ShareEntry status MUST override historical event arrival")
 }
@@ -122,6 +122,7 @@ func TestC3Distribution_LifecycleRace_EventArrivesAfterKEKRotation(t *testing.T)
 	kpAlice, _ := keypair.Random()
 	userAliceID := "user_alice_dist_rot"
 	deviceAliceID := "dev_alice_laptop"
+	_ = deviceAliceID
 
 	repo.seeds[userAliceID] = kpAlice.Seed()
 	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "v_alice"}
@@ -145,7 +146,6 @@ func TestC3Distribution_LifecycleRace_EventArrivesAfterKEKRotation(t *testing.T)
 	_, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceAliceID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember, "Revoked member MUST be denied even if holding a historical event")
 }

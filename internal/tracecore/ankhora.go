@@ -50,6 +50,9 @@ func (c *TracecoreClient) GetUserByEmail(ctx context.Context, email string) (*tr
 	base := strings.TrimRight(c.AnkhoraCloudUrl, "/")
 	q := url.Values{}
 	q.Set("email", email)
+	if !strings.Contains(email, "@") {
+		q.Set("vault_id", email)
+	}
 
 	endpoint := fmt.Sprintf("%s/customers?%s", base, q.Encode())
 	fmt.Println("endpoint", endpoint)
@@ -727,6 +730,7 @@ func (c *TracecoreClient) ReactivateSubscription(ctx context.Context, userID str
 //
 // ---------------------------------------------------------
 func (c *TracecoreClient) ListByUser(ctx context.Context, userID string, limit int, offset int) ([]notification_center_domain.Notification, error) {
+	fmt.Printf("[C3][NOTIF_READ_TRACE][TRACECORE_CLIENT] requested_notification_user_id=%s cloud_url=%s/notifications/user/%s\n", userID, c.AnkhoraCloudUrl, userID)
 	utils.LogPretty("user id", userID)
 	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
 

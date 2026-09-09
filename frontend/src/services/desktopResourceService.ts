@@ -63,9 +63,9 @@ class DesktopResourceService {
       "dev_local_01";
 
     if (input.refType === "share_entry" && input.shareEntryId) {
-      console.log(`[C3-FORENSIC][02] desktopResourceService.openResource refType=${input.refType} shareEntryID=${input.shareEntryId} deviceID=${deviceId}`);
+      console.log(`[C3-FORENSIC][02] desktopResourceService.openResource refType=${input.refType} shareEntryID=${input.shareEntryId}`);
       try {
-        const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
+        const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId);
         console.log(`[C3-FORENSIC][12] ResolveCollaborativeShare response received shareEntryID=${response.share_entry_id} trustGroupID=${response.trust_group_id} createdBy=${response.created_by}`);
         
         let contentText = "";

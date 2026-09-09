@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stellar/go/keypair"
 	"github.com/stretchr/testify/assert"
@@ -221,7 +222,7 @@ func TestC3EntryShared_RecipientReadFlow_WithDecryption(t *testing.T) {
 	require.NotNil(t, shareEntryFromGet)
 
 	// 8. Vault B executes full cryptographic decryption via ResolveCollaborativeShare
-	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, extractedShareEntryID, deviceBobID)
+	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, extractedShareEntryID)
 	require.NoError(t, err)
 	require.NotNil(t, resolvedDTO)
 
@@ -251,6 +252,7 @@ func TestC3EntryShared_RecipientReadFlow_UnauthorizedRecipient_MetadataVisible_D
 	userCharlieID := "user_charlie_uuid"
 	deviceAliceID := "device_laptop_alice"
 	deviceCharlieID := "device_laptop_charlie"
+	_ = deviceCharlieID
 
 	repo.seeds[userAliceID] = kpAlice.Seed()
 	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "vault_alice"}
@@ -331,7 +333,7 @@ func TestC3EntryShared_RecipientReadFlow_UnauthorizedRecipient_MetadataVisible_D
 	assert.Equal(t, userAliceID, shareEntryFromGet.Data.CreatedBy)
 
 	// 7. INVARIANT 2: ResolveCollaborativeShare FAILS for Charlie (Decryption is DENIED)
-	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userCharlieID, createdShareEntryID, deviceCharlieID)
+	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userCharlieID, userCharlieID, createdShareEntryID)
 	assert.Error(t, err, "Decryption resolution MUST fail for unauthorized recipient")
 	assert.Nil(t, resolvedDTO, "NO plaintext must be returned to unauthorized recipient")
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember, "Must return ErrUnauthorizedMember")
@@ -357,6 +359,7 @@ func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
 	deviceAliceLaptop := "dev_alice_m2"
 	deviceBobLaptop := "dev_bob_thinkpad"
 	deviceCharlieLaptop := "dev_charlie_dell"
+	_ = deviceCharlieLaptop
 
 	repo.seeds[userAliceID] = kpAlice.Seed()
 	repo.keyrings[userAliceID] = &vaults_domain.VaultKeyring{UserID: userAliceID, VaultID: "v_alice"}
@@ -450,7 +453,7 @@ func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
 	require.NotNil(t, bobMeta)
 	assert.Equal(t, tg.ID, bobMeta.Data.TrustGroupID)
 
-	bobResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, createdShareEntryID, deviceBobLaptop)
+	bobResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, createdShareEntryID)
 	require.NoError(t, err, "Bob MUST be authorized to resolve and decrypt plaintext")
 	require.NotNil(t, bobResolved)
 	require.Equal(t, rawOriginalContent, bobResolved.Plaintext, "Bob MUST receive exact original plaintext")
@@ -462,16 +465,23 @@ func TestC3ProductionReadPath_ProductInvariantMatrix(t *testing.T) {
 	require.NoError(t, err, "Charlie can read ShareEntry metadata")
 	require.NotNil(t, charlieMeta)
 
-	charlieResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userCharlieID, createdShareEntryID, deviceCharlieLaptop)
+	charlieResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userCharlieID, userCharlieID, createdShareEntryID)
 	assert.Error(t, err, "Charlie MUST be denied decryption")
 	assert.Nil(t, charlieResolved, "NO plaintext must be returned to Charlie")
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember)
 
 	// =========================================================================
-	// MATRIX STEP C: Revoked Device Flow
+	// MATRIX STEP C: Revoked Envelope Flow
 	// =========================================================================
-	aliceOldDeviceResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, createdShareEntryID, "dev_alice_revoked_laptop")
-	assert.Error(t, err, "Revoked/Unknown device MUST be denied decryption")
+	now := time.Now()
+	tgAlice := repo.trustGroups[tg.ID]
+	for i := range tgAlice.KeyEnvelopes {
+		tgAlice.KeyEnvelopes[i].RevokedAt = &now
+	}
+	repo.trustGroups[tg.ID] = tgAlice
+
+	aliceOldDeviceResolved, err := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, userAliceID, createdShareEntryID)
+	assert.Error(t, err, "Revoked envelope MUST be denied decryption")
 	assert.Nil(t, aliceOldDeviceResolved)
 	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound)
 }

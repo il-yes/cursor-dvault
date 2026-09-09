@@ -180,6 +180,10 @@ func (f *fakeAppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigCom
 	f.called = true
 	return &app_config_dto.CreateConfigCommandOutput{}, nil
 }
+func (f *fakeAppConfigHandler) GetDeviceConfigsByUserID(userID string, vaultName string) ([]app_config_domain.DeviceConfig, error) {
+	f.called = true
+	return nil, nil
+}
 
 type fakeStellarService struct{}
 

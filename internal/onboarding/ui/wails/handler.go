@@ -2,7 +2,6 @@ package onboarding_ui_wails
 
 import (
 	identity_domain "vault-app/internal/identity/domain"
-	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
@@ -44,7 +43,6 @@ func NewOnBoardingHandler(
 	keyEncryption := vault_infrastructure_crypto.NewKeyService()
 
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(DB)
-	deviceRepo := identity_persistence.NewGormDeviceRepository(DB)
 	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: DB}
 	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
 	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(
@@ -54,7 +52,7 @@ func NewOnBoardingHandler(
 		appLogger,
 		&keyringService,
 		keyEncryption,
-	).WithDeviceRepository(deviceRepo)
+	)
 
 	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(
 		onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
@@ -80,6 +78,10 @@ func NewOnBoardingHandler(
 		UserRepo:                  onboardingUserRepo,
 		FindUsersUseCase:          onboardingFindUsersUseCase,
 	}
+}
+
+func (h *OnBoardingHandler) SetIdentityHandler(svc onboarding_usecase.IdentityDevicePort) {
+	h.createAccountUseCase.WithIdentityService(svc)
 }
 
 // 0. Get Tier Features

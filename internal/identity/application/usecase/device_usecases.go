@@ -2,7 +2,13 @@ package identity_usecase
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strings"
 
+	"github.com/google/uuid"
+
+	app_config_domain "vault-app/internal/config/domain"
 	identity_eventbus "vault-app/internal/identity/application"
 	identity_domain "vault-app/internal/identity/domain"
 )
@@ -11,11 +17,13 @@ type CreateDeviceRequest struct {
 	VaultID   string
 	PublicKey string
 	KeyType   string
+	VaultName string
 }
 
 type CreateDeviceUseCase struct {
-	repo identity_domain.DeviceRepository
-	bus  identity_eventbus.EventBus
+	repo             identity_domain.DeviceRepository
+	bus              identity_eventbus.EventBus
+	deviceConfigRepo app_config_domain.DeviceConfigRepository
 }
 
 func NewCreateDeviceUseCase(repo identity_domain.DeviceRepository, bus identity_eventbus.EventBus) *CreateDeviceUseCase {
@@ -23,6 +31,11 @@ func NewCreateDeviceUseCase(repo identity_domain.DeviceRepository, bus identity_
 		repo: repo,
 		bus:  bus,
 	}
+}
+
+func (uc *CreateDeviceUseCase) WithDeviceConfigRepository(repo app_config_domain.DeviceConfigRepository) *CreateDeviceUseCase {
+	uc.deviceConfigRepo = repo
+	return uc
 }
 
 func (uc *CreateDeviceUseCase) Execute(ctx context.Context, req CreateDeviceRequest) (*identity_domain.Device, error) {
@@ -33,6 +46,34 @@ func (uc *CreateDeviceUseCase) Execute(ctx context.Context, req CreateDeviceRequ
 
 	if err := uc.repo.Save(ctx, dev); err != nil {
 		return nil, err
+	}
+
+	if uc.deviceConfigRepo != nil {
+		deviceName, err := os.Hostname()
+		if err != nil || deviceName == "" {
+			deviceName = "unknown"
+		}
+		deviceName = strings.ReplaceAll(deviceName, ".", "-")
+		if len(deviceName) > 64 {
+			deviceName = deviceName[:64]
+		}
+		vaultName := req.VaultName
+		if vaultName == "" {
+			vaultName = "Default Vault"
+		}
+
+		dc := &app_config_domain.DeviceConfig{
+			BaseVaultConfig: app_config_domain.BaseVaultConfig{
+				ID:        uuid.New().String(),
+				UserID:    req.VaultID,
+				VaultName: vaultName,
+			},
+			DeviceID:   dev.ID,
+			DeviceName: deviceName,
+		}
+		if err := uc.deviceConfigRepo.Create(dc); err != nil {
+			return nil, fmt.Errorf("failed to create device config: %w", err)
+		}
 	}
 
 	if uc.bus != nil {

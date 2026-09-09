@@ -311,7 +311,6 @@ func TestC3ChannelTrustGroup_CryptoFlowsUseRealTrustGroupIdentity(t *testing.T) 
 	res, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareResp.ShareEntry.ID,
 		CallerUserID: userAliceID,
-		DeviceID:     deviceLaptopID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, res.Plaintext)

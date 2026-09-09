@@ -184,7 +184,7 @@ func TestC3Federation_FullSovereignLifecycle_EndToEnd(t *testing.T) {
 	resolveUC_B := collaboration_usecases.NewResolveCollaborativeShareUseCase(repoB, repoB, repoB, repoB, orchestratorB)
 	collabHandlerB := collaboration_ui.NewCollaborationHandler(nil, resolveUC_B, nil)
 
-	resolvedDTO, errResB := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, remoteEvt.Payload.ShareEntryID, deviceBobID)
+	resolvedDTO, errResB := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, userBobID, remoteEvt.Payload.ShareEntryID)
 	require.NoError(t, errResB, "INVARIANT 2: Bob on Vault B MUST resolve collaborative share while local vault is locked")
 	assert.Equal(t, rawOriginalContent, resolvedDTO.Plaintext, "INVARIANT 2: Decrypted plaintext MUST match original bytes 100%")
 
@@ -214,7 +214,7 @@ func TestC3Federation_FullSovereignLifecycle_EndToEnd(t *testing.T) {
 	// -----------------------------------------------------------------------
 	// STEP 9: POST-REVOCATION RESOLUTION ATTEMPT ON VAULT B -> DENIED (INVARIANT 3)
 	// -----------------------------------------------------------------------
-	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, remoteEvt.Payload.ShareEntryID, deviceBobID)
+	_, errPostRevoke := collabHandlerB.ResolveCollaborativeShare(ctx, userBobID, userBobID, remoteEvt.Payload.ShareEntryID)
 	assert.ErrorIs(t, errPostRevoke, collaboration_usecases.ErrShareEntryRevoked, "INVARIANT 3: Post-revocation resolution MUST return ErrShareEntryRevoked")
 
 	// -----------------------------------------------------------------------

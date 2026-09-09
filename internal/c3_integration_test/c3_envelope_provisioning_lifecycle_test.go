@@ -15,6 +15,7 @@ import (
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
 	tracecore_types "vault-app/internal/tracecore/types"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_ports "vault-app/internal/trust_group/application/ports"
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
@@ -263,12 +264,12 @@ func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	shareEntryID := createRes.ShareEntryID
 
 	// 4. User A reads resource -> SUCCESS
-	resAlice, errAlice := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, shareEntryID, deviceAliceID)
+	resAlice, errAlice := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, userAliceID, shareEntryID)
 	require.NoError(t, errAlice)
 	assert.Equal(t, string(rawAssetPayload), string(resAlice.Plaintext))
 
 	// 5. User B (not member) attempts read -> Fails with ErrUnauthorizedMember
-	_, errBob1 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, shareEntryID, deviceBobID)
+	_, errBob1 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntryID)
 	require.Error(t, errBob1)
 	assert.ErrorIs(t, errBob1, collaboration_usecases.ErrUnauthorizedMember)
 
@@ -281,7 +282,7 @@ func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	// 7. User B (member, but NO device envelope) attempts read -> Fails with ErrKeyEnvelopeNotFound
-	_, errBob2 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, shareEntryID, deviceBobID)
+	_, errBob2 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntryID)
 	require.Error(t, errBob2)
 	assert.ErrorIs(t, errBob2, collaboration_usecases.ErrKeyEnvelopeNotFound)
 
@@ -301,7 +302,7 @@ func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	require.Len(t, updatedTg.KeyEnvelopes, 2) // User A envelope + User B envelope
 
 	// 9. User B reads resource -> SUCCESS 🎉
-	resBob, errBob3 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, shareEntryID, deviceBobID)
+	resBob, errBob3 := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, shareEntryID)
 	require.NoError(t, errBob3)
 	require.NotNil(t, resBob)
 	assert.Equal(t, string(rawAssetPayload), string(resBob.Plaintext))
@@ -309,7 +310,7 @@ func TestC3_EnvelopeProvisioning_Lifecycle(t *testing.T) {
 	// Find Bob's envelope for logging
 	var bobEnv *trustgroup_domain.TrustGroupKeyEnvelope
 	for _, env := range updatedTg.KeyEnvelopes {
-		if env.MemberID == userBobID && env.DeviceID == deviceBobID {
+		if env.MemberID == userBobID {
 			bobEnv = &env
 			break
 		}
@@ -374,3 +375,241 @@ Original == Resolved: %t
 		string(rawAssetPayload) == string(resBob.Plaintext),
 	)
 }
+
+func TestC3_RemoteMemberEnvelope_Resolution(t *testing.T) {
+	ctx := context.Background()
+
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+	userAliceID := "vault_alice_remote_test"
+	deviceAliceID := "dev_alice_remote"
+
+	kpBob, err := keypair.Random()
+	require.NoError(t, err)
+	userBobID := "vault_bob_remote_test"
+
+	repo := newMemoryProvisioningIntegrationRepo()
+	assetResolver := &memoryAssetContentResolver{assets: make(map[string][]byte)}
+	identityResolver := &memorySovereignIdentityResolver{
+		seeds: map[string]string{
+			userAliceID: kpAlice.Seed(),
+			userBobID:   kpBob.Seed(),
+		},
+		keyrings: map[string]*vaults_domain.VaultKeyring{
+			userAliceID: vaults_domain.NewVaultKeyring(userAliceID),
+			userBobID:   vaults_domain.NewVaultKeyring(userBobID),
+		},
+		devices: map[string]*trustgroup_ports.DeviceSummary{
+			deviceAliceID: {
+				ID:        deviceAliceID,
+				VaultID:   userAliceID,
+				PublicKey: kpAlice.Address(),
+				Status:    "active",
+				IsActive:  true,
+			},
+		},
+	}
+
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "", nil)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(repo, repo)
+	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(repo, identityResolver)
+	createShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, addEnvelopeUC)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	collabHandler := collaboration_ui.NewCollaborationHandler(createShareUC, resolveUC, nil)
+
+	provisionUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(repo, identityResolver, orchestrator, addEnvelopeUC, keyringSvc)
+
+	// 1. Create TrustGroup with Alice & Bob
+	tg := trustgroup_domain.NewTrustGroup("ch_remote_01", "Remote Sovereign Group", []string{userAliceID, userBobID})
+	tg.ID = "tg_remote_provision_01"
+	_, err = repo.CreateTrustGroup(ctx, &trustgroup_domain.CreateTrustGroupRequest{TrustGroup: *tg})
+	require.NoError(t, err)
+
+	// 2. Provision envelope for Alice (exact device) and Bob (remote fallback, DeviceID = userBobID)
+	aliceKeyring := identityResolver.keyrings[userAliceID]
+	_, errProvAlice := provisionUC.Execute(
+		ctx,
+		trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+			TrustGroupID:    tg.ID,
+			MemberID:        userAliceID,
+			DeviceID:        deviceAliceID,
+			DevicePublicKey: kpAlice.Address(),
+		},
+		aliceKeyring,
+	)
+	require.NoError(t, errProvAlice)
+
+	_, errProvBob := provisionUC.Execute(
+		ctx,
+		trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+			TrustGroupID:    tg.ID,
+			MemberID:        userBobID,
+			DeviceID:        "default", // Member identity envelope
+			DevicePublicKey: kpBob.Address(),
+		},
+		aliceKeyring,
+	)
+	require.NoError(t, errProvBob)
+
+	// 3. User A prepares and creates Collaborative ShareEntry
+	rawPayload := []byte("Remote Fallback Envelope Payload 2026")
+	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      "asset_remote_01",
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		RawPayload:   rawPayload,
+		Keyring:      aliceKeyring,
+	})
+	require.NoError(t, err)
+
+	assetCID := "cid_remote_01"
+	assetResolver.assets[assetCID] = prepared.EncryptedData
+
+	createRes, err := collabHandler.CreateCollaborativeShare(
+		ctx,
+		userAliceID,
+		"th_remote_01",
+		tg.ID,
+		assetCID,
+		userAliceID,
+		"Remote Notes",
+		string(prepared.WrappedDEK),
+		1,
+	)
+	require.NoError(t, err)
+
+	// 4. User B resolves on desktop passing custom device ID ("dev_bob_desktop_mac")
+	// Must succeed using the remote fallback identity envelope!
+	resBob, errResolve := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, createRes.ShareEntryID)
+	require.NoError(t, errResolve, "Bob's remote fallback envelope MUST resolve when Bob calls with custom Desktop deviceID")
+	require.NotNil(t, resBob)
+	assert.Equal(t, string(rawPayload), string(resBob.Plaintext))
+}
+
+type mockUserByEmailResolver struct {
+	users map[string]*tracecore_types.User
+}
+
+func (m *mockUserByEmailResolver) GetUserByEmail(_ context.Context, email string) (*tracecore_types.User, error) {
+	if u, ok := m.users[email]; ok {
+		return u, nil
+	}
+	return nil, errors.New("user not found")
+}
+
+func TestC3_MemberAddedSubscriber_RemoteIdentityEnvelope(t *testing.T) {
+	ctx := context.Background()
+
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+	userAliceID := "vault_alice_sub_test"
+
+	kpBob, err := keypair.Random()
+	require.NoError(t, err)
+	userBobID := "vault_bob_sub_test"
+
+	repo := newMemoryProvisioningIntegrationRepo()
+	assetResolver := &memoryAssetContentResolver{assets: make(map[string][]byte)}
+	identityResolver := &memorySovereignIdentityResolver{
+		seeds: map[string]string{
+			userAliceID: kpAlice.Seed(),
+			userBobID:   kpBob.Seed(),
+		},
+		keyrings: map[string]*vaults_domain.VaultKeyring{
+			userAliceID: vaults_domain.NewVaultKeyring(userAliceID),
+			userBobID:   vaults_domain.NewVaultKeyring(userBobID),
+		},
+	}
+
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "", nil)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(repo, identityResolver)
+	provisionUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(repo, identityResolver, orchestrator, addEnvelopeUC, keyringSvc)
+
+	userByEmail := &mockUserByEmailResolver{
+		users: map[string]*tracecore_types.User{
+			userBobID: {
+				ID:        1001,
+				Email:     userBobID,
+				PublicKey: kpBob.Address(),
+			},
+		},
+	}
+
+	subscriber := trustgroup_events.NewMemberAddedSubscriber(
+		provisionUC,
+		identityResolver,
+		nil,
+		userByEmail,
+		identityResolver.keyrings[userAliceID],
+	)
+
+	// 1. Create TrustGroup
+	tg := trustgroup_domain.NewTrustGroup("ch_sub_01", "Sub Test Group", []string{userAliceID, userBobID})
+	tg.ID = "tg_subscriber_test_01"
+	_, err = repo.CreateTrustGroup(ctx, &trustgroup_domain.CreateTrustGroupRequest{TrustGroup: *tg})
+	require.NoError(t, err)
+
+	// 2. Provision envelope for Bob (remote member)
+	_, errProv := provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+		TrustGroupID:    tg.ID,
+		MemberID:        userBobID,
+		MemberPublicKey: kpBob.Address(),
+	}, identityResolver.keyrings[userAliceID])
+	require.NoError(t, errProv)
+	_ = subscriber
+
+	// 3. Verify envelope in repo has DeviceID == "default" (identity envelope) and NOT userBobID
+	tgReloaded, errReload := repo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
+	require.NoError(t, errReload)
+	require.Len(t, tgReloaded.Data.KeyEnvelopes, 1)
+
+	env := tgReloaded.Data.KeyEnvelopes[0]
+	assert.Equal(t, userBobID, env.MemberID)
+	assert.NotEmpty(t, env.WrappedKEK)
+
+	// 4. Verify Bob can resolve using his local runtime DeviceID ("dev_bob_desktop_mac")
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	collabHandler := collaboration_ui.NewCollaborationHandler(nil, resolveUC, nil)
+
+	rawPayload := []byte("Subscriber Identity Envelope Resolution Test")
+	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      "asset_sub_01",
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		RawPayload:   rawPayload,
+		Keyring:      identityResolver.keyrings[userAliceID],
+	})
+	require.NoError(t, err)
+
+	assetCID := "cid_sub_01"
+	assetResolver.assets[assetCID] = prepared.EncryptedData
+
+	// Save ShareEntry directly to repo
+	shareEntry := c3_asset_domain.ShareEntry{
+		ID:           "share_sub_01",
+		TrustGroupID: tg.ID,
+		AssetCID:     assetCID,
+		CreatedBy:    userAliceID,
+		CreatedAt:    time.Now(),
+		Status:       c3_asset_domain.ShareEntryStatusActive,
+		WrappedDEK:   string(prepared.WrappedDEK),
+		KEKVersion:   1,
+	}
+	_, err = repo.CreateShareEntry(ctx, &c3_asset_domain.CreateShareEntryRequest{ShareEntry: shareEntry})
+	require.NoError(t, err)
+
+	resBob, errResolve := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, "share_sub_01")
+	require.NoError(t, errResolve, "Bob MUST resolve using identity envelope when passing custom Desktop deviceID")
+	require.NotNil(t, resBob)
+	assert.Equal(t, string(rawPayload), string(resBob.Plaintext))
+}
+
+

@@ -31,7 +31,6 @@ type ResolveCollaborativeShareRequest struct {
 	CallerIdentityID string `json:"caller_identity_id,omitempty"`
 	CallerVaultID    string `json:"caller_vault_id"`
 	CallerUserID     string `json:"caller_user_id,omitempty"`
-	DeviceID         string `json:"device_id"`
 	ThreadID         string `json:"thread_id,omitempty"`
 	EventID          string `json:"event_id,omitempty"`
 }

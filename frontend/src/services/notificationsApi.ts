@@ -11,7 +11,7 @@ export const list = async (): Promise<Notification[]> => {
     const sortBy = "createdAt"
     const sortOrder = "desc"
     const rawNotifications = await AppAPI.ListByUser(jwtToken, limit, offset);
-    return rawNotifications.map((n) => ({
+    return (rawNotifications || []).map((n) => ({
         id: String(n.id),
         user_id: String(n.user_id ?? ""),
         type: String(n.type),

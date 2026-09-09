@@ -53,7 +53,7 @@ func TestAddMemberToTrustGroupUsecase_Execute_Success(t *testing.T) {
 		ChannelID:  "workspace-001",
 		Name:       "OEM Trust Group",
 		KEKVersion: 1,
-		MemberCIDs: []string{"cid-member-001"},
+		MemberCIDs: []string{"cid-member-001", "vault-001"},
 		IsDraft:    true,
 		IsDirty:    true,
 	}
@@ -239,7 +239,9 @@ func TestAddMemberToTrustGroupUsecase_Execute_InvalidRequest(t *testing.T) {
 		})
 	}
 }
+
 func TestAddMemberToTrustGroupUsecase_ValidateDependencies(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		repo          trustgroup_domain.TrustGroupRepository

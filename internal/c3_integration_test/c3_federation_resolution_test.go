@@ -147,7 +147,7 @@ func TestC3Federation_MultiNode_WriteOnNodeA_ResolveOnNodeB(t *testing.T) {
 	resolveCollabShareUCNodeB := collaboration_usecases.NewResolveCollaborativeShareUseCase(repoNodeB, repoNodeB, repoNodeB, repoNodeB, orchestratorNodeB)
 	collabHandlerNodeB := collaboration_ui.NewCollaborationHandler(nil, resolveCollabShareUCNodeB, nil)
 
-	resolvedDTO, err := collabHandlerNodeB.ResolveCollaborativeShare(ctx, userBobID, remoteEvt.Payload.ShareEntryID, deviceBobID)
+	resolvedDTO, err := collabHandlerNodeB.ResolveCollaborativeShare(ctx, userBobID, userBobID, remoteEvt.Payload.ShareEntryID)
 	require.NoError(t, err)
 
 	// ASSERTION: Node B resolves 100% exact plaintext byte equality locally
@@ -169,6 +169,7 @@ func TestC3Federation_MultiNode_RevokedMemberDeniedOnNodeB(t *testing.T) {
 	kpBob, _ := keypair.Random()
 	userBobID := "user_bob_fed_rev"
 	deviceBobID := "dev_bob_desktop"
+	_ = deviceBobID
 
 	repo.seeds[userBobID] = kpBob.Seed()
 	repo.keyrings[userBobID] = &vaults_domain.VaultKeyring{UserID: userBobID, VaultID: "v_bob"}
@@ -188,7 +189,6 @@ func TestC3Federation_MultiNode_RevokedMemberDeniedOnNodeB(t *testing.T) {
 	_, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrUnauthorizedMember, "Revoked member on Node B MUST be denied access")
 }
@@ -205,6 +205,7 @@ func TestC3Federation_MultiNode_RevokedShareEntryDeniedOnNodeB(t *testing.T) {
 	kpBob, _ := keypair.Random()
 	userBobID := "user_bob_fed_se_rev"
 	deviceBobID := "dev_bob_desktop"
+	_ = deviceBobID
 
 	repo.seeds[userBobID] = kpBob.Seed()
 	repo.keyrings[userBobID] = &vaults_domain.VaultKeyring{UserID: userBobID, VaultID: "v_bob"}
@@ -225,7 +226,6 @@ func TestC3Federation_MultiNode_RevokedShareEntryDeniedOnNodeB(t *testing.T) {
 	_, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceBobID,
 	})
 	assert.ErrorIs(t, err, collaboration_usecases.ErrShareEntryRevoked, "Revoked ShareEntry on Node B MUST be denied access")
 }
@@ -280,12 +280,10 @@ func TestC3Federation_MultiNode_RevokedDeviceDeniedOnNodeB(t *testing.T) {
 		})
 	}
 
-	// REVOKE LAPTOP ENVELOPE ON NODE B
+	// REVOKE ALL ENVELOPES FOR BOB ON NODE B
 	now := time.Now()
 	for i := range tg.KeyEnvelopes {
-		if tg.KeyEnvelopes[i].DeviceID == deviceLaptopID {
-			tg.KeyEnvelopes[i].RevokedAt = &now
-		}
+		tg.KeyEnvelopes[i].RevokedAt = &now
 	}
 	repo.trustGroups[tg.ID] = *tg
 
@@ -295,20 +293,24 @@ func TestC3Federation_MultiNode_RevokedDeviceDeniedOnNodeB(t *testing.T) {
 
 	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, repo, repo, orchestrator)
 
-	// 1. Bob's Revoked Laptop on Node B -> DENIED (ErrKeyEnvelopeNotFound)
+	// 1. Bob's Revoked Envelope on Node B -> DENIED (ErrKeyEnvelopeNotFound)
 	_, err = resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceLaptopID,
 	})
-	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound, "Revoked device on Node B MUST be denied access")
+	assert.ErrorIs(t, err, collaboration_usecases.ErrKeyEnvelopeNotFound, "Revoked envelope on Node B MUST be denied access")
 
-	// 2. Bob's Active Desktop on Node B -> ALLOWED
-	repo.seeds[userBobID] = kpBobDesktop.Seed()
+	// 2. Restore Bob's Active Desktop Envelope on Node B -> ALLOWED
+	for i := range tg.KeyEnvelopes {
+		if tg.KeyEnvelopes[i].MemberID == userBobID {
+			tg.KeyEnvelopes[i].RevokedAt = nil
+		}
+	}
+	repo.trustGroups[tg.ID] = *tg
+	repo.seeds[userBobID] = kpBobLaptop.Seed()
 	resDesktop, err := resolveCollabShareUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID: shareEntry.ID,
 		CallerUserID: userBobID,
-		DeviceID:     deviceDesktopID,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, rawContent, resDesktop.Plaintext, "Active device for authorized member on Node B MUST succeed")

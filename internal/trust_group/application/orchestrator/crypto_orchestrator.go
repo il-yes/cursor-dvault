@@ -105,26 +105,26 @@ func (o *TrustGroupCryptoOrchestrator) PrepareCollaborativeAsset(
 		return nil, fmt.Errorf("failed to wrap DEK with KEK: %w", err)
 	}
 
-	// 5. Wrap KEK per active device using Device.PublicKey (nacl box anonymous seal)
-	envelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0, len(req.ActiveDevices))
+	// 5. Wrap KEK per active member using Member public key
+	envelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0)
+	seenMembers := make(map[string]bool)
 	for _, dev := range req.ActiveDevices {
-		if !dev.IsActive {
-			// Revoked/inactive devices MUST NOT receive key envelopes
+		if !dev.IsActive || seenMembers[dev.MemberID] {
 			continue
 		}
-		if dev.PublicKey == "" || dev.DeviceID == "" || dev.MemberID == "" {
+		if dev.PublicKey == "" || dev.MemberID == "" {
 			continue
 		}
+		seenMembers[dev.MemberID] = true
 
 		wrappedKEKPayload, err := o.aesService.EncryptPayload(dev.PublicKey, kek)
 		if err != nil {
-			return nil, fmt.Errorf("failed to wrap KEK for device %s: %w", dev.DeviceID, err)
+			return nil, fmt.Errorf("failed to wrap KEK for member %s: %w", dev.MemberID, err)
 		}
 
 		envelopes = append(envelopes, trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
 			TrustGroupID: req.TrustGroupID,
 			MemberID:     dev.MemberID,
-			DeviceID:     dev.DeviceID,
 			KEKVersion:   req.KEKVersion,
 			WrappedKEK:   wrappedKEKPayload.ToString(),
 		})
@@ -323,26 +323,26 @@ func (o *TrustGroupCryptoOrchestrator) RotateTrustGroupKEK(
 		})
 	}
 
-	// 5. Wrap new KEK v(N+1) for each remaining active device
-	newEnvelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0, len(req.ActiveDevices))
+	// 5. Wrap new KEK v(N+1) for each remaining active member
+	newEnvelopes := make([]trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest, 0)
+	seenMembersRot := make(map[string]bool)
 	for _, dev := range req.ActiveDevices {
-		if !dev.IsActive {
-			// Revoked/inactive devices receive NO envelope for the new version
+		if !dev.IsActive || seenMembersRot[dev.MemberID] {
 			continue
 		}
-		if dev.PublicKey == "" || dev.DeviceID == "" || dev.MemberID == "" {
+		if dev.PublicKey == "" || dev.MemberID == "" {
 			continue
 		}
+		seenMembersRot[dev.MemberID] = true
 
 		wrappedKEKPayload, err := o.aesService.EncryptPayload(dev.PublicKey, newKEK)
 		if err != nil {
-			return nil, fmt.Errorf("failed to wrap new KEK for device %s: %w", dev.DeviceID, err)
+			return nil, fmt.Errorf("failed to wrap new KEK for member %s: %w", dev.MemberID, err)
 		}
 
 		newEnvelopes = append(newEnvelopes, trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
 			TrustGroupID: req.TrustGroupID,
 			MemberID:     dev.MemberID,
-			DeviceID:     dev.DeviceID,
 			KEKVersion:   req.NewVersion,
 			WrappedKEK:   wrappedKEKPayload.ToString(),
 		})

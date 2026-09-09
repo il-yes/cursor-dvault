@@ -99,9 +99,9 @@ func TestTrustGroupCryptoOrchestrator_FullFlow(t *testing.T) {
 	assert.NotEmpty(t, prepared.EncryptedData)
 	assert.NotEmpty(t, prepared.WrappedDEK)
 
-	// 4. Verify Active vs Revoked Device Envelopes
-	// Only dev-1-laptop, dev-1-mobile, and dev-2-desktop (3 total active) should receive envelopes
-	assert.Len(t, prepared.Envelopes, 3)
+	// 4. Verify Active vs Revoked Member Envelopes
+	// member-1 and member-2 (2 total active members) should receive envelopes
+	assert.Len(t, prepared.Envelopes, 2)
 
 	var laptopEnv, mobileEnv, desktopEnv *trustgroup_orchestrator.PreparedCollaborativeAsset
 	_ = laptopEnv
@@ -113,28 +113,23 @@ func TestTrustGroupCryptoOrchestrator_FullFlow(t *testing.T) {
 		assert.Equal(t, "tg-alpha", env.TrustGroupID)
 		assert.Equal(t, uint64(1), env.KEKVersion)
 		assert.NotEmpty(t, env.WrappedKEK)
-		envelopeMap[env.DeviceID] = env.WrappedKEK
+		envelopeMap[env.MemberID] = env.WrappedKEK
 
 		// Verify zero-knowledge boundary: DTO must contain no raw key material or private keys
 		assert.NotContains(t, env.WrappedKEK, "TOP SECRET")
 	}
 
-	// Verify two devices belonging to member-1 receive distinct WrappedKEK envelopes
-	assert.Contains(t, envelopeMap, "dev-1-laptop")
-	assert.Contains(t, envelopeMap, "dev-1-mobile")
-	assert.Contains(t, envelopeMap, "dev-2-desktop")
-	assert.NotContains(t, envelopeMap, "dev-2-revoked", "Revoked device must not receive an envelope")
-	assert.NotEqual(t, envelopeMap["dev-1-laptop"], envelopeMap["dev-1-mobile"], "Distinct devices must receive distinct wrapped envelopes")
+	assert.Contains(t, envelopeMap, "member-1")
+	assert.Contains(t, envelopeMap, "member-2")
 
 	// 5. Verify KEK Storage in VaultKeyring
 	storedKEKBytes, err := keyringSvc.GetTrustGroupKEK(kr, "tg-alpha", 1)
 	require.NoError(t, err)
 	assert.Len(t, storedKEKBytes, 32)
 
-	// 6. LOCAL DEVICE UNWRAPPING VERIFICATION (DEVICE CRYPTO TEST)
-	// Device 1 (laptop) unwraps its WrappedKEK envelope using its private key seed (kp1.Seed())
-	wrappedKEKLaptop := envelopeMap["dev-1-laptop"]
-	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kp1.Seed(), wrappedKEKLaptop)
+	// 6. LOCAL MEMBER UNWRAPPING VERIFICATION
+	wrappedKEKMember1 := envelopeMap["member-1"]
+	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kp1.Seed(), wrappedKEKMember1)
 	require.NoError(t, err)
 	assert.Equal(t, storedKEKBytes, unwrappedKEK, "Unwrapped KEK on device must match stored KEK")
 
@@ -148,9 +143,9 @@ func TestTrustGroupCryptoOrchestrator_FullFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "TOP SECRET COLLABORATIVE ASSET CONTENT", string(decryptedAsset))
 
-	// Device 3 (Member 2 Desktop) also unwraps successfully using its private key (kp3.Seed())
-	wrappedKEKDesktop := envelopeMap["dev-2-desktop"]
-	unwrappedKEK3, err := aesSvc.AsymetricDecrypt(kp3.Seed(), wrappedKEKDesktop)
+	// Member 2 (Desktop) also unwraps successfully using its private key (kp3.Seed())
+	wrappedKEKMember2 := envelopeMap["member-2"]
+	unwrappedKEK3, err := aesSvc.AsymetricDecrypt(kp3.Seed(), wrappedKEKMember2)
 	require.NoError(t, err)
 	assert.Equal(t, storedKEKBytes, unwrappedKEK3)
 }

@@ -147,7 +147,7 @@ func TestC3_CollaborativeShare_CryptographicIsolation(t *testing.T) {
 
 	// --- STEP 4: DECISIVE TEST INVARIANT — RESOLVE COLLABORATIVE SHARE WHILE LOCKED ---
 	// Resolve collaborative share for Alice when her private vault session is locked
-	resolvedDTO, errResolve := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, shareEntryID, deviceLaptopID)
+	resolvedDTO, errResolve := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, userAliceID, shareEntryID)
 	require.NoError(t, errResolve, "DECISIVE INVARIANT: Collaborative share resolution MUST succeed even when recipient's private vault session is LOCKED!")
 	require.NotNil(t, resolvedDTO)
 

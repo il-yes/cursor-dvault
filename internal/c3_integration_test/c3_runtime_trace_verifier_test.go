@@ -48,6 +48,7 @@ type CloudBackendMock struct {
 	invitations map[string]*tracecore_types.CloudChannelInvitation
 	trustGroups map[string]*trustgroup_domain.TrustGroup
 	shares      map[string]*c3_asset_domain.ShareEntry
+	users       map[string]*tracecore_types.User
 	httpCalls   []string
 }
 
@@ -56,6 +57,7 @@ func newCloudBackendMock() *CloudBackendMock {
 		invitations: make(map[string]*tracecore_types.CloudChannelInvitation),
 		trustGroups: make(map[string]*trustgroup_domain.TrustGroup),
 		shares:      make(map[string]*c3_asset_domain.ShareEntry),
+		users:       make(map[string]*tracecore_types.User),
 	}
 }
 
@@ -126,6 +128,14 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 		if r.Method == http.MethodPost && r.URL.Path == "/api/trustgroups" {
 			var tg trustgroup_domain.TrustGroup
 			_ = json.Unmarshal(bodyBytes, &tg)
+			if tg.ID == "" {
+				var reqWrapper struct {
+					TrustGroup trustgroup_domain.TrustGroup `json:"trust_group"`
+				}
+				if err := json.Unmarshal(bodyBytes, &reqWrapper); err == nil && reqWrapper.TrustGroup.ID != "" {
+					tg = reqWrapper.TrustGroup
+				}
+			}
 			var payload map[string]interface{}
 			_ = json.Unmarshal(bodyBytes, &payload)
 			if tg.ID == "" {
@@ -142,6 +152,19 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 			}
 			if tg.KEKVersion == 0 {
 				tg.KEKVersion = 1
+			}
+			if len(tg.MemberCIDs) == 0 {
+				if membersRaw, ok := payload["members"].([]interface{}); ok {
+					for _, mVal := range membersRaw {
+						if mStr, ok := mVal.(string); ok {
+							tg.MemberCIDs = append(tg.MemberCIDs, mStr)
+						} else if mMap, ok := mVal.(map[string]interface{}); ok {
+							if vID, ok := mMap["vault_id"].(string); ok && vID != "" {
+								tg.MemberCIDs = append(tg.MemberCIDs, vID)
+							}
+						}
+					}
+				}
 			}
 			m.trustGroups[tg.ID] = &tg
 
@@ -383,6 +406,39 @@ func (m *CloudBackendMock) Server() *httptest.Server {
 			}
 		}
 
+		// 10. Get User/Customer: GET /customers or GET /api/customers
+		if r.Method == http.MethodGet && (strings.HasPrefix(r.URL.Path, "/customers") || strings.HasPrefix(r.URL.Path, "/api/customers")) {
+			email := r.URL.Query().Get("email")
+			vaultID := r.URL.Query().Get("vault_id")
+			lookup := email
+			if lookup == "" {
+				lookup = vaultID
+			}
+
+			user, ok := m.users[lookup]
+			if !ok && lookup != "" {
+				user = &tracecore_types.User{
+					ID:        102,
+					Email:     lookup,
+					PublicKey: "GBV35PVNE77KMVFBK3JS4OXXQPHSVEYEDYNSSKPIFNJZH2EJNC5O4THV",
+				}
+			}
+
+			if user == nil {
+				w.WriteHeader(404)
+				return
+			}
+
+			resp := tracecore.GetUserByEmailResponse{
+				Error:   false,
+				Message: "customer found",
+				Data:    *user,
+			}
+			w.WriteHeader(200)
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
 		fmt.Printf("[MOCK_CLOUD][404] METHOD=%s PATH=%s\n", r.Method, r.URL.Path)
 		w.WriteHeader(404)
 	}))
@@ -616,7 +672,7 @@ func TestC3_CompleteRuntimeTrace(t *testing.T) {
 	// -------------------------------------------------------------
 	// STEP 3: User B Executes Final C3 Read
 	// -------------------------------------------------------------
-	resolvedShare, err := collabHandler.ResolveCollaborativeShare(ctx, userBobVaultID, shareEntryID, deviceBobID)
+	resolvedShare, err := collabHandler.ResolveCollaborativeShare(ctx, userBobVaultID, userBobVaultID, shareEntryID)
 	require.NoError(t, err)
 	require.NotNil(t, resolvedShare)
 

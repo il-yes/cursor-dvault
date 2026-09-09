@@ -22,10 +22,14 @@ import (
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
+	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
+	trustgroup_ports "vault-app/internal/trust_group/application/ports"
+	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
 
 // ---------------------------------------------------------------------------
@@ -344,7 +348,7 @@ func TestC3CollaborativeShare_WriteReadRoundTrip(t *testing.T) {
 	assert.False(t, strings.Contains(evtJsonStr, "wrapped_kek"), "Thread timeline MUST NOT contain wrapped KEK")
 
 	// 6. READ EXECUTION: Resolve Collaborative Share via Handler/App Boundary
-	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, threadEvt.Payload.ShareEntryID, deviceLaptopID)
+	resolvedDTO, err := collabHandler.ResolveCollaborativeShare(ctx, userAliceID, userAliceID, threadEvt.Payload.ShareEntryID)
 	require.NoError(t, err)
 	require.NotNil(t, resolvedDTO)
 
@@ -373,3 +377,152 @@ func TestC3CollaborativeShare_WriteReadRoundTrip(t *testing.T) {
 	assert.NotEqual(t, rawOriginalContent, rawStoredCiphertext)
 	assert.False(t, strings.Contains(string(rawStoredCiphertext), "Q4 Growth Strategy"), "Storage provider MUST store ciphertext only")
 }
+
+func TestC3_FullWorkflow_UserA_to_UserB_Replay(t *testing.T) {
+	ctx := context.Background()
+	repo := newRoundTripRepo()
+
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), nil)
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	// 1. Setup User A (Alice) and User B (Bob) sovereign keypairs & keyrings
+	kpAlice, err := keypair.Random()
+	require.NoError(t, err)
+
+	kpBob, err := keypair.Random()
+	require.NoError(t, err)
+
+	userAliceID := "vault_alice_workflow"
+	userBobID := "vault_bob_workflow"
+	deviceAliceID := "dev_alice_laptop"
+	deviceBobID := "dev_bob_desktop_mac"
+	_ = deviceBobID
+
+	identityResolver := &memorySovereignIdentityResolver{
+		seeds: map[string]string{
+			userAliceID: kpAlice.Seed(),
+			userBobID:   kpBob.Seed(),
+		},
+		keyrings: map[string]*vaults_domain.VaultKeyring{
+			userAliceID: vaults_domain.NewVaultKeyring(userAliceID),
+			userBobID:   vaults_domain.NewVaultKeyring(userBobID),
+		},
+		devices: map[string]*trustgroup_ports.DeviceSummary{
+			deviceAliceID: {
+				ID:        deviceAliceID,
+				VaultID:   userAliceID,
+				PublicKey: kpAlice.Address(),
+				Status:    "active",
+				IsActive:  true,
+			},
+		},
+	}
+
+	repo.seeds[userAliceID] = kpAlice.Seed()
+	repo.keyrings[userAliceID] = identityResolver.keyrings[userAliceID]
+
+	repo.seeds[userBobID] = kpBob.Seed()
+	repo.keyrings[userBobID] = identityResolver.keyrings[userBobID]
+
+	// 2. User A creates TrustGroup with User A
+	tg := trustgroup_domain.NewTrustGroup("ch_wf_01", "Workflow Test Group", []string{userAliceID})
+	tg.ID = "tg_workflow_01"
+	tg.KEKVersion = 1
+	repo.trustGroups[tg.ID] = *tg
+
+	// 3. User A adds User B to TrustGroup
+	tg.MemberCIDs = append(tg.MemberCIDs, userBobID)
+	repo.trustGroups[tg.ID] = *tg
+
+	// 4. Provision key envelopes: Alice (exact device) and Bob (remote identity envelope "default")
+	addEnvUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(repo, identityResolver)
+	provisionUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(repo, identityResolver, orchestrator, addEnvUC, keyringSvc)
+
+	aliceKeyring := repo.keyrings[userAliceID]
+	_, errProvAlice := provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+		TrustGroupID:    tg.ID,
+		MemberID:        userAliceID,
+		DeviceID:        deviceAliceID,
+		DevicePublicKey: kpAlice.Address(),
+	}, aliceKeyring)
+	require.NoError(t, errProvAlice)
+
+	_, errProvBob := provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
+		TrustGroupID:    tg.ID,
+		MemberID:        userBobID,
+		DeviceID:        "default",
+		DevicePublicKey: kpBob.Address(),
+	}, aliceKeyring)
+	require.NoError(t, errProvBob)
+
+	// Verify TrustGroup state after provisioning
+	tgReloaded, errTG := repo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
+	require.NoError(t, errTG)
+	require.Len(t, tgReloaded.Data.MemberCIDs, 2)
+	require.Len(t, tgReloaded.Data.KeyEnvelopes, 2)
+
+	// 5. User A creates Thread Timeline
+	thread := thread_domain.NewThread("ch_wf_01", "contract", "Workflow Agreement", "v1.0")
+	_, err = repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thread})
+	require.NoError(t, err)
+
+	// 6. User A prepares & encrypts asset payload
+	rawOriginalContent := []byte("Strict End-To-End Collaborative Asset Payload 2026")
+	assetCID := "bafybeifullworkflow2026cid"
+
+	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
+		AssetID:      "asset_wf_01",
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		RawPayload:   rawOriginalContent,
+		Keyring:      aliceKeyring,
+	}
+
+	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, prepPayload)
+	require.NoError(t, err)
+	repo.assets[assetCID] = prepared.EncryptedData
+
+	// 7. User A creates Collaborative ShareEntry and appends entry.shared event
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(repo, repo)
+	createShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	resolveShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, repo, identityResolver, orchestrator)
+	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(repo)
+	collabHandler := collaboration_ui.NewCollaborationHandler(createShareUC, resolveShareUC, appendThreadEventUC)
+
+	wrappedDEKStr := base64.StdEncoding.EncodeToString(prepared.WrappedDEK)
+	createResp, err := createShareUC.Execute(ctx, collaboration_dtos.CreateCollaborativeShareRequest{
+		TrustGroupID: tg.ID,
+		KEKVersion:   1,
+		CreatedBy:    userAliceID,
+		AssetCID:     assetCID,
+		WrappedDEK:   wrappedDEKStr,
+		Metadata:     map[string]string{"title": "Workflow Agreement"},
+	})
+	require.NoError(t, err)
+	createdShareEntryID := createResp.ShareEntry.ID
+	repo.shareEntries[createdShareEntryID] = createResp.ShareEntry
+
+	_, err = appendThreadEventUC.Execute(ctx, thread.ID, "entry.shared", thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: createdShareEntryID,
+		TrustGroupID: tg.ID,
+	}, "evt_share_"+createdShareEntryID)
+	require.NoError(t, err)
+
+	// 8. User B opens thread timeline, lists events, resolves ShareEntryID
+	events, err := listThreadEventsUC.Execute(ctx, thread.ID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	recEvt := events[0]
+	assert.Equal(t, createdShareEntryID, recEvt.Payload.ShareEntryID)
+
+	// 9. User B resolves collaborative share passing custom Desktop device ID ("dev_bob_desktop_mac")
+	resBob, errResolve := collabHandler.ResolveCollaborativeShare(ctx, userBobID, userBobID, createdShareEntryID)
+	require.NoError(t, errResolve, "User B MUST successfully resolve collaborative share using identity envelope")
+	require.NotNil(t, resBob)
+	assert.Equal(t, string(rawOriginalContent), string(resBob.Plaintext), "User B MUST decrypt exact original plaintext")
+}
+

@@ -318,6 +318,10 @@ export function GetWorkspaceFederation(arg1, arg2) {
   return window['go']['main']['App']['GetWorkspaceFederation'](arg1, arg2);
 }
 
+export function HandleIncompleteDeviceConfigs(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HandleIncompleteDeviceConfigs'](arg1, arg2, arg3, arg4);
+}
+
 export function ImportVaultWithKey(arg1) {
   return window['go']['main']['App']['ImportVaultWithKey'](arg1);
 }
@@ -470,8 +474,8 @@ export function RequireCloudAuthentication() {
   return window['go']['main']['App']['RequireCloudAuthentication']();
 }
 
-export function ResolveCollaborativeShare(arg1, arg2, arg3) {
-  return window['go']['main']['App']['ResolveCollaborativeShare'](arg1, arg2, arg3);
+export function ResolveCollaborativeShare(arg1, arg2) {
+  return window['go']['main']['App']['ResolveCollaborativeShare'](arg1, arg2);
 }
 
 export function RestoreCloudTokenForUser(arg1) {

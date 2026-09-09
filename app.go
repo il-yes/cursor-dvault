@@ -44,7 +44,9 @@ import (
 	"vault-app/internal/handlers"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_dtos "vault-app/internal/identity/application/dtos"
+	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
 	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
@@ -100,6 +102,7 @@ import (
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
@@ -456,7 +459,11 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	// Identity
 	// -------------------------------------------------------------------------------------------------
-	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, onBoardingHandler.UserRepo)
+	identityDeviceRepo := identity_persistence.NewGormDeviceRepository(db.DB)
+	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()
+	createDeviceUC := identity_usecase.NewCreateDeviceUseCase(identityDeviceRepo, identityMemoryBus).WithDeviceConfigRepository(appConfigHandler.DeviceConfigRepository)
+	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, onBoardingHandler.UserRepo, *createDeviceUC, identityMemoryBus)
+	onBoardingHandler.SetIdentityHandler(identityHandler)
 
 	// -------------------------------------------------------------------------------------------------
 	// Auth
@@ -673,8 +680,6 @@ func NewApp() *App {
 	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
 	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC, actionUseCases)
 	tgMemoryBus := trustgroup_infrastructure_eventbus.NewMemoryBus()
-	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, tgMemoryBus)
-
 	deviceRepo := identity_persistence.NewGormDeviceRepository(db.DB)
 	identityDeviceAdapter := trustgroup_adapters.NewIdentityDeviceAdapter(deviceRepo)
 	addEnvelopeUC := trustgroup_envelope_usecases.NewAddTrustGroupKeyEnvelopeUseCase(tracecoreClient, identityDeviceAdapter)
@@ -685,6 +690,12 @@ func NewApp() *App {
 		addEnvelopeUC,
 		keyringSvc,
 	)
+	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, tgMemoryBus)
+	
+	// Register event listener for MemberAddedToTrustGroup to trigger envelope provisioning via event bus
+	memberAddedSubscriber := trustgroup_events.NewMemberAddedSubscriber(provisionEnvelopeUC, identityDeviceAdapter, identityHandler, tracecoreClient, nil)
+	memberAddedSubscriber.RegisterSubscribers(tgMemoryBus)
+
 	application := &App{
 		AppConfigHandler: appConfigHandler,
 		// Auth:                      nil, // auth,
@@ -1133,6 +1144,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if session.Runtime.SessionSecrets == nil {
 		session.Runtime.SessionSecrets = make(map[string]string)
 	}
+	if req.Password != "" {
+		session.Runtime.SessionSecrets["password"] = req.Password
+	}
 
 	a.Logger.Info("Session prepared successfully for user %s", userID)
 
@@ -1142,7 +1156,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 
 	var cloudToken string
 
-	if a.Vault != nil && a.Vault.TracecoreClient != nil {
+	if a.Vault != nil && a.Vault.TracecoreClient != nil && a.AppConfigHandler != nil {
 		userCfg, errCfg := a.AppConfigHandler.GetUserConfigByUserID(userID)
 		if errCfg != nil || userCfg == nil {
 			a.Logger.Warn(
@@ -1206,6 +1220,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 
 							// Step 5: TracecoreClient.SetToken(token) (runtime HTTP client hydration only)
 							a.Vault.TracecoreClient.SetToken(cloudToken)
+							if a.tracecoreClient != nil {
+								a.tracecoreClient.SetToken(cloudToken)
+							}
 
 							a.Logger.Info(
 								"☁️ [CLOUD-AUTH] Cloud authentication succeeded for user=%s",
@@ -1230,6 +1247,13 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// ============================================================
 	// 4. FIND USER ONBOARDING
 	// ============================================================
+
+	if a.OnBoardingHandler == nil || a.OnBoardingHandler.FindUsersUseCase == nil || a.SubscriptionHandler == nil {
+		return &vault_dto.LoginResponse{
+			User:   *result.User,
+			Tokens: result.Tokens,
+		}, nil
+	}
 
 	userOnboarding, err := a.OnBoardingHandler.FindUsersUseCase.FindByEmail(
 		result.User.Email,
@@ -1291,6 +1315,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		userID,
 		vaultRes.ReusedExisting,
 	)
+
 
 	// ============================================================
 	// 7. CLOUD VAULT DELEGATION — OPTIONAL
@@ -1550,6 +1575,15 @@ func (a *App) EditConfig(vaultName string, s *app_config_dto.Settings, jwtToken 
 	a.Logger.LogPretty("App - EditConfig - settings", s)
 
 	return a.AppConfigHandler.EditSettings(claims.UserID, vaultName, s)
+}
+func (a *App) HandleIncompleteDeviceConfigs(
+	userID string,
+	vaultName string,
+	vaultID string,
+	pk string,
+) ([]app_config_domain.DeviceConfig, error) {
+	a.Logger.Info("HandleIncompleteDeviceConfigs for user %s", userID)
+	return a.AppConfigHandler.DeviceConfigRepository.FindByUserIDAndVaultName(userID, vaultName)
 }
 
 // -----------------------------
@@ -2266,6 +2300,7 @@ func (a *App) GetVaultAvatar(jwtToken string, vaultName string) (string, error) 
 		a.Logger.Error("App - GetVaultAvatar - error: %v", err)
 		return "", err
 	}
+
 	a.Logger.LogPretty("App - GetVaultAvatar - vault", vault)
 	return vault.Avatar, nil
 }
@@ -3017,10 +3052,39 @@ func (a *App) GetUserVaultKey(jwtToken string) (string, error) {
 func (a *App) EditUserInfos(jwtToken string, req *identity_dtos.EditUserInfosRequest) error {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
+		a.Logger.Error("App - EditUserInfos - Auth error: %v", err)
 		return err
 	}
-	fmt.Println("userID", claims.UserID)
-	// return a.Identity.EditUserInfos(a.ctx, claims.UserID, req)
+	reqUsername := ""
+	reqFirstName := ""
+	reqLastName := ""
+	if req != nil {
+		reqUsername = req.UserName
+		reqFirstName = req.FirstName
+		reqLastName = req.LastName
+	}
+	a.Logger.Info("App - EditUserInfos - updating profile for userID: %s req: username=%s first_name=%s last_name=%s", claims.UserID, reqUsername, reqFirstName, reqLastName)
+
+	user, err := a.Identity.FindUserById(a.ctx, claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - EditUserInfos - failed to find user %s: %v", claims.UserID, err)
+		return err
+	}
+
+	if req != nil {
+		user.Username = req.UserName
+		user.FirstName = req.FirstName
+		user.LastName = req.LastName
+	}
+	user.EnsureAliases()
+
+	_, err = a.Identity.UpdateUser(a.ctx, user)
+	if err != nil {
+		a.Logger.Error("App - EditUserInfos - failed to update user %s: %v", claims.UserID, err)
+		return err
+	}
+
+	a.Logger.Info("App - EditUserInfos - profile updated successfully for userID: %s", claims.UserID)
 	return nil
 }
 
@@ -3073,19 +3137,38 @@ func (a *App) ConnectToRealtime(user identity_domain.User) error {
 // -----------------------------
 // Notifications Center
 // -----------------------------
+func (a *App) resolveVaultID(userID string, email string) string {
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(userID); err == nil && session != nil && session.Runtime != nil && session.Runtime.VaultID != "" {
+			return session.Runtime.VaultID
+		}
+	}
+	if a.Vault != nil && a.Vault.VaultRepository != nil {
+		if v, err := a.Vault.VaultRepository.GetLatestByUserID(userID); err == nil && v != nil && v.ID != "" {
+			return v.ID
+		}
+	}
+	if a.SubscriptionHandler != nil && email != "" {
+		if sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), email); err == nil && sub != nil {
+			if cloudVault, err := a.Vault.GetVaultFromCloud(sub.ID); err == nil && cloudVault != nil && cloudVault.Data.ID != "" {
+				return cloudVault.Data.ID
+			}
+		}
+	}
+	return userID
+}
+
 func (a *App) ListByUser(jwtToken string, limit int, offset int) ([]notification_center_domain.Notification, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 
-	// fetch subscription for user
-	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
-	if err != nil {
-		return nil, err
-	}
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
 
-	return a.NotificationCenterHandler.ListByUser(context.Background(), sub.UserID, limit, offset)
+	fmt.Printf("[C3][NOTIF_READ_TRACE][WAILS_BRIDGE] authenticated_userID=%s claims_email=%s resolved_vault_id=%s\n", claims.UserID, claims.Email, vaultID)
+
+	return a.NotificationCenterHandler.ListByUser(context.Background(), vaultID, limit, offset)
 }
 func (a *App) CountUnread(jwtToken string) (int64, error) {
 	claims, err := a.RequireAuth(jwtToken)
@@ -3093,7 +3176,8 @@ func (a *App) CountUnread(jwtToken string) (int64, error) {
 		return 0, err
 	}
 
-	return a.NotificationCenterHandler.CountUnread(context.Background(), claims.UserID)
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	return a.NotificationCenterHandler.CountUnread(context.Background(), vaultID)
 }
 func (a *App) MarkRead(jwtToken string, id string) error {
 	_, err := a.RequireAuth(jwtToken)
@@ -3115,7 +3199,9 @@ func (a *App) MarkAllRead(jwtToken string) error {
 	if err != nil {
 		return err
 	}
-	return a.NotificationCenterHandler.MarkAllRead(context.Background(), claims.UserID)
+
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	return a.NotificationCenterHandler.MarkAllRead(context.Background(), vaultID)
 }
 
 // -----------------------------
@@ -3291,19 +3377,28 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, vaultId)
+
+	resolvedVaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	targetVaultID := vaultId
+	if targetVaultID == "" {
+		targetVaultID = resolvedVaultID
+	}
+
+	fmt.Printf("[C3][WORKSPACE_ACCESS_TRACE][WAILS_LIST] authenticated_identity_id=%s resolved_vault_id=%s requested_workspace_user_identity=%s repository_query_identity=%s\n",
+		claims.UserID, resolvedVaultID, vaultId, targetVaultID)
+	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, targetVaultID)
 
 	if err := a.RequireCloudAuthentication(); err != nil {
 		return nil, err
 	}
 
-	a.Logger.Info("☁️ [CLOUD-WORKSPACE] Listing workspaces for vault=%s", vaultId)
+	a.Logger.Info("☁️ [CLOUD-WORKSPACE] Listing workspaces for vault=%s", targetVaultID)
 
 	if a.WorkspaceHandler == nil {
 		return nil, fmt.Errorf("workspace handler is not initialized")
 	}
 
-	res, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, vaultId)
+	res, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, targetVaultID)
 	if err != nil {
 		a.Logger.Error("App.ListWorkspaces error: %v", err)
 		return nil, err
@@ -3563,6 +3658,9 @@ func (a *App) CreateTrustGroup(
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
 
+	fmt.Printf("[TRUSTGROUP][CREATE][01]\ncallerID=%s\ncallerVaultID=%s\nchannelID=%s\nname=%s\n",
+		claims.UserID, claims.UserID, workspaceID, name)
+
 	if a.tracecoreClient == nil {
 		return nil, fmt.Errorf("tracecore client is not initialized")
 	}
@@ -3579,21 +3677,30 @@ func (a *App) CreateTrustGroup(
 		return nil, fmt.Errorf("keyring service is not initialized")
 	}
 
-	// 1. Create the TrustGroup.
+	// 1. Create the TrustGroup with creator as initial member.
+	initialMembers := []string{claims.UserID}
 	resp, err := a.tracecoreClient.CreateTrustGroup(
 		a.ctx,
 		&trustgroup_domain.CreateTrustGroupRequest{
 			TrustGroup: trustgroup_domain.TrustGroup{
-				ChannelID: workspaceID,
-				Name:      name,
+				ChannelID:  workspaceID,
+				Name:       name,
+				MemberCIDs: initialMembers,
 			},
 		},
 	)
 	if err != nil {
+		fmt.Printf("[TRUSTGROUP][CREATE][02] error=%v\n", err)
 		return nil, err
 	}
 
 	tg := resp.Data
+	if len(tg.MemberCIDs) == 0 {
+		tg.MemberCIDs = initialMembers
+	}
+
+	fmt.Printf("[TRUSTGROUP][CREATE][02]\ntrustGroupID=%s\ninitialMembers=%v\ninitialKEKVersion=%d\n",
+		tg.ID, tg.MemberCIDs, tg.KEKVersion)
 
 	// 2. Load the creator's local keyring.
 	var keyring *vaults_domain.VaultKeyring
@@ -3621,12 +3728,9 @@ func (a *App) CreateTrustGroup(
 		keyring = &vaults_domain.VaultKeyring{UserID: claims.UserID}
 	}
 
-	fmt.Printf("[C3][CREATE][KEYRING] creator keyring unlocked=true\n")
-
-	// 3. Provision an envelope for every active device
-	//    belonging to every initial TrustGroup member.
+	// 3. Provision an envelope for every active device belonging to initial members.
 	for _, memberID := range tg.MemberCIDs {
-
+		fmt.Printf("[TRUSTGROUP][CREATE][03] envelope provisioning invoked for memberID=%s\n", memberID)
 		devices, err := a.identityDeviceAdapter.ListActiveDevices(
 			a.ctx,
 			memberID,
@@ -3651,6 +3755,10 @@ func (a *App) CreateTrustGroup(
 				continue
 			}
 
+			pubKeyLen := len(dev.PublicKey)
+			fmt.Printf("[TRUSTGROUP][CREATE][04] deviceID=%s publicKeyPresent=%t publicKeyLen=%d\n",
+				dev.ID, dev.PublicKey != "", pubKeyLen)
+
 			if dev.PublicKey == "" {
 				return nil, fmt.Errorf(
 					"active device %s for initial member %s has no public key",
@@ -3670,6 +3778,7 @@ func (a *App) CreateTrustGroup(
 				keyring,
 			)
 			if err != nil {
+				fmt.Printf("[TRUSTGROUP][CREATE][05] provisionEnvelopeUC error for member %s device %s: %v\n", memberID, dev.ID, err)
 				return nil, fmt.Errorf(
 					"failed to provision envelope for member %s device %s: %w",
 					memberID,
@@ -3684,7 +3793,40 @@ func (a *App) CreateTrustGroup(
 		}
 	}
 
-	return &tg, nil
+	if keyring != nil && a.Vault != nil && a.Vault.KeyringService != nil {
+		_ = a.Vault.KeyringService.SaveHybrid(keyring, claims.UserID, pass, secret)
+	}
+
+	// 4. MANDATORY READ-BACK VERIFICATION
+	readbackResp, rbErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
+	if rbErr != nil || readbackResp == nil {
+		fmt.Printf("[TRUSTGROUP][VERIFY][FATAL] READBACK_FAILED trustGroupID=%s err=%v\n", tg.ID, rbErr)
+		return nil, fmt.Errorf("read-back verification failed for trust group %s: %w", tg.ID, rbErr)
+	}
+
+	readbackTG := readbackResp.Data
+	fmt.Printf("[TRUSTGROUP][VERIFY][READBACK]\ntrustGroupID=%s\nmemberCount=%d\nkeyEnvelopeCount=%d\n",
+		readbackTG.ID, len(readbackTG.MemberCIDs), len(readbackTG.KeyEnvelopes))
+
+	for _, env := range readbackTG.KeyEnvelopes {
+		revokedStr := "false"
+		if env.RevokedAt != nil {
+			revokedStr = "true"
+		}
+		fmt.Printf("[TRUSTGROUP][VERIFY][ENVELOPE]\nenvelopeID=%s\nmemberID=%s\ndeviceID=%s\nkekVersion=%d\nrevoked=%s\n",
+			env.ID, env.MemberID, env.DeviceID, env.KEKVersion, revokedStr)
+	}
+
+	if len(readbackTG.KeyEnvelopes) == 0 {
+		fmt.Printf("[TRUSTGROUP][VERIFY][FATAL]\nEXPECTED_ENVELOPE_NOT_RETRIEVED\ntrustGroupID=%s\nexpectedMemberID=%s\nexpectedKEKVersion=1\nactualEnvelopeCount=0\n",
+			tg.ID, claims.UserID)
+		return nil, fmt.Errorf("TRUSTGROUP INVARIANT FAILED: expected creator key envelope, got 0 envelopes")
+	}
+
+	fmt.Printf("[TRUSTGROUP][CREATE][STATE]\ntrustGroupID=%s\nmemberCount=%d\nmemberIDs=%v\nkekVersion=%d\nkeyEnvelopeCount=%d\n",
+		readbackTG.ID, len(readbackTG.MemberCIDs), readbackTG.MemberCIDs, readbackTG.KEKVersion, len(readbackTG.KeyEnvelopes))
+
+	return &readbackTG, nil
 }
 
 // AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
@@ -3695,15 +3837,13 @@ func (a *App) AddTrustGroupMember(
 	role string,
 ) (*trustgroup_domain.TrustGroup, error) {
 
-	fmt.Printf("[C3][REAL-E2E][01] UI -> App.AddTrustGroupMember trustGroupID=%s memberID=%s role=%s\n", trustGroupID, vaultID, role)
-	fmt.Printf("[C3][REAL-E2E][02] request trustGroupID=%s memberID=%s role=%s\n", trustGroupID, vaultID, role)
-	fmt.Printf("[FORENSIC][ADD_MEMBER][INPUT] TrustGroupID=%s MemberID=%s Role=%s\n", trustGroupID, vaultID, role)
-	fmt.Printf("[C3][ADD_MEMBER][STEP_01] App.AddTrustGroupMember enter trustGroupID=%s vaultID=%s role=%s\n", trustGroupID, vaultID, role)
-
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+
+	fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][ENTRY] trustGroupID=%s callerVaultID=%s targetMemberID=%s role=%s\n", trustGroupID, claims.UserID, vaultID, role)
+	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][01_ENTER] claims.UserID=%s trustGroupID=%s targetVaultID=%s role=%s\n", claims.UserID, trustGroupID, vaultID, role)
 
 	if a.addTrustGroupMemberUC == nil {
 		return nil, fmt.Errorf("add trust group member usecase is not initialized")
@@ -3736,25 +3876,28 @@ func (a *App) AddTrustGroupMember(
 		return nil, err
 	}
 	if updatedTg != nil {
+		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][AFTER_ADD_MEMBER] trustGroupID=%s memberCount=%d MemberCIDs=%v KEKVersion=%d keyEnvelopeCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs), updatedTg.MemberCIDs, updatedTg.KEKVersion, len(updatedTg.KeyEnvelopes))
 		fmt.Printf("[C3][REAL-E2E][04] membership after count=%d\n", len(updatedTg.MemberCIDs))
 		fmt.Printf("[FORENSIC][ADD_MEMBER][AFTER_CLOUD_MEMBER] TrustGroupID=%s MemberCIDsCount=%d KeyEnvelopesCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs), len(updatedTg.KeyEnvelopes))
 		fmt.Printf("[C3][ADD_MEMBER][STEP_04] addTrustGroupMemberUC.Execute return success trustGroupID=%s memberCIDsCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs))
 	}
 
-	// 2. Resolve the member's active devices.
 	devices, err := a.identityDeviceAdapter.ListActiveDevices(
 		a.ctx,
 		vaultID,
 	)
 	if err != nil {
-		fmt.Printf("[C3][ADD_MEMBER][ERROR] ListActiveDevices failed for member %s: %v\n", vaultID, err)
-		return nil, fmt.Errorf(
-			"failed to resolve active devices for member %s: %w",
-			vaultID,
-			err,
-		)
+		fmt.Printf("[C3][ADD_MEMBER][WARN] ListActiveDevices returned error for member %s: %v (falling back to remote member resolution)\n", vaultID, err)
+		devices = nil
 	}
 
+
+	remoteFallbackUsed := len(devices) == 0
+	fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][DEVICE_RESOLUTION] targetMemberID=%s listActiveDevicesCalled=true returnedDevicesCount=%d remoteMemberFallbackUsed=%t\n", vaultID, len(devices), remoteFallbackUsed)
+	for i, dev := range devices {
+		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][DEVICE_RESOLUTION] -> device[%d]: deviceID=%s publicKey=%s isActive=%t\n", i, dev.ID, dev.PublicKey, dev.IsActive)
+	}
+	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][02_DEVICES] memberID=%s totalDevicesFound=%d\n", vaultID, len(devices))
 	fmt.Printf("[C3][REAL-E2E][05] active devices count=%d for member %s\n", len(devices), vaultID)
 	fmt.Printf("[C3][ADD_MEMBER][STEP_05] ListActiveDevices returned devicesCount=%d for member %s\n", len(devices), vaultID)
 
@@ -3764,11 +3907,16 @@ func (a *App) AddTrustGroupMember(
 	}
 
 	var pass, secret string
-	if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
-		pass = userSession.Runtime.SessionSecrets["password"]
-		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
-		if secret == "" {
-			secret = userSession.Runtime.SessionSecrets["device_seed"]
+	var sessionFound, runtimeFound bool
+	if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil {
+		sessionFound = true
+		if userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+			runtimeFound = true
+			pass = userSession.Runtime.SessionSecrets["password"]
+			secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+			if secret == "" {
+				secret = userSession.Runtime.SessionSecrets["device_seed"]
+			}
 		}
 	}
 	if secret == "" {
@@ -3781,12 +3929,16 @@ func (a *App) AddTrustGroupMember(
 		pass = os.Getenv("VAULT_PASSWORD")
 	}
 
+	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][03_SESSION] callerID=%s sessionFound=%t runtimeFound=%t passPresent=%t secretPresent=%t\n",
+		claims.UserID, sessionFound, runtimeFound, pass != "", secret != "")
+
 	keyring, err := a.Vault.KeyringService.LoadHybrid(
 		claims.UserID,
 		pass,
 		secret,
 	)
 	if err != nil {
+		fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][04_KEYRING_FAIL] callerID=%s err=%v\n", claims.UserID, err)
 		fmt.Printf("[C3][ADD_MEMBER][ERROR] LoadHybrid failed for caller %s: %v\n", claims.UserID, err)
 		return nil, fmt.Errorf(
 			"failed to load caller keyring %s: %w",
@@ -3794,6 +3946,7 @@ func (a *App) AddTrustGroupMember(
 			err,
 		)
 	}
+	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][04_KEYRING_OK] callerID=%s keysInKeyring=%d\n", claims.UserID, len(keyring.Keys))
 
 	// 4. Create KEK envelope for active device(s) or member public key.
 	if len(devices) > 0 {
@@ -3810,9 +3963,13 @@ func (a *App) AddTrustGroupMember(
 				)
 			}
 
-			fmt.Printf("[C3][REAL-E2E][06] provisioning deviceID=%s memberID=%s\n", dev.ID, vaultID)
-			fmt.Printf("[FORENSIC][PROVISION][INPUT] TrustGroupID=%s MemberID=%s DeviceID=%s HasDevicePublicKey=%t\n", trustGroupID, vaultID, dev.ID, dev.PublicKey != "")
-			fmt.Printf("[C3][ADD_MEMBER][STEP_06] Calling provisionEnvelopeUC trustGroupID=%s memberID=%s deviceID=%s hasPubKey=%t\n", trustGroupID, vaultID, dev.ID, dev.PublicKey != "")
+			var currentVer uint64 = 1
+			if updatedTg != nil {
+				currentVer = updatedTg.KEKVersion
+			}
+			fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_BEFORE] trustGroupID=%s memberID=%s deviceID=%s devicePublicKey=%s currentKEKVersion=%d\n",
+				trustGroupID, vaultID, dev.ID, dev.PublicKey, currentVer)
+
 			pTg, pErr := a.provisionEnvelopeUC.Execute(
 				a.ctx,
 				trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
@@ -3823,8 +3980,24 @@ func (a *App) AddTrustGroupMember(
 				},
 				keyring,
 			)
+
+			var envID, envMemberID, envDeviceID string
+			var envKEKVersion uint64
+			var currentKeyEnvelopeCount int
+			if pTg != nil {
+				currentKeyEnvelopeCount = len(pTg.KeyEnvelopes)
+				if len(pTg.KeyEnvelopes) > 0 {
+					lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
+					envID = lastEnv.ID
+					envMemberID = lastEnv.MemberID
+					envDeviceID = lastEnv.DeviceID
+					envKEKVersion = lastEnv.KEKVersion
+				}
+			}
+			fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_AFTER] err=%v envelopeID=%s memberID=%s deviceID=%s KEKVersion=%d currentKeyEnvelopeCount=%d\n",
+				pErr, envID, envMemberID, envDeviceID, envKEKVersion, currentKeyEnvelopeCount)
+
 			if pErr != nil {
-				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=%v KeyEnvelopesCount=0\n", pErr)
 				fmt.Printf("[C3][ADD_MEMBER][ERROR] provisionEnvelopeUC.Execute failed for member %s device %s: %v\n", vaultID, dev.ID, pErr)
 				return nil, fmt.Errorf(
 					"failed to provision key envelope for member %s device %s: %w",
@@ -3835,9 +4008,6 @@ func (a *App) AddTrustGroupMember(
 			}
 			if pTg != nil {
 				updatedTg = pTg
-				lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
-				fmt.Printf("[C3][REAL-E2E][07] envelope created wrappedKEKLen=%d kekVersion=%d memberID=%s deviceID=%s\n", len(lastEnv.WrappedKEK), lastEnv.KEKVersion, lastEnv.MemberID, lastEnv.DeviceID)
-				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=<nil> KeyEnvelopesCount=%d env.MemberID=%s env.DeviceID=%s env.KEKVersion=%d WrappedKEKPresent=%t\n", len(pTg.KeyEnvelopes), lastEnv.MemberID, lastEnv.DeviceID, lastEnv.KEKVersion, lastEnv.WrappedKEK != "")
 			}
 		}
 	} else {
@@ -3853,31 +4023,54 @@ func (a *App) AddTrustGroupMember(
 		var targetPubKey string
 		if email != "" && a.tracecoreClient != nil {
 			user, tcErr := a.tracecoreClient.GetUserByEmail(a.ctx, email)
+			fmt.Printf("[DIAGNOSTIC][APP_ADD_MEMBER][GET_USER_BY_EMAIL] email=%s user=%+v err=%v\n", email, user, tcErr)
 			if tcErr == nil && user != nil && strings.TrimSpace(user.PublicKey) != "" {
 				targetPubKey = strings.TrimSpace(user.PublicKey)
 			}
 		}
+
+		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][DEVICE_RESOLUTION] remoteMemberFallbackUsed=true fallbackPubKey=%s\n", targetPubKey)
 
 		if targetPubKey == "" {
 			fmt.Printf("[C3][ADD_MEMBER][ERROR] Failed to resolve public key for member %s (email=%s)\n", vaultID, email)
 			return nil, fmt.Errorf("no active device registered for member %s", vaultID)
 		}
 
-		fmt.Printf("[C3][REAL-E2E][06] provisioning deviceID=%s memberID=%s\n", vaultID, vaultID)
-		fmt.Printf("[FORENSIC][PROVISION][INPUT] TrustGroupID=%s MemberID=%s DeviceID=%s HasDevicePublicKey=%t\n", trustGroupID, vaultID, vaultID, targetPubKey != "")
-		fmt.Printf("[C3][ADD_MEMBER][STEP_06] Calling provisionEnvelopeUC for remote member trustGroupID=%s memberID=%s deviceID=%s hasPubKey=%t\n", trustGroupID, vaultID, vaultID, targetPubKey != "")
+		var currentVer uint64 = 1
+		if updatedTg != nil {
+			currentVer = updatedTg.KEKVersion
+		}
+		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_BEFORE] trustGroupID=%s memberID=%s deviceID=%s devicePublicKey=%s currentKEKVersion=%d\n",
+			trustGroupID, vaultID, vaultID, targetPubKey, currentVer)
+
 		pTg, pErr := a.provisionEnvelopeUC.Execute(
 			a.ctx,
 			trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
 				TrustGroupID:    trustGroupID,
 				MemberID:        vaultID,
-				DeviceID:        vaultID,
+				DeviceID:        "default",
 				DevicePublicKey: targetPubKey,
 			},
 			keyring,
 		)
+
+		var envID, envMemberID, envDeviceID string
+		var envKEKVersion uint64
+		var currentKeyEnvelopeCount int
+		if pTg != nil {
+			currentKeyEnvelopeCount = len(pTg.KeyEnvelopes)
+			if len(pTg.KeyEnvelopes) > 0 {
+				lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
+				envID = lastEnv.ID
+				envMemberID = lastEnv.MemberID
+				envDeviceID = lastEnv.DeviceID
+				envKEKVersion = lastEnv.KEKVersion
+			}
+		}
+		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_AFTER] err=%v envelopeID=%s memberID=%s deviceID=%s KEKVersion=%d currentKeyEnvelopeCount=%d\n",
+			pErr, envID, envMemberID, envDeviceID, envKEKVersion, currentKeyEnvelopeCount)
+
 		if pErr != nil {
-			fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=%v KeyEnvelopesCount=0\n", pErr)
 			fmt.Printf("[C3][ADD_MEMBER][ERROR] provisionEnvelopeUC.Execute failed for member %s: %v\n", vaultID, pErr)
 			return nil, fmt.Errorf(
 				"failed to provision key envelope for member %s: %w",
@@ -3887,22 +4080,44 @@ func (a *App) AddTrustGroupMember(
 		}
 		if pTg != nil {
 			updatedTg = pTg
-			if len(pTg.KeyEnvelopes) > 0 {
-				lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
-				fmt.Printf("[C3][REAL-E2E][07] envelope created wrappedKEKLen=%d kekVersion=%d memberID=%s deviceID=%s\n", len(lastEnv.WrappedKEK), lastEnv.KEKVersion, lastEnv.MemberID, lastEnv.DeviceID)
-				fmt.Printf("[FORENSIC][PROVISION][OUTPUT] err=<nil> KeyEnvelopesCount=%d env.MemberID=%s env.DeviceID=%s env.KEKVersion=%d WrappedKEKPresent=%t\n", len(pTg.KeyEnvelopes), lastEnv.MemberID, lastEnv.DeviceID, lastEnv.KEKVersion, lastEnv.WrappedKEK != "")
-			}
 		}
 	}
 
-	if updatedTg != nil {
-		fmt.Printf("[C3][REAL-E2E][11] fresh GetTrustGroup membersCount=%d envelopesCount=%d\n", len(updatedTg.MemberCIDs), len(updatedTg.KeyEnvelopes))
-		fmt.Printf("[FORENSIC][FINAL_GET] KeyEnvelopesCount=%d\n", len(updatedTg.KeyEnvelopes))
-		for i, env := range updatedTg.KeyEnvelopes {
-			fmt.Printf("  -> Envelope[%d] MemberID=%s DeviceID=%s KEKVersion=%d WrappedKEKPresent=%t\n", i, env.MemberID, env.DeviceID, env.KEKVersion, env.WrappedKEK != "")
+	if a.tracecoreClient != nil {
+		freshTg, freshErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID})
+		if freshErr != nil || freshTg == nil {
+			fmt.Printf("[TRUSTGROUP][VERIFY][FATAL] READBACK_FAILED trustGroupID=%s err=%v\n", trustGroupID, freshErr)
+			return nil, fmt.Errorf("read-back verification failed for trust group %s: %w", trustGroupID, freshErr)
 		}
-		fmt.Printf("[C3][ADD_MEMBER][STEP_20] App.AddTrustGroupMember completed successfully trustGroupID=%s envelopesCount=%d\n", updatedTg.ID, len(updatedTg.KeyEnvelopes))
+		updatedTg = &freshTg.Data
+		fmt.Printf("[TRUSTGROUP][VERIFY][READBACK]\ntrustGroupID=%s\nmemberCount=%d\nkeyEnvelopeCount=%d\n",
+			freshTg.Data.ID, len(freshTg.Data.MemberCIDs), len(freshTg.Data.KeyEnvelopes))
+		for _, env := range freshTg.Data.KeyEnvelopes {
+			revokedStr := "false"
+			if env.RevokedAt != nil {
+				revokedStr = "true"
+			}
+			fmt.Printf("[TRUSTGROUP][VERIFY][ENVELOPE]\nenvelopeID=%s\nmemberID=%s\ndeviceID=%s\nkekVersion=%d\nrevoked=%s\n",
+				env.ID, env.MemberID, env.DeviceID, env.KEKVersion, revokedStr)
+		}
+		memberEnvelopeFound := false
+		for _, env := range freshTg.Data.KeyEnvelopes {
+			if env.MemberID == vaultID {
+				memberEnvelopeFound = true
+				break
+			}
+		}
+		if !memberEnvelopeFound {
+			fmt.Printf("[TRUSTGROUP][VERIFY][FATAL]\nEXPECTED_ENVELOPE_NOT_RETRIEVED\ntrustGroupID=%s\nexpectedMemberID=%s\nactualEnvelopeCount=%d\n",
+				trustGroupID, vaultID, len(freshTg.Data.KeyEnvelopes))
+			return nil, fmt.Errorf("TRUSTGROUP INVARIANT FAILED: expected member %s key envelope, got missing in read-back", vaultID)
+		}
 	}
+
+	if keyring != nil && a.Vault != nil && a.Vault.KeyringService != nil {
+		_ = a.Vault.KeyringService.SaveHybrid(keyring, claims.UserID, pass, secret)
+	}
+
 	return updatedTg, nil
 }
 

@@ -53,58 +53,6 @@ func (u *AddMemberToTrustGroupUsecase) ValidateRequest(req trustgroup_dtos.AddMe
 	return nil
 }
 
-func (u *AddMemberToTrustGroupUsecase) ExecuteALPHA(
-	ctx context.Context,
-	req trustgroup_dtos.AddMemberToTrustGroupRequest,
-) (*trustgroup_domain.TrustGroup, error) {
-
-	if err := u.ValidateDependencies(); err != nil {
-		return nil, err
-	}
-
-	if err := u.ValidateRequest(req); err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][04] layer=DESKTOP_USECASE file=internal/trust_group/application/usecases/member/create_usecase.go function=AddMemberToTrustGroupUsecase.Execute input.TrustGroupID=%s input.VaultID=%s input.Role=%s\n", req.TrustGroupID, req.VaultID, req.Role)
-
-	role := strings.TrimSpace(req.Role)
-	if role == "" {
-		role = "member"
-	}
-
-	updated, err := u.repo.AddMemberToTrustGroup(
-		ctx,
-		&trustgroup_domain.AddMemberToTrustGroupRequest{
-			TrustGroupID: req.TrustGroupID,
-			VaultID:      req.VaultID,
-			Role:         role,
-		},
-	)
-	if err != nil {
-		fmt.Printf("[C3][MEMBERSHIP][WRITE] trustGroupID=%s vaultID=%s UPDATE_FAILED=%v\n", req.TrustGroupID, req.VaultID, err)
-		return nil, err
-	}
-
-	memberCount := len(updated.Data.MemberCIDs)
-	memberCIDsStr := strings.Join(updated.Data.MemberCIDs, ", ")
-	fmt.Printf("[C3][MEMBERSHIP][WRITE] trustGroupID=%s vaultID=%s memberCountAfter=%d MemberCIDs=[%s]\n", req.TrustGroupID, req.VaultID, memberCount, memberCIDsStr)
-
-	event := trustgroup_domain.MemberAddedToTrustGroup{
-		EventID:        uuid.NewString(),
-		EventTimestamp: time.Now().UTC(),
-
-		TrustGroupID: req.TrustGroupID,
-		MemberID:     req.VaultID,
-	}
-
-	if err := u.eventBus.PublishMemberAddedToTrustGroup(ctx, event); err != nil {
-		return nil, err
-	}
-
-	return &updated.Data, nil
-}
-
 func (u *AddMemberToTrustGroupUsecase) Execute(
 	ctx context.Context,
 	req trustgroup_dtos.AddMemberToTrustGroupRequest,
@@ -152,8 +100,10 @@ func (u *AddMemberToTrustGroupUsecase) Execute(
 		MemberID:       req.VaultID,
 	}
 
-	if err := u.eventBus.PublishMemberAddedToTrustGroup(ctx, event); err != nil {
-		return nil, err
+	if u.eventBus != nil {
+		if err := u.eventBus.PublishMemberAddedToTrustGroup(ctx, event); err != nil {
+			return nil, err
+		}
 	}
 
 	return &updated.Data, nil

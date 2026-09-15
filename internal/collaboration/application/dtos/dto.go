@@ -2,6 +2,8 @@ package collaboration_dtos
 
 import (
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
+	app_config_domain "vault-app/internal/config/domain"
+	vault_dto "vault-app/internal/vault/application/dto"
 )
 
 type ShareAssetWithTrustGroupRequest struct {
@@ -20,6 +22,9 @@ type CreateCollaborativeShareRequest struct {
 	AssetCID     string            `json:"asset_cid"`
 	WrappedDEK   string            `json:"wrapped_dek"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
+	UserID string  `json:"user_id"`
+	Password     string            `json:"password,omitempty"`
+	StellarSecret string          `json:"stellar_secret,omitempty"`
 }
 
 type CreateCollaborativeShareResponse struct {
@@ -33,6 +38,10 @@ type ResolveCollaborativeShareRequest struct {
 	CallerUserID     string `json:"caller_user_id,omitempty"`
 	ThreadID         string `json:"thread_id,omitempty"`
 	EventID          string `json:"event_id,omitempty"`
+	StellarAccount   app_config_domain.StellarAccountConfig `json:"stellar_account"`
+	GetIPFSFile      vault_dto.GetFileFromIPFSRequest `json:"get_ipfs_file"`
+	WrappedKEK   string `json:"wrapped_kek"`
+	DeviceSeed     string `json:"device_seed"`
 }
 
 type ResolveCollaborativeShareResponse struct {

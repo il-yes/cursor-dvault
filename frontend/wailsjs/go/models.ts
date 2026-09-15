@@ -4898,6 +4898,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    private_key: string;
 	    public_key: string;
 	    e_fingerprint: string;
@@ -4927,6 +4928,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.private_key = source["private_key"];
 	        this.public_key = source["public_key"];
 	        this.e_fingerprint = source["e_fingerprint"];
@@ -4970,6 +4972,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new NoteEntry(source);
@@ -4996,6 +4999,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -5036,6 +5040,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    genre?: string;
 	    firstname?: string;
 	    second_firstname?: string;
@@ -5080,6 +5085,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.genre = source["genre"];
 	        this.firstname = source["firstname"];
 	        this.second_firstname = source["second_firstname"];
@@ -5138,6 +5144,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    owner: string;
 	    number: string;
 	    expiration: string;
@@ -5172,6 +5179,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.owner = source["owner"];
 	        this.number = source["number"];
 	        this.expiration = source["expiration"];
@@ -5220,6 +5228,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    user_name: string;
 	    password: string;
 	    web_site?: string;
@@ -5249,6 +5258,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.user_name = source["user_name"];
 	        this.password = source["password"];
 	        this.web_site = source["web_site"];

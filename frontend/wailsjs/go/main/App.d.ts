@@ -90,7 +90,7 @@ export function CreateApproval(arg1:string,arg2:collaboration_dtos.CreateApprova
 
 export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>,arg7:Array<channel_domain.ChannelProperty>,arg8:Record<string, any>,arg9:string):Promise<tracecore_types.ChannelDTO>;
 
-export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:number):Promise<tracecore_types.ShareEntryRefDTO>;
+export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ShareEntryRefDTO>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
@@ -104,7 +104,7 @@ export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg
 
 export function CreateTransfer(arg1:string,arg2:collaboration_dtos.CreateTransferRequest):Promise<collaboration_dtos.CreateTransferResponse>;
 
-export function CreateTrustGroup(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
+export function CreateTrustGroup(arg1:string,arg2:string,arg3:string,arg4:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
@@ -243,6 +243,8 @@ export function OpenGoogle():Promise<void>;
 export function OpenURL(arg1:string):Promise<void>;
 
 export function PollPaymentStatus(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function PostIPFSEntry(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
 export function ProcessEncryptedPayment(arg1:main.ClientPaymentRequest):Promise<void>;
 

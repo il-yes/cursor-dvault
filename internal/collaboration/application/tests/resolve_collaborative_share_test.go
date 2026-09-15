@@ -158,7 +158,7 @@ func setupResolveTestFixture(t *testing.T) *resolveTestFixture {
 		},
 	}
 
-	useCase := collaboration_usecases.NewResolveCollaborativeShareUseCase(shareRepo, tgRepo, assetResolver, identityResolver, orchestrator)
+	useCase := collaboration_usecases.NewResolveCollaborativeShareUseCase(shareRepo, tgRepo, assetResolver, identityResolver, orchestrator, nil)
 
 	return &resolveTestFixture{
 		orchestrator:     orchestrator,

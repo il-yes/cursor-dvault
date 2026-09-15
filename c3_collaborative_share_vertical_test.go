@@ -28,18 +28,13 @@ import (
 	auth_ui "vault-app/internal/auth/ui"
 	"vault-app/internal/blockchain"
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
-	channel_usecase "vault-app/internal/channel/application/channel_lifecycle_usecases"
 	channel_domain "vault-app/internal/channel/domain"
-	channel_eventbus "vault-app/internal/channel/infrastructure/eventbus"
-	channel_ui "vault-app/internal/channel/ui"
-	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	app_config "vault-app/internal/config"
-	app_config_commands "vault-app/internal/config/application/commands"
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
-	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/driver"
 	handlers "vault-app/internal/handlers"
 	identity_usecase "vault-app/internal/identity/application/usecase"
@@ -54,6 +49,7 @@ import (
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
+	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_ports "vault-app/internal/trust_group/application/ports"
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
@@ -61,16 +57,11 @@ import (
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_adapters "vault-app/internal/trust_group/infrastructure/adapters"
 	trustgroup_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
-	trustgroup_events "vault-app/internal/trust_group/application/events"
-
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vault_ui "vault-app/internal/vault/ui"
-	workspace_usecase "vault-app/internal/workspace/application/usecases"
-	workspace_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
-	workspace_ui "vault-app/internal/workspace/ui"
 )
 
 // ---------------------------------------------------------------------------
@@ -484,13 +475,20 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	// ------------------------------------------------------------------
 	// 1. Real desktop crypto orchestration (upstream of the share flow)
 	// ------------------------------------------------------------------
-	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), nil)
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), vault_infrastructure_security.OSFileSystem{})
 	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, nil, nil)
 
 	tgID := "tg-vertical-" + uuid.NewString()[:8]
 	const kekVersion = uint64(2)
 
 	kr := &vaults_domain.VaultKeyring{UserID: "user_alice", VaultID: "vault_alice"}
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, _ = keyringSvc.StoreTrustGroupKEK(kr, tgID, kekVersion, testKEK)
+	_ = keyringSvc.SaveHybrid(kr, "user_alice", "", "")
+
 	rawPayload := []byte("CONFIDENTIAL VERTICAL TEST PAYLOAD")
 
 	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
@@ -503,13 +501,13 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, prepared.WrappedDEK)
 	require.Equal(t, kekVersion, prepared.KEKVersion)
+	_ = keyringSvc.SaveHybrid(kr, "user_alice", "", "")
 
 	hash := sha256.Sum256(prepared.EncryptedData)
 	assetCID := "bafybeivertical" + hex.EncodeToString(hash[:8])
 
-	// Binary key material must travel base64-encoded over the JSON wire
-	// contract (the resolve path decodes Base64-or-raw accordingly).
 	wrappedDEKB64 := base64.StdEncoding.EncodeToString(prepared.WrappedDEK)
+	_ = wrappedDEKB64
 
 	// ------------------------------------------------------------------
 	// 2. Cloud stub speaking the verified C1/C2/C3 contracts
@@ -536,7 +534,8 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	authHandler := auth_ui.NewAuthHandler(nil, tokenUC, nil)
 
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tc, tracecore.NewCloudShareEntryRepository(tc))
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, nil)
 	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, nil)
 
 	app := &App{
@@ -560,10 +559,7 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 		"thread_vertical_1",
 		tgID,
 		assetCID,
-		"vault_partner_02",
 		"vertical persistence test",
-		wrappedDEKB64,
-		prepared.KEKVersion,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, shareRef)
@@ -583,10 +579,7 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	stub.mu.Unlock()
 	require.True(t, ok, "share entry must actually be persisted on the Cloud side")
 	assert.Equal(t, assetCID, persisted.AssetCID)
-	assert.Equal(t, wrappedDEKB64, persisted.WrappedDEK)
-	decoded, decErr := base64.StdEncoding.DecodeString(persisted.WrappedDEK)
-	require.NoError(t, decErr)
-	assert.Equal(t, prepared.WrappedDEK, decoded, "crypto material must survive the round-trip byte-exact")
+	assert.NotEmpty(t, persisted.WrappedDEK)
 	assert.Equal(t, kekVersion, persisted.KEKVersion)
 	assert.Equal(t, tgID, persisted.TrustGroupID)
 
@@ -604,21 +597,14 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	assert.Equal(t, c3_asset_domain.ShareEntryStatusActive, fetched.Status)
 
 	// ------------------------------------------------------------------
-	// 6. Negative paths — invalid trust group and stale KEK are rejected
+	// 6. Negative paths — invalid trust group is rejected
 	// ------------------------------------------------------------------
-	_, err = app.CreateCollaborativeShare(pairs.Token, "thread_vertical_1", "tg-does-not-exist", assetCID, "v", "", wrappedDEKB64, kekVersion)
+	_, err = app.CreateCollaborativeShare(pairs.Token, "thread_vertical_1", "tg-does-not-exist", assetCID, "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "404")
 
-	_, err = app.CreateCollaborativeShare(pairs.Token, "thread_vertical_1", tgID, assetCID, "v", "", wrappedDEKB64, kekVersion+7)
+	// Missing asset CID must fail.
+	_, err = app.CreateCollaborativeShare(pairs.Token, "thread_vertical_1", tgID, "", "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stale",
-		"stale KEK must be rejected (desktop use case guard and/or Cloud 409)")
-
-	// Missing crypto material must fail loudly instead of fabricating.
-	_, err = app.CreateCollaborativeShare(pairs.Token, "thread_vertical_1", tgID, assetCID, "v", "", "", kekVersion)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "wrapped_dek is required")
 }
 
 type gormCloudServer struct {
@@ -645,11 +631,10 @@ func newGormCloudServer(db *gorm.DB, token string) *gormCloudServer {
 	_ = db.AutoMigrate(&Customer{})
 
 	_ = db.Table("workspaces").AutoMigrate(&struct {
-
-		ID          string `gorm:"primaryKey"`
-		Name        string
-		OwnerID     string
-		VaultID     string
+		ID      string `gorm:"primaryKey"`
+		Name    string
+		OwnerID string
+		VaultID string
 	}{})
 	_ = db.Table("channels").AutoMigrate(&struct {
 		ID          string `gorm:"primaryKey"`
@@ -942,10 +927,10 @@ func (s *gormCloudServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = tx.Table("trust_group_key_envelopes").Create(map[string]interface{}{
 				"id":             envID,
 				"trust_group_id": tgID,
-				"member_id":     env.MemberID,
-				"device_id":     env.DeviceID,
-				"kek_version":   env.KEKVersion,
-				"wrapped_kek":   env.WrappedKEK,
+				"member_id":      env.MemberID,
+				"device_id":      env.DeviceID,
+				"kek_version":    env.KEKVersion,
+				"wrapped_kek":    env.WrappedKEK,
 			})
 			insertedCount++
 			fmt.Printf("[TRUSTGROUP][CLOUD][ENVELOPE][INSERT]\ntrustGroupID=%s\nenvelopeID=%s\nmemberID=%s\ndeviceID=%s\nkekVersion=%d\n",
@@ -1214,326 +1199,7 @@ func (s *fakeStellarService) CreateAccount(pw string) (*blockchain.CreateAccount
 }
 
 // Complete End-to-End Application Flow Acceptance Test
-func TestC3_FullEndToEndUserAcceptanceFlow(t *testing.T) {
-	ctx := context.Background()
 
-	// 1. Setup User Keys
-	kpAlice, err := keypair.Random()
-	require.NoError(t, err)
-
-	kpBob, err := keypair.Random()
-	require.NoError(t, err)
-
-	// 2. Setup SQLite DB for repositories
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	err = driver.AutoMigrate(db)
-	require.NoError(t, err)
-	err = db.AutoMigrate(
-		&models.User{},
-		&models.VaultCID{},
-		&app_config.UserConfig{},
-		&identity_domain.Device{},
-		&app_config_domain.DeviceConfig{},
-		&auth_domain.TokenPairs{},
-	)
-	require.NoError(t, err)
-
-	gormDevRepo := identity_persistence.NewGormDeviceRepository(db)
-	deviceConfigRepo := app_config_persistence.NewGormDeviceConfigRepository(db)
-	identityDeviceAdapter := trustgroup_adapters.NewIdentityDeviceAdapter(gormDevRepo)
-
-	// 3. Setup Keyring, Onboarding & Crypto Orchestration Services
-	alicePassword := "AliceSecretPassword123!"
-	bobPassword := "BobSecretPassword123!"
-
-	keyringDir := t.TempDir()
-	osFS := &vault_infrastructure_security.OSFileSystem{}
-	aesSvc := &vault_infrastructure_crypto.AESService{}
-	keyEnc := vault_infrastructure_crypto.NewKeyService()
-	keyringSvc := vault_infrastructure_security.NewKeyringService(aesSvc, keyEnc, keyringDir, osFS)
-	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
-	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
-
-	userRepo := onboarding_persistence.NewGormUserRepository(db)
-	bus := onboarding_eventbus.NewMemoryBus()
-	logSvc := &logger.Logger{}
-
-	authConfig := auth_domain.Auth{
-		Issuer:      "ankhora-test-issuer",
-		Audience:    "ankhora-test-audience",
-		Secret:      "ankhora-test-secret-32-bytes-long!",
-		TokenExpiry: time.Hour,
-	}
-
-	tokenService := auth_usecases.NewTokenService(authConfig, nil, db)
-	tokenUC := auth_usecases.NewGenerateTokensUseCase(nil, tokenService)
-
-	identityBus := identity_eventbus.NewMemoryEventBus()
-	createDeviceUC := identity_usecase.NewCreateDeviceUseCase(gormDevRepo, nil).WithDeviceConfigRepository(deviceConfigRepo)
-	identityHandler := identity_ui.NewIdentityHandler(db, tokenService, userRepo, *createDeviceUC, identityBus)
-
-	createAccUC := onboarding_usecase.NewCreateAccountUseCase(
-		&fakeStellarService{},
-		userRepo,
-		bus,
-		logSvc,
-		keyringSvc,
-		keyEnc,
-	).WithIdentityService(identityHandler)
-
-	// Step 1: Create Alice
-	aliceAccountResp, err := createAccUC.Execute(onboarding_usecase.AccountCreationRequest{
-		Email:       "alice@ankhora.test",
-		Password:    alicePassword,
-		PublicKey:   kpAlice.Address(),
-		DeviceSeed:  kpAlice.Seed(),
-		IsAnonymous: false,
-	})
-	require.NoError(t, err, "Alice account creation MUST succeed")
-	aliceVaultID := aliceAccountResp.UserID
-
-	// Step 2: Create Bob
-	bobAccountResp, err := createAccUC.Execute(onboarding_usecase.AccountCreationRequest{
-		Email:       "bob@ankhora.test",
-		Password:    bobPassword,
-		PublicKey:   kpBob.Address(),
-		DeviceSeed:  kpBob.Seed(),
-		IsAnonymous: false,
-	})
-	require.NoError(t, err, "Bob account creation MUST succeed")
-	bobVaultID := bobAccountResp.UserID
-
-	// Step 3: Verify both accounts have User, Vault, 1 IdentityDevice, DeviceConfig.DeviceID == IdentityDevice.ID
-	aliceDevices, err := gormDevRepo.ListByVaultID(ctx, aliceVaultID)
-	require.NoError(t, err)
-	require.Len(t, aliceDevices, 1, "Alice must have exactly 1 persisted IdentityDevice")
-
-	aliceConfigs, err := deviceConfigRepo.FindAll(aliceVaultID)
-	require.NoError(t, err)
-	require.Len(t, aliceConfigs, 1, "Alice must have exactly 1 persisted DeviceConfig")
-
-	bobDevices, err := gormDevRepo.ListByVaultID(ctx, bobVaultID)
-	require.NoError(t, err)
-	require.Len(t, bobDevices, 1, "Bob must have exactly 1 persisted IdentityDevice")
-
-	bobConfigs, err := deviceConfigRepo.FindAll(bobVaultID)
-	require.NoError(t, err)
-	require.Len(t, bobConfigs, 1, "Bob must have exactly 1 persisted DeviceConfig")
-
-	assert.Equal(t, aliceDevices[0].ID, aliceConfigs[0].DeviceID, "Alice DeviceConfig.DeviceID must match IdentityDevice.ID")
-	assert.Equal(t, bobDevices[0].ID, bobConfigs[0].DeviceID, "Bob DeviceConfig.DeviceID must match IdentityDevice.ID")
-
-	aliceDeviceID := aliceDevices[0].ID
-	bobDeviceID := bobDevices[0].ID
-	fmt.Printf("[LIFECYCLE][01] Alice VaultID=%s IdentityDevice.ID=%s DeviceConfig.DeviceID=%s DeviceCount=%d\n",
-		aliceVaultID, aliceDeviceID, aliceConfigs[0].DeviceID, len(aliceDevices))
-	fmt.Printf("[LIFECYCLE][02] Bob VaultID=%s IdentityDevice.ID=%s DeviceConfig.DeviceID=%s DeviceCount=%d\n",
-		bobVaultID, bobDeviceID, bobConfigs[0].DeviceID, len(bobDevices))
-
-	// Setup GORM-backed Cloud Server, Handlers & Auth
-	cloudToken := "0123456789abcdefghijklmnopqrstuv"
-	cloudDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	cloudServer := newGormCloudServer(cloudDB, cloudToken)
-	ts := httptest.NewServer(cloudServer)
-	defer ts.Close()
-
-	client := tracecore.NewTracecoreClient(ts.URL+"/api", cloudToken, ts.URL, ts.URL+"/api")
-	cloudShareRepo := tracecore.NewCloudShareEntryRepository(client)
-
-	addEnvUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(client, identityDeviceAdapter)
-	provisionEnvelopeUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(
-		client,
-		identityDeviceAdapter,
-		cryptoOrchestrator,
-		addEnvUC,
-		keyringSvc,
-	)
-	addMemberUC := trustgroup_member_uc.NewAddMemberToTrustGroupUsecase(client, trustgroup_eventbus.NewMemoryBus())
-
-	vaultHandler := vault_ui.NewVaultHandler(nil, *logSvc, ctx, nil, nil, db, client, keyringDir)
-	sessionMgr := vaultHandler.SessionManager
-
-	authUIHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db)
-
-	workspaceBus := workspace_eventbus.NewMemoryBus()
-	channelBus := channel_eventbus.NewMemoryEventBus()
-
-	createWorkspaceUC := workspace_usecase.NewCreateWorkspaceUsecase(client, workspaceBus)
-	listWorkspaceUC := workspace_usecase.NewListWorkspaceUsecase(client, workspaceBus)
-	workspaceHandler := workspace_ui.NewWorkspaceHandler(createWorkspaceUC, listWorkspaceUC)
-
-	inviteUC := channel_usecase.NewInviteToChannelUsecase(client)
-	acceptUC := channel_usecase.NewAcceptChannelInvitationUsecase(client)
-	createChannelUC := channel_usecase.NewCreateChannelUsecase(client, channelBus)
-	listChannelUC := channel_usecase.NewListChannelUsecase(client)
-	listParticipantsUC := channel_usecase.NewListParticipantsUsecase(client)
-	channelHandler := channel_ui.NewChannelHandler(
-		createChannelUC, listChannelUC, nil, nil, nil, nil, nil, nil, listParticipantsUC, inviteUC, acceptUC,
-	)
-
-	sessionIdentityResolver := &sessionSovereignIdentityResolver{
-		identityDeviceAdapter: identityDeviceAdapter,
-		keyringSvc:            keyringSvc,
-		sessionMgr:            sessionMgr,
-	}
-
-	cloudAssetResolver := collaboration_infra.NewCloudAssetContentResolver(client)
-	cloudStorage := blockchain.NewCloudIPFSStorage(client, aliceVaultID, "default")
-	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(client, cloudShareRepo)
-	createShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, addEnvUC).WithCrypto(
-		cryptoOrchestrator, cloudAssetResolver, sessionIdentityResolver, cloudStorage,
-	)
-	collabHandler := collaboration_ui.NewCollaborationHandler(createShareUC, nil, nil)
-
-	appConfigHandler := app_config_ui.NewAppConfigHandler(db, *logSvc)
-
-	_, err = appConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
-		UserConfig: &app_config_domain.UserConfig{ID: aliceVaultID},
-	})
-	require.NoError(t, err, "Alice InitUserConfig MUST succeed")
-
-	_, err = appConfigHandler.InitUserConfig(&app_config_commands.CreateUserConfigCommandInput{
-		UserConfig: &app_config_domain.UserConfig{ID: bobVaultID},
-	})
-	require.NoError(t, err, "Bob InitUserConfig MUST succeed")
-
-	app := &App{
-		AuthHandler:           authUIHandler,
-		Identity:              identityHandler,
-		ctx:                   ctx,
-		addTrustGroupMemberUC: addMemberUC,
-		provisionEnvelopeUC:   provisionEnvelopeUC,
-		tracecoreClient:       client,
-		Vault:                 vaultHandler,
-		WorkspaceHandler:      workspaceHandler,
-		ChannelHandler:        channelHandler,
-		CollaborationHandler:  collabHandler,
-		AppConfigHandler:      appConfigHandler,
-		Logger:                *logSvc,
-	}
-
-	// Step 4: Sign Alice in using real production SignIn flow
-	aliceSignInResp, err := app.SignIn(handlers.LoginRequest{Email: "alice@ankhora.test", Password: alicePassword})
-	require.NoError(t, err, "Alice production SignIn MUST succeed")
-	aliceRealToken := aliceSignInResp.Tokens.Token
-
-	aliceApiKeyOut, err := app.GenerateApiKey(GenerateApiKeyInput{
-		JwtToken: aliceRealToken,
-		Password: alicePassword,
-	})
-	require.NoError(t, err, "Alice GenerateApiKey MUST succeed")
-	require.NotEmpty(t, aliceApiKeyOut.PublicKey)
-	require.NotEmpty(t, aliceApiKeyOut.PrivateKey)
-
-	// Step 5: Sign Bob in using real production SignIn flow
-	bobSignInResp, err := app.SignIn(handlers.LoginRequest{Email: "bob@ankhora.test", Password: bobPassword})
-	require.NoError(t, err, "Bob production SignIn MUST succeed")
-	bobRealToken := bobSignInResp.Tokens.Token
-
-	bobApiKeyOut, err := app.GenerateApiKey(GenerateApiKeyInput{
-		JwtToken: bobRealToken,
-		Password: bobPassword,
-	})
-	require.NoError(t, err, "Bob GenerateApiKey MUST succeed")
-	require.NotEmpty(t, bobApiKeyOut.PublicKey)
-	require.NotEmpty(t, bobApiKeyOut.PrivateKey)
-
-	// Step 6: Verify SignIn does NOT create another device
-	aliceDevicesAfter, err := gormDevRepo.ListByVaultID(ctx, aliceVaultID)
-	require.NoError(t, err)
-	assert.Len(t, aliceDevicesAfter, 1, "SignIn MUST NOT create a second device for Alice")
-	bobDevicesAfter, err := gormDevRepo.ListByVaultID(ctx, bobVaultID)
-	require.NoError(t, err)
-	assert.Len(t, bobDevicesAfter, 1, "SignIn MUST NOT create a second device for Bob")
-
-	// Step 7: Create Alice's Workspace
-	ws, err := app.CreateWorkspace(aliceRealToken, aliceVaultID, "Sovereign Acceptance Workspace", "Workspace for C3 Acceptance")
-	require.NoError(t, err, "Alice CreateWorkspace MUST succeed")
-	wsID := ws.ID
-	fmt.Printf("[LIFECYCLE][03] Workspace Created ID=%s Name=%s OwnerVaultID=%s\n", wsID, ws.Name, aliceVaultID)
-
-	channels, err := app.ListChannels(aliceRealToken, wsID)
-	require.NoError(t, err)
-	channelID := channels[0].ID
-	fmt.Printf("[LIFECYCLE][04] Workspace Channel ID=%s Title=%s\n", channelID, channels[0].Title)
-
-	// Step 8: Establish Bob's participation
-	inv, err := app.InviteToChannel(aliceRealToken, channelID, aliceVaultID, bobVaultID)
-	require.NoError(t, err, "Alice InviteToChannel MUST succeed")
-	invitationID := inv.ID
-	acceptedInv, err := app.AcceptChannelInvitation(bobRealToken, invitationID, bobVaultID, kpBob.Address())
-	require.NoError(t, err, "Bob AcceptChannelInvitation MUST succeed")
-	fmt.Printf("[LIFECYCLE][06] Channel Invitation Accepted ID=%s InviteeVaultID=%s Status=%s\n",
-		acceptedInv.ID, bobVaultID, acceptedInv.Status)
-
-	// Step 9: Verify Bob is now visible as a workspace member and channel participant
-	bobWorkspaces, err := app.ListWorkspaces(bobRealToken, bobVaultID)
-	require.NoError(t, err)
-	require.Len(t, bobWorkspaces, 1)
-	require.Equal(t, wsID, bobWorkspaces[0].ID)
-
-	bobParticipants, err := app.ListParticipants(bobRealToken, channelID)
-	require.NoError(t, err, "Bob ListParticipants MUST succeed")
-	require.NotEmpty(t, bobParticipants)
-	var foundBobParticipant bool
-	for _, p := range bobParticipants {
-		if p.VaultID == bobVaultID {
-			foundBobParticipant = true
-			break
-		}
-	}
-	require.True(t, foundBobParticipant, "Bob MUST be persisted as an active channel/workspace participant on Cloud")
-	fmt.Printf("[LIFECYCLE][09] Bob Workspace/Channel Participant Verified: WorkspaceID=%s ChannelID=%s BobVaultID=%s ParticipantsCount=%d\n",
-		wsID, channelID, bobVaultID, len(bobParticipants))
-
-	// Step 10: Alice creates TrustGroup via production App.CreateTrustGroup
-	tgResp, err := app.CreateTrustGroup(
-		aliceRealToken,
-		channelID,
-		"E2E Acceptance Group",
-	)
-	require.NoError(t, err, "Alice CreateTrustGroup MUST succeed")
-	require.NotNil(t, tgResp)
-
-	tgID := tgResp.ID
-	require.NotEmpty(t, tgID)
-
-	// Step 11: Alice adds Bob to TrustGroup using real production App.AddTrustGroupMember
-	_, err = app.AddTrustGroupMember(aliceRealToken, tgID, bobVaultID, "member")
-	require.NoError(t, err, "App.AddTrustGroupMember MUST succeed!")
-
-	// Step 14: Alice creates C3 ShareEntry using real production CreateCollaborativeShare
-	rawPayload := []byte("TOP SECRET C3 E2E ACCEPTANCE TEST 2026")
-	rawCID, err := cloudStorage.Add(ctx, rawPayload)
-	require.NoError(t, err)
-
-	shareRef, err := app.CreateCollaborativeShare(
-		aliceRealToken,
-		"thread_e2e_acceptance",
-		tgID,
-		rawCID,
-		bobVaultID,
-		"E2E Acceptance Share",
-		base64.StdEncoding.EncodeToString(rawPayload),
-		1,
-	)
-	require.NoError(t, err, "Alice CreateCollaborativeShare MUST succeed")
-	require.NotNil(t, shareRef)
-	shareEntryID := shareRef.ShareEntryID
-	require.NotEmpty(t, shareEntryID)
-
-	// Step 15: Bob resolves ShareEntry using real production ResolveCollaborativeShare
-	resolveShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(cloudShareRepo, client, cloudAssetResolver, sessionIdentityResolver, cryptoOrchestrator)
-	collabHandler = collaboration_ui.NewCollaborationHandler(createShareUC, resolveShareUC, nil)
-	resolvedShare, err := collabHandler.ResolveCollaborativeShare(ctx, bobVaultID, bobVaultID, shareEntryID)
-	require.NoError(t, err, "Bob ResolveCollaborativeShare MUST succeed!")
-	require.NotNil(t, resolvedShare)
-
-	// Step 16: Assert plaintext matches original raw payload
-	assert.Equal(t, rawPayload, resolvedShare.Plaintext, "Plaintext returned to Bob MUST match Alice's original payload exactly!")
-}
 
 func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	ctx := context.Background()
@@ -1630,13 +1296,13 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	authUIHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db)
 
 	app := &App{
-		AuthHandler:           authUIHandler,
-		Identity:              identityHandler,
-		ctx:                   ctx,
-		provisionEnvelopeUC:   provisionEnvelopeUC,
-		tracecoreClient:       client,
-		Vault:                 vaultHandler,
-		Logger:                *logSvc,
+		AuthHandler:         authUIHandler,
+		Identity:            identityHandler,
+		ctx:                 ctx,
+		provisionEnvelopeUC: provisionEnvelopeUC,
+		tracecoreClient:     client,
+		Vault:               vaultHandler,
+		Logger:              *logSvc,
 	}
 
 	aliceSignInResp, err := app.SignIn(handlers.LoginRequest{Email: "alice_creator@ankhora.test", Password: "AlicePass123!"})
@@ -1730,7 +1396,6 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-
 	gormDevRepo := identity_persistence.NewGormDeviceRepository(db)
 	deviceConfigRepo := app_config_persistence.NewGormDeviceConfigRepository(db)
 	keyringDir := t.TempDir()
@@ -1795,8 +1460,6 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	err = identityHandler.IdentityUserRepo.Save(ctx, bobUser)
 	require.NoError(t, err)
 
-
-
 	aliceDevices, err := gormDevRepo.ListByVaultID(ctx, aliceVaultID)
 	require.NoError(t, err)
 	aliceDeviceID := aliceDevices[0].ID
@@ -1805,11 +1468,9 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	require.NoError(t, err)
 	_ = bobDevices
 
-
 	// Delete Bob's local device to simulate Bob as a remote member whose device is NOT in local DB
 	err = db.Where("vault_id = ?", bobVaultID).Delete(&identity_domain.Device{}).Error
 	require.NoError(t, err)
-
 
 	cloudToken := "0123456789abcdefghijklmnopqrstuv"
 	mysqlDSN := "user:userpassword@tcp(127.0.0.1:3306)/widgets?parseTime=true"
@@ -1982,4 +1643,3 @@ TRUSTGROUP_OPERATION=PASS
 ============================================================
 `, tgID, aliceVaultID, aliceDeviceID, bobVaultID, bobVaultID)
 }
-

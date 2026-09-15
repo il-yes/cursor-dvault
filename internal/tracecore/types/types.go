@@ -502,3 +502,17 @@ type CreateCollaborativeShareResponseDTO struct {
 	ShareEntryRef ShareEntryRefDTO `json:"share_entry_ref"`
 	ThreadEvent   ThreadEventDTO   `json:"thread_event"`
 }
+
+type VaultIdentity struct {
+	VaultID string
+	VaultAddress string		
+	OrganizationID string
+	SigningKey string
+	EncryptionKey string
+	Endpoint string
+	Anchor string
+	Status string
+	Capabilities []string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}

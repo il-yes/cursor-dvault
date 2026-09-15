@@ -50,6 +50,8 @@ func (uc *AddTrustGroupKeyEnvelopeUseCase) Execute(
 	ctx context.Context,
 	req trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest,
 ) (*trustgroup_domain.TrustGroup, error) {
+	utils.LogPretty("AddTrustGroupKeyEnvelopeUseCase - Execute - req - ", req)
+
 	if err := uc.ValidateDependencies(); err != nil {
 		return nil, err
 	}
@@ -63,9 +65,11 @@ func (uc *AddTrustGroupKeyEnvelopeUseCase) Execute(
 		TrustGroupID: req.TrustGroupID,
 	})
 	if err != nil {
+		utils.LogPretty("AddTrustGroupKeyEnvelopeUseCase - Execute - GetTrustGroup - error:", err)
 		return nil, err
 	}
 	if resp == nil || resp.Data.ID == "" {
+		utils.LogPretty("AddTrustGroupKeyEnvelopeUseCase - Execute - GetTrustGroup - error:", trustgroup_domain.ErrTrustGroupNotFound)
 		return nil, trustgroup_domain.ErrTrustGroupNotFound
 	}
 
@@ -85,6 +89,7 @@ func (uc *AddTrustGroupKeyEnvelopeUseCase) Execute(
 		}
 	}
 	if !memberFound {
+		utils.LogPretty("AddTrustGroupKeyEnvelopeUseCase - Execute - MemberNotInTrustGroup - error:", trustgroup_domain.ErrMemberNotInTrustGroup)
 		return nil, trustgroup_domain.ErrMemberNotInTrustGroup
 	}
 
@@ -101,6 +106,7 @@ func (uc *AddTrustGroupKeyEnvelopeUseCase) Execute(
 	}
 
 	if err := tg.AddEnvelope(envelope); err != nil {
+		utils.LogPretty("AddTrustGroupKeyEnvelopeUseCase - Execute - AddEnvelope - error:", err)
 		return nil, err
 	}
 

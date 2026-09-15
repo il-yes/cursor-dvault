@@ -116,3 +116,26 @@ type LoadAttachmentResponse struct {
 	File string `json:"file"`
 	Hash string `json:"hash"`
 }
+type GetFileFromIPFSRequest struct {
+	UserID       string
+	Vault        vaults_domain.Vault
+	CID          string
+	Password     string
+	PrivateKey   string
+	EncryptedKey string
+	SymKey       []byte
+	Configs      *app_config_domain.Config
+	IsShared     bool
+}
+
+type PostIPFSEntryRequest struct {
+	EntryID              string
+	EntryType string
+	UserSubscriptionID string
+	VaultName          string
+	Password           string
+	EncryptionMode     string
+	SymKey             []byte
+	Configs            app_config_domain.Config
+	UserOnboarding     string
+}

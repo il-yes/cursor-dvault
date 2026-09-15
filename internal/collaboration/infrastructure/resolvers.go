@@ -53,6 +53,9 @@ func (r *CloudAssetContentResolver) AccessThreadData(ctx context.Context, req tr
 	return nil, fmt.Errorf("tracecore client and storage provider are both nil")
 }
 
+
+
+
 func NewCloudAssetContentResolverWithStorage(storage app_config.StorageProvider) *CloudAssetContentResolver {
 	return &CloudAssetContentResolver{storage: storage}
 }
@@ -87,6 +90,13 @@ func (r *CloudAssetContentResolver) FetchEncryptedAsset(ctx context.Context, ass
 	return rawBytes, nil
 }
 
+
+
+
+
+
+
+
 type KeyringSovereignIdentityResolver struct {
 	keyringService *vault_infrastructure_security.KeyringService
 }
@@ -113,12 +123,31 @@ func (r *KeyringSovereignIdentityResolver) GetDeviceSeed(ctx context.Context, us
 	return userID + "_seed", nil
 }
 
-func (r *KeyringSovereignIdentityResolver) GetVaultKeyring(ctx context.Context, userID string) (*vaults_domain.VaultKeyring, error) {
-	if r.keyringService != nil {
-		kr, err := r.keyringService.LoadHybrid(userID, "", "")
-		if err == nil && kr != nil {
-			return kr, nil
-		}
-	}
-	return &vaults_domain.VaultKeyring{UserID: userID, VaultID: "vault_" + userID}, nil
+func (r *KeyringSovereignIdentityResolver) GetVaultKeyring(
+    ctx context.Context,
+    userID string,
+	password string,
+	stellarSecret string,
+) (*vaults_domain.VaultKeyring, error) {
+    if r.keyringService == nil {
+        return nil, fmt.Errorf("keyring service is not initialized")
+    }
+
+    kr, err := r.keyringService.LoadHybrid(userID, password, stellarSecret)
+    if err != nil {
+        return nil, fmt.Errorf(
+            "load sovereign keyring for user %s: %w",
+            userID,
+            err,
+        )
+    }
+
+    if kr == nil {
+        return nil, fmt.Errorf(
+            "load sovereign keyring for user %s returned nil",
+            userID,
+        )
+    }
+
+    return kr, nil
 }

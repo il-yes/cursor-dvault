@@ -57,7 +57,12 @@ func (u *AddMemberToTrustGroupUsecase) Execute(
 	ctx context.Context,
 	req trustgroup_dtos.AddMemberToTrustGroupRequest,
 ) (*trustgroup_domain.TrustGroup, error) {
-
+	fmt.Printf(
+		"[C3][ADD_MEMBER][ENTRY] trustGroupID=%s target=%s role=%s\n",
+		req.TrustGroupID,
+		req.VaultID,
+		req.Role,
+	)
 	if err := u.ValidateDependencies(); err != nil {
 		return nil, err
 	}

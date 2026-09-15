@@ -62,33 +62,6 @@ func NewProvisionTrustGroupDeviceEnvelopeUseCase(
 	return NewProvisionTrustGroupMemberEnvelopeUseCase(trustGroupRepo, cryptoOrchestrator, addEnvelopeUseCase, keyringService)
 }
 
-func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) ValidateDependencies() error {
-	if uc.trustGroupRepo == nil {
-		return trustgroup_domain.ErrRepositoryNil
-	}
-	if uc.addEnvelopeUseCase == nil {
-		return errors.New("add envelope use case is required")
-	}
-	return nil
-}
-
-func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) ValidateRequest(req trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest) error {
-	if strings.TrimSpace(req.TrustGroupID) == "" {
-		return trustgroup_domain.ErrTrustGroupIDRequired
-	}
-	if strings.TrimSpace(req.MemberID) == "" {
-		return trustgroup_domain.ErrMemberIDRequired
-	}
-	pubKey := strings.TrimSpace(req.MemberPublicKey)
-	if pubKey == "" {
-		pubKey = strings.TrimSpace(req.DevicePublicKey)
-	}
-	if pubKey == "" {
-		return errors.New("member public key is required for key envelope provisioning")
-	}
-	return nil
-}
-
 func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) Execute(
 	ctx context.Context,
 	req trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest,
@@ -158,50 +131,107 @@ func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) Execute(
 		return nil, errors.New("member public key is required for key envelope provisioning")
 	}
 
-	// 4. Resolve current Group KEK (v1) inside sovereign crypto boundary
-	var kek []byte
-	if keyring != nil && uc.keyringService != nil {
-		k, kErr := uc.keyringService.GetTrustGroupKEK(keyring, tg.ID, tg.KEKVersion)
-		if kErr == nil && len(k) == 32 {
-			kek = k
-		}
+	// 4. Resolve current Group KEK from the sovereign keyring.
+	if keyring == nil {
+		return nil, errors.New("vault keyring is required for key envelope provisioning")
 	}
 
-	if len(kek) == 0 {
-		// Generate or initialize KEK if not cached, and cache it if keyring is present
-		kek = uc.asymService.GenerateSymmetricKey()
-		if keyring != nil && uc.keyringService != nil {
-			_, _ = uc.keyringService.StoreTrustGroupKEK(keyring, tg.ID, tg.KEKVersion, kek)
-		}
+	if uc.keyringService == nil {
+		return nil, errors.New("keyring service is not initialized")
 	}
 
-	// 5. Wrap KEK using target member public key
-	wrappedKEKPayload, err := uc.aesService.EncryptPayload(targetPubKey, kek)
+	kek, err := uc.keyringService.GetTrustGroupKEK(
+		keyring,
+		tg.ID,
+		tg.KEKVersion,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to wrap KEK for member %s: %w", req.MemberID, err)
+		return nil, fmt.Errorf(
+			"failed to resolve trust group KEK %s v%d: %w",
+			tg.ID,
+			tg.KEKVersion,
+			err,
+		)
 	}
 
-	fmt.Printf("[ENVELOPE][GENERATED]\ntrustGroupID=%s memberID=%s\n", tg.ID, req.MemberID)
+	if len(kek) != 32 {
+		return nil, fmt.Errorf(
+			"invalid trust group KEK length: got %d, want 32",
+			len(kek),
+		)
+	}
 
-	// 6. Delegate envelope attachment to AddTrustGroupKeyEnvelopeUseCase
-	updatedTg, err := uc.addEnvelopeUseCase.Execute(ctx, trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
-		TrustGroupID: tg.ID,
-		MemberID:     req.MemberID,
-		KEKVersion:   tg.KEKVersion,
-		WrappedKEK:   wrappedKEKPayload.ToString(),
-	})
+	fmt.Printf(
+		"[C3][ENVELOPE][KEK_RESOLVED] trustGroupID=%s memberID=%s kekVersion=%d keyLen=%d\n",
+		tg.ID,
+		req.MemberID,
+		tg.KEKVersion,
+		len(kek),
+	)
+
+	// 5. Wrap the existing TrustGroup KEK with the member's public key.
+	wrappedKEKPayload, err := uc.aesService.EncryptPayload(
+		targetPubKey,
+		kek,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to attach member key envelope: %w", err)
+		return nil, fmt.Errorf(
+			"failed to wrap trust group KEK for member %s: %w",
+			req.MemberID,
+			err,
+		)
 	}
 
-	if updatedTg != nil {
-		fmt.Printf("[C3][ADD_MEMBER][PROVISION_MEMBER] Resulting TrustGroup.KeyEnvelopes count=%d\n", len(updatedTg.KeyEnvelopes))
-		if len(updatedTg.KeyEnvelopes) > 0 {
-			lastEnv := updatedTg.KeyEnvelopes[len(updatedTg.KeyEnvelopes)-1]
-			fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][05_AFTER_PROVISION] resultingEnvID=%s envMemberID=%s envKEKVersion=%d totalEnvelopeCount=%d\n",
-				lastEnv.ID, lastEnv.MemberID, lastEnv.KEKVersion, len(updatedTg.KeyEnvelopes))
-		}
+	fmt.Printf(
+		"[C3][ENVELOPE][GENERATED] trustGroupID=%s memberID=%s kekVersion=%d\n",
+		tg.ID,
+		req.MemberID,
+		tg.KEKVersion,
+	)
+
+	// 6. Delegate envelope attachment to AddTrustGroupKeyEnvelopeUseCase.
+	updatedTg, err := uc.addEnvelopeUseCase.Execute(
+		ctx,
+		trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
+			TrustGroupID: tg.ID,
+			MemberID:     req.MemberID,
+			KEKVersion:   tg.KEKVersion,
+			WrappedKEK:   wrappedKEKPayload.ToString(),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to attach member key envelope: %w",
+			err,
+		)
 	}
 
 	return updatedTg, nil
+}
+
+func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) ValidateDependencies() error {
+	if uc.trustGroupRepo == nil {
+		return trustgroup_domain.ErrRepositoryNil
+	}
+	if uc.addEnvelopeUseCase == nil {
+		return errors.New("add envelope use case is required")
+	}
+	return nil
+}
+
+func (uc *ProvisionTrustGroupMemberEnvelopeUseCase) ValidateRequest(req trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest) error {
+	if strings.TrimSpace(req.TrustGroupID) == "" {
+		return trustgroup_domain.ErrTrustGroupIDRequired
+	}
+	if strings.TrimSpace(req.MemberID) == "" {
+		return trustgroup_domain.ErrMemberIDRequired
+	}
+	pubKey := strings.TrimSpace(req.MemberPublicKey)
+	if pubKey == "" {
+		pubKey = strings.TrimSpace(req.DevicePublicKey)
+	}
+	if pubKey == "" {
+		return errors.New("member public key is required for key envelope provisioning")
+	}
+	return nil
 }

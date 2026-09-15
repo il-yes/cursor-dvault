@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { appendThreadEvent, ThreadEventResponse } from "@/services/api";
+import { appendThreadEvent, postIPFSEntry, ThreadEventResponse } from "@/services/api";
 import { useVaultStore } from "@/store/vaultStore";
 import { VaultEntry } from "@/types/vault";
 import { TrustGroupSelect } from "./actions/TrustGroupSelect";
@@ -114,53 +114,102 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
 
     try {
       if (actionMode === "normal") {
-        console.log(`[APPEND][STEP=01] AppendThreadEventModal submit normal event: activeThreadId=${activeThreadId} selectedEntryId=${selectedEntryId}`);
-        // Standard Append Thread Event
-        const newEvent = await appendThreadEvent({
-          thread_id: activeThreadId,
-          type: "entry.shared",
-          payload: {
-            ref_type: "vault_entry",
-            entry_id: selectedEntryId,
-            entry_name: selectedEntry?.entry_name || "Vault Entry",
-            entry_type: selectedEntry?.type || "note",
-            notes: notes.trim(),
-          },
-        });
-        setSuccessMsg("✓ Normal Event appended to timeline.");
-        if (onEventAppended) onEventAppended(newEvent);
-      } else if (actionMode === "c3_share") {
-        console.log(`[APPEND][STEP=01] AppendThreadEventModal submit c3_share: activeThreadId=${activeThreadId} trustGroupId=${trustGroupId} selectedEntryId=${selectedEntryId}`);
-        // Create Collaborative C3 Share
+        console.log(
+          `[APPEND][STEP=01] AppendThreadEventModal submit normal event: activeThreadId=${activeThreadId} selectedEntryId=${selectedEntryId}`
+        );
+
         if (!trustGroupId) {
           setError("Please select a Trust Group.");
           setIsLoading(false);
           return;
         }
-        await CreateCollaborativeShare(
+
+        // 1. Create the C3/IPFS twin.
+        const c3CID = await postIPFSEntry(
+          token,
+          selectedEntryId,
+          selectedEntry?.type,
+          "password"
+        );
+
+        console.log(
+          `[APPEND][STEP=02] IPFS entry created: selectedEntryId=${selectedEntryId} c3CID=${c3CID}`
+        );
+
+        if (!c3CID) {
+          throw new Error("IPFS entry was created but no C3 CID was returned.");
+        }
+
+        // 2. Turn the C3/IPFS twin into a collaborative share.
+        const shareRef = await CreateCollaborativeShare(
           token,
           activeThreadId,
           trustGroupId,
-          selectedEntryId,
-          targetVaultId,
-          notes.trim(),
-          "desktop_orchestrated_wrapped_dek",
-          1
+          c3CID,
+          notes.trim()
         );
-        setSuccessMsg("✓ C3 Share created and appended to timeline.");
-        if (onEventAppended) {
+
+        console.log(
+          `[APPEND][STEP=03] Collaborative share created: shareEntryID=${shareRef?.ShareEntryID} assetCID=${shareRef?.AssetCID}`
+        );
+
+        setSuccessMsg("✓ Entry uploaded and shared through C3.");
+
+        if (onEventAppended && shareRef) {
           onEventAppended({
-            id: `evt_share_${Date.now()}`,
+            id: `evt_share_${shareRef.ShareEntryID}`,
             thread_id: activeThreadId,
             type: "entry.shared",
             cursor: 0,
             payload: {
-              share_entry_id: selectedEntryId,
-              trust_group_id: trustGroupId,
-              asset_cid: selectedEntryId,
+              share_entry_id: shareRef.ShareEntryID,
+              trust_group_id: shareRef.TrustGroupID || trustGroupId,
+              asset_cid: shareRef.AssetCID,
               notes: notes.trim(),
             },
-            created_at: new Date().toISOString(),
+            created_at: shareRef.CreatedAt || new Date().toISOString(),
+          } as ThreadEventResponse);
+        }
+      } else if (actionMode === "c3_share") {
+        console.log(
+          `[APPEND][STEP=01] AppendThreadEventModal submit c3_share: activeThreadId=${activeThreadId} trustGroupId=${trustGroupId} selectedEntryId=${selectedEntryId}`
+        );
+
+        if (!selectedEntry || !selectedEntry.c3_cid) {
+          setError("Selected Vault Entry does not have a C3 CID. Please post to IPFS first.");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!trustGroupId) {
+          setError("Please select a Trust Group.");
+          setIsLoading(false);
+          return;
+        }
+
+        const shareRef = await CreateCollaborativeShare(
+          token,
+          activeThreadId,
+          trustGroupId,
+          selectedEntry.c3_cid,
+          notes.trim()
+        );
+
+        setSuccessMsg("✓ C3 Share created and appended to timeline.");
+
+        if (onEventAppended && shareRef) {
+          onEventAppended({
+            id: `evt_share_${shareRef.ShareEntryID}`,
+            thread_id: activeThreadId,
+            type: "entry.shared",
+            cursor: 0,
+            payload: {
+              share_entry_id: shareRef.ShareEntryID,
+              trust_group_id: shareRef.TrustGroupID || trustGroupId,
+              asset_cid: shareRef.AssetCID,
+              notes: notes.trim(),
+            },
+            created_at: shareRef.CreatedAt || new Date().toISOString(),
           } as ThreadEventResponse);
         }
       } else if (actionMode === "approval") {
@@ -466,18 +515,21 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
               </div>
 
               {/* Trust Group Selector for C3 Share and Transfer */}
-              {(actionMode === "c3_share" || actionMode === "transfer") && (
-                <div>
-                  <div className="fl">
-                    Trust Group <span style={{ color: "#EF4444" }}>*</span>
+              {/* Trust Group Selector for C3 Share, Normal Event and Transfer */}
+              {(actionMode === "normal" ||
+                actionMode === "c3_share" ||
+                actionMode === "transfer") && (
+                  <div>
+                    <div className="fl">
+                      Trust Group <span style={{ color: "#EF4444" }}>*</span>
+                    </div>
+                    <TrustGroupSelect
+                      value={trustGroupId}
+                      onChange={setTrustGroupId}
+                      disabled={isLoading}
+                    />
                   </div>
-                  <TrustGroupSelect
-                    value={trustGroupId}
-                    onChange={setTrustGroupId}
-                    disabled={isLoading}
-                  />
-                </div>
-              )}
+                )}
 
               {/* Mandatory Rejection Reason for Reject Action */}
               {actionMode === "reject" ? (
@@ -511,10 +563,10 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
                       actionMode === "c3_share"
                         ? "Notes for Trust Group recipients..."
                         : actionMode === "approval"
-                        ? "Instructions for reviewers..."
-                        : actionMode === "transfer"
-                        ? "Transfer request message..."
-                        : "e.g. Countersigned contract draft committed to vault."
+                          ? "Instructions for reviewers..."
+                          : actionMode === "transfer"
+                            ? "Transfer request message..."
+                            : "e.g. Countersigned contract draft committed to vault."
                     }
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -539,24 +591,24 @@ export const AppendThreadEventSlidingView: React.FC<AppendThreadEventSlidingView
                 style={{
                   opacity:
                     isLoading ||
-                    allVaultEntries.length === 0 ||
-                    (actionMode === "reject" && !reason.trim())
+                      allVaultEntries.length === 0 ||
+                      (actionMode === "reject" && !reason.trim())
                       ? 0.6
                       : 1,
                   cursor:
                     isLoading ||
-                    allVaultEntries.length === 0 ||
-                    (actionMode === "reject" && !reason.trim())
+                      allVaultEntries.length === 0 ||
+                      (actionMode === "reject" && !reason.trim())
                       ? "not-allowed"
                       : "pointer",
                   backgroundColor:
                     actionMode === "reject"
                       ? "#DA3633"
                       : actionMode === "transfer"
-                      ? "#1F6FEB"
-                      : actionMode === "approval"
-                      ? "#D97706"
-                      : "#238636",
+                        ? "#1F6FEB"
+                        : actionMode === "approval"
+                          ? "#D97706"
+                          : "#238636",
                 }}
               >
                 {isLoading ? (

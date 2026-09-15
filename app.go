@@ -67,7 +67,6 @@ import (
 	sahre_entry_ui_wails "vault-app/internal/share_entry/ui/wails"
 	shared_realtime "vault-app/internal/shared/realtime"
 	shared "vault-app/internal/shared/stellar"
-	"github.com/stellar/go/keypair"
 	stellar_recovery_domain "vault-app/internal/stellar_recovery/domain"
 	"vault-app/internal/stellar_recovery/infrastructure/events"
 	"vault-app/internal/stellar_recovery/infrastructure/token"
@@ -103,10 +102,10 @@ import (
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
-	trustgroup_events "vault-app/internal/trust_group/application/events"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
+	trustgroup_usecases_trustgroup "vault-app/internal/trust_group/application/usecases/trust_group"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
@@ -116,14 +115,6 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type CoreApp interface {
-	SignIn(req handlers.LoginRequest) (*handlers.LoginResponse, error)
-	SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error)
-	// etc...
-}
-
-const version = "1.0.0"
 
 type config struct {
 	port int
@@ -135,7 +126,6 @@ type config struct {
 	Domain           string
 	Branch           string
 	EncryptionPolicy string
-
 	// Jwt auth
 	auth           auth.Auth
 	JWTSecret      string
@@ -143,45 +133,44 @@ type config struct {
 	JWTAudience    string
 	APIKey         string
 	ANCHORA_SECRET string
-
 	// Stripe
 	stripe struct {
 		secret string
 		key    string
 	}
-
 	// Stellar
 	StellarNetwork     string
 	StellarHorizonURL  string
 	StellarAssetCode   string
 	StellarAssetIssuer string
-
 	// IPFS
 	IPFSClient  string
 	IPFSGateway string
 	IPFSNetwork string
-
 	// Tracecore
 	TracecoreURL   string
 	TracecoreToken string
-
 	// Cloud
 	CloudURL                  string
 	CloudBackURL              string
 	CloudFrontURL             string
 	ANKHORA_WEBSOCKET_GATEWAY string
-
-	KEYRING_PATH string
+	KEYRING_PATH              string
 }
 
+const version = "1.0.0"
+
 type App struct {
-	config   config
+	config  config
+	version string
+
+	auth     auth.Auth
 	Logger   logger.Logger
-	version  string
 	DB       models.DBModel
 	ctx      context.Context
 	sessions map[string]*models.VaultSession
-	NowUTC   func() string
+
+	NowUTC func() string
 
 	// Core handlers
 	AppConfigHandler *app_config_ui.AppConfigHandler
@@ -194,6 +183,7 @@ type App struct {
 	LinkShareHandler          *sahre_entry_ui_wails.LinkShareHandler
 	Identity                  *identity_ui.IdentityHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
+
 	NotificationCenterHandler *notification_center_ui.NotificationHandler
 	ShareEntryHandler         *sahre_entry_ui_wails.ShareEntryHandler
 	StellarService            *blockchain.StellarService
@@ -210,6 +200,7 @@ type App struct {
 
 	addTrustGroupMemberUC *trustgroup_member_usecases.AddMemberToTrustGroupUsecase
 	provisionEnvelopeUC   *trustgroup_envelope_usecases.ProvisionTrustGroupDeviceEnvelopeUseCase
+	createTrustGroupUC    *trustgroup_usecases_trustgroup.CreateTrustGroupUsecase
 	tracecoreClient       *tracecore.TracecoreClient
 
 	// New: Global state
@@ -673,6 +664,7 @@ func NewApp() *App {
 		cloudAssetResolver,
 		identityResolver,
 		cryptoOrchestrator,
+		vaultHandler,
 	)
 
 	actionRepo := collaboration_infra.NewMemoryActionRepository()
@@ -687,10 +679,19 @@ func NewApp() *App {
 		keyringSvc,
 	)
 	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, tgMemoryBus)
-	
+
 	// Register event listener for MemberAddedToTrustGroup to trigger envelope provisioning via event bus
-	memberAddedSubscriber := trustgroup_events.NewMemberAddedSubscriber(provisionEnvelopeUC, identityHandler, tracecoreClient, nil)
-	memberAddedSubscriber.RegisterSubscribers(tgMemoryBus)
+	// memberAddedSubscriber := trustgroup_events.NewMemberAddedSubscriber(provisionEnvelopeUC, identityHandler, tracecoreClient, nil)
+	// memberAddedSubscriber.RegisterSubscribers(tgMemoryBus)
+
+	trustGroupEventBus := trustgroup_infrastructure_eventbus.NewMemoryBus()
+
+	createTrustGroupUC := trustgroup_usecases_trustgroup.NewCreateTrustGroupUsecase(
+		tracecoreClient,
+		trustGroupEventBus,
+		provisionEnvelopeUC,
+		nil,
+	)
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -700,6 +701,7 @@ func NewApp() *App {
 		cancel:                    cancel,
 		ConnectWithStellarHandler: stellarRecoveryHandler,
 		config:                    cfg,
+		createTrustGroupUC:        createTrustGroupUC,
 		DB:                        *db,
 		EntryRegistry:             reg,
 		CryptographicShareHandler: &cryptographicShareHandler,
@@ -1311,7 +1313,6 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 		vaultRes.ReusedExisting,
 	)
 
-
 	// ============================================================
 	// 7. CLOUD VAULT DELEGATION — OPTIONAL
 	// ============================================================
@@ -1337,7 +1338,14 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if cloudVault != nil {
 		cloudVaultID = cloudVault.Data.ID
 	}
+	session.Runtime.VaultID = cloudVaultID
 	vaultRes.RuntimeContext.VaultID = cloudVaultID
+	a.Logger.Info(
+		"[C3][SIGNIN] userID=%s cloudVaultID=%s sessionRuntimeVaultID=%s",
+		userID,
+		cloudVaultID,
+		session.Runtime.VaultID,
+	)
 
 	if cloudToken != "" &&
 		vaultRes.RuntimeContext != nil &&
@@ -2195,6 +2203,60 @@ func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachm
 	}
 	a.Logger.LogPretty("App - UpdateAttachment - res", res)
 	return res, nil
+}
+
+func (a *App) PostIPFSEntry(jwtToken string, entryID string, entryType string, password string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get Vault ==============================
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get Subscription ==============================
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get user onboarding ==============================
+	userOnboarding, err := a.OnBoardingHandler.FindUsersUseCase.FindByEmail(claims.Email)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+	utils.LogPretty("App - PostIPFSEntry - userOnboarding", userOnboarding)
+
+	// Get Configs ==============================
+	configs, err := a.GetConfig(vault.Name, jwtToken)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Post to IPFS
+	entryCID, err := a.Vault.PostIPFSEntry(claims.UserID, vault_dto.PostIPFSEntryRequest{
+		EntryID:            entryID,
+		EntryType:          entryType,
+		Configs:            *configs,
+		VaultName:          vault.Name,
+		UserSubscriptionID: sub.UserID, // TODO: replace with configs.Subscription.UserID
+		Password:           password,
+		UserOnboarding:     userOnboarding.ID,
+	})
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	return entryCID, nil
 }
 
 // func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
@@ -3646,209 +3708,269 @@ func (a *App) CreateTrustGroup(
 	JwtToken string,
 	workspaceID string,
 	name string,
+	vaultName string,
 ) (*trustgroup_domain.TrustGroup, error) {
-
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
 
-	fmt.Printf("[TRUSTGROUP][CREATE][01]\ncallerID=%s\ncallerVaultID=%s\nchannelID=%s\nname=%s\n",
-		claims.UserID, claims.UserID, workspaceID, name)
-
-	if a.tracecoreClient == nil {
-		return nil, fmt.Errorf("tracecore client is not initialized")
+	if a.createTrustGroupUC == nil {
+		return nil, fmt.Errorf("create trust group usecase is not initialized")
 	}
 
 	if a.Vault == nil || a.Vault.KeyringService == nil {
 		return nil, fmt.Errorf("keyring service is not initialized")
 	}
 
-	// 1. Create the TrustGroup with creator as initial member.
-	initialMembers := []string{claims.UserID}
-	resp, err := a.tracecoreClient.CreateTrustGroup(
+	// Get vault
+	vault, err := a.Vault.GetVault(claims.UserID, vaultName)
+	if err != nil {
+		return nil, fmt.Errorf("get vault by user ID: %w", err)
+	}
+	if vault == nil {
+		return nil, fmt.Errorf("vault not found for user ID: %s", claims.UserID)
+	}
+
+	// Get subbscription
+	subscription, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(a.ctx, claims.Email)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription: %w", err)
+	}
+	if subscription == nil {
+		return nil, fmt.Errorf("subscription not found for user ID: %s", claims.UserID)
+	}
+
+	// Get vault from cloud
+	vaultCloud, err := a.Vault.GetVaultFromCloud(subscription.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get vault from cloud: %w", err)
+	}
+
+	// 1. Create the TrustGroup through the application usecase.
+	//
+	// The usecase is responsible for:
+	//   - validating the request
+	//   - creating the domain TrustGroup
+	//   - persisting it through the repository
+	//   - publishing TrustGroupCreated
+	initialMembers := []string{vaultCloud.Data.ID}
+
+	tg, err := a.createTrustGroupUC.Execute(
 		a.ctx,
-		&trustgroup_domain.CreateTrustGroupRequest{
-			TrustGroup: trustgroup_domain.TrustGroup{
-				ChannelID:  workspaceID,
-				Name:       name,
-				MemberCIDs: initialMembers,
-			},
+		trustgroup_dtos.CreateTrustGroupRequest{
+			ChannelID:  workspaceID,
+			Name:       name,
+			MemberCIDs: initialMembers,
+			VaultID:    vaultCloud.Data.ID,
+			OwnerID:    claims.UserID,
 		},
 	)
 	if err != nil {
-		fmt.Printf("[TRUSTGROUP][CREATE][02] error=%v\n", err)
-		return nil, err
+		return nil, fmt.Errorf("create trust group: %w", err)
 	}
 
-	tg := resp.Data
+	if tg == nil || tg.ID == "" {
+		return nil, fmt.Errorf("create trust group returned an empty trust group")
+	}
+
 	if len(tg.MemberCIDs) == 0 {
-		tg.MemberCIDs = initialMembers
+		return nil, fmt.Errorf(
+			"created trust group %s has no members",
+			tg.ID,
+		)
 	}
 
-	fmt.Printf("[TRUSTGROUP][CREATE][02]\ntrustGroupID=%s\ninitialMembers=%v\ninitialKEKVersion=%d\n",
-		tg.ID, tg.MemberCIDs, tg.KEKVersion)
-
-	// 2. Load the creator's local keyring.
-	var keyring *vaults_domain.VaultKeyring
-	var pass, secret string
-
-	var userSession *vault_session.Session
-	if a.Vault != nil {
-		userSession, _ = a.Vault.GetSession(claims.UserID)
+	if tg.KEKVersion == 0 {
+		return nil, fmt.Errorf(
+			"created trust group %s has invalid KEK version 0",
+			tg.ID,
+		)
 	}
-	if userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
-		pass = userSession.Runtime.SessionSecrets["password"]
+
+	// 2. Load the creator's sovereign keyring.
+	//
+	// The TrustGroup KEK belongs to the creator's vault/keyring.
+	// It is NOT loaded from an invitee's keyring.
+	var pass string
+	var secret string
+
+	userSession, _ := a.Vault.GetSession(claims.UserID)
+
+	if userSession != nil &&
+		userSession.Runtime != nil &&
+		userSession.Runtime.SessionSecrets != nil {
+
+		pass = userSession.Runtime.SessionSecrets["vault_password"]
 		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+
 		if secret == "" {
 			secret = userSession.Runtime.SessionSecrets["device_seed"]
 		}
-		if secret == "" {
+
+		if secret == "" &&
+			userSession.Runtime.UserConfig.StellarAccount.PrivateKey != "" {
 			secret = userSession.Runtime.UserConfig.StellarAccount.PrivateKey
 		}
 	}
+
 	if secret == "" {
 		secret = os.Getenv("DEVICE_SEED")
 	}
+
 	if secret == "" {
 		secret = os.Getenv("STELLAR_SECRET")
 	}
+
 	if pass == "" {
 		pass = os.Getenv("VAULT_PASSWORD")
 	}
 
-	keyring, err = a.Vault.KeyringService.LoadHybrid(claims.UserID, pass, secret)
-	if err != nil || keyring == nil {
-		keyring = &vaults_domain.VaultKeyring{UserID: claims.UserID}
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		claims.UserID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load creator keyring: %w", err)
+	}
+	if keyring == nil {
+		return nil, fmt.Errorf("load creator keyring returned nil")
 	}
 
-	// 3. Provision an envelope for every initial member.
-	for _, memberID := range tg.MemberCIDs {
-		fmt.Printf("[TRUSTGROUP][CREATE][03] envelope provisioning invoked for memberID=%s\n", memberID)
-		var pubKey string
-		if a.Identity != nil {
-			if user, err := a.Identity.FindUserById(a.ctx, memberID); err == nil && user != nil {
-				if user.StellarPublicKey != "" {
-					pubKey = user.StellarPublicKey
-				} else if user.Email != "" && a.tracecoreClient != nil {
-					if u, err := a.tracecoreClient.GetUserByEmail(a.ctx, user.Email); err == nil && u != nil && u.PublicKey != "" {
-						pubKey = u.PublicKey
-					}
-				}
-			}
-		}
-		if pubKey == "" && memberID == claims.UserID && userSession != nil && userSession.Runtime != nil && userSession.Runtime.UserConfig.StellarAccount.PublicKey != "" {
-			pubKey = userSession.Runtime.UserConfig.StellarAccount.PublicKey
-		}
-		if pubKey == "" && memberID == claims.UserID && secret != "" {
-			if kp, err := keypair.Parse(secret); err == nil && kp != nil {
-				pubKey = kp.Address()
-			}
-		}
-		if pubKey == "" && keyring != nil && a.Vault != nil && a.Vault.KeyringService != nil {
-			if seedBytes, err := a.Vault.KeyringService.GetKeyByType(keyring, vaults_domain.KeyTypeDeviceSeed); err == nil && len(seedBytes) > 0 {
-				if kp, err := keypair.Parse(string(seedBytes)); err == nil && kp != nil {
-					pubKey = kp.Address()
-				}
-			}
-		}
-		if pubKey == "" && a.Vault != nil && a.Vault.KeyringService != nil {
-			if kr, err := a.Vault.KeyringService.LoadHybrid(memberID, "", ""); err == nil && kr != nil {
-				if seedBytes, err := a.Vault.KeyringService.GetKeyByType(kr, vaults_domain.KeyTypeDeviceSeed); err == nil && len(seedBytes) > 0 {
-					if kp, err := keypair.Parse(string(seedBytes)); err == nil && kp != nil {
-						pubKey = kp.Address()
-					}
-				}
-			}
-		}
-		if pubKey == "" && memberID == claims.UserID && claims.Email != "" && a.tracecoreClient != nil {
-			if u, err := a.tracecoreClient.GetUserByEmail(a.ctx, claims.Email); err == nil && u != nil && u.PublicKey != "" {
-				pubKey = u.PublicKey
-			}
-		}
-		if pubKey == "" && a.tracecoreClient != nil {
-			if u, err := a.tracecoreClient.GetUserByEmail(a.ctx, memberID); err == nil && u != nil && u.PublicKey != "" {
-				pubKey = u.PublicKey
-			}
-		}
-		if pubKey == "" {
-			return nil, fmt.Errorf("public key not found for member %s", memberID)
-		}
+	// 3. Resolve the creator's existing public identity.
+	//
+	// This is the initial member created by the TrustGroup usecase.
+	// We do not discover arbitrary devices and we do not load another
+	// member's keyring here.
+	var pubKey string
 
-		tgPtr, err := a.provisionEnvelopeUC.Execute(
+	if a.Identity != nil {
+		user, findErr := a.Identity.FindUserById(
 			a.ctx,
-			trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
-				TrustGroupID:    tg.ID,
-				MemberID:        memberID,
-				DevicePublicKey: pubKey,
-			},
-			keyring,
+			claims.UserID,
 		)
-		if err != nil {
-			fmt.Printf("[TRUSTGROUP][CREATE][05] provisionEnvelopeUC error for member %s: %v\n", memberID, err)
-			return nil, fmt.Errorf(
-				"failed to provision envelope for member %s: %w",
-				memberID,
-				err,
-			)
-		}
+		if findErr == nil &&
+			user != nil &&
+			user.StellarPublicKey != "" {
 
-		if tgPtr != nil {
-			tg = *tgPtr
+			pubKey = user.StellarPublicKey
 		}
 	}
 
-	if keyring != nil && a.Vault != nil && a.Vault.KeyringService != nil {
-		_ = a.Vault.KeyringService.SaveHybrid(keyring, claims.UserID, pass, secret)
+	if pubKey == "" &&
+		userSession != nil &&
+		userSession.Runtime != nil &&
+		userSession.Runtime.UserConfig.StellarAccount.PublicKey != "" {
+
+		pubKey = userSession.Runtime.UserConfig.StellarAccount.PublicKey
 	}
 
-	// 4. MANDATORY READ-BACK VERIFICATION
-	readbackResp, rbErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
-	if rbErr != nil || readbackResp == nil {
-		fmt.Printf("[TRUSTGROUP][VERIFY][FATAL] READBACK_FAILED trustGroupID=%s err=%v\n", tg.ID, rbErr)
-		return nil, fmt.Errorf("read-back verification failed for trust group %s: %w", tg.ID, rbErr)
-	}
+	if pubKey == "" &&
+		claims.Email != "" &&
+		a.tracecoreClient != nil {
 
-	readbackTG := readbackResp.Data
-	fmt.Printf("[TRUSTGROUP][VERIFY][READBACK]\ntrustGroupID=%s\nmemberCount=%d\nkeyEnvelopeCount=%d\n",
-		readbackTG.ID, len(readbackTG.MemberCIDs), len(readbackTG.KeyEnvelopes))
+		user, lookupErr := a.tracecoreClient.GetUserByEmail(
+			a.ctx,
+			claims.Email,
+		)
+		if lookupErr == nil &&
+			user != nil &&
+			user.PublicKey != "" {
 
-	for _, env := range readbackTG.KeyEnvelopes {
-		revokedStr := "false"
-		if env.RevokedAt != nil {
-			revokedStr = "true"
+			pubKey = user.PublicKey
 		}
-		fmt.Printf("[TRUSTGROUP][VERIFY][ENVELOPE]\nenvelopeID=%s\nmemberID=%s\ndeviceID=%s\nkekVersion=%d\nrevoked=%s\n",
-			env.ID, env.MemberID, env.DeviceID, env.KEKVersion, revokedStr)
 	}
 
-	if len(readbackTG.KeyEnvelopes) == 0 {
-		fmt.Printf("[TRUSTGROUP][VERIFY][FATAL]\nEXPECTED_ENVELOPE_NOT_RETRIEVED\ntrustGroupID=%s\nexpectedMemberID=%s\nexpectedKEKVersion=1\nactualEnvelopeCount=0\n",
-			tg.ID, claims.UserID)
-		return nil, fmt.Errorf("TRUSTGROUP INVARIANT FAILED: expected creator key envelope, got 0 envelopes")
+	if pubKey == "" {
+		return nil, fmt.Errorf(
+			"public key not found for creator %s",
+			claims.UserID,
+		)
+	}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	initialKEK := asymSvc.GenerateSymmetricKey()
+
+	_, err = a.Vault.KeyringService.StoreTrustGroupKEK(
+		keyring,
+		tg.ID,
+		tg.KEKVersion,
+		initialKEK,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"store initial trust group KEK: %w",
+			err,
+		)
 	}
 
-	fmt.Printf("[TRUSTGROUP][CREATE][STATE]\ntrustGroupID=%s\nmemberCount=%d\nmemberIDs=%v\nkekVersion=%d\nkeyEnvelopeCount=%d\n",
-		readbackTG.ID, len(readbackTG.MemberCIDs), readbackTG.MemberCIDs, readbackTG.KEKVersion, len(readbackTG.KeyEnvelopes))
+	// 4. Provision the creator's envelope.
+	//
+	// ProvisionTrustGroupDeviceEnvelopeUseCase is responsible for
+	// obtaining/initializing the TrustGroup KEK in the creator's
+	// sovereign keyring and wrapping that KEK for the creator's
+	// existing public key.
+	//
+	// The KEK is therefore persisted in the creator's keyring only.
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf(
+			"provision trust group envelope usecase is not initialized",
+		)
+	}
 
-	return &readbackTG, nil
+	updatedTG, err := a.provisionEnvelopeUC.Execute(
+		a.ctx,
+		trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+			TrustGroupID:    tg.ID,
+			MemberID:        vaultCloud.Data.ID,
+			MemberPublicKey: pubKey,
+		},
+		keyring,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"provision creator trust group envelope: %w",
+			err,
+		)
+	}
+
+	if updatedTG == nil {
+		return nil, fmt.Errorf(
+			"provision creator trust group envelope returned nil",
+		)
+	}
+
+	tg = updatedTG
+
+	// 5. Persist the creator's keyring.
+	//
+	// This is the sovereign storage boundary for the TrustGroup KEK.
+	if err := a.Vault.KeyringService.SaveHybrid(
+		keyring,
+		claims.UserID,
+		pass,
+		secret,
+	); err != nil {
+		return nil, fmt.Errorf(
+			"save creator keyring: %w",
+			err,
+		)
+	}
+
+	return tg, nil
 }
 
-// AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
+// AddTrustGroupMember joins a member to a trust group through the authoritative Cloud backend.
 func (a *App) AddTrustGroupMember(
 	JwtToken string,
 	trustGroupID string,
-	vaultID string,
+	memberIdentifier string,
 	role string,
 ) (*trustgroup_domain.TrustGroup, error) {
-
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-
-	fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][ENTRY] trustGroupID=%s callerVaultID=%s targetMemberID=%s role=%s\n", trustGroupID, claims.UserID, vaultID, role)
-	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][01_ENTER] claims.UserID=%s trustGroupID=%s targetVaultID=%s role=%s\n", claims.UserID, trustGroupID, vaultID, role)
 
 	if a.addTrustGroupMemberUC == nil {
 		return nil, fmt.Errorf("add trust group member usecase is not initialized")
@@ -3858,85 +3980,235 @@ func (a *App) AddTrustGroupMember(
 		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
 	}
 
+	if a.Identity == nil {
+		return nil, fmt.Errorf("identity service is not initialized")
+	}
+
 	if role == "" {
 		role = "member"
 	}
 
-	// -------------------------------------------------------------------------
-	// Phase 1: Target Public Key Resolution
-	// Target member public-key resolution MUST occur BEFORE adding member or
-	// performing any database/aggregate mutations.
-	// -------------------------------------------------------------------------
-	var targetPubKey string
-	var email string
+	utils.LogPretty("memberIdentifier", memberIdentifier)
 
-	if strings.Contains(vaultID, "@") {
-		email = vaultID
-	} else if a.Identity != nil {
-		if idUser, idErr := a.Identity.FindUserById(a.ctx, vaultID); idErr == nil && idUser != nil {
-			email = idUser.Email
-			if strings.TrimSpace(idUser.StellarPublicKey) != "" {
-				targetPubKey = strings.TrimSpace(idUser.StellarPublicKey)
-			}
-		}
-	}
+	// fecth recipient from the cloud by his email to get his public key !!!!
+	cloudInvitee, err := a.tracecoreClient.GetUserByEmail(
+		a.ctx,
+		memberIdentifier,
+	)
+	targetPubKey := strings.TrimSpace(cloudInvitee.PublicKey)
 
-	if targetPubKey == "" && email != "" && a.tracecoreClient != nil {
-		user, tcErr := a.tracecoreClient.GetUserByEmail(a.ctx, email)
-		fmt.Printf("[DIAGNOSTIC][APP_ADD_MEMBER][GET_USER_BY_EMAIL] email=%s user=%+v err=%v\n", email, user, tcErr)
-		if tcErr == nil && user != nil && strings.TrimSpace(user.PublicKey) != "" {
-			targetPubKey = strings.TrimSpace(user.PublicKey)
-		}
-	}
-
-	if targetPubKey == "" && a.Vault != nil {
-		if userSession, errSess := a.Vault.GetSession(vaultID); errSess == nil && userSession != nil && userSession.Runtime != nil {
-			if userSession.Runtime.UserConfig.StellarAccount.PublicKey != "" {
-				targetPubKey = userSession.Runtime.UserConfig.StellarAccount.PublicKey
-			} else if sec := userSession.Runtime.SessionSecrets["stellar_secret"]; sec != "" {
-				if kp, err := keypair.Parse(sec); err == nil && kp != nil {
-					targetPubKey = kp.Address()
-				}
-			}
-		}
-	}
-
-	if targetPubKey == "" && a.Vault != nil && a.Vault.KeyringService != nil {
-		if kr, err := a.Vault.KeyringService.LoadHybrid(vaultID, "", ""); err == nil && kr != nil {
-			if seedBytes, err := a.Vault.KeyringService.GetKeyByType(kr, vaults_domain.KeyTypeDeviceSeed); err == nil && len(seedBytes) > 0 {
-				if kp, err := keypair.Parse(string(seedBytes)); err == nil && kp != nil {
-					targetPubKey = kp.Address()
-				}
-			}
-		}
-	}
-
-	if targetPubKey == "" {
-		fmt.Printf("[C3][ADD_MEMBER][ERROR] Failed to resolve public key for target member %s (email=%s)\n", vaultID, email)
-		return nil, fmt.Errorf("failed to resolve public key for member %s: no public key found in identity, user API, or session", vaultID)
-	}
-
-	// -------------------------------------------------------------------------
-	// Phase 2: Load Caller Keyring
-	// Load caller's local keyring using session credentials BEFORE adding member.
-	// -------------------------------------------------------------------------
+	// Load the caller's existing keyring before mutating the TrustGroup.
 	if a.Vault == nil || a.Vault.KeyringService == nil {
 		return nil, fmt.Errorf("keyring service is not initialized")
 	}
 
-	var pass, secret string
-	var sessionFound, runtimeFound bool
-	if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil {
-		sessionFound = true
-		if userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
-			runtimeFound = true
-			pass = userSession.Runtime.SessionSecrets["password"]
-			secret = userSession.Runtime.SessionSecrets["stellar_secret"]
-			if secret == "" {
-				secret = userSession.Runtime.SessionSecrets["device_seed"]
-			}
+	var pass string
+	var secret string
+
+	if session, err := a.Vault.GetSession(claims.UserID); err == nil &&
+		session != nil &&
+		session.Runtime != nil &&
+		session.Runtime.SessionSecrets != nil {
+
+		pass = session.Runtime.SessionSecrets["vault_password"]
+		if pass == "" {
+			pass = session.Runtime.SessionSecrets["password"]
+		}
+
+		secret = session.Runtime.SessionSecrets["stellar_secret"]
+		if secret == "" {
+			secret = session.Runtime.SessionSecrets["device_seed"]
 		}
 	}
+
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		claims.UserID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to load caller keyring %s: %w",
+			claims.UserID,
+			err,
+		)
+	}
+
+	// get vault id of the invitee from cloud
+	inviteeVault, err := a.tracecoreClient.GetIdentityVaultByPublicKey(a.ctx, targetPubKey)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get invitee vault id from cloud %s: %w",
+			memberIdentifier,
+			err,
+		)
+	}
+	utils.LogPretty("App - AddTrustGroupMember - inviteeVault", inviteeVault)
+
+	if inviteeVault == nil {
+		return nil, fmt.Errorf(
+			"invitee vault id not found from cloud for user %s",
+			memberIdentifier,
+		)
+	}
+
+	memberID := inviteeVault.Data.VaultID
+
+	// Add the existing vault user ID to the TrustGroup.
+	updatedTg, err := a.addTrustGroupMemberUC.Execute(
+		a.ctx,
+		trustgroup_dtos.AddMemberToTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+			VaultID:      memberID,
+			Role:         role,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap the existing TrustGroup KEK with the member's existing public key.
+	provisionedTg, err := a.provisionEnvelopeUC.Execute(
+		a.ctx,
+		trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+			TrustGroupID:    trustGroupID,
+			MemberID:        memberID,
+			MemberPublicKey: targetPubKey,
+		},
+		keyring,
+	)
+	if err != nil {
+		if a.tracecoreClient != nil {
+			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
+				a.ctx,
+				&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+					TrustGroupID: trustGroupID,
+					MemberID:     memberID,
+				},
+			)
+		}
+
+		return nil, fmt.Errorf(
+			"failed to provision key envelope for member %s (membership rolled back): %w",
+			memberID,
+			err,
+		)
+	}
+
+	if provisionedTg != nil {
+		updatedTg = provisionedTg
+	}
+
+	// Verify the membership + envelope invariant against Cloud.
+	if a.tracecoreClient != nil {
+		freshTg, err := a.tracecoreClient.GetTrustGroup(
+			a.ctx,
+			&trustgroup_domain.GetTrustGroupRequest{
+				TrustGroupID: trustGroupID,
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"read-back verification failed for trust group %s: %w",
+				trustGroupID,
+				err,
+			)
+		}
+
+		if freshTg == nil {
+			return nil, fmt.Errorf(
+				"read-back verification failed for trust group %s: empty response",
+				trustGroupID,
+			)
+		}
+
+		updatedTg = &freshTg.Data
+
+		memberFound := false
+		for _, id := range freshTg.Data.MemberCIDs {
+			if id == memberID {
+				memberFound = true
+				break
+			}
+		}
+
+		envelopeFound := false
+		for _, envelope := range freshTg.Data.KeyEnvelopes {
+			if envelope.MemberID == memberID && envelope.RevokedAt == nil {
+				envelopeFound = true
+				break
+			}
+		}
+
+		if !memberFound || !envelopeFound {
+			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
+				a.ctx,
+				&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+					TrustGroupID: trustGroupID,
+					MemberID:     memberID,
+				},
+			)
+
+			return nil, fmt.Errorf(
+				"trust group invariant failed for member %s: memberFound=%t envelopeFound=%t",
+				memberID,
+				memberFound,
+				envelopeFound,
+			)
+		}
+	}
+
+	_ = a.Vault.KeyringService.SaveHybrid(
+		keyring,
+		claims.UserID,
+		pass,
+		secret,
+	)
+
+	return updatedTg, nil
+}
+
+func (a *App) loadCallerKeyring(
+	callerID string,
+) (*vaults_domain.VaultKeyring, string, string, error) {
+
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, "", "", fmt.Errorf("keyring service is not initialized")
+	}
+
+	var pass string
+	var secret string
+
+	if session, err := a.Vault.GetSession(callerID); err == nil &&
+		session != nil &&
+		session.Runtime != nil &&
+		session.Runtime.SessionSecrets != nil {
+
+		secrets := session.Runtime.SessionSecrets
+
+		pass = secrets["vault_password"]
+		if pass == "" {
+			pass = secrets["password"]
+		}
+
+		secret = secrets["stellar_secret"]
+		if secret == "" {
+			secret = secrets["device_seed"]
+		}
+	}
+
 	if secret == "" {
 		secret = os.Getenv("DEVICE_SEED")
 	}
@@ -3947,140 +4219,96 @@ func (a *App) AddTrustGroupMember(
 		pass = os.Getenv("VAULT_PASSWORD")
 	}
 
-	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][03_SESSION] callerID=%s sessionFound=%t runtimeFound=%t passPresent=%t secretPresent=%t\n",
-		claims.UserID, sessionFound, runtimeFound, pass != "", secret != "")
-
 	keyring, err := a.Vault.KeyringService.LoadHybrid(
-		claims.UserID,
+		callerID,
 		pass,
 		secret,
 	)
 	if err != nil {
-		fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][04_KEYRING_FAIL] callerID=%s err=%v\n", claims.UserID, err)
-		fmt.Printf("[C3][ADD_MEMBER][ERROR] LoadHybrid failed for caller %s: %v\n", claims.UserID, err)
-		return nil, fmt.Errorf(
+		return nil, "", "", fmt.Errorf(
 			"failed to load caller keyring %s: %w",
-			claims.UserID,
+			callerID,
 			err,
 		)
 	}
-	fmt.Printf("[DIAGNOSTIC][ADD_MEMBER][04_KEYRING_OK] callerID=%s keysInKeyring=%d\n", claims.UserID, len(keyring.Keys))
 
-	// -------------------------------------------------------------------------
-	// Phase 3: Member Addition & Envelope Provisioning with Atomic Rollback
-	// -------------------------------------------------------------------------
-	fmt.Printf("[C3][ADD_MEMBER][STEP_02] addTrustGroupMemberUC.Execute enter trustGroupID=%s vaultID=%s role=%s\n", trustGroupID, vaultID, role)
-	updatedTg, err := a.addTrustGroupMemberUC.Execute(
+	return keyring, pass, secret, nil
+}
+func (a *App) verifyTrustGroupMember(
+	trustGroupID string,
+	memberID string,
+) error {
+
+	if a.tracecoreClient == nil {
+		return nil
+	}
+
+	tg, err := a.tracecoreClient.GetTrustGroup(
 		a.ctx,
-		trustgroup_dtos.AddMemberToTrustGroupRequest{
+		&trustgroup_domain.GetTrustGroupRequest{
 			TrustGroupID: trustGroupID,
-			VaultID:      vaultID,
-			Role:         role,
 		},
 	)
 	if err != nil {
-		fmt.Printf("[C3][ADD_MEMBER][ERROR] addTrustGroupMemberUC.Execute failed: %v\n", err)
-		return nil, err
-	}
-	if updatedTg != nil {
-		fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][AFTER_ADD_MEMBER] trustGroupID=%s memberCount=%d MemberCIDs=%v KEKVersion=%d keyEnvelopeCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs), updatedTg.MemberCIDs, updatedTg.KEKVersion, len(updatedTg.KeyEnvelopes))
-		fmt.Printf("[C3][REAL-E2E][04] membership after count=%d\n", len(updatedTg.MemberCIDs))
-		fmt.Printf("[FORENSIC][ADD_MEMBER][AFTER_CLOUD_MEMBER] TrustGroupID=%s MemberCIDsCount=%d KeyEnvelopesCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs), len(updatedTg.KeyEnvelopes))
-		fmt.Printf("[C3][ADD_MEMBER][STEP_04] addTrustGroupMemberUC.Execute return success trustGroupID=%s memberCIDsCount=%d\n", updatedTg.ID, len(updatedTg.MemberCIDs))
+		return fmt.Errorf(
+			"read-back verification failed for trust group %s: %w",
+			trustGroupID,
+			err,
+		)
 	}
 
-	var currentVer uint64 = 1
-	if updatedTg != nil {
-		currentVer = updatedTg.KEKVersion
+	if tg == nil {
+		return fmt.Errorf(
+			"read-back verification failed for trust group %s: empty response",
+			trustGroupID,
+		)
 	}
-	fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_BEFORE] trustGroupID=%s memberID=%s memberPublicKeyPresent=%t currentKEKVersion=%d\n",
-		trustGroupID, vaultID, targetPubKey != "", currentVer)
 
-	pTg, pErr := a.provisionEnvelopeUC.Execute(
+	memberFound := false
+	for _, id := range tg.Data.MemberCIDs {
+		if id == memberID {
+			memberFound = true
+			break
+		}
+	}
+
+	envelopeFound := false
+	for _, envelope := range tg.Data.KeyEnvelopes {
+		if envelope.MemberID == memberID &&
+			envelope.KEKVersion == tg.Data.KEKVersion &&
+			envelope.RevokedAt == nil {
+
+			envelopeFound = true
+			break
+		}
+	}
+
+	if !memberFound || !envelopeFound {
+		return fmt.Errorf(
+			"trust group invariant failed for member %s: memberFound=%t envelopeFound=%t",
+			memberID,
+			memberFound,
+			envelopeFound,
+		)
+	}
+
+	return nil
+}
+func (a *App) rollbackTrustGroupMember(
+	trustGroupID string,
+	memberID string,
+) {
+	if a.tracecoreClient == nil {
+		return
+	}
+
+	_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
 		a.ctx,
-		trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
-			TrustGroupID:    trustGroupID,
-			MemberID:        vaultID,
-			MemberPublicKey: targetPubKey,
+		&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+			MemberID:     memberID,
 		},
-		keyring,
 	)
-
-	var envID, envMemberID string
-	var envKEKVersion uint64
-	var currentKeyEnvelopeCount int
-	if pTg != nil {
-		currentKeyEnvelopeCount = len(pTg.KeyEnvelopes)
-		if len(pTg.KeyEnvelopes) > 0 {
-			lastEnv := pTg.KeyEnvelopes[len(pTg.KeyEnvelopes)-1]
-			envID = lastEnv.ID
-			envMemberID = lastEnv.MemberID
-			envKEKVersion = lastEnv.KEKVersion
-		}
-	}
-	fmt.Printf("[C3][ENVELOPE_PROVISION_TRACE][PROVISION_AFTER] err=%v envelopeID=%s memberID=%s KEKVersion=%d currentKeyEnvelopeCount=%d\n",
-		pErr, envID, envMemberID, envKEKVersion, currentKeyEnvelopeCount)
-
-	if pErr != nil {
-		fmt.Printf("[C3][ADD_MEMBER][ERROR] provisionEnvelopeUC.Execute failed for member %s: %v\n", vaultID, pErr)
-		// Perform ATOMIC ROLLBACK: remove member from TrustGroup
-		if a.tracecoreClient != nil {
-			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(a.ctx, &trustgroup_domain.RemoveMemberFromTrustGroupRequest{
-				TrustGroupID: trustGroupID,
-				MemberID:     vaultID,
-			})
-		}
-		fmt.Printf("[TRUSTGROUP][ROLLBACK] Reverted member addition for member %s in group %s due to envelope provisioning failure: %v\n", vaultID, trustGroupID, pErr)
-		return nil, fmt.Errorf("failed to provision key envelope for member %s (membership rolled back): %w", vaultID, pErr)
-	}
-	if pTg != nil {
-		updatedTg = pTg
-	}
-
-	// -------------------------------------------------------------------------
-	// Phase 4: Read-Back Verification & Invariant Assertion
-	// -------------------------------------------------------------------------
-	if a.tracecoreClient != nil {
-		freshTg, freshErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID})
-		if freshErr != nil || freshTg == nil {
-			fmt.Printf("[TRUSTGROUP][VERIFY][FATAL] READBACK_FAILED trustGroupID=%s err=%v\n", trustGroupID, freshErr)
-			return nil, fmt.Errorf("read-back verification failed for trust group %s: %w", trustGroupID, freshErr)
-		}
-		updatedTg = &freshTg.Data
-		fmt.Printf("[TRUSTGROUP][VERIFY][READBACK]\ntrustGroupID=%s\nmemberCount=%d\nkeyEnvelopeCount=%d\n",
-			freshTg.Data.ID, len(freshTg.Data.MemberCIDs), len(freshTg.Data.KeyEnvelopes))
-		for _, env := range freshTg.Data.KeyEnvelopes {
-			revokedStr := "false"
-			if env.RevokedAt != nil {
-				revokedStr = "true"
-			}
-			fmt.Printf("[TRUSTGROUP][VERIFY][ENVELOPE]\nenvelopeID=%s\nmemberID=%s\ndeviceID=%s\nkekVersion=%d\nrevoked=%s\n",
-				env.ID, env.MemberID, env.DeviceID, env.KEKVersion, revokedStr)
-		}
-		memberEnvelopeFound := false
-		for _, env := range freshTg.Data.KeyEnvelopes {
-			if env.MemberID == vaultID {
-				memberEnvelopeFound = true
-				break
-			}
-		}
-		if !memberEnvelopeFound {
-			fmt.Printf("[TRUSTGROUP][VERIFY][FATAL]\nEXPECTED_ENVELOPE_NOT_RETRIEVED\ntrustGroupID=%s\nexpectedMemberID=%s\nactualEnvelopeCount=%d\n",
-				trustGroupID, vaultID, len(freshTg.Data.KeyEnvelopes))
-			// Rollback member addition
-			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(a.ctx, &trustgroup_domain.RemoveMemberFromTrustGroupRequest{
-				TrustGroupID: trustGroupID,
-				MemberID:     vaultID,
-			})
-			return nil, fmt.Errorf("TRUSTGROUP INVARIANT FAILED: expected member %s key envelope, got missing in read-back (membership rolled back)", vaultID)
-		}
-	}
-
-	if keyring != nil && a.Vault != nil && a.Vault.KeyringService != nil {
-		_ = a.Vault.KeyringService.SaveHybrid(keyring, claims.UserID, pass, secret)
-	}
-
-	return updatedTg, nil
 }
 
 // RemoveTrustGroupMember removes/revokes a member from a trust group.
@@ -4342,7 +4570,13 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, ref)
 }
 
-func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string, wrappedDEK string, kekVersion uint64) (*tracecore_types.ShareEntryRefDTO, error) {
+func (a *App) CreateCollaborativeShare(
+	JwtToken string,
+	threadID string,
+	trustGroupID string,
+	assetCID string,
+	notes string,
+) (*tracecore_types.ShareEntryRefDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -4350,65 +4584,223 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
-
-	// Resolve storage identity context via classical production providers
-	var vaultName string
-	if a.Vault != nil && a.Vault.VaultRepository != nil {
-		vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
-		if err == nil && vault != nil {
-			vaultName = vault.Name
-		}
+	if a.Vault == nil || a.Vault.VaultRepository == nil {
+		return nil, fmt.Errorf("vault repository is not initialized")
 	}
-
-	if a.SubscriptionHandler != nil && a.tracecoreClient != nil {
-		sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
-		if err == nil && sub != nil {
-			userStorage := blockchain.NewCloudIPFSStorage(a.tracecoreClient, sub.UserID, vaultName)
-			a.CollaborationHandler.SetAssetStorage(userStorage)
-		}
+	if a.SubscriptionHandler == nil {
+		return nil, fmt.Errorf("subscription handler is not initialized")
 	}
-
-	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes, wrappedDEK, kekVersion)
-}
-
-func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
-	claims, err := a.RequireAuth(JwtToken)
-	if err != nil {
-		return nil, fmt.Errorf("unauthorized: %w", err)
-	}
-	if a.CollaborationHandler == nil {
-		return nil, fmt.Errorf("collaboration handler is not initialized")
-	}
-
-	var callerVaultID string
-	if a.Vault != nil && a.Vault.SessionManager != nil {
-		if session, err := a.Vault.GetSession(claims.UserID); err == nil && session != nil && session.Runtime != nil {
-			callerVaultID = session.Runtime.VaultID
-		}
-	}
-	if callerVaultID == "" {
-		callerVaultID = claims.UserID
-	}
-
-	fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare callerIdentityID=%s callerVaultID=%s shareEntryID=%s\n", claims.UserID, callerVaultID, shareEntryID)
 
 	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
-	if err == nil && vault != nil {
-		sub, errSub := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
-		if errSub == nil && sub != nil {
-			userStorage := blockchain.NewCloudIPFSStorage(a.tracecoreClient, sub.UserID, vault.Name)
-			assetResolver := collaboration_infra.NewCloudAssetContentResolverWithStorage(userStorage)
-			a.CollaborationHandler.SetAssetResolver(assetResolver)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("resolve user vault: %w", err)
+	}
+	if vault == nil {
+		return nil, fmt.Errorf("no vault found for user %s", claims.UserID)
 	}
 
-	resp, err := a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, callerVaultID, shareEntryID)
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(
+		a.ctx,
+		claims.Email,
+	)
 	if err != nil {
-		fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed shareEntryID=%s err=%v\n", shareEntryID, err)
-	} else {
-		fmt.Printf("[C3-FORENSIC][03] (*App).ResolveCollaborativeShare succeeded shareEntryID=%s trustGroupID=%s\n", shareEntryID, resp.TrustGroupID)
+		return nil, fmt.Errorf("resolve user subscription: %w", err)
 	}
-	return resp, err
+	if sub == nil || sub.UserID == "" {
+		return nil, fmt.Errorf("user subscription has no cloud user ID")
+	}
+
+	userStorage := blockchain.NewCloudIPFSStorage(
+		a.tracecoreClient,
+		sub.UserID,
+		vault.Name,
+	)
+
+	assetResolver := collaboration_infra.NewCloudAssetContentResolverWithStorage(
+		userStorage,
+	)
+
+	a.CollaborationHandler.SetAssetStorage(userStorage)
+	a.CollaborationHandler.SetAssetResolver(assetResolver)
+
+
+	// -------------------------------------------------------------------------
+	// User config
+	// -------------------------------------------------------------------------
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	stellarAccount := userConfig.StellarAccount
+
+
+	return a.CollaborationHandler.CreateCollaborativeShare(
+		a.ctx,
+		claims.UserID,
+		threadID,
+		trustGroupID,
+		assetCID,
+		notes,
+		"password",
+		stellarAccount.PrivateKey,
+	)
+}
+
+func (a *App) ResolveCollaborativeShare(
+	JwtToken string,
+	shareEntryID string,
+) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+
+	if a.CollaborationHandler == nil {
+		return nil, fmt.Errorf("collaboration handler is not initialized")
+	}
+
+	// -------------------------------------------------------------------------
+	// Resolve the CURRENT CALLER'S vault identity.
+	//
+	// claims.UserID identifies the authenticated user.
+	// TrustGroup.MemberCIDs contains vault/member IDs.
+	// They are not interchangeable.
+	// -------------------------------------------------------------------------
+	session, err := a.Vault.GetSession(claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve caller vault session: %w",
+			err,
+		)
+	}
+
+	if session == nil || session.Runtime == nil {
+		return nil, fmt.Errorf(
+			"caller vault session is not initialized: userID=%s",
+			claims.UserID,
+		)
+	}
+
+	callerVaultID := strings.TrimSpace(session.Runtime.VaultID)
+	if callerVaultID == "" {
+		return nil, fmt.Errorf(
+			"caller vault ID is empty: userID=%s",
+			claims.UserID,
+		)
+	}
+
+	fmt.Printf(
+		"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare callerIdentityID=%s callerVaultID=%s shareEntryID=%s\n",
+		claims.UserID,
+		callerVaultID,
+		shareEntryID,
+	)
+
+	// -------------------------------------------------------------------------
+	// Resolve asset storage for the authenticated user's vault.
+	// -------------------------------------------------------------------------
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if vault == nil {
+		return nil, fmt.Errorf(
+			"vault not found for userID=%s",
+			claims.UserID,
+		)
+	}
+
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(
+		context.Background(),
+		claims.Email,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if sub != nil {
+		userStorage := blockchain.NewCloudIPFSStorage(
+			a.tracecoreClient,
+			sub.UserID,
+			vault.Name,
+		)
+
+		assetResolver :=
+			collaboration_infra.NewCloudAssetContentResolverWithStorage(
+				userStorage,
+			)
+
+		a.CollaborationHandler.SetAssetResolver(assetResolver)
+	}
+
+	// -------------------------------------------------------------------------
+	// User config
+	// -------------------------------------------------------------------------
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	stellarAccount := userConfig.StellarAccount
+
+	// -------------------------------------------------------------------------
+	// Application config
+	// -------------------------------------------------------------------------
+	config, err := a.GetConfig(vault.Name, JwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Get sstellar masterkey ==============================
+	getFileReq := vault_dto.GetFileFromIPFSRequest{
+		UserID:       claims.UserID,
+		Vault:        *vault,
+		CID:          "",
+		Password:     "password",
+		PrivateKey:   userConfig.StellarAccount.PrivateKey,
+		EncryptedKey: "",
+		SymKey:       nil,
+		Configs:      config,
+		IsShared:     true,
+	}
+
+	// -------------------------------------------------------------------------
+	// Resolve collaborative share
+	// -------------------------------------------------------------------------
+	resp, err := a.CollaborationHandler.ResolveCollaborativeShare(
+		a.ctx,
+		claims.UserID, // caller identity
+		callerVaultID, // caller vault/member ID
+		shareEntryID,
+		stellarAccount,
+		getFileReq,
+	)
+
+	if err != nil {
+		fmt.Printf(
+			"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed "+
+				"identityID=%s vaultID=%s shareEntryID=%s err=%v\n",
+			claims.UserID,
+			callerVaultID,
+			shareEntryID,
+			err,
+		)
+		return nil, err
+	}
+
+	fmt.Printf(
+		"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare succeeded "+
+			"identityID=%s vaultID=%s shareEntryID=%s trustGroupID=%s\n",
+		claims.UserID,
+		callerVaultID,
+		shareEntryID,
+		resp.TrustGroupID,
+	)
+
+	return resp, nil
 }
 
 func (a *App) GetShareEntry(JwtToken string, shareEntryID string) (*c3_asset_domain.ShareEntry, error) {

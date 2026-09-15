@@ -313,7 +313,7 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 	encHash := sha256.Sum256(retrievedEncryptedBytes)
 
 	// 5. Execute ResolveCollaborativeShareUseCase for User B passing real appended ThreadID and EventID
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
 	resolved, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     persistedShareEntry.ID,
 		CallerVaultID:    userBobID,
@@ -391,7 +391,7 @@ func TestC3_SecurityNegatives_NonMember_Denied(t *testing.T) {
 		MemberCIDs: []string{"vault_alice"},
 	}
 
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
 	_, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_charlie_non_member",
@@ -430,7 +430,7 @@ func TestC3_SecurityNegatives_RevokedShare_Denied(t *testing.T) {
 		MemberCIDs: []string{"vault_alice"},
 	}
 
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
 	_, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_alice",
@@ -511,7 +511,7 @@ func TestResolveCollaborativeShare_UsesVaultIDForMembershipAndIdentityIDForKeyRe
 	}
 	repo.groups[trustGroupID] = &trustGroup
 
-	uc := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator)
+	uc := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
 
 	req := collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     shareEntry.ID,

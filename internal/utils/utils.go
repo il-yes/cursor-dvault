@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -47,3 +49,8 @@ func mapToStruct(input map[string]interface{}, out any) error {
 }
 
 type JSONMapAny map[string]any
+
+func FingerprintKey(key []byte) string {
+    sum := sha256.Sum256(key)
+    return hex.EncodeToString(sum[:8])
+}

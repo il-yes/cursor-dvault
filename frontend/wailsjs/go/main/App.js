@@ -122,8 +122,8 @@ export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, ar
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
-export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function CreateFolder(arg1, arg2) {
@@ -150,8 +150,8 @@ export function CreateTransfer(arg1, arg2) {
   return window['go']['main']['App']['CreateTransfer'](arg1, arg2);
 }
 
-export function CreateTrustGroup(arg1, arg2, arg3) {
-  return window['go']['main']['App']['CreateTrustGroup'](arg1, arg2, arg3);
+export function CreateTrustGroup(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CreateTrustGroup'](arg1, arg2, arg3, arg4);
 }
 
 export function CreateWorkspace(arg1, arg2, arg3, arg4) {
@@ -428,6 +428,10 @@ export function OpenURL(arg1) {
 
 export function PollPaymentStatus(arg1, arg2, arg3) {
   return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2, arg3);
+}
+
+export function PostIPFSEntry(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PostIPFSEntry'](arg1, arg2, arg3, arg4);
 }
 
 export function ProcessEncryptedPayment(arg1) {

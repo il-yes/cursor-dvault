@@ -8,15 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stellar/go/keypair"
-
-	blockchain "vault-app/internal/blockchain"
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
 	collaboration_ports "vault-app/internal/collaboration/application/ports"
-	tracecore_types "vault-app/internal/tracecore/types"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
+	"vault-app/internal/utils"
 )
 
 var (
@@ -33,6 +30,7 @@ type ResolveCollaborativeShareUseCase struct {
 	assetResolver      collaboration_ports.AssetContentResolver
 	identityResolver   collaboration_ports.SovereignIdentityResolver
 	cryptoOrchestrator *trustgroup_orchestrator.TrustGroupCryptoOrchestrator
+	ipfsFileResolver   collaboration_ports.IPFSFileResolverInterface
 }
 
 func NewResolveCollaborativeShareUseCase(
@@ -41,6 +39,7 @@ func NewResolveCollaborativeShareUseCase(
 	assetResolver collaboration_ports.AssetContentResolver,
 	identityResolver collaboration_ports.SovereignIdentityResolver,
 	cryptoOrchestrator *trustgroup_orchestrator.TrustGroupCryptoOrchestrator,
+	ipfsFileResolver collaboration_ports.IPFSFileResolverInterface,
 ) *ResolveCollaborativeShareUseCase {
 	return &ResolveCollaborativeShareUseCase{
 		shareEntryRepo:     shareEntryRepo,
@@ -48,6 +47,7 @@ func NewResolveCollaborativeShareUseCase(
 		assetResolver:      assetResolver,
 		identityResolver:   identityResolver,
 		cryptoOrchestrator: cryptoOrchestrator,
+		ipfsFileResolver:   ipfsFileResolver,
 	}
 }
 
@@ -84,10 +84,12 @@ func (u *ResolveCollaborativeShareUseCase) ValidateRequest(req collaboration_dto
 	return nil
 }
 
+
 func (u *ResolveCollaborativeShareUseCase) Execute(
 	ctx context.Context,
 	req collaboration_dtos.ResolveCollaborativeShareRequest,
 ) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+
 	if err := u.ValidateDependencies(); err != nil {
 		return nil, err
 	}
@@ -96,19 +98,14 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		return nil, err
 	}
 
-	// Resolve caller identity context once.
-	if req.CallerIdentityID == "" {
-		req.CallerIdentityID = req.CallerUserID
-	}
+	fmt.Printf(
+		"[C3][READ][01] start shareEntryID=%s callerIdentityID=%s callerVaultID=%s\n",
+		req.ShareEntryID,
+		req.CallerIdentityID,
+		req.CallerVaultID,
+	)
 
-	if req.CallerVaultID == "" {
-		req.CallerVaultID = req.CallerUserID
-	}
-
-	// -------------------------------------------------------------------------
 	// 1. Load ShareEntry
-	// -------------------------------------------------------------------------
-
 	shareResp, err := u.shareEntryRepo.GetShareEntry(
 		ctx,
 		&c3_asset_domain.GetShareEntryRequest{
@@ -119,20 +116,31 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		return nil, fmt.Errorf("failed to fetch share entry: %w", err)
 	}
 
-	if shareResp == nil || shareResp.Data.ID == "" {
+	if shareResp == nil {
+		return nil, fmt.Errorf("failed to fetch share entry: repository returned nil response")
+	}
+
+	if shareResp.Data.ID == "" {
 		return nil, ErrShareEntryNotFound
 	}
 
 	shareEntry := shareResp.Data
 
+	fmt.Printf(
+		"[C3][READ][02] share entry loaded id=%s trustGroupID=%s assetCID=%s kekVersion=%d wrappedDEK=%t status=%s\n",
+		shareEntry.ID,
+		shareEntry.TrustGroupID,
+		shareEntry.AssetCID,
+		shareEntry.KEKVersion,
+		shareEntry.WrappedDEK != "",
+		shareEntry.Status,
+	)
+
 	if shareEntry.Status == c3_asset_domain.ShareEntryStatusRevoked {
 		return nil, ErrShareEntryRevoked
 	}
 
-	// -------------------------------------------------------------------------
 	// 2. Load TrustGroup
-	// -------------------------------------------------------------------------
-
 	tgResp, err := u.trustGroupRepo.GetTrustGroup(
 		ctx,
 		&trustgroup_domain.GetTrustGroupRequest{
@@ -143,225 +151,162 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		return nil, fmt.Errorf("failed to fetch trust group: %w", err)
 	}
 
-	if tgResp == nil || tgResp.Data.ID == "" {
+	if tgResp == nil {
+		return nil, fmt.Errorf("failed to fetch trust group: repository returned nil response")
+	}
+
+	if tgResp.Data.ID == "" {
 		return nil, ErrTrustGroupNotFound
 	}
 
 	trustGroup := tgResp.Data
 
-	// -------------------------------------------------------------------------
-	// 3. Authorize caller by VaultID
-	// -------------------------------------------------------------------------
+	fmt.Printf(
+		"[C3][READ][03] trust group loaded id=%s members=%d envelopes=%d kekVersion=%d\n",
+		trustGroup.ID,
+		len(trustGroup.MemberCIDs),
+		len(trustGroup.KeyEnvelopes),
+		trustGroup.KEKVersion,
+	)
 
+	// 3. Authorize caller
 	if !trustGroup.HasMember(req.CallerVaultID) {
 		return nil, ErrUnauthorizedMember
 	}
 
-	// -------------------------------------------------------------------------
-	// 4. Resolve identity-level TrustGroup key envelope
-	//
-	// DeviceID is deliberately NOT part of this flow.
-	// The envelope belongs to the TrustGroup member (VaultID).
-	// -------------------------------------------------------------------------
+	utils.LogPretty("[C3][READ][04] caller authorized", map[string]any{
+		"callerVaultID": req.CallerVaultID,
+		"trustGroupID":  trustGroup.ID,
+	})
 
-	activeEnvelope := resolveActiveTrustGroupEnvelope(
+	// 4. Resolve caller's envelope
+	envelope := resolveActiveTrustGroupEnvelope(
 		trustGroup.KeyEnvelopes,
 		req.CallerVaultID,
 		shareEntry.KEKVersion,
 	)
 
-	if activeEnvelope == nil {
+	utils.LogPretty("[C3][READ][05] envelope resolved", map[string]any{
+		"envelopeNil":     envelope == nil,
+		"callerVaultID":   req.CallerVaultID,
+		"shareKEKVersion": shareEntry.KEKVersion,
+	})
+
+	if envelope == nil {
 		return nil, ErrKeyEnvelopeNotFound
 	}
 
-	// -------------------------------------------------------------------------
-	// 5. Resolve caller key material
-	//
-	// The identity key is the cryptographic key used to unwrap the envelope.
-	// -------------------------------------------------------------------------
-
-	deviceSeed, err := u.identityResolver.GetDeviceSeed(
-		ctx,
-		req.CallerIdentityID,
-	)
-	if err != nil {
-		deviceSeed, err = u.identityResolver.GetDeviceSeed(
-			ctx,
-			req.CallerVaultID,
+	if envelope.WrappedKEK == "" {
+		return nil, fmt.Errorf(
+			"resolved key envelope has empty WrappedKEK: memberID=%s kekVersion=%d",
+			envelope.MemberID,
+			envelope.KEKVersion,
 		)
 	}
+
+	utils.LogPretty("[C3][READ][05B] envelope usable", map[string]any{
+		"memberID":    envelope.MemberID,
+		"kekVersion":  envelope.KEKVersion,
+		"wrappedKEK":  true,
+		"envelopeID":  envelope.ID,
+	})
+
+	// 5. Retrieve encrypted asset
+	fmt.Printf(
+		"[C3][READ][06] retrieving encrypted asset cid=%s\n",
+		shareEntry.AssetCID,
+	)
+
+	req.GetIPFSFile.CID = shareEntry.AssetCID
+
+	encryptedPayload, err := u.ipfsFileResolver.GetFileFromIPFS(
+		context.Background(),
+		req.GetIPFSFile,
+	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to resolve caller key material for identity %s: %w",
-			req.CallerIdentityID,
+			"failed to retrieve encrypted asset: %w",
 			err,
 		)
 	}
 
-	keyring, err := u.identityResolver.GetVaultKeyring(
-		ctx,
+	fmt.Printf(
+		"[C3][READ][07] encrypted asset retrieved bytes=%d\n",
+		len(encryptedPayload),
+	)
+
+	// 6. Resolve existing caller keyring - I'M NOT SURE IT'S CORRECT
+	fmt.Printf(
+		"[C3][READ][08] resolving caller keyring identityID=%s\n",
 		req.CallerIdentityID,
 	)
-	if err != nil {
-		keyring, err = u.identityResolver.GetVaultKeyring(
-			ctx,
-			req.CallerVaultID,
-		)
-	}
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to resolve caller keyring for identity %s: %w",
-			req.CallerIdentityID,
-			err,
-		)
-	}
 
-	// -------------------------------------------------------------------------
-	// 6. Authenticate caller
-	// -------------------------------------------------------------------------
 
-	pubKey := req.CallerIdentityID
 
-	if kp, err := keypair.ParseFull(deviceSeed); err == nil && kp != nil {
-		pubKey = kp.Address()
-	}
-
-	challenge := blockchain.GenerateChallenge(pubKey)
-
-	signature, err := blockchain.SignActorWithStellarPrivateKey(
-		deviceSeed,
-		challenge,
+	fmt.Printf(
+		"[C3][READ][09] caller keyring resolved identityID=%s\n",
+		req.CallerIdentityID,
 	)
+
+	// 7. Decode wrapped DEK
+	fmt.Printf(
+		"[C3][READ][10] decoding wrapped DEK shareEntryID=%s\n",
+		shareEntry.ID,
+	)
+
+	wrappedDEK, err := base64.StdEncoding.DecodeString(shareEntry.WrappedDEK)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign access challenge: %w", err)
+		return nil, fmt.Errorf("failed to decode wrapped DEK: %w", err)
+	}
+	utils.LogPretty("ResolveCollaborativeShareUseCase - wrappedDEK", utils.FingerprintKey(wrappedDEK))
+
+	if len(wrappedDEK) == 0 {
+		return nil, fmt.Errorf("failed to decode wrapped DEK: decoded value is empty")
 	}
 
-	// -------------------------------------------------------------------------
-	// 7. Request encrypted material from Cloud
-	// -------------------------------------------------------------------------
+	fmt.Printf(
+		"[C3][READ][11] wrapped DEK decoded bytes=%d\n",
+		len(wrappedDEK),
+	)
 
-	threadID := req.ThreadID
-	if threadID == "" && shareEntry.Metadata != nil {
-		threadID = shareEntry.Metadata["thread_id"]
-		if threadID == "" {
-			threadID = shareEntry.Metadata["threadID"]
-		}
-	}
-
-	eventID := req.EventID
-	if eventID == "" && shareEntry.Metadata != nil {
-		eventID = shareEntry.Metadata["event_id"]
-		if eventID == "" {
-			eventID = shareEntry.Metadata["eventID"]
-		}
-	}
-
-	sourceVaultID := shareEntry.CreatedBy
-	if sourceVaultID == "" {
-		sourceVaultID = req.CallerVaultID
-	}
-
-	var encryptedData []byte
-	var encryptedKey string
-
-	if accessGate, ok := u.assetResolver.(collaboration_ports.ThreadDataAccessGate); ok && accessGate != nil {
-		response, err := accessGate.AccessThreadData(
-			ctx,
-			tracecore_types.ThreadDataAccessRequest{
-				ThreadID:          threadID,
-				EventID:           eventID,
-				RequestingVaultID: req.CallerVaultID,
-				Challenge:         challenge,
-				Signature:         signature,
-				TrustGroupID:      shareEntry.TrustGroupID,
-				SourceVaultID:     sourceVaultID,
-			},
-		)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"cloud authorization failed: %w",
-				err,
-			)
-		}
-
-		if response != nil {
-			encryptedKey = response.EncryptedKey
-
-			if response.EncryptedPayload != "" {
-				decoded, err := base64.StdEncoding.DecodeString(
-					response.EncryptedPayload,
-				)
-				if err == nil && len(decoded) > 0 {
-					encryptedData = decoded
-				} else {
-					encryptedData = []byte(response.EncryptedPayload)
-				}
-			}
-		}
-	}
-
-	// Test/local fallback.
-	if len(encryptedData) == 0 && u.assetResolver != nil {
-		encryptedData, err = u.assetResolver.FetchEncryptedAsset(
-			ctx,
-			shareEntry.AssetCID,
-		)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"failed to fetch asset content: %w",
-				err,
-			)
-		}
-	}
-
-	if len(encryptedData) == 0 {
-		return nil, errors.New(
-			"cloud access gate returned no encrypted asset payload",
-		)
-	}
-
-	// -------------------------------------------------------------------------
-	// 8. Resolve Wrapped DEK
-	// -------------------------------------------------------------------------
-
-	dekSource := encryptedKey
-	if dekSource == "" {
-		dekSource = shareEntry.WrappedDEK
-	}
-
-	wrappedDEK, err := base64.StdEncoding.DecodeString(dekSource)
-	if err != nil || len(wrappedDEK) == 0 {
-		wrappedDEK = []byte(dekSource)
-	}
-
-	// -------------------------------------------------------------------------
-	// 9. Decrypt locally
-	// -------------------------------------------------------------------------
+	// 8. Resolve collaborative asset
+	fmt.Printf(
+		"[C3][READ][12] resolving collaborative asset memberID=%s kekVersion=%d\n",
+		envelope.MemberID,
+		envelope.KEKVersion,
+	)
 
 	cryptoResult, err := u.cryptoOrchestrator.ResolveCollaborativeAsset(
 		ctx,
 		trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
 			AssetID:       shareEntry.ID,
 			TrustGroupID:  shareEntry.TrustGroupID,
-			KEKVersion:    shareEntry.KEKVersion,
-			EncryptedData: encryptedData,
+			KEKVersion:    int(shareEntry.KEKVersion),
+			EncryptedData: []byte(encryptedPayload),
 			WrappedDEK:    wrappedDEK,
-			WrappedKEK:    activeEnvelope.WrappedKEK,
-			DeviceSeed:    deviceSeed,
-			Keyring:       keyring,
+			WrappedKEK:    envelope.WrappedKEK,
+			PrivateKey:    req.StellarAccount.PrivateKey,
 		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"cryptographic resolution failed: %w",
+			"failed to resolve collaborative asset: %w",
 			err,
 		)
 	}
 
-	// -------------------------------------------------------------------------
-	// 10. Return plaintext
-	// -------------------------------------------------------------------------
+	if cryptoResult == nil {
+		return nil, fmt.Errorf(
+			"failed to resolve collaborative asset: crypto orchestrator returned nil result",
+		)
+	}
 
+	fmt.Printf(
+		"[C3][READ][13] collaborative asset resolved plaintextBytes=%d\n",
+		len(cryptoResult.Plaintext),
+	)
+
+	// 9. Return plaintext
 	return &collaboration_dtos.ResolveCollaborativeShareResponse{
 		ShareEntryID: shareEntry.ID,
 		TrustGroupID: shareEntry.TrustGroupID,
@@ -370,6 +315,15 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		Metadata:     shareEntry.Metadata,
 		Plaintext:    cryptoResult.Plaintext,
 	}, nil
+}
+
+func decodeWrappedValue(value string) []byte {
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	if err == nil && len(decoded) > 0 {
+		return decoded
+	}
+
+	return []byte(value)
 }
 
 func resolveActiveTrustGroupEnvelope(

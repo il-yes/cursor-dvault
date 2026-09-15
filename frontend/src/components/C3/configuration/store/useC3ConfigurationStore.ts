@@ -142,6 +142,7 @@ interface C3ConfigurationState {
     name: string;
     description?: string;
     initialMembers?: string[];
+    vaultName?: string;
   }) => Promise<C3TrustGroupSummary>;
   updateTrustGroup: (payload: {
     id: string;
@@ -592,7 +593,7 @@ export const useC3ConfigurationStore = create<C3ConfigurationState>((set, get) =
     }
   },
 
-  createTrustGroup: async ({ name, description }) => {
+  createTrustGroup: async ({ name, description, vaultName }) => {
     set({ isLoading: true, error: null });
     try {
       const activeWsId = useC3WorkspaceStore.getState().activeWorkspaceId || useC3WorkspaceStore.getState().activeWorkspace?.id;
@@ -601,7 +602,7 @@ export const useC3ConfigurationStore = create<C3ConfigurationState>((set, get) =
       if (!workspaceId) {
         throw new Error("Cannot create Trust Group: no active workspace selected.");
       }
-      const res = await createTrustGroupApi(name.trim(), workspaceId);
+      const res = await createTrustGroupApi(name.trim(), workspaceId, vaultName);
       const tgData = res?.data || res?.Data || res;
 
       const newId = tgData?.id || tgData?.ID || `tg_${Math.random().toString(36).substring(2, 10)}`;

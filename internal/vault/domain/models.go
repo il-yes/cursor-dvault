@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -129,10 +130,9 @@ type VaultPayload struct {
 	Version string `json:"version"`
 	Name    string `json:"name"`
 	BaseVaultContent
-	Personal BaseVaultContent
+	Personal      BaseVaultContent
 	Collaborative C3VaultContent
 }
-
 
 func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 	var vp VaultPayload
@@ -153,8 +153,8 @@ func InitEmptyVaultPayload(name string, version string) *VaultPayload {
 }
 func (v *VaultPayload) InitIndex() {
 	v.Personal.Index = Index{
-		ByType:       make(map[string][]Link),
-		ByFolder:     make(map[string][]Link),
+		ByType:   make(map[string][]Link),
+		ByFolder: make(map[string][]Link),
 	}
 }
 func (v *VaultPayload) InitFolders() {
@@ -782,6 +782,134 @@ func (v *VaultPayload) DeleteEntryAttachment(
 	return nil
 }
 
+func (v *BaseVaultContent) GetEntry(id string, typeName string) VaultEntry {
+	entries := v.GetEntriesByType(typeName)
+
+	for _, entry := range entries {
+		if entry.GetId() == id {
+			return entry
+		}
+	}
+	return nil
+}
+
+func (v *BaseVaultContent) GetEntriesByType(entryType string) []VaultEntry {
+	var results []VaultEntry
+	switch entryType {
+	case "login":
+		for _, e := range v.Entries.Login {
+			results = append(results, e)
+		}
+	case "identity":
+		for _, e := range v.Entries.Identity {
+			results = append(results, e)
+		}
+	case "note":
+		for _, e := range v.Entries.Note {
+			results = append(results, e)
+		}
+	case "card":
+		for _, e := range v.Entries.Card {
+			results = append(results, e)
+		}
+	case "sshkey":
+		for _, e := range v.Entries.SSHKey {
+			results = append(results, e)
+		}
+	}
+	return results
+}
+func (v *BaseVaultContent) GetEntryContentBytes(id string, entryType string) ([]byte, error) {
+	switch strings.ToLower(entryType) {
+	case "login":
+		return marshalEntryByID(v.Entries.Login, id)
+
+	case "card":
+		return marshalEntryByID(v.Entries.Card, id)
+
+	case "identity":
+		return marshalEntryByID(v.Entries.Identity, id)
+
+	case "note":
+		return marshalEntryByID(v.Entries.Note, id)
+
+	case "sshkey":
+		return marshalEntryByID(v.Entries.SSHKey, id)
+
+	default:
+		return nil, fmt.Errorf("unsupported entry type %q", entryType)
+	}
+}
+func marshalEntryByID[T VaultEntry](entries []T, id string) ([]byte, error) {
+	for _, entry := range entries {
+		if entry.GetId() == id {
+			return json.MarshalIndent(entry, "", "  ")
+		}
+	}
+
+	return nil, fmt.Errorf("entry %q not found", id)
+}
+func (v *BaseVaultContent) SetC3CID(entryID string, cid string) error {
+
+	findAndUpdate := func(entries interface{}) error {
+		switch xs := entries.(type) {
+		case []LoginEntry:
+			for i := range xs {
+				if xs[i].ID == entryID {
+					xs[i].C3_CID = cid
+				}
+			}
+		case []CardEntry:
+			for i := range xs {
+				if xs[i].ID == entryID {
+					xs[i].C3_CID = cid
+				}
+			}
+		case []IdentityEntry:
+			for i := range xs {
+				if xs[i].ID == entryID {
+					xs[i].C3_CID = cid
+				}
+			}
+		case []NoteEntry:
+			for i := range xs {
+				if xs[i].ID == entryID {
+					xs[i].C3_CID = cid
+				}
+			}
+		case []SSHKeyEntry:
+			for i := range xs {
+				if xs[i].ID == entryID {
+					xs[i].C3_CID = cid
+				}
+			}
+		}
+		return errors.New("entry not found")
+	}
+
+	err := findAndUpdate(v.Entries.Login)
+	if err == nil {
+		return nil
+	}
+	err = findAndUpdate(v.Entries.Card)
+	if err == nil {
+		return nil
+	}
+	err = findAndUpdate(v.Entries.Identity)
+	if err == nil {
+		return nil
+	}
+	err = findAndUpdate(v.Entries.Note)
+	if err == nil {
+		return nil
+	}
+	err = findAndUpdate(v.Entries.SSHKey)
+	if err == nil {
+		return nil
+	}
+	return nil
+}
+
 // ==============================================================================
 // VaultEntry Interface
 // ==============================================================================
@@ -831,7 +959,8 @@ type BaseEntry struct {
 	Attachments []Attachment `json:"attachments,omitempty" gorm:"foreignKey:EntryID"`
 
 	// New
-	KeyVersion int // ← during rotation 👉 You must know which key to use.
+	KeyVersion int    // ← during rotation 👉 You must know which key to use.
+	C3_CID     string `json:"c3_cid" gorm:"varchar(100)"`
 }
 
 func ParseAndUpdateCIDs(attachments []Attachment, cids []string, atts []string) bool {
@@ -1064,24 +1193,24 @@ type VaultMeta struct {
 // ==============================================================================
 type VaultNode struct {
 	Type        string `json:"Type"`
-	Version     string`json:"Version"`
-	Folders     Link `json:"folders"`
-	Entries     Link `json:"entries"`
-	Index       Link	`json:"index"`
-	Attachments Link `json:"attachments"`
+	Version     string `json:"Version"`
+	Folders     Link   `json:"folders"`
+	Entries     Link   `json:"entries"`
+	Index       Link   `json:"index"`
+	Attachments Link   `json:"attachments"`
 }
 type VaultNodeBeta struct {
-    Type          string `json:"Type"`
-    Version       string `json:"Version"`
-    Personal      Link   `json:"Personal"`
-    Collaborative Link   `json:"Collaborative"`
+	Type          string `json:"Type"`
+	Version       string `json:"Version"`
+	Personal      Link   `json:"Personal"`
+	Collaborative Link   `json:"Collaborative"`
 }
 type PersonalNode struct {
-    Version string	`json:"version"`
-    Entries Link	`json:"entries"`
-    Folders Link	`json:"folders"`
-    Attachments Link	`json:"attachments"`
-    Index Link	`json:"index"`
+	Version     string `json:"version"`
+	Entries     Link   `json:"entries"`
+	Folders     Link   `json:"folders"`
+	Attachments Link   `json:"attachments"`
+	Index       Link   `json:"index"`
 }
 
 func (v *VaultNode) ParseVaultNode(decrypted []byte) VaultNode {
@@ -1105,15 +1234,12 @@ func (s *VaultNode) ToBytes() []byte {
 	return raw
 }
 
-
 // GetPersonal
 func (v *VaultNode) GetPersonal() {
 
 }
 
 // GetCollaborative
-
-
 
 // ==============================================================================
 // AttachmentNode
@@ -1222,7 +1348,6 @@ func (kr *VaultKeyring) GetTrustGroupKEK(trustGroupID string, version uint64) *E
 	}
 	return nil
 }
-
 
 type JSONMapAny map[string]any
 

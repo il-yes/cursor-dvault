@@ -60,10 +60,7 @@ type BuildResponse struct {
 	Attachments []vaults_domain.Attachment
 }
 
-func (s *EntrySnapshotService) Build(
-	ctx context.Context,
-	req BuildRequest,
-) (BuildResponse, error) {
+func (s *EntrySnapshotService) Build(ctx context.Context, req BuildRequest) (BuildResponse, error) {
 	// 1. Process attachments under the given context
 	updatedSnapshot, attachments, err := s.Process(ctx, req)
 	if err != nil {

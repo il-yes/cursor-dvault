@@ -1353,6 +1353,13 @@ export const uploadToCloud = async (jwtToken: string, fileData: string): Promise
 	return "";
 };
 
+
+export const postIPFSEntry = async (jwtToken: string, entryID: string, entryType: string, password: string): Promise<string> => {
+	const response = await AppAPI.PostIPFSEntry(jwtToken, entryID, entryType, password);
+	return response;
+};
+
+
 type StorageUsageResponse = {
 	used_gb: number;
 	quota_gb: number;
@@ -1688,7 +1695,7 @@ export async function listTrustGroups(workspaceId?: string): Promise<any[]> {
 	return await AppAPI.ListTrustGroups(jwtToken, workspaceId || '');
 }
 
-export async function createTrustGroup(name: string, workspaceId?: string): Promise<any> {
+export async function createTrustGroup(name: string, workspaceId?: string, vaultName?: string): Promise<any> {
 	if (!name) {
 		throw new Error('Trust Group name is required');
 	}
@@ -1696,7 +1703,7 @@ export async function createTrustGroup(name: string, workspaceId?: string): Prom
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
-	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId || '', name);
+	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId, name, vaultName);
 }
 
 export async function addTrustGroupMember(trustGroupId: string, vaultId: string, role?: string): Promise<any> {

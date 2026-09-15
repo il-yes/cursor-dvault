@@ -35,6 +35,7 @@ export const TrustGroupsTab: React.FC = () => {
   }
 
   const handleAddMember = async (groupId: string) => {
+    
     if (!newMemberName.trim()) return;
 
     setIsSubmitting(true);

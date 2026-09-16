@@ -630,7 +630,15 @@ Completed:
 * Created DTOs `CreateCollaborativeShareRequest` and `CreateCollaborativeShareResponse` in `internal/collaboration/application/dtos/dto.go`
 * Created `CreateCollaborativeShareUseCase` in `internal/collaboration/application/usecases/create_collaborative_share_usecase.go`
 * Integrated desktop crypto orchestration, CID payload reference generation, `ShareEntry` creation, and `TrustGroupKeyEnvelope` attachment
-* Verified end-to-end integration test (`encrypted payload → CID → ShareEntry → WrappedDEK → WrappedKEK → device decrypts original payload`) in `create_collaborative_share_test.go`
+* Verified end-to-end C3 collaborative share write and read workflow:
+  - `CreateCollaborativeShareUseCase` writes C3-encrypted assets with DEKs wrapped under TrustGroup KEK
+  - `App.PostIPFSEntry` with `IsShared: true` retrieves unencrypted source bytes in `PUBLIC_MODE`
+  - TrustGroup KEK resolved from creator's `VaultKeyring` using `TrustGroupID + KEKVersion`
+  - Member `TrustGroupKeyEnvelope` entries generated via member public key asymmetric encryption
+  - `ResolveCollaborativeShareUseCase` authorizes member, resolves active envelope, retrieves C3 asset CID, unwraps KEK via Stellar private key, unwraps DEK via KEK, and decrypts asset via DEK
+  - 958-byte application plaintext JSON successfully round-trips end-to-end
+  - Returned via Wails IPC to `desktopResourceService`, parsed in `C3ResourceCard`, and rendered with mask/reveal support in `ClassicalEntryRenderer`
+  - Cloud remains 100% Zero-Knowledge
 
 ---
 

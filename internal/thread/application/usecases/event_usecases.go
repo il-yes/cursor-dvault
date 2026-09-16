@@ -3,6 +3,8 @@ package thread_usecase
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	thread_domain "vault-app/internal/thread/domain"
 )
@@ -55,14 +57,32 @@ func (uc *AppendThreadEventUsecase) Execute(
 	payload thread_domain.EventResourceRef,
 	idempotencyKey ...string,
 ) (*thread_domain.ThreadEvent, error) {
+	fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute enter threadID=%s eventType=%s refType=%s shareEntryID=%s trustGroupID=%s\n", threadID, eventType, payload.RefType, payload.ShareEntryID, payload.TrustGroupID)
 	if uc.Repo == nil {
+		fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute error: repo nil\n")
 		return nil, errors.New("repository is required")
 	}
 	if threadID == "" {
+		fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute error: threadID empty\n")
 		return nil, errors.New("thread id is required")
 	}
 	if eventType == "" {
+		fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute error: eventType empty\n")
 		return nil, errors.New("event type is required")
+	}
+
+	if payload.RefType == thread_domain.ResourceShareEntry || (eventType == string(thread_domain.EventEntryShared) && payload.RefType != thread_domain.ResourceStorageAsset) {
+		if strings.TrimSpace(payload.ShareEntryID) == "" {
+			fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute error: entry.shared missing share_entry_id\n")
+			return nil, errors.New("entry.shared thread event requires a non-empty share_entry_id")
+		}
+		if strings.TrimSpace(payload.TrustGroupID) == "" {
+			fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute error: entry.shared missing trust_group_id\n")
+			return nil, errors.New("entry.shared thread event requires a non-empty trust_group_id")
+		}
+		if payload.RefType == "" {
+			payload.RefType = thread_domain.ResourceShareEntry
+		}
 	}
 
 	key := ""
@@ -72,6 +92,7 @@ func (uc *AppendThreadEventUsecase) Execute(
 		key = "evt_share_" + payload.ShareEntryID
 	}
 
+	fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute calling Repo.AppendThreadEvent key=%s\n", key)
 	resp, err := uc.Repo.AppendThreadEvent(ctx, &thread_domain.AppendThreadEventRequest{
 		ThreadID:       threadID,
 		EventType:      eventType,
@@ -79,11 +100,14 @@ func (uc *AppendThreadEventUsecase) Execute(
 		IdempotencyKey: key,
 	})
 	if err != nil {
+		fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute Repo.AppendThreadEvent error=%v\n", err)
 		return nil, err
 	}
 	if resp == nil {
+		fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute Repo.AppendThreadEvent returned nil\n")
 		return nil, errors.New("empty repository response")
 	}
 
+	fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute success eventID=%s\n", resp.Data.ID)
 	return &resp.Data, nil
 }

@@ -364,19 +364,22 @@ import { AppendThreadEventSlidingView } from "../../AppendThreadEventModal";
 import { useVaultStore } from "@/store/vaultStore";
 import { SharedEntryDetails } from "@/components/SharedEntryDetails";
 import { SharedEntry } from "@/types/sharing";
+import { getShareEntry, C3ShareEntryResponse } from "@/services/api";
+import { C3ResourceCard } from "@/components/C3/C3ResourceCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ParticipantsPanel } from "../channel/ParticipantsPanel";
+import { InvitationsPanel } from "../channel/InvitationsPanel";
 
 export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Channel | null, asset: ThreadAssetViewInterface, hasConflict: boolean }) {
     const hasC3Extension = true;
     const [isAppendOpen, setIsAppendOpen] = useState(false);
 
-    // Read-side Share Entry resolution state
-    const [selectedShareEntry, setSelectedShareEntry] = useState<SharedEntry | null>(null);
+    // Read-side C3 Share Entry resolution state
+    const [selectedC3ShareEntry, setSelectedC3ShareEntry] = useState<C3ShareEntryResponse | null>(null);
     const [isShareDetailsOpen, setIsShareDetailsOpen] = useState(false);
+    const [isResolvingC3Share, setIsResolvingC3Share] = useState(false);
     const [shareResolutionNotice, setShareResolutionNotice] = useState<string | null>(null);
 
-    const sharedWithMe = useVaultStore((state) => state.sharedWithMe?.items || []);
-    const sharedByMe = useVaultStore((state) => state.shared?.items || []);
     const updateRecipients = useVaultStore((state) => state.updateSharedEntryRecipients);
 
     const events = useC3ThreadEventStore((state) => state.events);
@@ -390,23 +393,27 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
         }
     }, [asset?.id, fetchEvents]);
 
-    const handleSeeShareEntry = (entryId: string) => {
+    const handleSeeShareEntry = async (entryId: string) => {
         setShareResolutionNotice(null);
         if (!entryId) {
-            setShareResolutionNotice("No Vault Entry / Share ID associated with this event.");
+            setShareResolutionNotice("Malformed event: 'entry.shared' missing authoritative share_entry_id.");
             return;
         }
 
-        const sessionShares = [...sharedWithMe, ...sharedByMe];
-        const found = sessionShares.find((s) => s.id === entryId || s.entry_name === entryId);
-
-        if (found) {
-            setSelectedShareEntry(found);
+        setIsResolvingC3Share(true);
+        try {
+            const shareEntry = await getShareEntry(entryId);
+            setSelectedC3ShareEntry(shareEntry);
             setIsShareDetailsOpen(true);
-        } else {
-            setShareResolutionNotice(`Share Entry "${entryId}" was not found in the current session context.`);
+        } catch (err: any) {
+            const errMsg = err?.message || String(err);
+            setShareResolutionNotice(`Failed to resolve C3 ShareEntry "${entryId}": ${errMsg}`);
+        } finally {
+            setIsResolvingC3Share(false);
         }
     };
+
+    events.length > 0 ? console.log(events) : null
 
     return (
         <div className="detail-panel">
@@ -461,9 +468,10 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                             {events.map((evt) => {
                                 const payload = (evt.payload || {}) as Record<string, any>;
-                                const shareEntryId = evt.share_entry_ref?.share_entry_id || payload.share_entry_id || payload.entry_id;
-                                const entryName = payload.entry_name || "Vault Entry";
-                                const entryType = payload.entry_type || payload.ref_type || "entry";
+                                const shareEntryId = evt.share_entry_ref?.share_entry_id || evt.resource_ref?.share_entry_id || payload.share_entry_id || payload.entry_id;
+                                const trustGroupId = evt.share_entry_ref?.trust_group_id || evt.resource_ref?.trust_group_id || payload.trust_group_id;
+                                const entryName = payload.entry_name || "C3 Share Entry";
+                                const entryType = payload.entry_type || payload.ref_type || evt.resource_ref?.ref_type || "share_entry";
                                 const notes = payload.notes;
 
                                 return (
@@ -495,30 +503,52 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
 
                                         {evt.type === "entry.shared" && (
                                             <div style={{ marginTop: "4px", padding: "8px 10px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "6px", color: "#166534", display: "flex", flexDirection: "column", gap: "4px" }}>
-                                                <div><strong>Referenced Entry:</strong> [{entryType.toUpperCase()}] {entryName}</div>
-                                                {shareEntryId && <div style={{ fontFamily: "monospace", fontSize: "11px" }}><strong>Entry ID:</strong> {shareEntryId}</div>}
-                                                {notes && <div style={{ fontSize: "11px", color: "#15803d", fontStyle: "italic" }}>"{notes}"</div>}
-                                                
-                                                <button
-                                                    onClick={() => handleSeeShareEntry(shareEntryId)}
-                                                    style={{
-                                                        marginTop: "4px",
-                                                        alignSelf: "flex-start",
-                                                        padding: "4px 10px",
-                                                        backgroundColor: "#C8922A",
-                                                        color: "#ffffff",
-                                                        border: "none",
-                                                        borderRadius: "4px",
-                                                        fontSize: "11px",
-                                                        fontWeight: 600,
-                                                        cursor: "pointer",
-                                                        display: "inline-flex",
-                                                        alignItems: "center",
-                                                        gap: "4px",
-                                                    }}
-                                                >
-                                                    👁 See Decrypted Entry
-                                                </button>
+                                                {!shareEntryId ? (
+                                                    <div style={{ color: "#dc2626", fontWeight: 600 }}>
+                                                        ⚠️ Malformed event: 'entry.shared' missing authoritative share_entry_id.
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div><strong>Referenced C3 Entry:</strong> [{entryType.toUpperCase()}] {entryName}</div>
+                                                        <div style={{ fontFamily: "monospace", fontSize: "11px" }}><strong>ShareEntry ID:</strong> {shareEntryId}</div>
+                                                        {trustGroupId && <div style={{ fontFamily: "monospace", fontSize: "11px" }}><strong>TrustGroup ID:</strong> {trustGroupId}</div>}
+                                                        {notes && <div style={{ fontSize: "11px", color: "#15803d", fontStyle: "italic" }}>"{notes}"</div>}
+                                                        
+                                                        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "4px" }}>
+                                                            <button
+                                                                onClick={() => handleSeeShareEntry(shareEntryId)}
+                                                                disabled={isResolvingC3Share}
+                                                                style={{
+                                                                    padding: "4px 10px",
+                                                                    backgroundColor: "#C8922A",
+                                                                    color: "#ffffff",
+                                                                    border: "none",
+                                                                    borderRadius: "4px",
+                                                                    fontSize: "11px",
+                                                                    fontWeight: 600,
+                                                                    cursor: isResolvingC3Share ? "wait" : "pointer",
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    gap: "4px",
+                                                                    opacity: isResolvingC3Share ? 0.7 : 1,
+                                                                }}
+                                                            >
+                                                                {isResolvingC3Share ? "⏳ Resolving ShareEntry…" : "👁 View C3 ShareEntry Metadata"}
+                                                            </button>
+                                                        </div>
+
+                                                        <div style={{ marginTop: "6px" }}>
+                                                            <C3ResourceCard
+                                                                refType="share_entry"
+                                                                shareEntryId={shareEntryId}
+                                                                trustGroupId={trustGroupId}
+                                                                cid={payload.asset_cid || payload.cid}
+                                                                author={payload.created_by}
+                                                                createdAt={evt.created_at}
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
 
@@ -536,21 +566,69 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                     )}
                 </div>
 
-                {/* SHARED ENTRY DECRYPTION DETAILS MODAL VIA RADIX DIALOG */}
-                <Dialog open={isShareDetailsOpen && !!selectedShareEntry} onOpenChange={(open) => !open && setIsShareDetailsOpen(false)}>
+                {/* C3 SHARE ENTRY METADATA DETAILS MODAL VIA RADIX DIALOG */}
+                <Dialog open={isShareDetailsOpen && !!selectedC3ShareEntry} onOpenChange={(open) => !open && setIsShareDetailsOpen(false)}>
                     <DialogContent className="sm:max-w-[640px] max-h-[90vh] p-0 overflow-hidden bg-background border border-border rounded-xl shadow-2xl">
                         <DialogHeader className="p-4 border-b border-border bg-muted/30 flex flex-row items-center justify-between space-y-0">
                             <DialogTitle className="text-sm font-bold text-foreground">
-                                Referenced Vault Entry
+                                Authoritative C3 ShareEntry Metadata
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="flex-1 overflow-y-auto p-4 max-h-[calc(90vh-60px)]">
-                            {selectedShareEntry && (
-                                <SharedEntryDetails
-                                    entry={selectedShareEntry}
-                                    view="metadata"
-                                    updateRecipients={updateRecipients}
-                                />
+                        <div className="flex-1 overflow-y-auto p-4 max-h-[calc(90vh-60px)] space-y-4">
+                            {selectedC3ShareEntry && (
+                                <div className="space-y-3 text-xs">
+                                    <div className="grid grid-cols-2 gap-3 p-3 bg-muted/20 border border-border rounded-lg">
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">ShareEntry ID</div>
+                                            <div className="font-mono text-foreground font-medium break-all">{selectedC3ShareEntry.id}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">TrustGroup ID</div>
+                                            <div className="font-mono text-foreground font-medium break-all">{selectedC3ShareEntry.trust_group_id}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">Status</div>
+                                            <div className="inline-block px-2 py-0.5 mt-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                                {selectedC3ShareEntry.status || "active"}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">Creator</div>
+                                            <div className="font-mono text-foreground">{selectedC3ShareEntry.created_by}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">KEK Version</div>
+                                            <div className="font-mono text-foreground">v{selectedC3ShareEntry.kek_version}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-muted-foreground font-semibold">Created At</div>
+                                            <div className="text-foreground">
+                                                {selectedC3ShareEntry.created_at ? new Date(selectedC3ShareEntry.created_at).toLocaleString() : "N/A"}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedC3ShareEntry.asset_cid && (
+                                        <div className="p-3 bg-muted/20 border border-border rounded-lg space-y-1">
+                                            <div className="text-muted-foreground font-semibold">Referenced Asset CID</div>
+                                            <div className="font-mono text-foreground break-all">{selectedC3ShareEntry.asset_cid}</div>
+                                        </div>
+                                    )}
+
+                                    {selectedC3ShareEntry.metadata && Object.keys(selectedC3ShareEntry.metadata).length > 0 && (
+                                        <div className="p-3 bg-muted/20 border border-border rounded-lg space-y-2">
+                                            <div className="text-muted-foreground font-semibold">Custom Metadata</div>
+                                            <div className="space-y-1">
+                                                {Object.entries(selectedC3ShareEntry.metadata).map(([k, v]) => (
+                                                    <div key={k} className="flex justify-between border-b border-border/40 pb-1">
+                                                        <span className="text-muted-foreground font-mono">{k}:</span>
+                                                        <span className="text-foreground font-mono">{v}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </DialogContent>
@@ -573,6 +651,29 @@ export function ThreadAssetView({ channel, asset, hasConflict }: { channel: Chan
                     {!hasC3Extension && <EmptyC3Extension />}
                     {hasC3Extension && <WithC3Extension />}
                 </div>}
+
+                {/* ACCESS & MEMBERSHIP (Add Participant vs Add Member) */}
+                {(asset?.channelId || channel?.id) && (
+                    <div className="dp-section">
+                        <div className="dp-section-title">
+                            Thread Access & Membership
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                            <div style={{ padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", backgroundColor: "#f9fafb" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1f2937", marginBottom: "6px" }}>
+                                    👤 Channel Participation ("Add Participant")
+                                </div>
+                                <ParticipantsPanel channelId={asset?.channelId || channel?.id || ""} />
+                            </div>
+                            <div style={{ padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", backgroundColor: "#f9fafb" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1f2937", marginBottom: "6px" }}>
+                                    🛡️ TrustGroup & Member Invitations ("Add Member")
+                                </div>
+                                <InvitationsPanel channelId={asset?.channelId || channel?.id || ""} />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ACTIONS */}

@@ -959,6 +959,62 @@ export namespace blockchain {
 
 }
 
+export namespace c3_asset_domain {
+	
+	export class ShareEntry {
+	    id: string;
+	    asset_cid: string;
+	    trust_group_id: string;
+	    wrapped_dek: string;
+	    kek_version: number;
+	    created_by: string;
+	    // Go type: time
+	    created_at: any;
+	    status: string;
+	    metadata: Record<string, string>;
+	    is_draft: boolean;
+	    is_dirty: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShareEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.asset_cid = source["asset_cid"];
+	        this.trust_group_id = source["trust_group_id"];
+	        this.wrapped_dek = source["wrapped_dek"];
+	        this.kek_version = source["kek_version"];
+	        this.created_by = source["created_by"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.status = source["status"];
+	        this.metadata = source["metadata"];
+	        this.is_draft = source["is_draft"];
+	        this.is_dirty = source["is_dirty"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace channel_domain {
 	
 	export class Assignment {
@@ -1626,16 +1682,19 @@ export namespace handlers {
 export namespace identity_domain {
 	
 	export class User {
-	    ID: string;
-	    Email: string;
-	    PasswordHash: string;
-	    IsAnonymous: boolean;
-	    Identity: string;
-	    StellarPublicKey: string;
+	    id: string;
+	    email: string;
+	    is_anonymous: boolean;
+	    identity: string;
+	    username: string;
+	    user_name?: string;
+	    first_name: string;
+	    last_name: string;
+	    stellar_public_key: string;
 	    // Go type: time
-	    CreatedAt: any;
+	    created_at: any;
 	    // Go type: time
-	    LastConnectedAt: any;
+	    last_connected_at: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -1643,14 +1702,17 @@ export namespace identity_domain {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Email = source["Email"];
-	        this.PasswordHash = source["PasswordHash"];
-	        this.IsAnonymous = source["IsAnonymous"];
-	        this.Identity = source["Identity"];
-	        this.StellarPublicKey = source["StellarPublicKey"];
-	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
-	        this.LastConnectedAt = this.convertValues(source["LastConnectedAt"], null);
+	        this.id = source["id"];
+	        this.email = source["email"];
+	        this.is_anonymous = source["is_anonymous"];
+	        this.identity = source["identity"];
+	        this.username = source["username"];
+	        this.user_name = source["user_name"];
+	        this.first_name = source["first_name"];
+	        this.last_name = source["last_name"];
+	        this.stellar_public_key = source["stellar_public_key"];
+	        this.created_at = this.convertValues(source["created_at"], null);
+	        this.last_connected_at = this.convertValues(source["last_connected_at"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2433,6 +2495,8 @@ export namespace onboarding_usecase {
 	    password?: string;
 	    is_anonymous: boolean;
 	    stellar_key?: string;
+	    public_key?: string;
+	    device_seed?: string;
 	    use_cases?: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -2445,6 +2509,8 @@ export namespace onboarding_usecase {
 	        this.password = source["password"];
 	        this.is_anonymous = source["is_anonymous"];
 	        this.stellar_key = source["stellar_key"];
+	        this.public_key = source["public_key"];
+	        this.device_seed = source["device_seed"];
 	        this.use_cases = source["use_cases"];
 	    }
 	}
@@ -2890,6 +2956,8 @@ export namespace share_entry_domain {
 	    // Go type: time
 	    shared_at: any;
 	    download_allowed: boolean;
+	    wrapped_dek?: string;
+	    kek_version?: number;
 	    recipients: Recipient[];
 	
 	    static createFrom(source: any = {}) {
@@ -2915,6 +2983,8 @@ export namespace share_entry_domain {
 	        this.updated_at = this.convertValues(source["updated_at"], null);
 	        this.shared_at = this.convertValues(source["shared_at"], null);
 	        this.download_allowed = source["download_allowed"];
+	        this.wrapped_dek = source["wrapped_dek"];
+	        this.kek_version = source["kek_version"];
 	        this.recipients = this.convertValues(source["recipients"], Recipient);
 	    }
 	
@@ -4398,7 +4468,7 @@ export namespace trustgroup_domain {
 	    id: string;
 	    trust_group_id: string;
 	    member_id: string;
-	    device_id: string;
+	    device_id?: string;
 	    kek_version: number;
 	    wrapped_kek: string;
 	    // Go type: time
@@ -4828,6 +4898,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    private_key: string;
 	    public_key: string;
 	    e_fingerprint: string;
@@ -4857,6 +4928,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.private_key = source["private_key"];
 	        this.public_key = source["public_key"];
 	        this.e_fingerprint = source["e_fingerprint"];
@@ -4900,6 +4972,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new NoteEntry(source);
@@ -4926,6 +4999,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -4966,6 +5040,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    genre?: string;
 	    firstname?: string;
 	    second_firstname?: string;
@@ -5010,6 +5085,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.genre = source["genre"];
 	        this.firstname = source["firstname"];
 	        this.second_firstname = source["second_firstname"];
@@ -5068,6 +5144,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    owner: string;
 	    number: string;
 	    expiration: string;
@@ -5102,6 +5179,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.owner = source["owner"];
 	        this.number = source["number"];
 	        this.expiration = source["expiration"];
@@ -5150,6 +5228,7 @@ export namespace vaults_domain {
 	    attachmentCIDs?: string[];
 	    attachments?: Attachment[];
 	    KeyVersion: number;
+	    c3_cid: string;
 	    user_name: string;
 	    password: string;
 	    web_site?: string;
@@ -5179,6 +5258,7 @@ export namespace vaults_domain {
 	        this.attachmentCIDs = source["attachmentCIDs"];
 	        this.attachments = this.convertValues(source["attachments"], Attachment);
 	        this.KeyVersion = source["KeyVersion"];
+	        this.c3_cid = source["c3_cid"];
 	        this.user_name = source["user_name"];
 	        this.password = source["password"];
 	        this.web_site = source["web_site"];

@@ -122,8 +122,8 @@ export function CreateChannel(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, ar
   return window['go']['main']['App']['CreateChannel'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 }
 
-export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
-  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function CreateFolder(arg1, arg2) {
@@ -150,8 +150,8 @@ export function CreateTransfer(arg1, arg2) {
   return window['go']['main']['App']['CreateTransfer'](arg1, arg2);
 }
 
-export function CreateTrustGroup(arg1, arg2, arg3) {
-  return window['go']['main']['App']['CreateTrustGroup'](arg1, arg2, arg3);
+export function CreateTrustGroup(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CreateTrustGroup'](arg1, arg2, arg3, arg4);
 }
 
 export function CreateWorkspace(arg1, arg2, arg3, arg4) {
@@ -270,6 +270,10 @@ export function GetSession(arg1) {
   return window['go']['main']['App']['GetSession'](arg1);
 }
 
+export function GetShareEntry(arg1, arg2) {
+  return window['go']['main']['App']['GetShareEntry'](arg1, arg2);
+}
+
 export function GetShareForAccept(arg1, arg2) {
   return window['go']['main']['App']['GetShareForAccept'](arg1, arg2);
 }
@@ -312,6 +316,10 @@ export function GetVaultFromCloud(arg1, arg2) {
 
 export function GetWorkspaceFederation(arg1, arg2) {
   return window['go']['main']['App']['GetWorkspaceFederation'](arg1, arg2);
+}
+
+export function HandleIncompleteDeviceConfigs(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HandleIncompleteDeviceConfigs'](arg1, arg2, arg3, arg4);
 }
 
 export function ImportVaultWithKey(arg1) {
@@ -422,8 +430,16 @@ export function PollPaymentStatus(arg1, arg2, arg3) {
   return window['go']['main']['App']['PollPaymentStatus'](arg1, arg2, arg3);
 }
 
+export function PostIPFSEntry(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PostIPFSEntry'](arg1, arg2, arg3, arg4);
+}
+
 export function ProcessEncryptedPayment(arg1) {
   return window['go']['main']['App']['ProcessEncryptedPayment'](arg1);
+}
+
+export function ProvisionTrustGroupDeviceEnvelope(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ProvisionTrustGroupDeviceEnvelope'](arg1, arg2, arg3);
 }
 
 export function ReactivateSubscription(arg1, arg2, arg3) {
@@ -462,8 +478,8 @@ export function RequireCloudAuthentication() {
   return window['go']['main']['App']['RequireCloudAuthentication']();
 }
 
-export function ResolveCollaborativeShare(arg1, arg2, arg3) {
-  return window['go']['main']['App']['ResolveCollaborativeShare'](arg1, arg2, arg3);
+export function ResolveCollaborativeShare(arg1, arg2) {
+  return window['go']['main']['App']['ResolveCollaborativeShare'](arg1, arg2);
 }
 
 export function RestoreCloudTokenForUser(arg1) {

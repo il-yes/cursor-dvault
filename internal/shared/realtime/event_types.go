@@ -8,6 +8,7 @@ const (
     ShareRejected = "share.rejected"
     ShareRevoked = "share.revoked"
     ShareReadyToAccept = "share.ready_to_accept"
+    ChannelInvitationCreated = "channel.invitation.created"
     
     NotificationAck = "notification.ack"
 )

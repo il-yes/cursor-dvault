@@ -1,4 +1,4 @@
-package trustgroup_test
+package trustgroup_usecases_test
 
 import (
 	"context"
@@ -35,8 +35,8 @@ func (m *trustGroupRepositoryMock) AddMemberToTrustGroup(
 func validAddMemberRequest() trustgroup_dtos.AddMemberToTrustGroupRequest {
 	return trustgroup_dtos.AddMemberToTrustGroupRequest{
 		TrustGroupID: "trust-group-001",
-		ChannelID:    "channel-001",
-		MemberID:     "member-001",
+		VaultID:      "vault-001",
+		Role:         "member",
 	}
 }
 
@@ -53,7 +53,7 @@ func TestAddMemberToTrustGroupUsecase_Execute_Success(t *testing.T) {
 		ChannelID:  "workspace-001",
 		Name:       "OEM Trust Group",
 		KEKVersion: 1,
-		MemberCIDs: []string{"cid-member-001"},
+		MemberCIDs: []string{"cid-member-001", "vault-001"},
 		IsDraft:    true,
 		IsDirty:    true,
 	}
@@ -89,7 +89,8 @@ func TestAddMemberToTrustGroupUsecase_Execute_Success(t *testing.T) {
 
 	require.NotNil(t, receivedRequest)
 	require.Equal(t, req.TrustGroupID, receivedRequest.TrustGroupID)
-	require.Equal(t, req.MemberID, receivedRequest.MemberID)
+	require.Equal(t, req.VaultID, receivedRequest.VaultID)
+	require.Equal(t, req.Role, receivedRequest.Role)
 
 	require.Len(t, eventBus.publishedMemberAddedEvents, 1)
 
@@ -98,8 +99,7 @@ func TestAddMemberToTrustGroupUsecase_Execute_Success(t *testing.T) {
 	require.NotEmpty(t, event.EventID)
 	require.False(t, event.EventTimestamp.IsZero())
 	require.Equal(t, req.TrustGroupID, event.TrustGroupID)
-	require.Equal(t, req.ChannelID, event.ChannelID)
-	require.Equal(t, req.MemberID, event.MemberID)
+	require.Equal(t, req.VaultID, event.MemberID)
 }
 
 func TestAddMemberToTrustGroupUsecase_Execute_RepositoryError(t *testing.T) {
@@ -206,18 +206,11 @@ func TestAddMemberToTrustGroupUsecase_Execute_InvalidRequest(t *testing.T) {
 			expectedError: "trust group id is required",
 		},
 		{
-			name: "missing channel id",
+			name: "missing vault id",
 			modify: func(req *trustgroup_dtos.AddMemberToTrustGroupRequest) {
-				req.ChannelID = "   "
+				req.VaultID = "   "
 			},
-			expectedError: "channel id is required",
-		},
-		{
-			name: "missing member id",
-			modify: func(req *trustgroup_dtos.AddMemberToTrustGroupRequest) {
-				req.MemberID = "   "
-			},
-			expectedError: "member id is required",
+			expectedError: "vault id is required",
 		},
 	}
 
@@ -246,7 +239,9 @@ func TestAddMemberToTrustGroupUsecase_Execute_InvalidRequest(t *testing.T) {
 		})
 	}
 }
+
 func TestAddMemberToTrustGroupUsecase_ValidateDependencies(t *testing.T) {
+
 	tests := []struct {
 		name          string
 		repo          trustgroup_domain.TrustGroupRepository
@@ -309,28 +304,19 @@ func TestAddMemberToTrustGroupUsecase_ValidateRequest(t *testing.T) {
 			name: "missing trust group id",
 			request: trustgroup_dtos.AddMemberToTrustGroupRequest{
 				TrustGroupID: "",
-				ChannelID:    "channel-001",
-				MemberID:     "member-001",
+				VaultID:      "vault-001",
+				Role:         "member",
 			},
 			expectedError: "trust group id is required",
 		},
 		{
-			name: "missing channel id",
+			name: "missing vault id",
 			request: trustgroup_dtos.AddMemberToTrustGroupRequest{
 				TrustGroupID: "trust-group-001",
-				ChannelID:    "",
-				MemberID:     "member-001",
+				VaultID:      "",
+				Role:         "member",
 			},
-			expectedError: "channel id is required",
-		},
-		{
-			name: "missing member id",
-			request: trustgroup_dtos.AddMemberToTrustGroupRequest{
-				TrustGroupID: "trust-group-001",
-				ChannelID:    "channel-001",
-				MemberID:     "",
-			},
-			expectedError: "member id is required",
+			expectedError: "vault id is required",
 		},
 		{
 			name:    "valid request",

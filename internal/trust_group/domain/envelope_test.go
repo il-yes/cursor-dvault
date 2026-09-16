@@ -112,20 +112,10 @@ func TestTrustGroup_AddEnvelope_MissingFields(t *testing.T) {
 		{
 			name: "missing member id",
 			envelope: trustgroup_domain.TrustGroupKeyEnvelope{
-				DeviceID:   "device-001",
 				KEKVersion: 1,
 				WrappedKEK: "wrapped-kek",
 			},
 			expectedError: trustgroup_domain.ErrMemberIDRequired,
-		},
-		{
-			name: "missing device id",
-			envelope: trustgroup_domain.TrustGroupKeyEnvelope{
-				MemberID:   "member-1",
-				KEKVersion: 1,
-				WrappedKEK: "wrapped-kek",
-			},
-			expectedError: trustgroup_domain.ErrDeviceIDRequired,
 		},
 		{
 			name: "missing wrapped kek",

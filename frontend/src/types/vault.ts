@@ -124,6 +124,7 @@ export interface BaseEntry {
   is_favorite?: boolean;
   attachmentCIDs?: string[];
   attachments?: Attachment[];
+  c3_cid?:string;
 }
 
 // Login Entry
@@ -298,6 +299,7 @@ export interface VaultPayload {
   index: IndexMetadata;
   created_at: string;
   updated_at: string;
+  c3_cid: string;
 }
 export interface LoginResponse {
   User: User;

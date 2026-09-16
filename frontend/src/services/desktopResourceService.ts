@@ -6,6 +6,7 @@
  */
 
 import { useAuthStore } from "@/store/useAuthStore";
+import { useC3ConfigurationStore } from "@/components/C3/configuration/store/useC3ConfigurationStore";
 import * as AppAPI from "../../wailsjs/go/main/App";
 
 export type ResourceKind = "share_entry" | "storage_asset";
@@ -49,38 +50,113 @@ export function translateResourceError(error: any): string {
   return "Unable to open protected resource";
 }
 
+
 class DesktopResourceService {
   /**
    * Dispatch resource resolution to appropriate backend application service
    */
+
   async openResource(input: ResourceRefInput): Promise<OpenedResourceResult> {
     const jwtToken = useAuthStore.getState().jwtToken;
-    const deviceId = input.deviceId || localStorage.getItem("device_id") || "default_desktop_device";
+    const localDeviceIdFromStore = useC3ConfigurationStore.getState().securityState?.localDeviceId;
+    const deviceId =
+      input.deviceId ||
+      localDeviceIdFromStore ||
+      (typeof localStorage !== "undefined"
+        ? localStorage.getItem("device_id")
+        : null) ||
+      "dev_local_01";
 
     if (input.refType === "share_entry" && input.shareEntryId) {
+      console.log(
+        `[C3-FORENSIC][02] desktopResourceService.openResource refType=${input.refType} shareEntryID=${input.shareEntryId}`
+      );
+
       try {
-        const response = await AppAPI.ResolveCollaborativeShare(jwtToken, input.shareEntryId, deviceId);
-        
+        const response = await AppAPI.ResolveCollaborativeShare(
+          jwtToken,
+          input.shareEntryId
+        );
+
+        console.log(
+          `[C3-FORENSIC][12] ResolveCollaborativeShare response received shareEntryID=${response.share_entry_id} trustGroupID=${response.trust_group_id} createdBy=${response.created_by}`
+        );
+
         let contentText = "";
-        if (response.plaintext && Array.isArray(response.plaintext)) {
-          contentText = new TextDecoder().decode(new Uint8Array(response.plaintext));
+
+        if (typeof response.plaintext === "string") {
+          console.log(
+            `[C3-FORENSIC][12C] raw plaintext string length=${response.plaintext.length}`
+          );
+
+          console.log(
+            `[C3-FORENSIC][12D] raw plaintext prefix=${response.plaintext.slice(0, 80)}`
+          );
+
+          try {
+            const binary = atob(response.plaintext);
+            const bytes = Uint8Array.from(
+              binary,
+              (char) => char.charCodeAt(0)
+            );
+
+            console.log(
+              `[C3-FORENSIC][12E] base64 decoded bytes=${bytes.length}`
+            );
+
+            console.log(
+              `[C3-FORENSIC][12F] decoded bytes hex=${Array.from(bytes.slice(0, 32))
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("")}`
+            );
+
+            contentText = new TextDecoder().decode(bytes);
+
+            console.log(
+              `[C3-FORENSIC][12G] decoded text prefix=${contentText.slice(0, 100)}`
+            );
+          } catch (err) {
+            console.error(
+              `[C3-FORENSIC][12E] base64 decode failed`,
+              err
+            );
+
+            contentText = response.plaintext;
+          }
+        } else if (response.plaintext instanceof Uint8Array) {
+          contentText = new TextDecoder().decode(response.plaintext);
+        } else if (Array.isArray(response.plaintext)) {
+          contentText = new TextDecoder().decode(
+            new Uint8Array(response.plaintext)
+          );
         }
+
+        console.log(
+          `[C3-FORENSIC][12B] plaintext content length=${contentText.length}`
+        );
 
         return {
           resourceId: response.share_entry_id,
-          title: response.metadata?.title || response.metadata?.name || "Collaborative Protected Resource",
+          title:
+            response.metadata?.title ||
+            response.metadata?.name ||
+            "Collaborative Protected Resource",
           content: contentText,
           createdBy: response.created_by,
           createdAt: response.created_at,
           metadata: response.metadata || {},
           kind: "share_entry",
         };
-      } catch (err) {
+      } catch (err: any) {
+        console.error(
+          `[C3-FORENSIC][12] ResolveCollaborativeShare IPC error=${err?.message || err}`
+        );
         throw new Error(translateResourceError(err));
       }
     } else if (input.refType === "storage_asset" && input.shareEntryId) {
       try {
         const user = useAuthStore.getState().user;
+
         const result = await AppAPI.AccessDecryptVaultEntry(jwtToken, {
           share_id: input.shareEntryId,
           recipient_email: user?.email || user?.Email || "",
@@ -102,6 +178,8 @@ class DesktopResourceService {
 
     throw new Error("Invalid resource reference type");
   }
+
 }
+
 
 export const desktopResourceService = new DesktopResourceService();

@@ -226,5 +226,5 @@ func TestCreateShare_TrustGroupRecipient_Success(t *testing.T) {
 	assert.Equal(t, "trust_group", payload.Recipients["tg_engineering_001"].RecipientType)
 	assert.Equal(t, "tg_engineering_001", payload.Recipients["tg_engineering_001"].TrustGroupID)
 	assert.NotEmpty(t, payload.VaultPayload)
-	assert.NotEmpty(t, payload.EncryptedKeys["tg_engineering_001"])
+	assert.Empty(t, payload.EncryptedKeys["tg_engineering_001"], "TrustGroup recipients do not use member public key box sealing")
 }

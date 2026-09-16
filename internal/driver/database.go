@@ -70,6 +70,7 @@ func AutoMigrate(db *gorm.DB) error {
 
 		// Identity
 		&identity_domain.User{},
+		&identity_domain.Device{},
 		&identity_persistence.StellarAuthChallenge{},
 
 		// vault

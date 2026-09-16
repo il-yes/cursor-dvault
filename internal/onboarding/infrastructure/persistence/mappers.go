@@ -60,7 +60,9 @@ func (s StringSlice) Value() (driver.Value, error) {
     return json.Marshal([]string(s))
 }
 func (u *UserDB) BeforeCreate(tx *gorm.DB) error {
-	u.ID = uuid.New().String()
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
 	return nil
 }
 

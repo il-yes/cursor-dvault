@@ -512,6 +512,8 @@ export async function createSharedEntry(payload: {
 		console.log({ selectedEntry })
 		// convert the vaultEntry in an entryType
 
+		console.log("[SHARE][BEFORE-DTO]", payload.recipients);
+
 		// Build the proper CreateShareEntryPayload
 		const createSharePayload = new share_entry_application_dto.CreateShareEntryPayload({
 			entry_name: selectedEntry.entry_name,
@@ -531,6 +533,8 @@ export async function createSharedEntry(payload: {
 			download_allowed: payload.download_allowed || false,
 			attachmentCIDs: payload?.attachmentCIDs,
 		});
+
+		console.log("[SHARE][AFTER-DTO]", createSharePayload.recipients);
 
 		// Wails backend is exposed via the global App object
 		// This calls your Go handler CreateShare
@@ -1073,19 +1077,12 @@ type EditUserInfosResponse = {
 	last_name: string;
 }
 export const EditUserInfos = async (jwtToken: string, payload: EditUserInfosInput): Promise<EditUserInfosResponse> => {
-	const response = await AppAPI.EditUserInfos(jwtToken, payload);
-	console.log({ response })
-
-	// if (!response.ok) {
-	//   throw new Error(`Failed to edit user infos: ${response.statusText}`);
-	// }
-
-	const res: EditUserInfosResponse = {
-		user_name: "",
-		first_name: "",
-		last_name: "",
-	}
-	return res;
+	await AppAPI.EditUserInfos(jwtToken, payload);
+	return {
+		user_name: payload.user_name,
+		first_name: payload.first_name,
+		last_name: payload.last_name,
+	};
 };
 
 export const GetConfig = async (vaultName: string, jwtToken: string): Promise<SettingsState> => {
@@ -1287,6 +1284,8 @@ export const EditConfig = async (user: User, vault: Vault, settings: SettingsSta
 	console.log({ editedSettings })
 }
 
+
+
 export const uploadAvatar = async (jwtToken: string, vaultName: string, buffer: Uint8Array): Promise<string> => {
 	const response = await AppAPI.UploadAvatar(jwtToken, vaultName, Array.from(buffer));
 	return response;
@@ -1357,6 +1356,13 @@ export const uploadToCloud = async (jwtToken: string, fileData: string): Promise
 	// return response;
 	return "";
 };
+
+
+export const postIPFSEntry = async (jwtToken: string, entryID: string, entryType: string, password: string): Promise<string> => {
+	const response = await AppAPI.PostIPFSEntry(jwtToken, entryID, entryType, password);
+	return response;
+};
+
 
 type StorageUsageResponse = {
 	used_gb: number;
@@ -1601,9 +1607,8 @@ export async function getChannel(channelId: string): Promise<ChannelResponse> {
 	console.log(`[BOUNDARIES][READ] api.getChannel channelId=${channelId}`);
 	const result = await AppAPI.GetChannel(jwtToken, channelId);
 	console.log(`[BOUNDARIES][READ] api.getChannel returned=`, JSON.stringify(result));
-  console.log("RAW slots:", result?.slots);
-  console.log("RAW Slots:", result?.Slots);
-  
+	console.log("RAW slots:", result?.slots);
+
 	return result as ChannelResponse;
 }
 
@@ -1689,10 +1694,11 @@ export async function listTrustGroups(workspaceId?: string): Promise<any[]> {
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
+	console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][16] layer=FRONTEND_API file=frontend/src/services/api.ts function=listTrustGroups status=CALLING_WAILS workspaceId=${workspaceId || ''}`);
 	return await AppAPI.ListTrustGroups(jwtToken, workspaceId || '');
 }
 
-export async function createTrustGroup(name: string, workspaceId?: string): Promise<any> {
+export async function createTrustGroup(name: string, workspaceId?: string, vaultName?: string): Promise<any> {
 	if (!name) {
 		throw new Error('Trust Group name is required');
 	}
@@ -1700,12 +1706,12 @@ export async function createTrustGroup(name: string, workspaceId?: string): Prom
 	if (!jwtToken) {
 		throw new Error('Authentication required');
 	}
-	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId || '', name);
+	return await AppAPI.CreateTrustGroup(jwtToken, workspaceId, name, vaultName);
 }
 
-export async function addTrustGroupMember(trustGroupId: string, channelId: string, memberId: string): Promise<any> {
-	if (!trustGroupId || !memberId) {
-		throw new Error('Trust Group ID and Member ID are required');
+export async function addTrustGroupMember(trustGroupId: string, vaultId: string, role?: string): Promise<any> {
+	if (!trustGroupId || !vaultId) {
+		throw new Error('Trust Group ID and Vault ID are required');
 	}
 
 	const jwtToken = useAuthStore.getState().jwtToken;
@@ -1713,7 +1719,9 @@ export async function addTrustGroupMember(trustGroupId: string, channelId: strin
 		throw new Error('Authentication required');
 	}
 
-	return await AppAPI.AddTrustGroupMember(jwtToken, trustGroupId, channelId || '', memberId);
+	console.log(`[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][02] layer=FRONTEND_API file=frontend/src/services/api.ts function=addTrustGroupMember input.trustGroupId=${trustGroupId} input.vaultId=${vaultId} input.role=${role || 'member'}`);
+	console.log(`[TRUSTGROUP][API_ADD] trustGroupID=${trustGroupId} vaultID=${vaultId} role=${role || 'member'}`);
+	return await AppAPI.AddTrustGroupMember(jwtToken, trustGroupId, vaultId, role || 'member');
 }
 
 export async function removeTrustGroupMember(trustGroupId: string, memberId: string): Promise<any> {
@@ -1900,7 +1908,7 @@ export async function acceptChannelInvitation(invitationId: string): Promise<Cha
 	if (!identity) {
 		throw new Error('Vault identity is required to accept an invitation');
 	}
-	console.log({identity})
+	console.log({ identity })
 
 	const result = await AppAPI.AcceptChannelInvitation(
 		jwtToken,
@@ -1993,12 +2001,37 @@ export interface TrustGroupRefResponse {
 	created_at?: string;
 }
 
+export interface EventResourceRefResponse {
+	ref_type?: string;
+	share_entry_id?: string;
+	trust_group_id?: string;
+	cid?: string;
+	content_hash?: string;
+	size?: number;
+	asset_type?: string;
+}
+
+export interface C3ShareEntryResponse {
+	id: string;
+	asset_cid: string;
+	trust_group_id: string;
+	wrapped_dek: string;
+	kek_version: number;
+	created_by: string;
+	created_at: string;
+	status: string;
+	metadata?: Record<string, string>;
+	is_draft?: boolean;
+	is_dirty?: boolean;
+}
+
 export interface ThreadEventResponse {
 	id: string;
 	thread_id: string;
 	previous_event_id?: string;
 	type: string;
 	payload?: Record<string, any>;
+	resource_ref?: EventResourceRefResponse;
 	payload_ref?: PayloadRefResponse;
 	share_entry_ref?: ShareEntryRefResponse;
 	trust_group_ref?: TrustGroupRefResponse;
@@ -2007,6 +2040,18 @@ export interface ThreadEventResponse {
 	headers?: Record<string, string>;
 	signature?: string;
 	created_at?: string;
+}
+
+export async function getShareEntry(shareEntryId: string): Promise<C3ShareEntryResponse> {
+	if (!shareEntryId) {
+		throw new Error('Share Entry ID is required');
+	}
+	const jwtToken = useAuthStore.getState().jwtToken;
+	if (!jwtToken) {
+		throw new Error('Authentication required');
+	}
+	const result = await AppAPI.GetShareEntry(jwtToken, shareEntryId);
+	return result as C3ShareEntryResponse;
 }
 
 export async function listThreadEvents(threadId: string): Promise<ThreadEventResponse[]> {
@@ -2025,12 +2070,14 @@ export async function appendThreadEvent(payload: AppendThreadEventPayload): Prom
 	if (!jwtToken) {
 		jwtToken = "dev-jwt-token";
 	}
+	console.log(`[APPEND][STEP=02] api.appendThreadEvent thread_id=${payload.thread_id} type=${payload.type}`);
 	const result = await AppAPI.AppendThreadEvent(
 		jwtToken,
 		payload.thread_id,
 		payload.type.trim(),
 		JSON.stringify(payload.payload || {})
 	);
+	console.log(`[APPEND][STEP=02] api.appendThreadEvent returned=`, JSON.stringify(result));
 	return result as ThreadEventResponse;
 }
 

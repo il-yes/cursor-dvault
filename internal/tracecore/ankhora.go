@@ -50,6 +50,9 @@ func (c *TracecoreClient) GetUserByEmail(ctx context.Context, email string) (*tr
 	base := strings.TrimRight(c.AnkhoraCloudUrl, "/")
 	q := url.Values{}
 	q.Set("email", email)
+	if !strings.Contains(email, "@") {
+		q.Set("vault_id", email)
+	}
 
 	endpoint := fmt.Sprintf("%s/customers?%s", base, q.Encode())
 	fmt.Println("endpoint", endpoint)
@@ -720,13 +723,13 @@ func (c *TracecoreClient) ReactivateSubscription(ctx context.Context, userID str
 	return nil
 }
 
-
 // ---------------------------------------------------------
 //
 //	Notifications Center
 //
 // ---------------------------------------------------------
 func (c *TracecoreClient) ListByUser(ctx context.Context, userID string, limit int, offset int) ([]notification_center_domain.Notification, error) {
+	fmt.Printf("[C3][NOTIF_READ_TRACE][TRACECORE_CLIENT] requested_notification_user_id=%s cloud_url=%s/notifications/user/%s\n", userID, c.AnkhoraCloudUrl, userID)
 	utils.LogPretty("user id", userID)
 	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
 
@@ -759,7 +762,7 @@ func (c *TracecoreClient) ListByUser(ctx context.Context, userID string, limit i
 		Status  int                                       `json:"status"`
 		Data    []notification_center_domain.Notification `json:"data"`
 		Success bool                                      `json:"success"`
-		Message string                                      `json:"message"`
+		Message string                                    `json:"message"`
 	}
 
 	var cloudResp CloudResponse
@@ -804,10 +807,10 @@ func (c *TracecoreClient) CountUnread(ctx context.Context, userID string) (int64
 	}
 
 	type CloudResponse struct {
-		Status  int   `json:"status"`
-		Data    int64 `json:"data"`
-		Success bool  `json:"success"`
-		Message string  `json:"message"`
+		Status  int    `json:"status"`
+		Data    int64  `json:"data"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
 	}
 
 	var cloudResp CloudResponse
@@ -855,12 +858,12 @@ func (c *TracecoreClient) MarkRead(ctx context.Context, id string) error {
 		Status  int                                       `json:"status"`
 		Data    []notification_center_domain.Notification `json:"data"`
 		Success bool                                      `json:"success"`
-		Message string                                      `json:"message"`
+		Message string                                    `json:"message"`
 	}
 
 	var cloudResp CloudResponse
 	if err := json.Unmarshal(body, &cloudResp); err != nil {
-		return  fmt.Errorf("invalid cloud response: %w", err)
+		return fmt.Errorf("invalid cloud response: %w", err)
 	}
 
 	if !cloudResp.Success {
@@ -872,7 +875,7 @@ func (c *TracecoreClient) MarkRead(ctx context.Context, id string) error {
 }
 
 func (c *TracecoreClient) Archive(ctx context.Context, id string) error {
-	
+
 	utils.LogPretty("id", id)
 	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
 
@@ -905,7 +908,7 @@ func (c *TracecoreClient) Archive(ctx context.Context, id string) error {
 		Status  int                                       `json:"status"`
 		Data    []notification_center_domain.Notification `json:"data"`
 		Success bool                                      `json:"success"`
-		Message string                                      `json:"message"`
+		Message string                                    `json:"message"`
 	}
 
 	var cloudResp CloudResponse
@@ -922,7 +925,7 @@ func (c *TracecoreClient) Archive(ctx context.Context, id string) error {
 }
 
 func (c *TracecoreClient) MarkAllRead(ctx context.Context, userID string) error {
-	
+
 	utils.LogPretty("user id", userID)
 	utils.LogPretty("ankhora cloud url", c.AnkhoraCloudUrl)
 
@@ -933,7 +936,7 @@ func (c *TracecoreClient) MarkAllRead(ctx context.Context, userID string) error 
 		nil,
 	)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	if c.Token != "" {
@@ -955,7 +958,7 @@ func (c *TracecoreClient) MarkAllRead(ctx context.Context, userID string) error 
 		Status  int                                       `json:"status"`
 		Data    []notification_center_domain.Notification `json:"data"`
 		Success bool                                      `json:"success"`
-		Message string                                      `json:"message"`
+		Message string                                    `json:"message"`
 	}
 
 	var cloudResp CloudResponse
@@ -964,12 +967,13 @@ func (c *TracecoreClient) MarkAllRead(ctx context.Context, userID string) error 
 	}
 
 	if !cloudResp.Success {
-		return  fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+		return fmt.Errorf("cloud returned error: %s", cloudResp.Message)
 	}
 	utils.LogPretty("cloud response", cloudResp)
 
 	return nil
 }
+
 // ---------------------------------------------------------
 //
 //	Cryptographic Share
@@ -992,8 +996,8 @@ type CloudCryptographicShare struct {
 	AccessLog        datatypes.JSON `json:"AccessLog"`
 	Signature        string         `json:"Signature"`
 	Title            string         `json:"Title"`
-	EntryID 		string		 `json:"EntryID"`
-	EntryName string		 `json:"EntryName"`
+	EntryID          string         `json:"EntryID"`
+	EntryName        string         `json:"EntryName"`
 	EntryType        string         `json:"EntryType"`
 	DownloadAllowed  bool           `json:"DownloadAllowed"`
 	Metadata         datatypes.JSON `json:"Metadata"`
@@ -1023,6 +1027,8 @@ type ProdCreateCryptoShareRequest struct {
 	AccessMode      string                     `json:"AccessMode"`
 	ExpiresAt       *time.Time                 `json:"ExpiresAt,omitempty"`
 	DownloadAllowed bool                       `json:"DownloadAllowed,omitempty"`
+	WrappedDEK      string                     `json:"WrappedDEK,omitempty"`
+	KEKVersion      uint64                     `json:"KEKVersion,omitempty"`
 }
 type ProdCreateCryptoShareResponse struct {
 	Data    CloudCryptographicShare `json:"data"`
@@ -1060,6 +1066,7 @@ func (c *TracecoreClient) CreateShare(ctx context.Context, payload ProdCreateCry
 
 	return &cloudResp, nil
 }
+
 // Get ShareEntry
 func (c *TracecoreClient) GetShareEntry(ctx context.Context, shareID string) (*tracecore_types.CloudResponse[CloudCryptographicShare], error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AnkhoraCloudUrl+"/shares/cryptographic/"+shareID, nil)
@@ -1124,6 +1131,57 @@ func (c *TracecoreClient) AccessEncryptedEntry(ctx context.Context, id string, r
 	}
 	utils.LogPretty("TracecoreClient - AccessEncryptedEntry - cloud response", cloudResp)
 
+	return &cloudResp, nil
+}
+
+func (c *TracecoreClient) AccessThreadData(ctx context.Context, req tracecore_types.ThreadDataAccessRequest) (*tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse], error) {
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP POST %s/thread-data/access threadID=%s eventID=%s trustGroupID=%s requestingVaultID=%s sourceVaultID=%s\n", c.AnkhoraCloudUrl, req.ThreadID, req.EventID, req.TrustGroupID, req.RequestingVaultID, req.SourceVaultID)
+	utils.LogPretty("TracecoreClient - AccessThreadData - payload", req)
+	bodyBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.AnkhoraCloudUrl+"/thread-data/access", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	defer request.Body.Close()
+
+	request.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		request.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(request)
+	if err != nil {
+		fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP DO failed err=%v\n", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData HTTP response status=%d bodyLen=%d\n", resp.StatusCode, len(respBytes))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("cloud returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.AccessCryptoShareResponse]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+
+	if cloudResp.Status != 200 {
+		return nil, fmt.Errorf("cloud returned error: %s", cloudResp.Message)
+	}
+
+	fmt.Printf("[C3-FORENSIC][10] (*TracecoreClient).AccessThreadData success downloadAllowed=%t encryptedMaterialReturned=%t\n", cloudResp.Data.DownloadAllowed, len(cloudResp.Data.EncryptedPayload) > 0)
+	utils.LogPretty("TracecoreClient - AccessThreadData - cloud response", cloudResp)
 	return &cloudResp, nil
 }
 
@@ -1409,9 +1467,9 @@ func (c *TracecoreClient) ListPendingIntentSharesWithMe(ctx context.Context, ema
 	return &cloudResp, nil
 }
 
-// r.Put("/{id}/accept", app.AcceptShare)  
+// r.Put("/{id}/accept", app.AcceptShare)
 // r.Put("/{id}/reject", app.RejectShare)
-// r.Put("/{id}/revoke", app.RevokeShare) 
+// r.Put("/{id}/revoke", app.RevokeShare)
 // ---------------------------------------------------------
 // Get Share By Me
 // ---------------------------------------------------------
@@ -1751,6 +1809,11 @@ func (c *TracecoreClient) AddToIPFS(ctx context.Context, req tracecore_types.Syn
 		return nil, fmt.Errorf("TracecoreClient - AddToIPFS - empty body")
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("SYNC[%s] TracecoreClient - AddToIPFS - HTTP status %d, Content-Type: %s, body: %s", opID, resp.StatusCode, resp.Header.Get("Content-Type"), string(respBytes))
+		return nil, fmt.Errorf("TracecoreClient - AddToIPFS - cloud returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
 	var cloudResp tracecore_types.CloudResponse[tracecore_types.SyncVaultResponse]
 	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
 		utils.LogPretty("🚫 TracecoreClient - AddToIPFS - json.Unmarshal error", err)
@@ -1913,6 +1976,43 @@ func (c *TracecoreClient) GetVaultBySubscription(ctx context.Context, subID stri
 		return nil, fmt.Errorf("invalid cloud response: %w", err)
 	}
 	utils.LogPretty("TracecoreClient - GetVaultBySubscription - cloud response", cloudResp)
+
+	return &cloudResp, nil
+}
+func (c *TracecoreClient) GetIdentityVaultByPublicKey(ctx context.Context, publicKey string) (*tracecore_types.CloudResponse[tracecore_types.VaultIdentity], error) {
+	utils.LogPretty("TracecoreClient - GetVaultByPublicKey - req", publicKey)
+	u, err := url.Parse(c.AnkhoraCloudUrl)
+	if err != nil {
+		utils.LogPretty("TracecoreClient - GetVaultByPublicKey - error parsing URL", err)
+		return nil, err
+	}
+	utils.LogPretty("TracecoreClient - GetVaultByPublicKey - URL", u.String())
+
+	u.Path = path.Join(u.Path, "identity", "public-key", publicKey)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		utils.LogPretty("TracecoreClient - GetVaultByPublicKey - request error", err)
+		return nil, err
+	}
+
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		utils.LogPretty("TracecoreClient - GetVaultByPublicKey - request error", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.VaultIdentity]
+	if err := json.Unmarshal(respBytes, &cloudResp); err != nil {
+		utils.LogPretty("TracecoreClient - GetVaultByPublicKey - invalid cloud response", err)
+		return nil, fmt.Errorf("invalid cloud response: %w", err)
+	}
+	utils.LogPretty("TracecoreClient - GetVaultByPublicKey - cloud response", cloudResp)
 
 	return &cloudResp, nil
 }
@@ -2179,4 +2279,3 @@ func (c *TracecoreClient) RegisterVaultIdentity(ctx context.Context, regReq Vaul
 		Data:   regResp,
 	}, nil
 }
-

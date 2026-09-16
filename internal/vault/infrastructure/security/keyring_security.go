@@ -143,6 +143,9 @@ func (s *KeyringService) LoadHybrid(
 				utils.LogPretty("KeyringService - LoadHybrid - no stellar secret given for wrapper", w)
 			}
 
+		case "unencrypted", "plain":
+			plain = w.Ciphertext
+
 		default:
 			utils.LogPretty("KeyringService - LoadHybrid - unknown wrapper type", w.Type)
 		}
@@ -197,6 +200,13 @@ func (s *KeyringService) SaveHybrid(
 		wrappers = append(wrappers, vaults_storage.WrappedKeyring{
 			Type:       "stellar",
 			Ciphertext: enc,
+		})
+	}
+
+	if len(wrappers) == 0 {
+		wrappers = append(wrappers, vaults_storage.WrappedKeyring{
+			Type:       "unencrypted",
+			Ciphertext: raw,
 		})
 	}
 

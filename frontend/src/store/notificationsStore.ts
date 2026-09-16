@@ -1,8 +1,8 @@
 import { acceptShare, acceptChannelInvitation, rejectShare, revokeShare } from "@/services/api";
+import { markRead as markReadApi, markAllRead as markAllReadApi } from "@/services/notificationsApi";
 import { parseNotificationPayload } from "@/services/utils";
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-
 
 export type NotificationStatus =
 	| "unread"
@@ -59,13 +59,13 @@ interface NotificationsState {
 
 	markRead: (
 		id: string
-	) => void;
+	) => Promise<void>;
 
 	archive: (
 		id: string
 	) => void;
 
-	markAllRead: () => void;
+	markAllRead: () => Promise<void>;
 
 	removeNotification: (
 		id: string
@@ -96,12 +96,20 @@ export const useNotificationsStore =
 					items
 				) =>
 					set(
-						() => ({
-							notifications: [...items].sort(
-								(a, b) =>
-									b.sequence - a.sequence
-							),
-						}),
+						(state) => {
+							const map = new Map<string, Notification>();
+							for (const existing of state.notifications) {
+								map.set(existing.id, existing);
+							}
+							for (const item of items) {
+								map.set(item.id, item);
+							}
+							return {
+								notifications: Array.from(map.values()).sort(
+									(a, b) => b.sequence - a.sequence
+								),
+							};
+						},
 						false,
 						"notifications/setNotifications"
 					),
@@ -114,8 +122,8 @@ export const useNotificationsStore =
 							const exists =
 								state.notifications.some(
 									(n) =>
-										n.sequence ===
-										item.sequence
+										n.id === item.id ||
+										(item.sequence > 0 && n.sequence === item.sequence)
 								);
 
 							if (exists) {
@@ -137,9 +145,9 @@ export const useNotificationsStore =
 						"notifications/pushNotification"
 					),
 
-				markRead: (
+				markRead: async (
 					id
-				) =>
+				) => {
 					set(
 						(state) => ({
 							notifications:
@@ -158,7 +166,13 @@ export const useNotificationsStore =
 						}),
 						false,
 						"notifications/markRead"
-					),
+					);
+					try {
+						await markReadApi(id);
+					} catch (err) {
+						console.error("[NOTIFICATIONS_SYNC] Failed to mark read on backend:", err);
+					}
+				},
 
 				archive: async (notification: Notification) => {
 					const snapshot = get().notifications;
@@ -202,7 +216,7 @@ export const useNotificationsStore =
 
 				},
 
-				markAllRead: () =>
+				markAllRead: async () => {
 					set(
 						(state) => ({
 							notifications:
@@ -221,7 +235,13 @@ export const useNotificationsStore =
 						}),
 						false,
 						"notifications/markAllRead"
-					),
+					);
+					try {
+						await markAllReadApi();
+					} catch (err) {
+						console.error("[NOTIFICATIONS_SYNC] Failed to mark all read on backend:", err);
+					}
+				},
 
 				removeNotification: (
 					id
@@ -314,7 +334,7 @@ export const useNotificationsStore =
 
 					try {
 						const payload = parseNotificationPayload(notification.payload);
-						const invitationId = payload?.invitation_id || payload?.invitationId || payload?.intent_id;
+						const invitationId = payload?.invitation_id || payload?.invitationId || payload?.InvitationID || payload?.intent_id || payload?.id || payload?.ID;
 						console.log("invitationId", invitationId);
 
 						if (!invitationId) {

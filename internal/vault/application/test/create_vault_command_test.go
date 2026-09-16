@@ -134,8 +134,17 @@ func (f *fakeVaultRepo) GetLatestByUserID(userID string) (*vault_domain.Vault, e
 	return nil, gorm.ErrRecordNotFound
 }
 
-func (f *fakeVaultRepo) GetVault(string) (*vault_domain.Vault, error) {
-	panic("not used")
+func (f *fakeVaultRepo) GetVault(id string) (*vault_domain.Vault, error) {
+	if f.savedVault != nil && (id == "" || f.savedVault.ID == id) {
+		return f.savedVault, nil
+	}
+	if f.existingVault != nil {
+		return f.existingVault, nil
+	}
+	if f.Vault != nil {
+		return f.Vault, nil
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 func (f *fakeVaultRepo) UpdateVault(v *vault_domain.Vault) error {
 	f.updateCalled = true

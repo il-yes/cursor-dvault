@@ -35,6 +35,7 @@ export const TrustGroupsTab: React.FC = () => {
   }
 
   const handleAddMember = async (groupId: string) => {
+    
     if (!newMemberName.trim()) return;
 
     setIsSubmitting(true);
@@ -44,7 +45,7 @@ export const TrustGroupsTab: React.FC = () => {
     const targetChannelId = originalChannel?.id || activeChannelId || "contract-execution";
 
     try {
-      const res = await addTrustGroupMember(groupId, targetChannelId, memberId);
+      const res = await addTrustGroupMember(groupId, memberId, "member");
 
       // Backend succeeded -> update UI store state directly
       const newMemberObj = {

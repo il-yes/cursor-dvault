@@ -2,10 +2,8 @@ package vault_infrastructure_crypto
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"vault-app/internal/logger/logger"
-	"vault-app/internal/utils"
 
 	"golang.org/x/crypto/scrypt"
 )
@@ -28,7 +26,6 @@ func (k *KeyService) deriveKey(password string, salt []byte) ([]byte, error) {
     if err != nil {
         return nil, err
     }
-    utils.LogPretty("KeyService - deriveKey - key (hex)", hex.EncodeToString(key[:min(16, len(key))]))
     return key, nil
 }
 
@@ -40,14 +37,12 @@ func (k *KeyService) WrapKeyWithPassword(vaultKey []byte, password string) ([]by
     if err != nil {
         return nil, err
     }
-    utils.LogPretty("WrapKeyWithPassword - salt (hex)", hex.EncodeToString(salt))
 
     // 2. Derive AES key from password + salt
     key, err := k.deriveKey(password, salt)
     if err != nil {
         return nil, err
     }
-    utils.LogPretty("WrapKeyWithPassword - key (hex)", hex.EncodeToString(key))
 
     // 3. Let AESService manage only nonce + ciphertext
     enc, err := k.AES.Encrypt(vaultKey, key)
@@ -60,7 +55,6 @@ func (k *KeyService) WrapKeyWithPassword(vaultKey []byte, password string) ([]by
     out = append(out, salt...)
     out = append(out, enc...)
 
-    utils.LogPretty("WrapKeyWithPassword - out (hex)", hex.EncodeToString(out))
     return out, nil
 }
 

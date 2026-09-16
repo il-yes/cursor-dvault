@@ -16,181 +16,184 @@ import (
 	"gorm.io/gorm"
 )
 
-
 type OnBoardingHandler struct {
-	uc onboarding_usecase.GetRecommendedTierUseCase
-	createAccountUseCase onboarding_usecase.CreateAccountUseCase   
-    setupPaymentUseCase onboarding_usecase.SetupPaymentAndActivateUseCase
-    freeSetupUseCase onboarding_usecase.FreeSetupUseCase
-    GetRecommendedTierUseCase onboarding_usecase.GetRecommendedTierUseCase
-    FindUsersUseCase onboarding_usecase.FindUsersUseCaseInterface
+	uc                        onboarding_usecase.GetRecommendedTierUseCase
+	createAccountUseCase      onboarding_usecase.CreateAccountUseCase
+	setupPaymentUseCase       onboarding_usecase.SetupPaymentAndActivateUseCase
+	freeSetupUseCase          onboarding_usecase.FreeSetupUseCase
+	GetRecommendedTierUseCase onboarding_usecase.GetRecommendedTierUseCase
+	FindUsersUseCase          onboarding_usecase.FindUsersUseCaseInterface
 
-    DB *gorm.DB
-    appLogger *logger.Logger
-    Bus onboarding_application_events.OnboardingEventBus
-	UserRepo onboarding_domain.UserRepository
+	DB             *gorm.DB
+	appLogger      *logger.Logger
+	Bus            onboarding_application_events.OnboardingEventBus
+	UserRepo       onboarding_domain.UserRepository
 	KeyringService vault_infrastructure_security.KeyringService
 }
 
-func  NewOnBoardingHandler(
-    stellarService onboarding_usecase.StellarServiceInterface,
-    userSubscriptionRepo subscription_domain.UserRepository,
-    subscriptionSubRepo subscription_domain.SubscriptionRepository,
-    tcClient *tracecore.TracecoreClient,
-    DB *gorm.DB,
-    appLogger *logger.Logger,
-    keyringService vault_infrastructure_security.KeyringService,
+func NewOnBoardingHandler(
+	stellarService onboarding_usecase.StellarServiceInterface,
+	userSubscriptionRepo subscription_domain.UserRepository,
+	subscriptionSubRepo subscription_domain.SubscriptionRepository,
+	tcClient *tracecore.TracecoreClient,
+	DB *gorm.DB,
+	appLogger *logger.Logger,
+	keyringService vault_infrastructure_security.KeyringService,
 ) *OnBoardingHandler {
-    keyEncryption := vault_infrastructure_crypto.NewKeyService()
+	keyEncryption := vault_infrastructure_crypto.NewKeyService()
 
 	onboardingUserRepo := onboarding_persistence.NewGormUserRepository(DB)
 	getRecommendedTierUC := onboarding_usecase.GetRecommendedTierUseCase{Db: DB}
 	onboardingBus := onboarding_infrastructure_eventbus.NewMemoryBus()
 	onboardingCreateAccountUC := onboarding_usecase.NewCreateAccountUseCase(
-        stellarService, 
-        onboardingUserRepo, 
-        onboardingBus, 
-        appLogger,
-        &keyringService,
-        keyEncryption,
-    )
+		stellarService,
+		onboardingUserRepo,
+		onboardingBus,
+		appLogger,
+		&keyringService,
+		keyEncryption,
+	)
 
 	onboardingSetupPaymentUseCase := onboarding_usecase.NewSetupPaymentAndActivateUseCase(
-        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
-    )
+		onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
+	)
 
 	onboardingFreeSetupUseCase := onboarding_usecase.NewFreeSetupUseCase(
-        onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
-    )
+		onboardingUserRepo, userSubscriptionRepo, subscriptionSubRepo, onboardingBus, tcClient,
+	)
 
 	onboardingFindUsersUseCase := onboarding_usecase.NewFindUsersUseCase(
-        onboardingUserRepo,
-    )
+		onboardingUserRepo,
+	)
 
 	return &OnBoardingHandler{
-        uc: getRecommendedTierUC, 
-        createAccountUseCase: *onboardingCreateAccountUC, 
-        setupPaymentUseCase: *onboardingSetupPaymentUseCase, 
-        freeSetupUseCase: *onboardingFreeSetupUseCase, 
-        GetRecommendedTierUseCase: getRecommendedTierUC,
-        DB: DB,
-        appLogger: appLogger,
-        Bus: onboardingBus,
-		UserRepo: onboardingUserRepo,
-		FindUsersUseCase: onboardingFindUsersUseCase,
-    }
+		uc:                        getRecommendedTierUC,
+		createAccountUseCase:      *onboardingCreateAccountUC,
+		setupPaymentUseCase:       *onboardingSetupPaymentUseCase,
+		freeSetupUseCase:          *onboardingFreeSetupUseCase,
+		GetRecommendedTierUseCase: getRecommendedTierUC,
+		DB:                        DB,
+		appLogger:                 appLogger,
+		Bus:                       onboardingBus,
+		UserRepo:                  onboardingUserRepo,
+		FindUsersUseCase:          onboardingFindUsersUseCase,
+	}
 }
 
+func (h *OnBoardingHandler) SetIdentityHandler(svc onboarding_usecase.IdentityDevicePort) {
+	h.createAccountUseCase.WithIdentityService(svc)
+}
 
 // 0. Get Tier Features
 // GetTierFeatures returns feature comparison for pricing page
 func (h *OnBoardingHandler) GetTierFeatures() map[string]onboarding_domain.SubscriptionFeatures {
-    return map[string]onboarding_domain.SubscriptionFeatures{
-        "free": {
-            StorageGB:        5,
-            CloudBackup:      false,
-            MobileApps:       false,
-            SharingLimit:     5,
-            Support:          "community",
-        },
-        "pro": {
-            StorageGB:        100,
-            CloudBackup:      true,
-            MobileApps:       true,
-            UnlimitedSharing: true,
-            Support:          "email_24_48h",
-        },
-        "pro_plus": {
-            StorageGB:         200,
-            CloudBackup:       true,
-            MobileApps:        true,
-            UnlimitedSharing:  true,
-            VersionHistory:    true,
-            Telemetry:         false,
-            AnonymousAccount:  true,
-            CryptoPayments:    true,
-            EncryptedPayments: true,
-            Support:           "encrypted_chat_12h",
-        },
-        "business": {
-            StorageGB:        1024,
-            CloudBackup:      true,
-            MobileApps:       true,
-            UnlimitedSharing: true,
-            VersionHistory:   true,
-            Telemetry:        false,
-            CryptoPayments:   true,
-            EncryptedPayments: true,
-            APIAccess:        true,
-            Tracecore:        true,
-            SSO:              true,
-            TeamFeatures:     true,
-            Support:          "24_7_live",
-        },
-    }
+	return map[string]onboarding_domain.SubscriptionFeatures{
+		"free": {
+			StorageGB:    5,
+			CloudBackup:  false,
+			MobileApps:   false,
+			SharingLimit: 5,
+			Support:      "community",
+		},
+		"pro": {
+			StorageGB:        100,
+			CloudBackup:      true,
+			MobileApps:       true,
+			UnlimitedSharing: true,
+			Support:          "email_24_48h",
+		},
+		"pro_plus": {
+			StorageGB:         200,
+			CloudBackup:       true,
+			MobileApps:        true,
+			UnlimitedSharing:  true,
+			VersionHistory:    true,
+			Telemetry:         false,
+			AnonymousAccount:  true,
+			CryptoPayments:    true,
+			EncryptedPayments: true,
+			Support:           "encrypted_chat_12h",
+		},
+		"business": {
+			StorageGB:         1024,
+			CloudBackup:       true,
+			MobileApps:        true,
+			UnlimitedSharing:  true,
+			VersionHistory:    true,
+			Telemetry:         false,
+			CryptoPayments:    true,
+			EncryptedPayments: true,
+			APIAccess:         true,
+			Tracecore:         true,
+			SSO:               true,
+			TeamFeatures:      true,
+			Support:           "24_7_live",
+		},
+	}
 }
 
 // Step 2: Use Case (conditional based on Step 1)
 type UseCaseResponse struct {
-    UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
+	UseCases []string `json:"use_cases"` // ["passwords", "financial", "medical", etc.]
 }
 
 // Step 3: Tier Selection
 type TierSelectionResponse struct {
-    Tier          subscription_domain.SubscriptionTier `json:"tier"`
-    PaymentMethod subscription_domain.PaymentMethod    `json:"payment_method"`
+	Tier          subscription_domain.SubscriptionTier `json:"tier"`
+	PaymentMethod subscription_domain.PaymentMethod    `json:"payment_method"`
 }
+
 func (h *OnBoardingHandler) GetRecommendedTier(identityChoice identity_domain.IdentityChoice) subscription_domain.SubscriptionTier {
 
 	return h.uc.Execute(identityChoice)
 }
 
 type AccountCreationResponse struct {
-    UserID      string `json:"user_id"`
-    StellarKey  string `json:"stellar_key,omitempty"` // Generated for anonymous
-    SecretKey   string `json:"secret_key,omitempty"`  // CRITICAL: User must save this
-}	
+	UserID     string `json:"user_id"`
+	StellarKey string `json:"stellar_key,omitempty"` // Generated for anonymous
+	SecretKey  string `json:"secret_key,omitempty"`  // CRITICAL: User must save this
+}
 
 // Step 4: Create Account
 func (h *OnBoardingHandler) CreateAccount(req onboarding_usecase.AccountCreationRequest) (*AccountCreationResponse, error) {
-    response, err := h.createAccountUseCase.Execute(req)
-    if err != nil {
-        return nil, err
-    }
+	response, err := h.createAccountUseCase.Execute(req)
+	if err != nil {
+		return nil, err
+	}
 
-    return &AccountCreationResponse{
-        UserID:      response.UserID,
-        StellarKey:  response.StellarKey,
-        SecretKey:   response.SecretKey,
-    }, nil    
+	return &AccountCreationResponse{
+		UserID:     response.UserID,
+		StellarKey: response.StellarKey,
+		SecretKey:  response.SecretKey,
+	}, nil
 }
 
 // Step 5: Setup Payment
 func (h *OnBoardingHandler) SetupPaymentAndActivate(req onboarding_usecase.PaymentSetupRequest) (*subscription_domain.Subscription, error) {
-    response, err := h.setupPaymentUseCase.Execute(req)
-    if err != nil {
-        return nil, err
-    }
+	response, err := h.setupPaymentUseCase.Execute(req)
+	if err != nil {
+		return nil, err
+	}
 
-    return response, nil
+	return response, nil
 }
 
 // Step 5: Setup Free Payment
 func (h *OnBoardingHandler) SetupFreeAndActivate(req onboarding_usecase.FreeSetupRequest) (*tracecore.FreeCheckoutResponse, error) {
-    h.appLogger.Info("✅ SetupFreeAndActivate - Starting setup free and activate...")
-    response, err := h.freeSetupUseCase.Execute(req)
-    if err != nil {
-        h.appLogger.Error("❌ SetupFreeAndActivate - Failed to setup free and activate: %v", err)
-        return nil, err
-    }
+	h.appLogger.Info("✅ SetupFreeAndActivate - Starting setup free and activate...")
+	response, err := h.freeSetupUseCase.Execute(req)
+	if err != nil {
+		h.appLogger.Error("❌ SetupFreeAndActivate - Failed to setup free and activate: %v", err)
+		return nil, err
+	}
 
-    return response, nil
+	return response, nil
 }
 
 func (h *OnBoardingHandler) FetchUsers() ([]onboarding_domain.User, error) {
-    userRepository := onboarding_persistence.NewGormUserRepository(h.DB)
-    findUserUC := onboarding_usecase.NewFindUsersUseCase(userRepository)
-    return findUserUC.Execute()
+	userRepository := onboarding_persistence.NewGormUserRepository(h.DB)
+	findUserUC := onboarding_usecase.NewFindUsersUseCase(userRepository)
+	return findUserUC.Execute()
 }
 
 func (h *OnBoardingHandler) GetAppState() (*onboarding_domain.AppState, error) {
@@ -200,30 +203,30 @@ func (h *OnBoardingHandler) GetAppState() (*onboarding_domain.AppState, error) {
 
 func (h *OnBoardingHandler) UpdateAppState(appState *onboarding_domain.AppState) error {
 	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
-    return appStateRepo.Update(appState)
+	return appStateRepo.Update(appState)
 }
 
 func (h *OnBoardingHandler) CompleteOnboarding() error {
 	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
 
-    appState, err := appStateRepo.Get()
+	appState, err := appStateRepo.Get()
 	if err != nil {
 		appState = onboarding_domain.NewAppState()
 	}
-    appState.SetHasVault(true)
+	appState.SetHasVault(true)
 	appState.SetNeedsOnboarding(false)
 
 	return appStateRepo.Update(appState)
-} 
+}
 
 func (h *OnBoardingHandler) ResetOnboarding() error {
 	appStateRepo := onboarding_persistence.NewAppStateRepository(h.DB)
-    as, err := appStateRepo.Get()
-    if err != nil {
-        as = onboarding_domain.NewAppState()
-    }
-    as.SetHasVault(false)
-    as.SetNeedsOnboarding(true)
+	as, err := appStateRepo.Get()
+	if err != nil {
+		as = onboarding_domain.NewAppState()
+	}
+	as.SetHasVault(false)
+	as.SetNeedsOnboarding(true)
 	appStateRepo.Update(as)
 	return nil
 }

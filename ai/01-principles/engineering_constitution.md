@@ -312,3 +312,6 @@ If the answer is no, reconsider the decision.
 An agent may not propose a fix while an observable configuration or runtime value can falsify its hypothesis.
 
 Every root-cause claim MUST identify the first broken boundary where `EXPECTED != ACTUAL` and provide executable, reproducible evidence for it.
+
+
+AI teams perform engineering actions. Loop Engineering determines whether engineering is finished.

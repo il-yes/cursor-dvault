@@ -79,7 +79,7 @@ export function NotificationItem({ item, onMarkRead, onArchive }: Props) {
 						</Button>
 					) : null}
 
-					{item.type === "workspace.invitation" || item.type === "workspace_invitation" ? (
+					{item.type === "workspace.invitation" || item.type === "workspace_invitation" || item.type === "channel.invitation.created" || item.type === "channel_invitation" ? (
 						<Button size="sm" onClick={() => acceptWorkspaceInvitation(item)}>
 							Accept
 						</Button>

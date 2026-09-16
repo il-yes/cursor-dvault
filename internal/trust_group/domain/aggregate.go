@@ -1,6 +1,7 @@
 package trustgroup_domain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,6 +69,7 @@ func (g *TrustGroup) AddMember(member TrustGroupMember) error {
 	}
 	for _, cid := range g.MemberCIDs {
 		if cid == member.VaultID {
+			fmt.Printf("[MEMBERSHIP][DEDUP]\ntrustGroupID=%s memberID=%s\n", g.ID, member.VaultID)
 			return nil
 		}
 	}
@@ -130,9 +132,6 @@ func (g *TrustGroup) AddEnvelope(env TrustGroupKeyEnvelope) error {
 	if env.MemberID == "" {
 		return ErrMemberIDRequired
 	}
-	if env.DeviceID == "" {
-		return ErrDeviceIDRequired
-	}
 	if env.WrappedKEK == "" {
 		return ErrWrappedKEKRequired
 	}
@@ -140,7 +139,7 @@ func (g *TrustGroup) AddEnvelope(env TrustGroupKeyEnvelope) error {
 		return ErrStaleKEKVersion
 	}
 	for _, existing := range g.KeyEnvelopes {
-		if existing.DeviceID == env.DeviceID && existing.KEKVersion == env.KEKVersion && existing.RevokedAt == nil {
+		if existing.MemberID == env.MemberID && existing.KEKVersion == env.KEKVersion && existing.RevokedAt == nil {
 			return ErrDuplicateKeyEnvelope
 		}
 	}
@@ -158,14 +157,23 @@ func (g *TrustGroup) AddEnvelope(env TrustGroupKeyEnvelope) error {
 	return nil
 }
 
-
 type TrustGroupKeyEnvelope struct {
 	ID           string     `json:"id"`
 	TrustGroupID string     `json:"trust_group_id"`
 	MemberID     string     `json:"member_id"`
-	DeviceID     string     `json:"device_id"`
+	DeviceID     string     `json:"device_id,omitempty"`
 	KEKVersion   uint64     `json:"kek_version"`
 	WrappedKEK   string     `json:"wrapped_kek"`
 	CreatedAt    time.Time  `json:"created_at"`
 	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+}
+
+
+func (g *TrustGroup) HasMember(memberID string) bool {
+	for _, id := range g.MemberCIDs {
+		if id == memberID {
+			return true
+		}
+	}
+	return false
 }

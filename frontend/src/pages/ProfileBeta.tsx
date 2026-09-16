@@ -78,9 +78,11 @@ const Profile = () => {
 	}, []);
 
 	useEffect(() => {
-		setUserName(user?.user_name);
-		setFirstName(user?.first_name);
-		setLastName(user?.last_name);
+		if (user) {
+			setUserName(user.user_name || user.username || "");
+			setFirstName(user.first_name || "");
+			setLastName(user.last_name || "");
+		}
 	}, [user]);
 
 	useEffect(() => {
@@ -310,16 +312,49 @@ const Profile = () => {
 	};
 
 	const handleEditUserInfos = async () => {
-		const { jwtToken } = useAuthStore.getState();
+		const { jwtToken, user: authUser, setUser: setAuthUser } = useAuthStore.getState();
 		const payload = {
-			user_name: "",
-			last_name: "",
-			first_name: "",
+			user_name: userName || "",
+			first_name: firstName || "",
+			last_name: lastName || "",
+		};
+
+		try {
+			await EditUserInfos(jwtToken || "", payload);
+			if (authUser) {
+				setAuthUser({
+					...authUser,
+					username: userName || "",
+					user_name: userName || "",
+					first_name: firstName || "",
+					last_name: lastName || "",
+				});
+			}
+			const appSession = useAppStore.getState().session;
+			if (appSession && appSession.user) {
+				useAppStore.getState().setSessionData({
+					...appSession,
+					user: {
+						...appSession.user,
+						username: userName || "",
+						user_name: userName || "",
+						first_name: firstName || "",
+						last_name: lastName || "",
+					},
+				});
+			}
+			toast({
+				title: "Success",
+				description: "Profile updated successfully.",
+			});
+		} catch (err: any) {
+			toast({
+				title: "Update failed",
+				description: err?.message || "Failed to update profile info.",
+				variant: "destructive",
+			});
 		}
-		const response = await EditUserInfos(jwtToken, payload);
-		console.log(response);
-		toast({ title: "Success", description: "User info updated successfully!" });
-	}
+	};
 
 
 	return (
@@ -328,11 +363,11 @@ const Profile = () => {
 				<div className="max-w-5xl mx-auto p-8 space-y-8">
 					{/* Hero Header */}
 					<div className="text-center backdrop-blur-xl bg-white/40 dark:bg-zinc-900/40 rounded-3xl p-12 border border-white/30 dark:border-zinc-700/30 shadow-2xl">
-						<h1 className="text-6xl font-black bg-gradient-to-r from-foreground via-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-2xl mb-4">
-							Profile
+						<h1 className="text-5xl font-black bg-gradient-to-r from-foreground via-primary to-amber-500/80 bg-clip-text text-transparent drop-shadow-2xl mb-4">
+							{user?.email || user?.Email || "Profile"}
 						</h1>
-						<p className="text-2xl text-muted-foreground/90 max-w-2xl mx-auto leading-relaxed backdrop-blur-sm">
-							Manage your sovereign identity and vault preferences
+						<p className="text-xl text-muted-foreground/90 max-w-2xl mx-auto leading-relaxed backdrop-blur-sm">
+							Sovereign Identity & Vault Preferences
 						</p>
 					</div>
 
@@ -348,7 +383,6 @@ const Profile = () => {
 									</h2>
 									<p className="text-xl text-muted-foreground/80">Your personal details</p>
 								</div>
-								{/* <User  className="h-8 w-8 text-primary" /> */}
 								{avatarUrl && <Avatar className="h-20 w-35 flex-shrink-0" style={{ cursor: "pointer" }}>
 									<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 backdrop-blur-sm border border-primary/20 text-sm">
 										<img src={avatarUrl} alt="User Avatar" className="h-20 w-20" />
@@ -362,7 +396,7 @@ const Profile = () => {
 									<div className="absolute inset-0 bg-gradient-to-r from-primary via-amber-500/30 to-primary rounded-3xl blur-xl opacity-0 group-hover/avatar:opacity-50 transition-all" />
 									<Avatar className="h-28 w-28 border-4 border-white/50 shadow-2xl group-hover/avatar:shadow-primary/30 transition-all">
 										<AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-3xl font-bold border-4 border-white/60 backdrop-blur-sm">
-											{user?.username?.charAt(0).toUpperCase()}
+											{(userName || user?.username || user?.email || "U").charAt(0).toUpperCase()}
 										</AvatarFallback>
 									</Avatar>
 								</div>
@@ -394,33 +428,36 @@ const Profile = () => {
 							{/* Form Fields */}
 							<div className="grid md:grid-cols-2 gap-6">
 								<div className="space-y-3">
-									<Label className="text-lg font-semibold text-muted-foreground/90">Name</Label>
+									<Label className="text-lg font-semibold text-muted-foreground/90">Username</Label>
 									<Input
-										id="name"
-										defaultValue={userName}
+										id="user_name"
+										value={userName || ""}
+										onChange={(e) => setUserName(e.target.value)}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>
 								<div className="space-y-3">
-									<Label className="text-lg font-semibold text-muted-foreground/90">Last Name</Label>
+									<Label className="text-lg font-semibold text-muted-foreground/90">First Name</Label>
 									<Input
-										id="last_name"
-										defaultValue={lastName}
+										id="first_name"
+										value={firstName || ""}
+										onChange={(e) => setFirstName(e.target.value)}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>
 								<div className="md:col-span-2 space-y-3">
-									<Label className="text-lg font-semibold text-muted-foreground/90">Email Address</Label>
+									<Label className="text-lg font-semibold text-muted-foreground/90">Last Name</Label>
 									<Input
-										id="email"
-										type="email"
-										defaultValue={user && user?.Email}
+										id="last_name"
+										value={lastName || ""}
+										onChange={(e) => setLastName(e.target.value)}
 										className="h-14 text-xl rounded-2xl backdrop-blur-sm bg-white/50 dark:bg-zinc-800/50 border-white/40 hover:border-primary/40 shadow-inner font-semibold"
 									/>
 								</div>
 							</div>
 
 							<Button
+								onClick={handleEditUserInfos}
 								className="mt-8 h-16 px-12 text-xl font-bold bg-gradient-to-r from-[#C9A44A] to-[#B8934A] hover:from-[#C9A44A]/90 hover:to-[#B8934A]/90 shadow-2xl hover:shadow-[#C9A44A]/40 rounded-3xl w-full group hover:scale-[1.02] transition-all"
 							>
 								Save Changes

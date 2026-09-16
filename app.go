@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 	billing_domain "vault-app/internal/billing/domain"
 	billing_ui "vault-app/internal/billing/ui"
 	"vault-app/internal/blockchain"
+	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	app_config "vault-app/internal/config"
 	app_config_dto "vault-app/internal/config/application/dto"
 	app_config_worker "vault-app/internal/config/application/worker"
@@ -42,7 +44,10 @@ import (
 	"vault-app/internal/handlers"
 	identity_commands "vault-app/internal/identity/application/commands"
 	identity_dtos "vault-app/internal/identity/application/dtos"
+	identity_usecase "vault-app/internal/identity/application/usecase"
 	identity_domain "vault-app/internal/identity/domain"
+	identity_infrastructure_eventbus "vault-app/internal/identity/infrastructure/eventbus"
+	identity_persistence "vault-app/internal/identity/infrastructure/persistence"
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	notification_center_usecases "vault-app/internal/notification_center/application/use_cases"
@@ -97,23 +102,19 @@ import (
 	thread_infrastructure_eventbus "vault-app/internal/thread/infrastructure/eventbus"
 	thread_ui "vault-app/internal/thread/ui"
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
+	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
+	trustgroup_envelope_usecases "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
+	trustgroup_usecases_trustgroup "vault-app/internal/trust_group/application/usecases/trust_group"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_infrastructure_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	workspace_usecase "vault-app/internal/workspace/application/usecases"
 	workspace_infrastructure_eventbus "vault-app/internal/workspace/infrastructure/eventbus"
 	workspace_ui "vault-app/internal/workspace/ui"
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type CoreApp interface {
-	SignIn(req handlers.LoginRequest) (*handlers.LoginResponse, error)
-	SignUp(setup handlers.OnBoarding) (*handlers.OnBoardingResponse, error)
-	// etc...
-}
-
-const version = "1.0.0"
 
 type config struct {
 	port int
@@ -125,7 +126,6 @@ type config struct {
 	Domain           string
 	Branch           string
 	EncryptionPolicy string
-
 	// Jwt auth
 	auth           auth.Auth
 	JWTSecret      string
@@ -133,45 +133,44 @@ type config struct {
 	JWTAudience    string
 	APIKey         string
 	ANCHORA_SECRET string
-
 	// Stripe
 	stripe struct {
 		secret string
 		key    string
 	}
-
 	// Stellar
 	StellarNetwork     string
 	StellarHorizonURL  string
 	StellarAssetCode   string
 	StellarAssetIssuer string
-
 	// IPFS
 	IPFSClient  string
 	IPFSGateway string
 	IPFSNetwork string
-
 	// Tracecore
 	TracecoreURL   string
 	TracecoreToken string
-
 	// Cloud
 	CloudURL                  string
 	CloudBackURL              string
 	CloudFrontURL             string
 	ANKHORA_WEBSOCKET_GATEWAY string
-
-	KEYRING_PATH string
+	KEYRING_PATH              string
 }
 
+const version = "1.0.0"
+
 type App struct {
-	config   config
+	config  config
+	version string
+
+	auth     auth.Auth
 	Logger   logger.Logger
-	version  string
 	DB       models.DBModel
 	ctx      context.Context
 	sessions map[string]*models.VaultSession
-	NowUTC   func() string
+
+	NowUTC func() string
 
 	// Core handlers
 	AppConfigHandler *app_config_ui.AppConfigHandler
@@ -184,6 +183,7 @@ type App struct {
 	LinkShareHandler          *sahre_entry_ui_wails.LinkShareHandler
 	Identity                  *identity_ui.IdentityHandler
 	OnBoardingHandler         *onboarding_ui_wails.OnBoardingHandler
+
 	NotificationCenterHandler *notification_center_ui.NotificationHandler
 	ShareEntryHandler         *sahre_entry_ui_wails.ShareEntryHandler
 	StellarService            *blockchain.StellarService
@@ -199,6 +199,8 @@ type App struct {
 	CollaborationHandler *collaboration_ui.CollaborationHandler
 
 	addTrustGroupMemberUC *trustgroup_member_usecases.AddMemberToTrustGroupUsecase
+	provisionEnvelopeUC   *trustgroup_envelope_usecases.ProvisionTrustGroupDeviceEnvelopeUseCase
+	createTrustGroupUC    *trustgroup_usecases_trustgroup.CreateTrustGroupUsecase
 	tracecoreClient       *tracecore.TracecoreClient
 
 	// New: Global state
@@ -447,7 +449,11 @@ func NewApp() *App {
 	// -------------------------------------------------------------------------------------------------
 	// Identity
 	// -------------------------------------------------------------------------------------------------
-	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, onBoardingHandler.UserRepo)
+	identityDeviceRepo := identity_persistence.NewGormDeviceRepository(db.DB)
+	identityMemoryBus := identity_infrastructure_eventbus.NewMemoryEventBus()
+	createDeviceUC := identity_usecase.NewCreateDeviceUseCase(identityDeviceRepo, identityMemoryBus).WithDeviceConfigRepository(appConfigHandler.DeviceConfigRepository)
+	identityHandler := identity_ui.NewIdentityHandler(db.DB, authTokenService, onBoardingHandler.UserRepo, *createDeviceUC, identityMemoryBus)
+	onBoardingHandler.SetIdentityHandler(identityHandler)
 
 	// -------------------------------------------------------------------------------------------------
 	// Auth
@@ -635,12 +641,57 @@ func NewApp() *App {
 	// implements both trustgroup_domain.TrustGroupRepository and
 	// c3_asset_domain.ShareEntryRepository against /api/trustgroups and
 	// /api/c3/share-entries).
-	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, tracecore.NewCloudShareEntryRepository(tracecoreClient))
+	cloudShareRepo := tracecore.NewCloudShareEntryRepository(tracecoreClient)
+	shareAssetWithTrustGroupUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tracecoreClient, cloudShareRepo)
 	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetWithTrustGroupUC, nil)
+
+	cloudAssetResolver := collaboration_infra.NewCloudAssetContentResolver(tracecoreClient)
+	var keyringSvc *vault_infrastructure_security.KeyringService
+	if vaultHandler != nil {
+		keyringSvc = vaultHandler.KeyringService
+	}
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+	aesSvc := &vault_infrastructure_crypto.AESService{}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
+
+	cloudIPFSStorage := blockchain.NewCloudIPFSStorage(tracecoreClient, "", "")
+	createCollabShareUC.WithCrypto(cryptoOrchestrator, cloudAssetResolver, identityResolver, cloudIPFSStorage, vaultHandler)
+
+	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(
+		cloudShareRepo,
+		tracecoreClient,
+		cloudAssetResolver,
+		identityResolver,
+		cryptoOrchestrator,
+		vaultHandler,
+	)
+
 	actionRepo := collaboration_infra.NewMemoryActionRepository()
 	actionUseCases := collaboration_usecases.NewActionUseCases(actionRepo, actionRepo, actionRepo, appendThreadEventUC)
-	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, nil, appendThreadEventUC, actionUseCases)
-	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, trustgroup_infrastructure_eventbus.NewMemoryBus())
+	collaborationHandler := collaboration_ui.NewCollaborationHandlerWithActions(createCollabShareUC, resolveCollabShareUC, appendThreadEventUC, actionUseCases)
+	tgMemoryBus := trustgroup_infrastructure_eventbus.NewMemoryBus()
+	addEnvelopeUC := trustgroup_envelope_usecases.NewAddTrustGroupKeyEnvelopeUseCase(tracecoreClient)
+	provisionEnvelopeUC := trustgroup_envelope_usecases.NewProvisionTrustGroupMemberEnvelopeUseCase(
+		tracecoreClient,
+		cryptoOrchestrator,
+		addEnvelopeUC,
+		keyringSvc,
+	)
+	addTrustGroupMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(tracecoreClient, tgMemoryBus)
+
+	// Register event listener for MemberAddedToTrustGroup to trigger envelope provisioning via event bus
+	// memberAddedSubscriber := trustgroup_events.NewMemberAddedSubscriber(provisionEnvelopeUC, identityHandler, tracecoreClient, nil)
+	// memberAddedSubscriber.RegisterSubscribers(tgMemoryBus)
+
+	trustGroupEventBus := trustgroup_infrastructure_eventbus.NewMemoryBus()
+
+	createTrustGroupUC := trustgroup_usecases_trustgroup.NewCreateTrustGroupUsecase(
+		tracecoreClient,
+		trustGroupEventBus,
+		provisionEnvelopeUC,
+		nil,
+	)
 
 	application := &App{
 		AppConfigHandler: appConfigHandler,
@@ -650,6 +701,7 @@ func NewApp() *App {
 		cancel:                    cancel,
 		ConnectWithStellarHandler: stellarRecoveryHandler,
 		config:                    cfg,
+		createTrustGroupUC:        createTrustGroupUC,
 		DB:                        *db,
 		EntryRegistry:             reg,
 		CryptographicShareHandler: &cryptographicShareHandler,
@@ -671,6 +723,7 @@ func NewApp() *App {
 		ThreadHandler:             threadHandler,
 		CollaborationHandler:      collaborationHandler,
 		addTrustGroupMemberUC:     addTrustGroupMemberUC,
+		provisionEnvelopeUC:       provisionEnvelopeUC,
 		tracecoreClient:           tracecoreClient,
 		// Vaults:                    nil,          // vaults, // internal/handlers/vault_handler.go legacy
 		version: version,
@@ -1088,6 +1141,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if session.Runtime.SessionSecrets == nil {
 		session.Runtime.SessionSecrets = make(map[string]string)
 	}
+	if req.Password != "" {
+		session.Runtime.SessionSecrets["password"] = req.Password
+	}
 
 	a.Logger.Info("Session prepared successfully for user %s", userID)
 
@@ -1097,7 +1153,7 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 
 	var cloudToken string
 
-	if a.Vault != nil && a.Vault.TracecoreClient != nil {
+	if a.Vault != nil && a.Vault.TracecoreClient != nil && a.AppConfigHandler != nil {
 		userCfg, errCfg := a.AppConfigHandler.GetUserConfigByUserID(userID)
 		if errCfg != nil || userCfg == nil {
 			a.Logger.Warn(
@@ -1161,6 +1217,9 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 
 							// Step 5: TracecoreClient.SetToken(token) (runtime HTTP client hydration only)
 							a.Vault.TracecoreClient.SetToken(cloudToken)
+							if a.tracecoreClient != nil {
+								a.tracecoreClient.SetToken(cloudToken)
+							}
 
 							a.Logger.Info(
 								"☁️ [CLOUD-AUTH] Cloud authentication succeeded for user=%s",
@@ -1185,6 +1244,13 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	// ============================================================
 	// 4. FIND USER ONBOARDING
 	// ============================================================
+
+	if a.OnBoardingHandler == nil || a.OnBoardingHandler.FindUsersUseCase == nil || a.SubscriptionHandler == nil {
+		return &vault_dto.LoginResponse{
+			User:   *result.User,
+			Tokens: result.Tokens,
+		}, nil
+	}
 
 	userOnboarding, err := a.OnBoardingHandler.FindUsersUseCase.FindByEmail(
 		result.User.Email,
@@ -1272,7 +1338,14 @@ func (a *App) SignIn(req handlers.LoginRequest) (*vault_dto.LoginResponse, error
 	if cloudVault != nil {
 		cloudVaultID = cloudVault.Data.ID
 	}
+	session.Runtime.VaultID = cloudVaultID
 	vaultRes.RuntimeContext.VaultID = cloudVaultID
+	a.Logger.Info(
+		"[C3][SIGNIN] userID=%s cloudVaultID=%s sessionRuntimeVaultID=%s",
+		userID,
+		cloudVaultID,
+		session.Runtime.VaultID,
+	)
 
 	if cloudToken != "" &&
 		vaultRes.RuntimeContext != nil &&
@@ -1505,6 +1578,15 @@ func (a *App) EditConfig(vaultName string, s *app_config_dto.Settings, jwtToken 
 	a.Logger.LogPretty("App - EditConfig - settings", s)
 
 	return a.AppConfigHandler.EditSettings(claims.UserID, vaultName, s)
+}
+func (a *App) HandleIncompleteDeviceConfigs(
+	userID string,
+	vaultName string,
+	vaultID string,
+	pk string,
+) ([]app_config_domain.DeviceConfig, error) {
+	a.Logger.Info("HandleIncompleteDeviceConfigs for user %s", userID)
+	return a.AppConfigHandler.DeviceConfigRepository.FindByUserIDAndVaultName(userID, vaultName)
 }
 
 // -----------------------------
@@ -1889,6 +1971,14 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
 
+	aesService := &vault_infrastructure_crypto.AESService{}
+	resp, err := aesService.AsymetricDecrypt(res.Data.EncryptedPayload, res.Data.EncryptedKey)
+	if err != nil {
+		return nil, err
+	}
+
+	utils.LogPretty("App - DecryptVaultEntry - res", string(resp))
+
 	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
@@ -2123,6 +2213,61 @@ func (a *App) UpdateAttachment(jwtToken string, attachment vaults_domain.Attachm
 	return res, nil
 }
 
+func (a *App) PostIPFSEntry(jwtToken string, entryID string, entryType string, password string) (string, error) {
+	claims, err := a.RequireAuth(jwtToken)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get Vault ==============================
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get Subscription ==============================
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Get user onboarding ==============================
+	userOnboarding, err := a.OnBoardingHandler.FindUsersUseCase.FindByEmail(claims.Email)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+	utils.LogPretty("App - PostIPFSEntry - userOnboarding", userOnboarding)
+
+	// Get Configs ==============================
+	configs, err := a.GetConfig(vault.Name, jwtToken)
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	// Post to IPFS without encryption
+	entryCID, err := a.Vault.PostIPFSEntry(claims.UserID, vault_dto.PostIPFSEntryRequest{
+		EntryID:            entryID,
+		EntryType:          entryType,
+		Configs:            *configs,
+		VaultName:          vault.Name,
+		UserSubscriptionID: sub.UserID, // TODO: replace with configs.Subscription.UserID
+		Password:           password,
+		UserOnboarding:     userOnboarding.ID,
+		IsShared:           true,
+	})
+	if err != nil {
+		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
+		return "", err
+	}
+
+	return entryCID, nil
+}
+
 // func (a *App) CreateStellarCommit(jwtToken string, cid string) (string, error) {
 // 	claims, err := a.RequireAuth(jwtToken)
 // 	if err != nil {
@@ -2221,6 +2366,7 @@ func (a *App) GetVaultAvatar(jwtToken string, vaultName string) (string, error) 
 		a.Logger.Error("App - GetVaultAvatar - error: %v", err)
 		return "", err
 	}
+
 	a.Logger.LogPretty("App - GetVaultAvatar - vault", vault)
 	return vault.Avatar, nil
 }
@@ -2972,10 +3118,39 @@ func (a *App) GetUserVaultKey(jwtToken string) (string, error) {
 func (a *App) EditUserInfos(jwtToken string, req *identity_dtos.EditUserInfosRequest) error {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
+		a.Logger.Error("App - EditUserInfos - Auth error: %v", err)
 		return err
 	}
-	fmt.Println("userID", claims.UserID)
-	// return a.Identity.EditUserInfos(a.ctx, claims.UserID, req)
+	reqUsername := ""
+	reqFirstName := ""
+	reqLastName := ""
+	if req != nil {
+		reqUsername = req.UserName
+		reqFirstName = req.FirstName
+		reqLastName = req.LastName
+	}
+	a.Logger.Info("App - EditUserInfos - updating profile for userID: %s req: username=%s first_name=%s last_name=%s", claims.UserID, reqUsername, reqFirstName, reqLastName)
+
+	user, err := a.Identity.FindUserById(a.ctx, claims.UserID)
+	if err != nil {
+		a.Logger.Error("App - EditUserInfos - failed to find user %s: %v", claims.UserID, err)
+		return err
+	}
+
+	if req != nil {
+		user.Username = req.UserName
+		user.FirstName = req.FirstName
+		user.LastName = req.LastName
+	}
+	user.EnsureAliases()
+
+	_, err = a.Identity.UpdateUser(a.ctx, user)
+	if err != nil {
+		a.Logger.Error("App - EditUserInfos - failed to update user %s: %v", claims.UserID, err)
+		return err
+	}
+
+	a.Logger.Info("App - EditUserInfos - profile updated successfully for userID: %s", claims.UserID)
 	return nil
 }
 
@@ -3028,19 +3203,38 @@ func (a *App) ConnectToRealtime(user identity_domain.User) error {
 // -----------------------------
 // Notifications Center
 // -----------------------------
+func (a *App) resolveVaultID(userID string, email string) string {
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(userID); err == nil && session != nil && session.Runtime != nil && session.Runtime.VaultID != "" {
+			return session.Runtime.VaultID
+		}
+	}
+	if a.Vault != nil && a.Vault.VaultRepository != nil {
+		if v, err := a.Vault.VaultRepository.GetLatestByUserID(userID); err == nil && v != nil && v.ID != "" {
+			return v.ID
+		}
+	}
+	if a.SubscriptionHandler != nil && email != "" {
+		if sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), email); err == nil && sub != nil {
+			if cloudVault, err := a.Vault.GetVaultFromCloud(sub.ID); err == nil && cloudVault != nil && cloudVault.Data.ID != "" {
+				return cloudVault.Data.ID
+			}
+		}
+	}
+	return userID
+}
+
 func (a *App) ListByUser(jwtToken string, limit int, offset int) ([]notification_center_domain.Notification, error) {
 	claims, err := a.RequireAuth(jwtToken)
 	if err != nil {
 		return nil, err
 	}
 
-	// fetch subscription for user
-	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(context.Background(), claims.Email)
-	if err != nil {
-		return nil, err
-	}
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
 
-	return a.NotificationCenterHandler.ListByUser(context.Background(), sub.UserID, limit, offset)
+	fmt.Printf("[C3][NOTIF_READ_TRACE][WAILS_BRIDGE] authenticated_userID=%s claims_email=%s resolved_vault_id=%s\n", claims.UserID, claims.Email, vaultID)
+
+	return a.NotificationCenterHandler.ListByUser(context.Background(), vaultID, limit, offset)
 }
 func (a *App) CountUnread(jwtToken string) (int64, error) {
 	claims, err := a.RequireAuth(jwtToken)
@@ -3048,7 +3242,8 @@ func (a *App) CountUnread(jwtToken string) (int64, error) {
 		return 0, err
 	}
 
-	return a.NotificationCenterHandler.CountUnread(context.Background(), claims.UserID)
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	return a.NotificationCenterHandler.CountUnread(context.Background(), vaultID)
 }
 func (a *App) MarkRead(jwtToken string, id string) error {
 	_, err := a.RequireAuth(jwtToken)
@@ -3070,7 +3265,9 @@ func (a *App) MarkAllRead(jwtToken string) error {
 	if err != nil {
 		return err
 	}
-	return a.NotificationCenterHandler.MarkAllRead(context.Background(), claims.UserID)
+
+	vaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	return a.NotificationCenterHandler.MarkAllRead(context.Background(), vaultID)
 }
 
 // -----------------------------
@@ -3246,19 +3443,28 @@ func (a *App) ListWorkspaces(JwtToken string, vaultId string) ([]tracecore_types
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, vaultId)
+
+	resolvedVaultID := a.resolveVaultID(claims.UserID, claims.Email)
+	targetVaultID := vaultId
+	if targetVaultID == "" {
+		targetVaultID = resolvedVaultID
+	}
+
+	fmt.Printf("[C3][WORKSPACE_ACCESS_TRACE][WAILS_LIST] authenticated_identity_id=%s resolved_vault_id=%s requested_workspace_user_identity=%s repository_query_identity=%s\n",
+		claims.UserID, resolvedVaultID, vaultId, targetVaultID)
+	a.Logger.Info("Listing workspaces for user: %v, vaultId: %v", claims.UserID, targetVaultID)
 
 	if err := a.RequireCloudAuthentication(); err != nil {
 		return nil, err
 	}
 
-	a.Logger.Info("☁️ [CLOUD-WORKSPACE] Listing workspaces for vault=%s", vaultId)
+	a.Logger.Info("☁️ [CLOUD-WORKSPACE] Listing workspaces for vault=%s", targetVaultID)
 
 	if a.WorkspaceHandler == nil {
 		return nil, fmt.Errorf("workspace handler is not initialized")
 	}
 
-	res, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, vaultId)
+	res, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, targetVaultID)
 	if err != nil {
 		a.Logger.Error("App.ListWorkspaces error: %v", err)
 		return nil, err
@@ -3339,7 +3545,6 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	return res, err
 }
 
-
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no
 // local mutation is performed.
@@ -3358,11 +3563,11 @@ func (a *App) UpdateChannel(JwtToken string, channelID string, title string, slo
 		return nil, fmt.Errorf("channel handler is not initialized")
 	}
 	fmt.Printf(
-    "[BOUNDARIES][WAILS][WRITE] App.UpdateChannel channelID=%s slotsCount=%d slots=%+v\n",
-    channelID,
-    len(slots),
-    slots,
-)
+		"[BOUNDARIES][WAILS][WRITE] App.UpdateChannel channelID=%s slotsCount=%d slots=%+v\n",
+		channelID,
+		len(slots),
+		slots,
+	)
 	fmt.Printf("[SLOTS][SAVE] STEP=10 EVENT=HANDLER_CALL channelId=%s\n", channelID)
 	res, err := a.ChannelHandler.UpdateChannel(a.ctx, claims.UserID, channelID, title, slots, assignments, properties, policy)
 	fmt.Printf("[SLOTS][SAVE] STEP=11 EVENT=HANDLER_RETURN success=%v error=%v\n", err == nil, err)
@@ -3496,6 +3701,8 @@ func (a *App) ListTrustGroups(JwtToken string, workspaceID string) ([]trustgroup
 		return nil, fmt.Errorf("tracecore client is not initialized")
 	}
 
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][17] layer=WAILS_HANDLER file=app.go function=App.ListTrustGroups input.workspaceID=%s status=CALLING_TRACECORE_CLIENT\n", workspaceID)
+
 	resp, err := a.tracecoreClient.ListTrustGroups(a.ctx, &trustgroup_domain.ListTrustGroupsRequest{ChannelID: workspaceID})
 	if err != nil {
 		return nil, err
@@ -3504,45 +3711,613 @@ func (a *App) ListTrustGroups(JwtToken string, workspaceID string) ([]trustgroup
 }
 
 // CreateTrustGroup creates a new trust group via Ankhora Cloud backend.
-func (a *App) CreateTrustGroup(JwtToken string, workspaceID string, name string) (*trustgroup_domain.TrustGroup, error) {
-	if _, err := a.RequireAuth(JwtToken); err != nil {
-		return nil, fmt.Errorf("unauthorized: %w", err)
-	}
-	if a.tracecoreClient == nil {
-		return nil, fmt.Errorf("tracecore client is not initialized")
-	}
-
-	resp, err := a.tracecoreClient.CreateTrustGroup(a.ctx, &trustgroup_domain.CreateTrustGroupRequest{
-		TrustGroup: trustgroup_domain.TrustGroup{
-			ChannelID: workspaceID,
-			Name:      name,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &resp.Data, nil
-}
-
-// AddTrustGroupMember joins a member vault to a trust group through the authoritative Cloud backend.
-func (a *App) AddTrustGroupMember(JwtToken string, trustGroupID string, channelID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+// CreateTrustGroup creates a new trust group via Ankhora Cloud backend
+// and provisions a key envelope for every active device of every initial member.
+func (a *App) CreateTrustGroup(
+	JwtToken string,
+	workspaceID string,
+	name string,
+	vaultName string,
+) (*trustgroup_domain.TrustGroup, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
-	_ = claims
+
+	if a.createTrustGroupUC == nil {
+		return nil, fmt.Errorf("create trust group usecase is not initialized")
+	}
+
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, fmt.Errorf("keyring service is not initialized")
+	}
+
+	// Get vault
+	vault, err := a.Vault.GetVault(claims.UserID, vaultName)
+	if err != nil {
+		return nil, fmt.Errorf("get vault by user ID: %w", err)
+	}
+	if vault == nil {
+		return nil, fmt.Errorf("vault not found for user ID: %s", claims.UserID)
+	}
+
+	// Get subbscription
+	subscription, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(a.ctx, claims.Email)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription: %w", err)
+	}
+	if subscription == nil {
+		return nil, fmt.Errorf("subscription not found for user ID: %s", claims.UserID)
+	}
+
+	// Get vault from cloud
+	vaultCloud, err := a.Vault.GetVaultFromCloud(subscription.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get vault from cloud: %w", err)
+	}
+
+	// 1. Create the TrustGroup through the application usecase.
+	//
+	// The usecase is responsible for:
+	//   - validating the request
+	//   - creating the domain TrustGroup
+	//   - persisting it through the repository
+	//   - publishing TrustGroupCreated
+	initialMembers := []string{vaultCloud.Data.ID}
+
+	tg, err := a.createTrustGroupUC.Execute(
+		a.ctx,
+		trustgroup_dtos.CreateTrustGroupRequest{
+			ChannelID:  workspaceID,
+			Name:       name,
+			MemberCIDs: initialMembers,
+			VaultID:    vaultCloud.Data.ID,
+			OwnerID:    claims.UserID,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create trust group: %w", err)
+	}
+
+	if tg == nil || tg.ID == "" {
+		return nil, fmt.Errorf("create trust group returned an empty trust group")
+	}
+
+	if len(tg.MemberCIDs) == 0 {
+		return nil, fmt.Errorf(
+			"created trust group %s has no members",
+			tg.ID,
+		)
+	}
+
+	if tg.KEKVersion == 0 {
+		return nil, fmt.Errorf(
+			"created trust group %s has invalid KEK version 0",
+			tg.ID,
+		)
+	}
+
+	// 2. Load the creator's sovereign keyring.
+	//
+	// The TrustGroup KEK belongs to the creator's vault/keyring.
+	// It is NOT loaded from an invitee's keyring.
+	var pass string
+	var secret string
+
+	userSession, _ := a.Vault.GetSession(claims.UserID)
+
+	if userSession != nil &&
+		userSession.Runtime != nil &&
+		userSession.Runtime.SessionSecrets != nil {
+
+		pass = userSession.Runtime.SessionSecrets["assword"]
+		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+
+		if secret == "" {
+			secret = userSession.Runtime.SessionSecrets["device_seed"]
+		}
+
+		if secret == "" &&
+			userSession.Runtime.UserConfig.StellarAccount.PrivateKey != "" {
+			secret = userSession.Runtime.UserConfig.StellarAccount.PrivateKey
+		}
+	}
+
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		claims.UserID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load creator keyring: %w", err)
+	}
+	if keyring == nil {
+		return nil, fmt.Errorf("load creator keyring returned nil")
+	}
+
+	// 3. Resolve the creator's existing public identity.
+	//
+	// This is the initial member created by the TrustGroup usecase.
+	// We do not discover arbitrary devices and we do not load another
+	// member's keyring here.
+	var pubKey string
+
+	if a.Identity != nil {
+		user, findErr := a.Identity.FindUserById(
+			a.ctx,
+			claims.UserID,
+		)
+		if findErr == nil &&
+			user != nil &&
+			user.StellarPublicKey != "" {
+
+			pubKey = user.StellarPublicKey
+		}
+	}
+
+	if pubKey == "" &&
+		userSession != nil &&
+		userSession.Runtime != nil &&
+		userSession.Runtime.UserConfig.StellarAccount.PublicKey != "" {
+
+		pubKey = userSession.Runtime.UserConfig.StellarAccount.PublicKey
+	}
+
+	if pubKey == "" &&
+		claims.Email != "" &&
+		a.tracecoreClient != nil {
+
+		user, lookupErr := a.tracecoreClient.GetUserByEmail(
+			a.ctx,
+			claims.Email,
+		)
+		if lookupErr == nil &&
+			user != nil &&
+			user.PublicKey != "" {
+
+			pubKey = user.PublicKey
+		}
+	}
+
+	if pubKey == "" {
+		return nil, fmt.Errorf(
+			"public key not found for creator %s",
+			claims.UserID,
+		)
+	}
+	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
+	initialKEK := asymSvc.GenerateSymmetricKey()
+
+	_, err = a.Vault.KeyringService.StoreTrustGroupKEK(
+		keyring,
+		tg.ID,
+		tg.KEKVersion,
+		initialKEK,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"store initial trust group KEK: %w",
+			err,
+		)
+	}
+
+	// 4. Provision the creator's envelope.
+	//
+	// ProvisionTrustGroupDeviceEnvelopeUseCase is responsible for
+	// obtaining/initializing the TrustGroup KEK in the creator's
+	// sovereign keyring and wrapping that KEK for the creator's
+	// existing public key.
+	//
+	// The KEK is therefore persisted in the creator's keyring only.
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf(
+			"provision trust group envelope usecase is not initialized",
+		)
+	}
+
+	updatedTG, err := a.provisionEnvelopeUC.Execute(
+		a.ctx,
+		trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+			TrustGroupID:    tg.ID,
+			MemberID:        vaultCloud.Data.ID,
+			MemberPublicKey: pubKey,
+		},
+		keyring,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"provision creator trust group envelope: %w",
+			err,
+		)
+	}
+
+	if updatedTG == nil {
+		return nil, fmt.Errorf(
+			"provision creator trust group envelope returned nil",
+		)
+	}
+
+	tg = updatedTG
+
+	// 5. Persist the creator's keyring.
+	//
+	// This is the sovereign storage boundary for the TrustGroup KEK.
+	if err := a.Vault.KeyringService.SaveHybrid(
+		keyring,
+		claims.UserID,
+		pass,
+		secret,
+	); err != nil {
+		return nil, fmt.Errorf(
+			"save creator keyring: %w",
+			err,
+		)
+	}
+
+	return tg, nil
+}
+
+// AddTrustGroupMember joins a member to a trust group through the authoritative Cloud backend.
+func (a *App) AddTrustGroupMember(
+	JwtToken string,
+	trustGroupID string,
+	memberIdentifier string,
+	role string,
+) (*trustgroup_domain.TrustGroup, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
 
 	if a.addTrustGroupMemberUC == nil {
 		return nil, fmt.Errorf("add trust group member usecase is not initialized")
 	}
 
-	req := trustgroup_dtos.AddMemberToTrustGroupRequest{
-		TrustGroupID: trustGroupID,
-		ChannelID:    channelID,
-		MemberID:     memberID,
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
 	}
 
-	return a.addTrustGroupMemberUC.Execute(a.ctx, req)
+	if a.Identity == nil {
+		return nil, fmt.Errorf("identity service is not initialized")
+	}
+
+	if role == "" {
+		role = "member"
+	}
+
+	utils.LogPretty("memberIdentifier", memberIdentifier)
+
+	// fecth recipient from the cloud by his email to get his public key !!!!
+	cloudInvitee, err := a.tracecoreClient.GetUserByEmail(
+		a.ctx,
+		memberIdentifier,
+	)
+	targetPubKey := strings.TrimSpace(cloudInvitee.PublicKey)
+
+	// Load the caller's existing keyring before mutating the TrustGroup.
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, fmt.Errorf("keyring service is not initialized")
+	}
+
+	var pass string
+	var secret string
+
+	if session, err := a.Vault.GetSession(claims.UserID); err == nil &&
+		session != nil &&
+		session.Runtime != nil &&
+		session.Runtime.SessionSecrets != nil {
+
+		pass = session.Runtime.SessionSecrets["vault_password"]
+		if pass == "" {
+			pass = session.Runtime.SessionSecrets["password"]
+		}
+
+		secret = session.Runtime.SessionSecrets["stellar_secret"]
+		if secret == "" {
+			secret = session.Runtime.SessionSecrets["device_seed"]
+		}
+	}
+
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		claims.UserID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to load caller keyring %s: %w",
+			claims.UserID,
+			err,
+		)
+	}
+
+	// get vault id of the invitee from cloud
+	inviteeVault, err := a.tracecoreClient.GetIdentityVaultByPublicKey(a.ctx, targetPubKey)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get invitee vault id from cloud %s: %w",
+			memberIdentifier,
+			err,
+		)
+	}
+	utils.LogPretty("App - AddTrustGroupMember - inviteeVault", inviteeVault)
+
+	if inviteeVault == nil {
+		return nil, fmt.Errorf(
+			"invitee vault id not found from cloud for user %s",
+			memberIdentifier,
+		)
+	}
+
+	memberID := inviteeVault.Data.VaultID
+
+	// Add the existing vault user ID to the TrustGroup.
+	updatedTg, err := a.addTrustGroupMemberUC.Execute(
+		a.ctx,
+		trustgroup_dtos.AddMemberToTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+			VaultID:      memberID,
+			Role:         role,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap the existing TrustGroup KEK with the member's existing public key.
+	provisionedTg, err := a.provisionEnvelopeUC.Execute(
+		a.ctx,
+		trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+			TrustGroupID:    trustGroupID,
+			MemberID:        memberID,
+			MemberPublicKey: targetPubKey,
+		},
+		keyring,
+	)
+	if err != nil {
+		if a.tracecoreClient != nil {
+			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
+				a.ctx,
+				&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+					TrustGroupID: trustGroupID,
+					MemberID:     memberID,
+				},
+			)
+		}
+
+		return nil, fmt.Errorf(
+			"failed to provision key envelope for member %s (membership rolled back): %w",
+			memberID,
+			err,
+		)
+	}
+
+	if provisionedTg != nil {
+		updatedTg = provisionedTg
+	}
+
+	// Verify the membership + envelope invariant against Cloud.
+	if a.tracecoreClient != nil {
+		freshTg, err := a.tracecoreClient.GetTrustGroup(
+			a.ctx,
+			&trustgroup_domain.GetTrustGroupRequest{
+				TrustGroupID: trustGroupID,
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"read-back verification failed for trust group %s: %w",
+				trustGroupID,
+				err,
+			)
+		}
+
+		if freshTg == nil {
+			return nil, fmt.Errorf(
+				"read-back verification failed for trust group %s: empty response",
+				trustGroupID,
+			)
+		}
+
+		updatedTg = &freshTg.Data
+
+		memberFound := false
+		for _, id := range freshTg.Data.MemberCIDs {
+			if id == memberID {
+				memberFound = true
+				break
+			}
+		}
+
+		envelopeFound := false
+		for _, envelope := range freshTg.Data.KeyEnvelopes {
+			if envelope.MemberID == memberID && envelope.RevokedAt == nil {
+				envelopeFound = true
+				break
+			}
+		}
+
+		if !memberFound || !envelopeFound {
+			_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
+				a.ctx,
+				&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+					TrustGroupID: trustGroupID,
+					MemberID:     memberID,
+				},
+			)
+
+			return nil, fmt.Errorf(
+				"trust group invariant failed for member %s: memberFound=%t envelopeFound=%t",
+				memberID,
+				memberFound,
+				envelopeFound,
+			)
+		}
+	}
+
+	_ = a.Vault.KeyringService.SaveHybrid(
+		keyring,
+		claims.UserID,
+		pass,
+		secret,
+	)
+
+	return updatedTg, nil
+}
+
+func (a *App) loadCallerKeyring(
+	callerID string,
+) (*vaults_domain.VaultKeyring, string, string, error) {
+
+	if a.Vault == nil || a.Vault.KeyringService == nil {
+		return nil, "", "", fmt.Errorf("keyring service is not initialized")
+	}
+
+	var pass string
+	var secret string
+
+	if session, err := a.Vault.GetSession(callerID); err == nil &&
+		session != nil &&
+		session.Runtime != nil &&
+		session.Runtime.SessionSecrets != nil {
+
+		secrets := session.Runtime.SessionSecrets
+
+		pass = secrets["vault_password"]
+		if pass == "" {
+			pass = secrets["password"]
+		}
+
+		secret = secrets["stellar_secret"]
+		if secret == "" {
+			secret = secrets["device_seed"]
+		}
+	}
+
+	if secret == "" {
+		secret = os.Getenv("DEVICE_SEED")
+	}
+	if secret == "" {
+		secret = os.Getenv("STELLAR_SECRET")
+	}
+	if pass == "" {
+		pass = os.Getenv("VAULT_PASSWORD")
+	}
+
+	keyring, err := a.Vault.KeyringService.LoadHybrid(
+		callerID,
+		pass,
+		secret,
+	)
+	if err != nil {
+		return nil, "", "", fmt.Errorf(
+			"failed to load caller keyring %s: %w",
+			callerID,
+			err,
+		)
+	}
+
+	return keyring, pass, secret, nil
+}
+func (a *App) verifyTrustGroupMember(
+	trustGroupID string,
+	memberID string,
+) error {
+
+	if a.tracecoreClient == nil {
+		return nil
+	}
+
+	tg, err := a.tracecoreClient.GetTrustGroup(
+		a.ctx,
+		&trustgroup_domain.GetTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"read-back verification failed for trust group %s: %w",
+			trustGroupID,
+			err,
+		)
+	}
+
+	if tg == nil {
+		return fmt.Errorf(
+			"read-back verification failed for trust group %s: empty response",
+			trustGroupID,
+		)
+	}
+
+	memberFound := false
+	for _, id := range tg.Data.MemberCIDs {
+		if id == memberID {
+			memberFound = true
+			break
+		}
+	}
+
+	envelopeFound := false
+	for _, envelope := range tg.Data.KeyEnvelopes {
+		if envelope.MemberID == memberID &&
+			envelope.KEKVersion == tg.Data.KEKVersion &&
+			envelope.RevokedAt == nil {
+
+			envelopeFound = true
+			break
+		}
+	}
+
+	if !memberFound || !envelopeFound {
+		return fmt.Errorf(
+			"trust group invariant failed for member %s: memberFound=%t envelopeFound=%t",
+			memberID,
+			memberFound,
+			envelopeFound,
+		)
+	}
+
+	return nil
+}
+func (a *App) rollbackTrustGroupMember(
+	trustGroupID string,
+	memberID string,
+) {
+	if a.tracecoreClient == nil {
+		return
+	}
+
+	_, _ = a.tracecoreClient.RemoveMemberFromTrustGroup(
+		a.ctx,
+		&trustgroup_domain.RemoveMemberFromTrustGroupRequest{
+			TrustGroupID: trustGroupID,
+			MemberID:     memberID,
+		},
+	)
 }
 
 // RemoveTrustGroupMember removes/revokes a member from a trust group.
@@ -3583,6 +4358,137 @@ func (a *App) UpdateTrustGroup(JwtToken string, id string, name string) (*trustg
 		return nil, err
 	}
 	return &resp.Data, nil
+}
+
+// ProvisionTrustGroupDeviceEnvelope provisions key envelope(s) for an existing member's active device(s) in a TrustGroup.
+func (a *App) ProvisionTrustGroupDeviceEnvelope(JwtToken string, trustGroupID string, memberID string) (*trustgroup_domain.TrustGroup, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+
+	var callerVaultID string
+	if a.Vault != nil && a.Vault.SessionManager != nil {
+		if session, err := a.Vault.GetSession(claims.UserID); err == nil && session != nil && session.Runtime != nil {
+			callerVaultID = session.Runtime.VaultID
+		}
+	}
+	if callerVaultID == "" {
+		callerVaultID = claims.UserID
+	}
+	if memberID == "" {
+		memberID = callerVaultID
+	}
+
+	if a.provisionEnvelopeUC == nil {
+		return nil, fmt.Errorf("provisionEnvelopeUC is not initialized")
+	}
+	fmt.Printf("[PROVISION-FORENSIC] function/file: App.ProvisionTrustGroupDeviceEnvelope (app.go:L3673)\n")
+	fmt.Printf("[PROVISION-FORENSIC] TrustGroupID: %s\n", trustGroupID)
+	fmt.Printf("[PROVISION-FORENSIC] MemberID: %s\n", memberID)
+
+	var beforeCount int = 0
+	var kekVer uint64 = 1
+	if beforeResp, err := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID}); err == nil && beforeResp != nil {
+		beforeCount = len(beforeResp.Data.KeyEnvelopes)
+		if beforeResp.Data.KEKVersion > 0 {
+			kekVer = beforeResp.Data.KEKVersion
+		}
+	}
+	fmt.Printf("[PROVISION-FORENSIC] KEKVersion: %d\n", kekVer)
+	fmt.Printf("[PROVISION-FORENSIC] KeyEnvelopesCount BEFORE: %d\n", beforeCount)
+
+	var email string
+	if strings.Contains(memberID, "@") {
+		email = memberID
+	} else if a.Identity != nil {
+		if idUser, idErr := a.Identity.FindUserById(a.ctx, memberID); idErr == nil && idUser != nil {
+			email = idUser.Email
+		}
+	}
+
+	lookupKey := email
+	if lookupKey == "" {
+		lookupKey = memberID
+	}
+
+	var targetPubKey string
+	if lookupKey != "" && a.tracecoreClient != nil {
+		user, tcErr := a.tracecoreClient.GetUserByEmail(a.ctx, lookupKey)
+		if tcErr == nil && user != nil && strings.TrimSpace(user.PublicKey) != "" {
+			targetPubKey = strings.TrimSpace(user.PublicKey)
+		}
+	}
+
+	if targetPubKey == "" {
+		return nil, fmt.Errorf("failed to resolve public key for member %s", memberID)
+	}
+
+	var kr *vaults_domain.VaultKeyring
+	if a.Vault != nil && a.Vault.KeyringService != nil {
+		var pass, secret string
+		if userSession, errSess := a.Vault.GetSession(claims.UserID); errSess == nil && userSession != nil && userSession.Runtime != nil && userSession.Runtime.SessionSecrets != nil {
+			pass = userSession.Runtime.SessionSecrets["password"]
+			secret = userSession.Runtime.SessionSecrets["stellar_secret"]
+			if secret == "" {
+				secret = userSession.Runtime.SessionSecrets["device_seed"]
+			}
+		}
+		if secret == "" {
+			secret = os.Getenv("DEVICE_SEED")
+		}
+		if secret == "" {
+			secret = os.Getenv("STELLAR_SECRET")
+		}
+		if pass == "" {
+			pass = os.Getenv("VAULT_PASSWORD")
+		}
+		kr, _ = a.Vault.KeyringService.LoadHybrid(claims.UserID, pass, secret)
+	}
+
+	provReq := trustgroup_dtos.ProvisionTrustGroupMemberEnvelopeRequest{
+		TrustGroupID:    trustGroupID,
+		MemberID:        memberID,
+		MemberPublicKey: targetPubKey,
+	}
+	updatedTg, pErr := a.provisionEnvelopeUC.Execute(a.ctx, provReq, kr)
+
+	if pErr != nil {
+		fmt.Printf("[PROVISION-FORENSIC] persistence/update result: error (%v)\n", pErr)
+		return nil, fmt.Errorf("failed to provision member key envelope for member %s: %w", memberID, pErr)
+	}
+	if updatedTg == nil {
+		fmt.Printf("[PROVISION-FORENSIC] persistence/update result: error (updatedTg is nil)\n")
+		return nil, fmt.Errorf("no member key envelope was provisioned for member %s", memberID)
+	}
+
+	fmt.Printf("[PROVISION-FORENSIC] KeyEnvelopesCount AFTER: %d\n", len(updatedTg.KeyEnvelopes))
+	fmt.Printf("[PROVISION-FORENSIC] persistence/update result: success\n")
+
+	// Reload from SAME Cloud persistence path
+	reloadedResp, reloadErr := a.tracecoreClient.GetTrustGroup(a.ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: trustGroupID})
+	if reloadErr != nil {
+		fmt.Printf("[PROVISION-FORENSIC] reload failed: %v\n", reloadErr)
+		return nil, reloadErr
+	}
+	reloadedTG := reloadedResp.Data
+	fmt.Printf("[PROVISION-FORENSIC] reload KeyEnvelopesCount: %d\n", len(reloadedTG.KeyEnvelopes))
+	for _, env := range reloadedTG.KeyEnvelopes {
+		revokedStr := "nil"
+		if env.RevokedAt != nil {
+			revokedStr = env.RevokedAt.Format(time.RFC3339)
+		}
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope MemberID: %s\n", env.MemberID)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope DeviceID: %s\n", env.DeviceID)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope KEKVersion: %d\n", env.KEKVersion)
+		fmt.Printf("[PROVISION-FORENSIC] reload envelope RevokedAt: %s\n", revokedStr)
+		fmt.Printf("[PROVISION-FORENSIC] reload WrappedKEKPresent: %t\n", env.WrappedKEK != "")
+	}
+
+	return updatedTg, nil
 }
 
 // DeleteTrustGroup deletes a trust group via Ankhora Cloud backend.
@@ -3673,7 +4579,13 @@ func (a *App) AppendThreadEvent(JwtToken string, threadID string, eventType stri
 	return a.ThreadHandler.AppendThreadEvent(a.ctx, claims.UserID, threadID, eventType, ref)
 }
 
-func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGroupID string, assetCID string, targetVaultID string, notes string, wrappedDEK string, kekVersion uint64) (*tracecore_types.ShareEntryRefDTO, error) {
+func (a *App) CreateCollaborativeShare(
+	JwtToken string,
+	threadID string,
+	trustGroupID string,
+	assetCID string,
+	notes string,
+) (*tracecore_types.ShareEntryRefDTO, error) {
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -3681,18 +4593,282 @@ func (a *App) CreateCollaborativeShare(JwtToken string, threadID string, trustGr
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
-	return a.CollaborationHandler.CreateCollaborativeShare(a.ctx, claims.UserID, threadID, trustGroupID, assetCID, targetVaultID, notes, wrappedDEK, kekVersion)
+	if a.Vault == nil || a.Vault.VaultRepository == nil {
+		return nil, fmt.Errorf("vault repository is not initialized")
+	}
+	if a.SubscriptionHandler == nil {
+		return nil, fmt.Errorf("subscription handler is not initialized")
+	}
+
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve user vault: %w", err)
+	}
+	if vault == nil {
+		return nil, fmt.Errorf("no vault found for user %s", claims.UserID)
+	}
+
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(
+		a.ctx,
+		claims.Email,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve user subscription: %w", err)
+	}
+	if sub == nil || sub.UserID == "" {
+		return nil, fmt.Errorf("user subscription has no cloud user ID")
+	}
+
+	userStorage := blockchain.NewCloudIPFSStorage(
+		a.tracecoreClient,
+		sub.UserID,
+		vault.Name,
+	)
+
+	assetResolver := collaboration_infra.NewCloudAssetContentResolverWithStorage(
+		userStorage,
+	)
+
+	a.CollaborationHandler.SetAssetStorage(userStorage)
+	a.CollaborationHandler.SetAssetResolver(assetResolver)
+
+	// -------------------------------------------------------------------------
+	// User config
+	// -------------------------------------------------------------------------
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	configs, err := a.AppConfigHandler.GetConfig(claims.UserID, *vault, sub)
+	if err != nil {
+		a.Logger.Error("App - GetAllConfigs - error: %v", err)
+		return nil, err
+	}
+
+	stellarAccount := userConfig.StellarAccount
+
+	return a.CollaborationHandler.CreateCollaborativeShare(
+		a.ctx,
+		claims.UserID,
+		threadID,
+		trustGroupID,
+		assetCID,
+		notes,
+		"password",
+		stellarAccount.PrivateKey,
+		*configs,
+		*vault,
+	)
 }
 
-func (a *App) ResolveCollaborativeShare(JwtToken string, shareEntryID string, deviceID string) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+func (a *App) ResolveCollaborativeShare(
+	JwtToken string,
+	shareEntryID string,
+) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
+
 	claims, err := a.RequireAuth(JwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
 	}
+
 	if a.CollaborationHandler == nil {
 		return nil, fmt.Errorf("collaboration handler is not initialized")
 	}
-	return a.CollaborationHandler.ResolveCollaborativeShare(a.ctx, claims.UserID, shareEntryID, deviceID)
+
+	// -------------------------------------------------------------------------
+	// Resolve the CURRENT CALLER'S vault identity.
+	//
+	// claims.UserID identifies the authenticated user.
+	// TrustGroup.MemberCIDs contains vault/member IDs.
+	// They are not interchangeable.
+	// -------------------------------------------------------------------------
+	session, err := a.Vault.GetSession(claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to resolve caller vault session: %w",
+			err,
+		)
+	}
+
+	if session == nil || session.Runtime == nil {
+		return nil, fmt.Errorf(
+			"caller vault session is not initialized: userID=%s",
+			claims.UserID,
+		)
+	}
+
+	callerVaultID := strings.TrimSpace(session.Runtime.VaultID)
+	if callerVaultID == "" {
+		return nil, fmt.Errorf(
+			"caller vault ID is empty: userID=%s",
+			claims.UserID,
+		)
+	}
+
+	fmt.Printf(
+		"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare callerIdentityID=%s callerVaultID=%s shareEntryID=%s\n",
+		claims.UserID,
+		callerVaultID,
+		shareEntryID,
+	)
+
+	// -------------------------------------------------------------------------
+	// Resolve asset storage for the authenticated user's vault.
+	// -------------------------------------------------------------------------
+	vault, err := a.Vault.VaultRepository.GetLatestByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if vault == nil {
+		return nil, fmt.Errorf(
+			"vault not found for userID=%s",
+			claims.UserID,
+		)
+	}
+
+	sub, err := a.SubscriptionHandler.GetUserSubscriptionByEmail(
+		context.Background(),
+		claims.Email,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if sub != nil {
+		userStorage := blockchain.NewCloudIPFSStorage(
+			a.tracecoreClient,
+			sub.UserID,
+			vault.Name,
+		)
+
+		assetResolver :=
+			collaboration_infra.NewCloudAssetContentResolverWithStorage(
+				userStorage,
+			)
+
+		a.CollaborationHandler.SetAssetResolver(assetResolver)
+	}
+
+	// -------------------------------------------------------------------------
+	// User config
+	// -------------------------------------------------------------------------
+	userConfig, err := a.AppConfigHandler.GetUserConfigByUserID(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	stellarAccount := userConfig.StellarAccount
+
+	// -------------------------------------------------------------------------
+	// Application config
+	// -------------------------------------------------------------------------
+	config, err := a.GetConfig(vault.Name, JwtToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// 1. Get sstellar masterkey ==============================
+	getFileReq := vault_dto.GetFileFromIPFSRequest{
+		UserID:       claims.UserID,
+		Vault:        *vault,
+		CID:          "",
+		Password:     "password",
+		PrivateKey:   userConfig.StellarAccount.PrivateKey,
+		EncryptedKey: "",
+		SymKey:       nil,
+		Configs:      config,
+		IsShared:     true,
+	}
+
+	// -------------------------------------------------------------------------
+	// Resolve collaborative share
+	// -------------------------------------------------------------------------
+	resp, err := a.CollaborationHandler.ResolveCollaborativeShare(
+		a.ctx,
+		claims.UserID, // caller identity
+		callerVaultID, // caller vault/member ID
+		shareEntryID,
+		stellarAccount,
+		getFileReq,
+	)
+
+	if err != nil {
+		fmt.Printf(
+			"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed "+
+				"identityID=%s vaultID=%s shareEntryID=%s err=%v\n",
+			claims.UserID,
+			callerVaultID,
+			shareEntryID,
+			err,
+		)
+		return nil, err
+	}
+	plaintext := resp.Plaintext
+
+	fmt.Printf(
+		"[C3-FORENSIC][RESPONSE] plaintextBytes=%d\n",
+		len(plaintext),
+	)
+
+	if len(plaintext) > 0 {
+		previewLen := len(plaintext)
+		if previewLen > 64 {
+			previewLen = 64
+		}
+
+		fmt.Printf(
+			"[C3-FORENSIC][RESPONSE] firstBytes=%x\n",
+			plaintext[:previewLen],
+		)
+
+		fmt.Printf(
+			"[C3-FORENSIC][RESPONSE] firstText=%q\n",
+			string(plaintext[:previewLen]),
+		)
+	}
+
+	if err != nil {
+		fmt.Printf(
+			"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed "+
+				"identityID=%s vaultID=%s shareEntryID=%s err=%v\n",
+			claims.UserID,
+			callerVaultID,
+			shareEntryID,
+			err,
+		)
+		return nil, err
+	}
+
+	fmt.Printf(
+		"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare succeeded "+
+			"identityID=%s vaultID=%s shareEntryID=%s trustGroupID=%s\n",
+		claims.UserID,
+		callerVaultID,
+		shareEntryID,
+		resp.TrustGroupID,
+	)
+
+	return resp, nil
+}
+
+func (a *App) GetShareEntry(JwtToken string, shareEntryID string) (*c3_asset_domain.ShareEntry, error) {
+	if _, err := a.RequireAuth(JwtToken); err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	if shareEntryID == "" {
+		return nil, fmt.Errorf("share entry id is required")
+	}
+
+	resp, err := a.tracecoreClient.GetShareEntryDirect(a.ctx, shareEntryID)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.Data, nil
 }
 
 func (a *App) CreateApproval(JwtToken string, req collaboration_dtos.CreateApprovalRequest) (*collaboration_dtos.CreateApprovalResponse, error) {

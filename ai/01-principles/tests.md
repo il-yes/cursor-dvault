@@ -111,3 +111,6 @@ And I would absolutely keep the new `live_cloud_boundary_test.go` methodology. F
 > **"Show me the live boundary test and the actual HTTP request/response."**
 
 That should become our standard for Ankhora.
+
+
+If production has a real implementation, use it. If the test crosses a real external boundary, run the real boundary. Only mock something when we're specifically testing the behavior of the component around that boundary.

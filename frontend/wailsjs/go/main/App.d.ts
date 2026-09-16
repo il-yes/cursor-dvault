@@ -24,6 +24,7 @@ import {onboarding_domain} from '../models';
 import {app_config_domain} from '../models';
 import {app_config_worker} from '../models';
 import {billing_domain} from '../models';
+import {c3_asset_domain} from '../models';
 import {stellar_recovery_domain} from '../models';
 import {notification_center_domain} from '../models';
 import {blockchain} from '../models';
@@ -89,7 +90,7 @@ export function CreateApproval(arg1:string,arg2:collaboration_dtos.CreateApprova
 
 export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,arg5:Array<channel_domain.Slot>,arg6:Array<channel_domain.Assignment>,arg7:Array<channel_domain.ChannelProperty>,arg8:Record<string, any>,arg9:string):Promise<tracecore_types.ChannelDTO>;
 
-export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string,arg8:number):Promise<tracecore_types.ShareEntryRefDTO>;
+export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ShareEntryRefDTO>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
@@ -103,7 +104,7 @@ export function CreateThread(arg1:string,arg2:string,arg3:string,arg4:string,arg
 
 export function CreateTransfer(arg1:string,arg2:collaboration_dtos.CreateTransferRequest):Promise<collaboration_dtos.CreateTransferResponse>;
 
-export function CreateTrustGroup(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
+export function CreateTrustGroup(arg1:string,arg2:string,arg3:string,arg4:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function CreateWorkspace(arg1:string,arg2:string,arg3:string,arg4:string):Promise<tracecore_types.Workspace>;
 
@@ -163,6 +164,8 @@ export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<
 
 export function GetSession(arg1:string):Promise<main.GetSessionResponse>;
 
+export function GetShareEntry(arg1:string,arg2:string):Promise<c3_asset_domain.ShareEntry>;
+
 export function GetShareForAccept(arg1:string,arg2:string):Promise<share_entry_domain.ShareAcceptData>;
 
 export function GetStorageUsage(arg1:string,arg2:subscription_domain.SubscriptionTier):Promise<tracecore_types.CloudResponse_vault_app_internal_tracecore_types_StorageUsageResponse_>;
@@ -184,6 +187,8 @@ export function GetVaultAvatar(arg1:string,arg2:string):Promise<string>;
 export function GetVaultFromCloud(arg1:string,arg2:string):Promise<tracecore_types.Vault>;
 
 export function GetWorkspaceFederation(arg1:string,arg2:string):Promise<tracecore_types.FederationSnapshotDTO>;
+
+export function HandleIncompleteDeviceConfigs(arg1:string,arg2:string,arg3:string,arg4:string):Promise<Array<app_config_domain.DeviceConfig>>;
 
 export function ImportVaultWithKey(arg1:string):Promise<stellar_recovery_domain.ImportedKey>;
 
@@ -239,7 +244,11 @@ export function OpenURL(arg1:string):Promise<void>;
 
 export function PollPaymentStatus(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function PostIPFSEntry(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
 export function ProcessEncryptedPayment(arg1:main.ClientPaymentRequest):Promise<void>;
+
+export function ProvisionTrustGroupDeviceEnvelope(arg1:string,arg2:string,arg3:string):Promise<trustgroup_domain.TrustGroup>;
 
 export function ReactivateSubscription(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -259,7 +268,7 @@ export function RequireAuth(arg1:string):Promise<auth.Claims>;
 
 export function RequireCloudAuthentication():Promise<void>;
 
-export function ResolveCollaborativeShare(arg1:string,arg2:string,arg3:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
+export function ResolveCollaborativeShare(arg1:string,arg2:string):Promise<collaboration_dtos.ResolveCollaborativeShareResponse>;
 
 export function RestoreCloudTokenForUser(arg1:string):Promise<void>;
 

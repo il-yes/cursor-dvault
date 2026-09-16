@@ -188,8 +188,6 @@ func (h *GetIPFSDataQuerryHandler) Execute(ctx context.Context, cmd GetIPFSDataQ
 }
 
 func (h *GetIPFSDataQuerryHandler) GetFromIpfs(ctx context.Context, req GetIPFSDataQuerry) ([]byte, error) {
-	utils.LogPretty("GetIPFSDataQuerryHandler - GetFromIpfs - req", req)
-
 	if h.IpfsService != nil {
 		bytes, err := h.IpfsService.Get(ctx, req.CID)
 		if err == nil && len(bytes) > 0 {

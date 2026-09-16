@@ -23,6 +23,7 @@ import (
 	auth_ui "vault-app/internal/auth/ui"
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
@@ -214,24 +215,34 @@ func TestAppendThreadEvent_ReferencesPersistedShareEntry(t *testing.T) {
 	// ------------------------------------------------------------------
 	// 1. Real crypto + real share creation (STEP 1-4 of the workflow)
 	// ------------------------------------------------------------------
-	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), nil)
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), vault_infrastructure_security.OSFileSystem{})
 	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, nil, nil)
 
 	tgID := "tg-vertical-" + uuid.NewString()[:8]
 	const kekVersion = uint64(3)
+
+	kr := &vaults_domain.VaultKeyring{UserID: "user_alice", VaultID: "vault_alice"}
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, _ = keyringSvc.StoreTrustGroupKEK(kr, tgID, kekVersion, testKEK)
+	_ = keyringSvc.SaveHybrid(kr, "user_alice", "", "")
 
 	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
 		AssetID:      "asset-vertical-002",
 		TrustGroupID: tgID,
 		KEKVersion:   kekVersion,
 		RawPayload:   []byte("CONFIDENTIAL THREAD EVENT VERTICAL PAYLOAD"),
-		Keyring:      &vaults_domain.VaultKeyring{UserID: "user_alice", VaultID: "vault_alice"},
+		Keyring:      kr,
 	})
 	require.NoError(t, err)
+	_ = keyringSvc.SaveHybrid(kr, "user_alice", "", "")
 
 	hash := sha256.Sum256(prepared.EncryptedData)
 	assetCID := "bafybeievent" + hex.EncodeToString(hash[:8])
 	wrappedDEKB64 := base64.StdEncoding.EncodeToString(prepared.WrappedDEK)
+	_ = wrappedDEKB64
 
 	cloudToken := "0123456789abcdefghijklmnopqrstuv"
 	stub := newThreadEventStub(cloudToken)
@@ -252,7 +263,8 @@ func TestAppendThreadEvent_ReferencesPersistedShareEntry(t *testing.T) {
 	authHandler := auth_ui.NewAuthHandler(nil, tokenUC, nil)
 
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tc, tracecore.NewCloudShareEntryRepository(tc))
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, nil)
 	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, nil)
 
 	appendEventUC := thread_usecase.NewAppendThreadEventUsecase(tc)
@@ -277,8 +289,7 @@ func TestAppendThreadEvent_ReferencesPersistedShareEntry(t *testing.T) {
 	const threadID = "thread_vertical_events_1"
 
 	shareRef, err := app.CreateCollaborativeShare(
-		pairs.Token, threadID, tgID, assetCID, "vault_partner_02",
-		"thread event vertical test", wrappedDEKB64, prepared.KEKVersion,
+		pairs.Token, threadID, tgID, assetCID, "thread event vertical test",
 	)
 	require.NoError(t, err)
 	require.NotEmpty(t, shareRef.ShareEntryID)

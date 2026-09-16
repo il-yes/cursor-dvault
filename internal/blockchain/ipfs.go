@@ -35,7 +35,7 @@ type Config struct {
 }
 
 func NewStorageProvider(cfg Config, client TracecoreClt) app_config.StorageProvider {
-		utils.LogPretty("StorageCloud - Cloud.APIEndpoint - cfg", cfg)
+		// utils.LogPretty("StorageCloud - Cloud.APIEndpoint - cfg", cfg)
 	switch cfg.StorageConfig.Mode {
 	case app_config.StorageCloud:
 		utils.LogPretty("StorageCloud - Cloud.APIEndpoint", cfg.StorageConfig.Cloud.BaseURL)

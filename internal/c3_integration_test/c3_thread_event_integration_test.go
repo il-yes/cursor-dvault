@@ -261,3 +261,43 @@ func TestC3ThreadIntegration_ClosedThreadRejectsEvent(t *testing.T) {
 	_, err = appendUC.Execute(ctx, th.ID, "entry.shared", c3Ref)
 	assert.ErrorIs(t, err, thread_domain.ErrThreadClosed)
 }
+
+func TestC3EntryShared_POST_Response_Vs_GET_Response(t *testing.T) {
+	ctx := context.Background()
+	repo := newStubThreadRepo()
+
+	th := thread_domain.NewThread("ch_post_get_test", "contract", "POST vs GET Test", "")
+	_, err := repo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: th})
+	require.NoError(t, err)
+
+	appendUC := thread_usecase.NewAppendThreadEventUsecase(repo)
+	listUC := thread_usecase.NewListThreadEventsUsecase(repo)
+
+	const shareID = "22081c47-29e5-4b03-bd1e-626d3f6f87e3"
+	const trustGroupID = "ffc46329-6b01-4259-a101-22b6ccd48251"
+
+	// 1. POST entry.shared event
+	postResponse, err := appendUC.Execute(ctx, th.ID, "entry.shared", thread_domain.EventResourceRef{
+		RefType:      thread_domain.ResourceShareEntry,
+		ShareEntryID: shareID,
+		TrustGroupID: trustGroupID,
+	})
+	require.NoError(t, err)
+
+	// 2. Capture returned POST response event payload
+	assert.Equal(t, thread_domain.ResourceShareEntry, postResponse.Payload.RefType)
+	assert.Equal(t, shareID, postResponse.Payload.ShareEntryID)
+	assert.Equal(t, trustGroupID, postResponse.Payload.TrustGroupID)
+
+	// 3. GET ListThreadEvents immediately
+	events, err := listUC.Execute(ctx, th.ID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+
+	getResponse := events[0]
+
+	// 4. Compare POST response vs GET response
+	assert.Equal(t, postResponse.Payload.RefType, getResponse.Payload.RefType, "POST response RefType MUST match GET response RefType")
+	assert.Equal(t, postResponse.Payload.ShareEntryID, getResponse.Payload.ShareEntryID, "POST response ShareEntryID MUST match GET response ShareEntryID")
+	assert.Equal(t, postResponse.Payload.TrustGroupID, getResponse.Payload.TrustGroupID, "POST response TrustGroupID MUST match GET response TrustGroupID")
+}

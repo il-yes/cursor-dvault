@@ -3,7 +3,10 @@ package app_config_ui
 import (
 	"context"
 	"errors"
+	"os"
+	"strings"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	app_config "vault-app/internal/config"
@@ -167,8 +170,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get vault config: %v", err)
 	}
-	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", appConfig)
-	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", userConfig)
 
 	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(sub.UserID, vault.Name)
 	if err != nil {
@@ -236,8 +237,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 		"entryAttachmentCIDsMap": entryAttCIDsMap,
 	})
 
-	// vh.Logger.LogPretty("AppConfigHandler: GetConfig - AppConfig.Branch", session.Runtime.AppConfig.Branch)
-
 	// Get User Oboarding
 	var opt map[string]interface{}
 	userOnboarding, err := vh.OnboardingHandler.UserRepo.FindByEmail(userConfig.Email)
@@ -265,7 +264,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 		}
 	}
 	vh.Logger.LogPretty("AppConfigHandler: GetConfig - onboardingConfig", onboardingConfig)
-	// vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - subscriptionConfig: %v", subscriptionConfig)
@@ -327,6 +325,110 @@ func (vh *AppConfigHandler) GetDeviceConfigsByUserID(userID string, vaultName st
 	if err != nil {
 		return nil, err
 	}
+
+	return deviceConfigs, nil
+}
+
+type HandleMissingDeviceConfigsRequest struct {
+	UserID             string
+	VaultName          string
+	DeviceConfigs      []app_config_domain.DeviceConfig
+	IdentityDeviceID string
+}
+
+func (vh *AppConfigHandler) HandleMissingDeviceConfigs(req HandleMissingDeviceConfigsRequest) ([]app_config_domain.DeviceConfig, error) {
+	if len(req.DeviceConfigs) > 0 {
+		deviceCfg := req.DeviceConfigs[0]
+		// For onboard user create new device id
+		if deviceCfg.DeviceID == "" {
+			deviceConfigs, err := vh.CreateDeviceConfig(req.IdentityDeviceID, req.UserID, req.VaultName, &deviceCfg, req.DeviceConfigs)
+			if err != nil {
+				return nil, err
+			}
+			return deviceConfigs, nil
+		}
+
+		return req.DeviceConfigs, nil
+	}
+
+	return vh.CreateDeviceConfig(req.IdentityDeviceID, req.UserID, req.VaultName, nil, req.DeviceConfigs)
+}
+
+func (vh *AppConfigHandler) GetDeviceName() (string, error) {
+	deviceName, err := os.Hostname()
+	if err != nil || deviceName == "" {
+		deviceName = "unknown"
+	}
+
+	// Trim and sanitize if you want shorter names
+	deviceName = strings.ReplaceAll(deviceName, ".", "-")
+	if len(deviceName) > 64 {
+		deviceName = deviceName[:64]
+	}
+	return deviceName, nil
+}
+
+func (vh *AppConfigHandler) CreateDeviceConfig(
+	identityDeviceID string,
+	userID string,
+	vaultName string,
+	deviceConfig *app_config_domain.DeviceConfig,
+	deviceConfigs []app_config_domain.DeviceConfig,
+) ([]app_config_domain.DeviceConfig, error) {
+
+	deviceName, err := vh.GetDeviceName()
+	if err != nil {
+		return nil, err
+	}
+
+	if deviceConfig == nil {
+		deviceConfig = &app_config_domain.DeviceConfig{
+			BaseVaultConfig: app_config_domain.BaseVaultConfig{
+				ID:        uuid.NewString(),
+				UserID:    userID,
+				VaultName: vaultName,
+			},
+			DeviceID:   identityDeviceID,
+			DeviceName: deviceName,
+		}
+
+		if err := vh.DeviceConfigRepository.Create(deviceConfig); err != nil {
+			return nil, err
+		}
+
+		return append(deviceConfigs, *deviceConfig), nil
+	}
+
+	// Existing config: complete only the missing fields.
+	if deviceConfig.DeviceID == "" {
+		deviceConfig.DeviceID = identityDeviceID
+	}
+
+	if deviceConfig.DeviceName == "" {
+		deviceConfig.DeviceName = deviceName
+	}
+
+	if deviceConfig.BaseVaultConfig.ID == "" {
+		deviceConfig.BaseVaultConfig.ID = uuid.NewString()
+	}
+
+	if deviceConfig.BaseVaultConfig.UserID == "" {
+		deviceConfig.BaseVaultConfig.UserID = userID
+	}
+
+	if deviceConfig.BaseVaultConfig.VaultName == "" {
+		deviceConfig.BaseVaultConfig.VaultName = vaultName
+	}
+
+	if err := vh.DeviceConfigRepository.Update(deviceConfig.ID, deviceConfig); err != nil {
+		return nil, err
+	}
+
+	if len(deviceConfigs) == 0 {
+		return []app_config_domain.DeviceConfig{*deviceConfig}, nil
+	}
+
+	deviceConfigs[0] = *deviceConfig
 
 	return deviceConfigs, nil
 }
@@ -440,6 +542,7 @@ func (vh *AppConfigHandler) EditSettings(userID string, vaultName string, settin
 				return output.Error
 			}
 		} else {
+			// TODO: UPDATE ONLY THE FIRST ELEMNT ARBITRIRY, SO TO IMPROVE
 			vh.Logger.Info("AppConfigHandler: OnChangingSettings - device config found => update")
 			if err := vh.UpdateDeviceConfigs(existingDeviceCfg[0].ID, settings.Device); err != nil {
 				vh.Logger.Error("AppConfigHandler: OnChangingSettings - Failed to update device config: %v", err)

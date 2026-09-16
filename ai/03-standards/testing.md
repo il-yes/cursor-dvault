@@ -558,6 +558,84 @@ AI should generate tests together with implementation.
 
 ---
 
+A test is valid only when it exercises the same application boundary that the real user exercises.
+That means we explicitly distinguish:
+UNIT TEST
+    ↓
+tests isolated behavior
+
+INTEGRATION TEST
+    ↓
+tests real component boundaries
+
+END-TO-END ACCEPTANCE TEST
+    ↓
+starts the actual Desktop application
+    ↓
+uses the actual frontend
+    ↓
+performs actual user actions
+    ↓
+exercises Wails
+    ↓
+exercises real backend services
+    ↓
+verifies observable result
+And fake tests cannot be presented as E2E tests.
+
+_____
+
+
+## LOOP Testing Principles
+
+### 1. Test the behavior before the integration
+
+Use pragmatic TDD to define and verify the expected behavior at the appropriate unit, domain, application, and integration boundaries before relying on the full application flow.
+
+### 2. Never confuse verification levels
+
+A passing unit test does not prove integration behavior.
+A passing integration test does not prove Desktop behavior.
+A passing backend test does not prove UI behavior.
+
+### 3. The LOOP must follow the real user path
+
+When a LOOP requires Desktop verification, the test must launch the real Desktop application and execute the required user actions through the actual frontend and Wails runtime. Browser-only simulation or direct store/API manipulation cannot be reported as Desktop E2E.
+
+### 4. No fake E2E
+
+Tests must not inject state directly into the frontend store, mock the backend, bypass authentication, or call internal functions in place of the user action when the LOOP is intended to verify the real application path.
+
+### 5. Environment failures are BLOCKED
+
+If a required dependency such as the Cloud backend, database, Desktop runtime, or automation environment is unavailable, the test is `BLOCKED`, not `PASS` and not `FAIL`.
+
+### 6. A LOOP is complete only when the required path is verified
+
+The final LOOP status is `PASS` only when every required step has been exercised and verified at its specified level.
+
+### Status Definitions
+
+**PASS** — The specified behavior was executed and verified at the required level.
+
+**PASS — CODE VERIFIED** — Only the implementation was inspected, compiled, or statically verified; runtime behavior was not exercised.
+
+**PASS — BACKEND VERIFIED** — The real backend/API behavior was exercised, but not through the required UI.
+
+**BLOCKED** — The required execution environment or dependency was unavailable, so the specified behavior could not be exercised.
+
+**FAIL** — The specified behavior was exercised at the required level and did not work.
+
+### Evidence Rule
+
+A lower-level PASS never upgrades a higher-level verification level. Code verification cannot prove backend behavior; backend verification cannot prove UI behavior; and automated tests cannot prove a real Desktop LOOP unless the Desktop application itself was launched and the required user actions were executed.
+
+
+
+
+
+===
+
 # Testing Checklist
 
 Before accepting code:
@@ -571,6 +649,53 @@ Before accepting code:
 
 ---
 
+
+INIT
+  ↓
+UNDERSTAND
+  ↓
+PLAN
+  ↓
+EXECUTE
+  ↓
+VALIDATE
+  ├── validation can be automated → continue
+  │
+  └── validation requires human interaction
+          ↓
+  HUMAN_VALIDATION_REQUIRED
+          ↓
+     human provides evidence
+          ↓
+       VALIDATE
+          ↓
+   REVIEW / NEXT STEP
+
+
+HUMAN_VALIDATION_REQUIRED is a non-terminal operational state. The loop enters this state when the required validation cannot be performed with currently available automated capabilities, but can be performed by a human using the real system.
+
+That distinction is important:
+
+BLOCKED
+    = cannot proceed
+
+HUMAN_VALIDATION_REQUIRED
+    = can proceed once human performs a defined validation
+---
+
+Real-System Validation Rule
+
+A validation level must not be claimed unless the corresponding system boundary was actually exercised.
+
+In particular, DESKTOP_E2E requires the real Desktop application, real frontend, real authenticated session, real application state, and observable user interaction.
+
+Starting a desktop process, compiling the application, inspecting UI source code, or verifying frontend state programmatically does not constitute Desktop E2E.
+
+If automated GUI interaction is unavailable, the validation must enter HUMAN_VALIDATION_REQUIRED rather than being downgraded silently or falsely reported as PASS.
+
+
+
+---
 # Final Principle
 
 Tests are executable documentation.

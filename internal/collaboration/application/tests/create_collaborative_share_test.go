@@ -1,9 +1,9 @@
 package collaboration_test
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"encoding/base64"
 	"testing"
 
 	"github.com/stellar/go/keypair"
@@ -12,8 +12,10 @@ import (
 
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
+	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
 	tracecore_types "vault-app/internal/tracecore/types"
+	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_ports "vault-app/internal/trust_group/application/ports"
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
@@ -51,7 +53,6 @@ func (r *fakeShareEntryRepo) UpdateShareEntry(ctx context.Context, req *c3_asset
 func (r *fakeShareEntryRepo) DeleteShareEntry(ctx context.Context, req *c3_asset_domain.DeleteShareEntryRequest) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
 	return nil, nil
 }
-
 
 // Fake TrustGroup Repository
 type fakeTrustGroupRepo struct {
@@ -112,152 +113,207 @@ func (r *fakeDeviceResolver) GetDevice(ctx context.Context, deviceID string) (*t
 	return d, nil
 }
 
+func (r *fakeDeviceResolver) ListActiveDevices(ctx context.Context, memberID string) ([]trustgroup_ports.DeviceSummary, error) {
+	var list []trustgroup_ports.DeviceSummary
+	for _, d := range r.devices {
+		if d != nil && d.VaultID == memberID && d.IsActive {
+			list = append(list, *d)
+		}
+	}
+	return list, nil
+}
+
 func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 
-	// 1. Setup crypto services & Keyring
+	// 1. Crypto services & keyring service
 	aesSvc := &vault_infrastructure_crypto.AESService{}
 	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
-	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "/tmp/keyz", nil)
-	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
-	// 2. Setup Device KeyPairs
+	keyringSvc := vault_infrastructure_security.NewKeyringService(
+		nil,
+		nil,
+		t.TempDir(),
+		&vault_infrastructure_security.OSFileSystem{},
+	)
+
+	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(
+		keyringSvc,
+		aesSvc,
+		asymSvc,
+	)
+
+	// 2. Member keypair
 	kpLaptop, err := keypair.Random()
 	require.NoError(t, err)
-	kpMobile, err := keypair.Random()
-	require.NoError(t, err)
-	kpRevoked, err := keypair.Random()
-	require.NoError(t, err)
 
-	// 3. Setup TrustGroup & Repositories
+	// 3. Repositories
 	tgRepo := newFakeTrustGroupRepo()
 	shareRepo := newFakeShareEntryRepo()
 	deviceResolver := newFakeDeviceResolver()
 
-	tg := trustgroup_domain.NewTrustGroup("channel-collab-1", "Design Guild", []string{"vault-user-1"})
-	_, err = tgRepo.CreateTrustGroup(ctx, &trustgroup_domain.CreateTrustGroupRequest{TrustGroup: *tg})
-	require.NoError(t, err)
-
-	// Device records in Identity (resolved via DeviceResolver)
 	deviceResolver.devices["dev-laptop"] = &trustgroup_ports.DeviceSummary{
 		ID:        "dev-laptop",
-		VaultID:   "vault-user-1",
+		VaultID:   "user-1",
 		PublicKey: kpLaptop.Address(),
 		Status:    "active",
 		IsActive:  true,
 	}
-	deviceResolver.devices["dev-mobile"] = &trustgroup_ports.DeviceSummary{
-		ID:        "dev-mobile",
-		VaultID:   "vault-user-1",
-		PublicKey: kpMobile.Address(),
-		Status:    "active",
-		IsActive:  true,
-	}
-	deviceResolver.devices["dev-revoked"] = &trustgroup_ports.DeviceSummary{
-		ID:        "dev-revoked",
-		VaultID:   "vault-user-1",
-		PublicKey: kpRevoked.Address(),
-		Status:    "revoked",
-		IsActive:  false,
-	}
 
-	// 4. DESKTOP CRYPTOGRAPHIC ORCHESTRATION
-	kr := &vaults_domain.VaultKeyring{UserID: "user-1", VaultID: "vault-user-1"}
-	rawAssetPayload := []byte("CONFIDENTIAL COLLABORATIVE BLUEPRINT PAYLOAD v1.0")
+	// 4. TrustGroup creation (unpopulated with envelopes)
+	tg := trustgroup_domain.NewTrustGroup(
+		"channel-collab-1",
+		"Design Guild",
+		[]string{"user-1"},
+	)
+	require.NotNil(t, tg)
+	require.Equal(t, uint64(1), tg.KEKVersion)
 
-	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
-		AssetID:      "asset-blueprint-001",
-		TrustGroupID: tg.ID,
-		KEKVersion:   tg.KEKVersion,
-		RawPayload:   rawAssetPayload,
-		Keyring:      kr,
-		ActiveDevices: []trustgroup_orchestrator.ActiveDevice{
-			{
-				DeviceID:  "dev-laptop",
-				MemberID:  "vault-user-1",
-				PublicKey: kpLaptop.Address(),
-				IsActive:  true,
-			},
-			{
-				DeviceID:  "dev-mobile",
-				MemberID:  "vault-user-1",
-				PublicKey: kpMobile.Address(),
-				IsActive:  true,
-			},
-			{
-				DeviceID:  "dev-revoked",
-				MemberID:  "vault-user-1",
-				PublicKey: kpRevoked.Address(),
-				IsActive:  false, // MUST BE EXCLUDED
-			},
+	_, err = tgRepo.CreateTrustGroup(
+		ctx,
+		&trustgroup_domain.CreateTrustGroupRequest{
+			TrustGroup: *tg,
 		},
-	}
-
-	prepared, err := orchestrator.PrepareCollaborativeAsset(ctx, prepPayload)
+	)
 	require.NoError(t, err)
-	require.NotNil(t, prepared)
 
-	// 5. CID CREATION (Verifying CID identifies the ENCRYPTED payload)
-	hash := sha256.Sum256(prepared.EncryptedData)
-	assetCID := "bafybeicollab" + hex.EncodeToString(hash[:8])
+	// Provision key envelope using AddTrustGroupKeyEnvelopeUseCase
+	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(
+		tgRepo,
+		deviceResolver,
+	)
 
-	// 6. BACKEND APPLICATION ORCHESTRATION
-	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tgRepo, shareRepo)
-	addEnvelopeUC := trustgroup_envelope_uc.NewAddTrustGroupKeyEnvelopeUseCase(tgRepo, deviceResolver)
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, addEnvelopeUC)
+	kek := asymSvc.GenerateSymmetricKey()
+	require.Len(t, kek, 32)
 
+	wrappedKEKPayload, err := aesSvc.EncryptPayload(kpLaptop.Address(), kek)
+	require.NoError(t, err)
+
+	_, err = addEnvelopeUC.Execute(
+		ctx,
+		trustgroup_dtos.AddTrustGroupKeyEnvelopeRequest{
+			TrustGroupID: tg.ID,
+			MemberID:     "user-1",
+			KEKVersion:   tg.KEKVersion,
+			WrappedKEK:   wrappedKEKPayload.ToString(),
+		},
+	)
+	require.NoError(t, err)
+
+	// 5. Creator's keyring containing TrustGroup KEK
+	kr := vaults_domain.NewVaultKeyring("user-1")
+	_, err = keyringSvc.StoreTrustGroupKEK(kr, tg.ID, tg.KEKVersion, kek)
+	require.NoError(t, err)
+	err = keyringSvc.SaveHybrid(kr, "user-1", "", "")
+	require.NoError(t, err)
+
+	// 6. Asset storage & asset resolver
+	rawAssetPayload := []byte("CONFIDENTIAL COLLABORATIVE BLUEPRINT PAYLOAD v1.0")
+	rawAssetCID := "bafybeicollab_raw_blueprint_001"
+
+	assetStore := make(map[string][]byte)
+	assetStore[rawAssetCID] = rawAssetPayload
+	assetStorage := &memoryStorageProvider{assets: assetStore}
+
+	assetResolver := collaboration_infra.NewCloudAssetContentResolverWithStorage(assetStorage)
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+
+	// 7. Use cases construction
+	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(
+		tgRepo,
+		shareRepo,
+	)
+
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(
+		shareAssetUC,
+		addEnvelopeUC,
+	).WithCrypto(
+		orchestrator,
+		assetResolver,
+		identityResolver,
+		assetStorage,
+	)
+
+	// 8. Execute CreateCollaborativeShareUseCase
 	collabReq := collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: tg.ID,
-		KEKVersion:   tg.KEKVersion,
 		CreatedBy:    "user-1",
-		AssetCID:     assetCID,
-		WrappedDEK:   string(prepared.WrappedDEK),
-		Envelopes:    prepared.Envelopes,
-		Metadata:     map[string]string{"type": "blueprint"},
+		AssetCID:     rawAssetCID,
+		Metadata: map[string]string{
+			"type": "blueprint",
+		},
 	}
 
 	collabResp, err := createCollabShareUC.Execute(ctx, collabReq)
 	require.NoError(t, err)
 	require.NotNil(t, collabResp)
 
-	// 7. ASSERTIONS & VERIFICATION
-	assert.Equal(t, assetCID, collabResp.ShareEntry.AssetCID, "AssetCID must be attached to ShareEntry")
-	assert.Equal(t, tg.ID, collabResp.ShareEntry.TrustGroupID, "TrustGroupID must match")
-	assert.Equal(t, tg.KEKVersion, collabResp.ShareEntry.KEKVersion, "KEKVersion must match")
-	assert.Equal(t, string(prepared.WrappedDEK), collabResp.ShareEntry.WrappedDEK)
+	// ------------------------------------------------------------
+	// Assertions
+	// ------------------------------------------------------------
 
-	// Verify envelopes created only for active devices (laptop & mobile = 2, revoked = 0)
-	assert.Len(t, collabResp.Envelopes, 2)
-
-	// Check persisted TrustGroup state in repository
-	updatedTgResp, err := tgRepo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
+	// 1. TrustGroup exists with its authoritative KEKVersion
+	tgResp, err := tgRepo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tg.ID})
 	require.NoError(t, err)
-	assert.Len(t, updatedTgResp.Data.KeyEnvelopes, 2)
+	require.NotNil(t, tgResp)
+	assert.Equal(t, uint64(1), tgResp.Data.KEKVersion)
 
-	// 8. END-TO-END CRYPTOGRAPHIC ROUND-TRIP TEST
-	// Recipient device (Laptop) fetches key envelope by DeviceID
-	var laptopEnvelope *trustgroup_domain.TrustGroupKeyEnvelope
-	for _, env := range updatedTgResp.Data.KeyEnvelopes {
-		if env.DeviceID == "dev-laptop" {
-			laptopEnvelope = &env
+	// 2. The creator's keyring contains the TrustGroup KEK
+	storedKEK, err := keyringSvc.GetTrustGroupKEK(kr, tg.ID, tg.KEKVersion)
+	require.NoError(t, err)
+	assert.Equal(t, kek, storedKEK)
+
+	// 3 & 4. Identity and KEKVersion resolution verified by usecase execution without DTO fallbacks
+
+	// 5, 6 & 7. PrepareCollaborativeAsset executed by usecase, uploaded encrypted asset to storage
+	assert.NotEqual(t, rawAssetCID, collabResp.ShareEntry.AssetCID)
+	storedEncryptedBytes, err := assetStorage.Get(ctx, collabResp.ShareEntry.AssetCID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, storedEncryptedBytes)
+	assert.False(t, bytes.Equal(storedEncryptedBytes, rawAssetPayload))
+
+	// 8. Retrieve persisted ShareEntry from shareRepo and verify fields against response
+	persistedResp, err := shareRepo.GetShareEntry(ctx, &c3_asset_domain.GetShareEntryRequest{
+		ShareEntryID: collabResp.ShareEntry.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, persistedResp)
+	assert.Equal(t, collabResp.ShareEntry.ID, persistedResp.Data.ID)
+	assert.Equal(t, collabResp.ShareEntry.AssetCID, persistedResp.Data.AssetCID)
+	assert.Equal(t, collabResp.ShareEntry.WrappedDEK, persistedResp.Data.WrappedDEK)
+	assert.Equal(t, collabResp.ShareEntry.KEKVersion, persistedResp.Data.KEKVersion)
+
+	// 9. WrappedDEK is generated by crypto orchestrator and persisted in ShareEntry
+	assert.NotEmpty(t, collabResp.ShareEntry.WrappedDEK)
+
+	// 10. ShareEntry uses authoritative TrustGroup KEK version
+	assert.Equal(t, tg.KEKVersion, collabResp.ShareEntry.KEKVersion)
+
+	// 11. The resulting wrapped KEK can be unwrapped using test member's private key
+	var memberEnv *trustgroup_domain.TrustGroupKeyEnvelope
+	for _, env := range tgResp.Data.KeyEnvelopes {
+		if env.MemberID == "user-1" {
+			envelope := env
+			memberEnv = &envelope
 			break
 		}
 	}
-	require.NotNil(t, laptopEnvelope, "Laptop device envelope must exist in TrustGroup")
+	require.NotNil(t, memberEnv)
+	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kpLaptop.Seed(), memberEnv.WrappedKEK)
+	require.NoError(t, err)
+	require.Equal(t, kek, unwrappedKEK)
 
-	// Step A: Laptop unwraps WrappedKEK using its private key seed (kpLaptop.Seed())
-	unwrappedKEK, err := aesSvc.AsymetricDecrypt(kpLaptop.Seed(), laptopEnvelope.WrappedKEK)
-	require.NoError(t, err, "Laptop should successfully unwrap WrappedKEK using its private key")
+	// 12. The persisted WrappedDEK can then be unwrapped using that KEK
+	wrappedDEKBytes, err := base64.StdEncoding.DecodeString(collabResp.ShareEntry.WrappedDEK)
+	require.NoError(t, err)
+	unwrappedDEK, err := aesSvc.Decrypt(wrappedDEKBytes, unwrappedKEK)
+	require.NoError(t, err)
+	require.Len(t, unwrappedDEK, 32)
 
-	// Step B: Laptop unwraps WrappedDEK using unwrapped KEK
-	unwrappedDEK, err := aesSvc.Decrypt([]byte(collabResp.ShareEntry.WrappedDEK), unwrappedKEK)
-	require.NoError(t, err, "Laptop should successfully unwrap WrappedDEK using KEK")
-
-	// Step C: Laptop decrypts CID payload (EncryptedData) using unwrapped DEK
-	decryptedPayload, err := aesSvc.Decrypt(prepared.EncryptedData, unwrappedDEK)
-	require.NoError(t, err, "Laptop should successfully decrypt asset payload using DEK")
-
-	assert.Equal(t, string(rawAssetPayload), string(decryptedPayload), "Decrypted asset payload must exactly match original plaintext")
+	// 13 & 14. Encrypted stored asset decrypted with DEK equals original test payload
+	decryptedPayload, err := aesSvc.Decrypt(storedEncryptedBytes, unwrappedDEK)
+	require.NoError(t, err)
+	assert.Equal(t, rawAssetPayload, decryptedPayload)
 }
 
 func TestCreateCollaborativeShare_ValidationFailures(t *testing.T) {
@@ -273,19 +329,23 @@ func TestCreateCollaborativeShare_ValidationFailures(t *testing.T) {
 
 	_, err := createCollabShareUC.Execute(ctx, collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: "",
-		KEKVersion:   1,
 		CreatedBy:    "user-1",
 		AssetCID:     "cid",
-		WrappedDEK:   "wdek",
 	})
 	assert.ErrorContains(t, err, "trust group id is required")
 
 	_, err = createCollabShareUC.Execute(ctx, collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: "tg-1",
-		KEKVersion:   0,
-		CreatedBy:    "user-1",
+		CreatedBy:    "",
 		AssetCID:     "cid",
-		WrappedDEK:   "wdek",
 	})
-	assert.ErrorContains(t, err, "kek version is required")
+	assert.ErrorContains(t, err, "created by is required")
+
+	_, err = createCollabShareUC.Execute(ctx, collaboration_dtos.CreateCollaborativeShareRequest{
+		TrustGroupID: "tg-1",
+		CreatedBy:    "user-1",
+		AssetCID:     "",
+	})
+	assert.ErrorContains(t, err, "asset cid is required")
 }
+

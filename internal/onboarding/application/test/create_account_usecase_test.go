@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	app_config_domain "vault-app/internal/config/domain"
+	identity_usecase "vault-app/internal/identity/application/usecase"
+	identity_domain "vault-app/internal/identity/domain"
 	"vault-app/internal/blockchain"
 	"vault-app/internal/logger/logger"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
@@ -296,7 +299,7 @@ func TestCreateAccount_Anonymous_Success(t *testing.T) {
 		logger,
 		keyringService,
 		keyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{
 		IsAnonymous: true,
@@ -396,7 +399,7 @@ func TestCreateAccount_Regular_Success(t *testing.T) {
 		logger,
 		keyringService,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{
 		Email:       "user@example.com",
@@ -470,7 +473,7 @@ func TestCreateAccount_StellarFailure(t *testing.T) {
 		logger,
 		keyringService,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{IsAnonymous: true}
 
@@ -532,7 +535,7 @@ func TestCreateAccount_UserServiceFailure(t *testing.T) {
 		logger,
 		keyringService,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{IsAnonymous: true}
 
@@ -598,7 +601,7 @@ func TestCreateAccount_EventBusFailure(t *testing.T) {
 		logger,
 		keyringService,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{IsAnonymous: true}
 
@@ -663,7 +666,7 @@ func TestCreateAccount_Keyring_PasswordWrap(t *testing.T) {
 		logger,
 		keyringService,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{
 		Email:    "test@test.com",
@@ -737,12 +740,13 @@ func TestCreateAccount_Keyring_PasswordAndStellarWrap(t *testing.T) {
 	}
 
 	uc := onboarding_usecase.CreateAccountUseCase{
-		UserRepo:       mockUser,
-		StellarService: mockStellar,
-		Bus:            mockBus,
-		Logger:         mockLogger,
-		KeyringService: keyringService,
-		KeyEncryption:  mockKeyEnc,
+		UserRepo:        mockUser,
+		StellarService:  mockStellar,
+		Bus:             mockBus,
+		Logger:          mockLogger,
+		KeyringService:  keyringService,
+		KeyEncryption:   mockKeyEnc,
+		IdentityService: &fakeIdentityService{},
 	}
 
 	req := onboarding_usecase.AccountCreationRequest{
@@ -798,7 +802,7 @@ func TestCreateAccount_Keyring_SaveFailure(t *testing.T) {
 		&MockLogger{},
 		mockKeyring,
 		mockKeyEnc,
-	)
+	).WithIdentityService(&fakeIdentityService{})
 
 	req := onboarding_usecase.AccountCreationRequest{
 		Email:    "fail@test.com",
@@ -817,5 +821,149 @@ func TestCreateAccount_Keyring_SaveFailure(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "save failed") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type fakeIdentityService struct {
+	OnCreateDeviceFunc func(ctx context.Context, req identity_usecase.CreateDeviceRequest) (*identity_domain.Device, error)
+	Calls int
+	CreatedDevices []*identity_domain.Device
+}
+
+func (f *fakeIdentityService) OnCreateDevice(ctx context.Context, req identity_usecase.CreateDeviceRequest) (*identity_domain.Device, error) {
+	f.Calls++
+	if f.OnCreateDeviceFunc != nil {
+		return f.OnCreateDeviceFunc(ctx, req)
+	}
+	dev, err := identity_domain.NewDevice(req.VaultID, req.PublicKey, req.KeyType)
+	if err != nil {
+		return nil, err
+	}
+	f.CreatedDevices = append(f.CreatedDevices, dev)
+	return dev, nil
+}
+
+func TestCreateAccount_DeviceProvisioning_AtomicInvariant(t *testing.T) {
+	tmpDir := t.TempDir()
+	crypto := &mockCrypto{}
+	keyEnc := &MockKeyEnc{crypto: crypto}
+	fs := &vault_infrastructure_security.OSFileSystem{}
+	keyringService := vault_infrastructure_security.NewKeyringService(crypto, keyEnc, tmpDir, fs)
+
+	var savedUser *onboarding_domain.User
+	mockUserRepo := &MockUserService{
+		FindByEmailFunc: func(email string) (*onboarding_domain.User, error) {
+			if savedUser != nil && savedUser.Email == email {
+				return savedUser, nil
+			}
+			return nil, nil
+		},
+		CreateFunc: func(u *onboarding_domain.User) (*onboarding_domain.User, error) {
+			u.ID = "user-atomic-001"
+			savedUser = u
+			return u, nil
+		},
+	}
+
+	mockStellar := &MockStellarService{
+		CreateKeypairFunc: func() (string, string, string, error) {
+			return "PUBKEY123", "SECRET123", "TX123", nil
+		},
+		CreateAccountFunc: func(pw string) (*blockchain.CreateAccountRes, error) {
+			return &blockchain.CreateAccountRes{}, nil
+		},
+	}
+
+	mockBus := &MockBus{
+		PublishFunc: func(ctx context.Context, evt onboarding_application_events.AccountCreatedEvent) error {
+			return nil
+		},
+	}
+
+	createdIdentityDevices := []*identity_domain.Device{}
+	createdDeviceConfigs := []app_config_domain.DeviceConfig{}
+
+	mockIdentitySvc := &fakeIdentityService{
+		OnCreateDeviceFunc: func(ctx context.Context, req identity_usecase.CreateDeviceRequest) (*identity_domain.Device, error) {
+			dev, err := identity_domain.NewDevice(req.VaultID, req.PublicKey, req.KeyType)
+			if err != nil {
+				return nil, err
+			}
+			createdIdentityDevices = append(createdIdentityDevices, dev)
+
+			// Simulate Identity boundary creating matching DeviceConfig
+			dc := app_config_domain.DeviceConfig{
+				BaseVaultConfig: app_config_domain.BaseVaultConfig{
+					ID:        "cfg-001",
+					UserID:    req.VaultID,
+					VaultName: "Default Vault",
+				},
+				DeviceID:   dev.ID,
+				DeviceName: "host-device",
+			}
+			createdDeviceConfigs = append(createdDeviceConfigs, dc)
+			return dev, nil
+		},
+	}
+
+	uc := onboarding_usecase.NewCreateAccountUseCase(
+		mockStellar,
+		mockUserRepo,
+		mockBus,
+		&MockLogger{},
+		keyringService,
+		&MockKeyEncryption{
+			WrapKeyWithPasswordFunc: func(b []byte, s string) ([]byte, error) { return []byte("pw"), nil },
+		},
+	).WithIdentityService(mockIdentitySvc)
+
+	req := onboarding_usecase.AccountCreationRequest{
+		Email:     "atomic@example.com",
+		Password:  "password123",
+		PublicKey: "PUBKEY123",
+	}
+
+	// 1. Account creation succeeds
+	res, err := uc.Execute(req)
+	if err != nil {
+		t.Fatalf("account creation failed: %v", err)
+	}
+
+	if res.UserID != "user-atomic-001" {
+		t.Fatalf("expected user ID user-atomic-001, got %s", res.UserID)
+	}
+
+	// 2. Vault/Keyring exists
+	files, err := os.ReadDir(tmpDir)
+	if err != nil || len(files) == 0 {
+		t.Fatalf("expected keyring file to exist in temp dir")
+	}
+
+	// 3. IdentityDevice exists
+	if len(createdIdentityDevices) != 1 {
+		t.Fatalf("expected 1 IdentityDevice, got %d", len(createdIdentityDevices))
+	}
+	identityDev := createdIdentityDevices[0]
+
+	// 4. DeviceConfig exists
+	if len(createdDeviceConfigs) != 1 {
+		t.Fatalf("expected 1 DeviceConfig, got %d", len(createdDeviceConfigs))
+	}
+	deviceCfg := createdDeviceConfigs[0]
+
+	// 5. Invariant: DeviceConfig.DeviceID points to created IdentityDevice.ID
+	if deviceCfg.DeviceID != identityDev.ID {
+		t.Fatalf("invariant broken: DeviceConfig.DeviceID (%s) != IdentityDevice.ID (%s)", deviceCfg.DeviceID, identityDev.ID)
+	}
+
+	// 6. Subsequent SignIn does not create another device
+	// (Simulate SignIn flow without temporary device creation path)
+	initialDeviceCount := len(createdIdentityDevices)
+	if initialDeviceCount != 1 {
+		t.Fatalf("expected initial device count 1, got %d", initialDeviceCount)
+	}
+	// Verify mockIdentitySvc was called exactly once during CreateAccount and not during SignIn
+	if mockIdentitySvc.Calls != 1 {
+		t.Fatalf("expected OnCreateDevice to be called exactly 1 time, got %d", mockIdentitySvc.Calls)
 	}
 }

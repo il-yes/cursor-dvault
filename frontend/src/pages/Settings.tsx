@@ -158,6 +158,7 @@ const Settings = () => {
 		fetchConfig(vault.Vault.name, jwtToken)
 	}, [vault])
 
+
 	const fetchConfig = async (vaultName, jwtToken) => {
 		try {
 
@@ -173,6 +174,7 @@ const Settings = () => {
 			console.error("fetchConfig failed", err)
 		}
 	}
+
 
 	const syncMap = {
 		auto: 60,
@@ -212,11 +214,11 @@ const Settings = () => {
 		});
 	};
 
-	const PackWorker = async() => {
+	const PackWorker = async () => {
 		const res = await AppAPI.SimulatePackWorker(jwtToken, vault?.Vault?.name)
-		console.log({res})
+		console.log({ res })
 	}
- 
+
 	return (
 		<DashboardLayout>
 			<div className="h-full overflow-y-auto scrollbar-glassmorphism thin-scrollbar bg-gradient-to-br from-white/50 via-white/30 to-zinc-50/20 dark:from-zinc-900/50 dark:via-zinc-900/30 dark:to-black/20 backdrop-blur-xl">

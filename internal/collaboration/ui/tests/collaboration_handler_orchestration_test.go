@@ -12,11 +12,14 @@ import (
 
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_ui "vault-app/internal/collaboration/ui"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
+	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
 
 // ---------------------------------------------------------------------------
@@ -145,8 +148,12 @@ func setupHandler(tg *trustgroup_domain.TrustGroup, threadRepo *stubThreadRepo) 
 	tgRepo := &stubTrustGroupRepo{group: tg}
 	shareRepo := &stubShareEntryRepo{}
 
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "", nil)
+	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, nil, nil)
+	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
+
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tgRepo, shareRepo)
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(cryptoOrchestrator, nil, identityResolver, nil)
 	appendEventUC := thread_usecase.NewAppendThreadEventUsecase(threadRepo)
 
 	handler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendEventUC)
@@ -167,7 +174,7 @@ func TestOrchestration_CaseA_CompleteSuccess(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
@@ -196,7 +203,7 @@ func TestOrchestration_CaseB_ThreadAppendFailure(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
 	assert.ErrorIs(t, err, assert.AnError)
 	require.NotNil(t, res, "ShareEntry result reference MUST be returned even if Thread append fails")
 
@@ -218,7 +225,7 @@ func TestOrchestration_CaseC_ThreadEventRetry(t *testing.T) {
 
 	handler, shareRepo := setupHandler(tg, threadRepo)
 
-	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
 	require.NoError(t, err)
 
 	// Direct retry of AppendThreadEvent with canonical ShareEntryID & idempotency key
@@ -251,7 +258,7 @@ func TestOrchestration_CaseD_InvalidOrClosedThread(t *testing.T) {
 
 	handlerClosed, shareRepoClosed := setupHandler(tg, threadRepoClosed)
 
-	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "note")
 	assert.ErrorIs(t, err, thread_domain.ErrThreadClosed)
 	require.NotNil(t, resClosed)
 	assert.Len(t, shareRepoClosed.createdEntries, 1, "ShareEntry remains valid even when Thread is closed")
@@ -260,7 +267,7 @@ func TestOrchestration_CaseD_InvalidOrClosedThread(t *testing.T) {
 	threadRepoMissing := newStubThreadRepo()
 	handlerMissing, shareRepoMissing := setupHandler(tg, threadRepoMissing)
 
-	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "note")
 	assert.ErrorIs(t, err, thread_domain.ErrThreadNotFound)
 	require.NotNil(t, resMissing)
 	assert.Len(t, shareRepoMissing.createdEntries, 1, "ShareEntry remains valid even when Thread does not exist")
@@ -276,7 +283,7 @@ func TestOrchestration_CaseE_SecurityBoundaryVerification(t *testing.T) {
 
 	handler, _ := setupHandler(tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "v_target", "note", "wrapped-dek-test", 1)
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
 	require.NoError(t, err)
 
 	evt := threadRepo.events[th.ID][0]
@@ -316,10 +323,4 @@ func TestOrchestration_CaseE_SecurityBoundaryVerification(t *testing.T) {
 // Step 3: CollaborationHandler.ResolveCollaborativeShare Delegation Tests
 // ---------------------------------------------------------------------------
 
-func TestCollaborationHandler_ResolveCollaborativeShare_NilUseCase(t *testing.T) {
-	ctx := context.Background()
-	handler := collaboration_ui.NewCollaborationHandler(nil, nil, nil)
 
-	_, err := handler.ResolveCollaborativeShare(ctx, "user_alice", "se_100", "dev_laptop")
-	assert.ErrorContains(t, err, "resolve collaborative share use case is not initialized")
-}

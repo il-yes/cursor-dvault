@@ -6,10 +6,15 @@ import (
 	"time"
 
 	collaboration_dtos "vault-app/internal/collaboration/application/dtos"
+	collaboration_ports "vault-app/internal/collaboration/application/ports"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
+	app_config "vault-app/internal/config"
+	app_config_domain "vault-app/internal/config/domain"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
+	vault_dto "vault-app/internal/vault/application/dto"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type CollaborationHandler struct {
@@ -49,6 +54,22 @@ func (h *CollaborationHandler) SetActionUseCases(uc *collaboration_usecases.Acti
 	h.actionUseCases = uc
 }
 
+func (h *CollaborationHandler) SetAssetStorage(storage app_config.StorageProvider) {
+	if h.createCollabShareUC != nil {
+		h.createCollabShareUC.WithStorageProvider(storage)
+	}
+}
+
+func (h *CollaborationHandler) SetAssetResolver(resolver collaboration_ports.AssetContentResolver) {
+    if h.createCollabShareUC != nil {
+        h.createCollabShareUC.SetAssetResolver(resolver)
+    }
+
+    if h.resolveCollabShareUC != nil {
+        h.resolveCollabShareUC.SetAssetResolver(resolver)
+    }
+}
+
 // CreateCollaborativeShare persists a C3 share entry through the real
 // Cloud persistence path and returns the authoritative ShareEntryRef.
 func (h *CollaborationHandler) CreateCollaborativeShare(
@@ -57,32 +78,29 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 	threadID string,
 	trustGroupID string,
 	assetCID string,
-	targetVaultID string,
 	notes string,
-	wrappedDEK string,
-	kekVersion uint64,
+	password string,
+	stellarSecret string,
+	config app_config_domain.Config,
+	vault vaults_domain.Vault,
 ) (*tracecore_types.ShareEntryRefDTO, error) {
 	if h.createCollabShareUC == nil {
 		return nil, errors.New("create collaborative share use case is not initialized")
 	}
-	if wrappedDEK == "" {
-		return nil, errors.New("wrapped_dek is required: it must be produced by the desktop crypto orchestration path")
-	}
-	if kekVersion == 0 {
-		return nil, errors.New("kek_version is required: it must come from the trust group key state")
-	}
 
 	req := collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: trustGroupID,
-		KEKVersion:   kekVersion,
 		CreatedBy:    userID,
 		AssetCID:     assetCID,
-		WrappedDEK:   wrappedDEK,
 		Metadata: map[string]string{
-			"target_vault_id": targetVaultID,
-			"notes":           notes,
-			"thread_id":       threadID,
+			"notes":     notes,
+			"thread_id": threadID,
 		},
+		Password:     password,
+		StellarSecret: stellarSecret,
+		Configs:      config,
+		Vault:        vault,
+		UserID:       userID,
 	}
 
 	resp, err := h.createCollabShareUC.Execute(ctx, req)
@@ -125,22 +143,24 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 }
 
 func (h *CollaborationHandler) ResolveCollaborativeShare(
-	ctx context.Context,
-	userID string,
-	shareEntryID string,
-	deviceID string,
+    ctx context.Context,
+    callerIdentityID string,
+    callerVaultID string,
+    shareEntryID string,
+    stellarAccount app_config_domain.StellarAccountConfig,
+    getFilePayload vault_dto.GetFileFromIPFSRequest,
 ) (*collaboration_dtos.ResolveCollaborativeShareResponse, error) {
-	if h.resolveCollabShareUC == nil {
-		return nil, errors.New("resolve collaborative share use case is not initialized")
-	}
 
-	req := collaboration_dtos.ResolveCollaborativeShareRequest{
-		ShareEntryID: shareEntryID,
-		CallerUserID: userID,
-		DeviceID:     deviceID,
-	}
+    req := collaboration_dtos.ResolveCollaborativeShareRequest{
+        ShareEntryID:     shareEntryID,
+        CallerIdentityID: callerIdentityID,
+        CallerVaultID:    callerVaultID,
+        CallerUserID:     callerIdentityID,
+        StellarAccount:   stellarAccount,
+        GetIPFSFile:      getFilePayload,
+    }
 
-	return h.resolveCollabShareUC.Execute(ctx, req)
+    return h.resolveCollabShareUC.Execute(ctx, req)
 }
 
 // ---------------------------------------------------------------------------

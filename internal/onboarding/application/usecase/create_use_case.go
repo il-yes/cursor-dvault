@@ -6,14 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stellar/go/keypair"
+	"golang.org/x/crypto/bcrypt"
+
 	"vault-app/internal/blockchain"
+	identity_usecase "vault-app/internal/identity/application/usecase"
+	identity_domain "vault-app/internal/identity/domain"
 	onboarding_application_events "vault-app/internal/onboarding/application/events"
 	onboarding_domain "vault-app/internal/onboarding/domain"
 	"vault-app/internal/utils"
 	vaults_domain "vault-app/internal/vault/domain"
-
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type StellarServiceInterface interface {
@@ -21,12 +25,12 @@ type StellarServiceInterface interface {
 	CreateKeypair() (string, string, string, error)
 }
 type KeyringServiceInterface interface {
-    SaveHybrid(
-        kr *vaults_domain.VaultKeyring,
-        userID string,
-        password string,
-        stellarSecret string,
-    ) error
+	SaveHybrid(
+		kr *vaults_domain.VaultKeyring,
+		userID string,
+		password string,
+		stellarSecret string,
+	) error
 }
 type Logger interface {
 	Info(msg string, args ...interface{})
@@ -39,6 +43,10 @@ type UserServiceInterface interface {
 	FindByEmail(email string) (*onboarding_domain.User, error)
 }
 
+type IdentityDevicePort interface {
+	OnCreateDevice(ctx context.Context, req identity_usecase.CreateDeviceRequest) (*identity_domain.Device, error)
+}
+
 type CreateAccountUseCase struct {
 	StellarService StellarServiceInterface
 	UserRepo       UserServiceInterface
@@ -46,8 +54,9 @@ type CreateAccountUseCase struct {
 	Logger         Logger
 	// CryptoService    blockchain.CryptoService
 
-	KeyringService KeyringServiceInterface
-	KeyEncryption  vaults_domain.KeyEncryption
+	KeyringService  KeyringServiceInterface
+	KeyEncryption   vaults_domain.KeyEncryption
+	IdentityService IdentityDevicePort
 }
 
 func NewCreateAccountUseCase(
@@ -69,13 +78,50 @@ func NewCreateAccountUseCase(
 	}
 }
 
+func (a *CreateAccountUseCase) WithIdentityService(svc IdentityDevicePort) *CreateAccountUseCase {
+	a.IdentityService = svc
+	return a
+}
+
+func (a *CreateAccountUseCase) createDeviceForUser(ctx context.Context, userID string, defaultPubKey string, defaultSeed string) (string, string, error) {
+	if a.IdentityService == nil {
+		return "", "", errors.New("IdentityService is nil: device provisioning is required during onboarding")
+	}
+
+	pubKey := defaultPubKey
+	deviceSeed := defaultSeed
+
+	if deviceSeed != "" {
+		if kp, err := keypair.Parse(deviceSeed); err == nil && kp != nil {
+			pubKey = kp.Address()
+		}
+	} else if pubKey == "" {
+		if kp, kpErr := keypair.Random(); kpErr == nil && kp != nil {
+			pubKey = kp.Address()
+			deviceSeed = kp.Seed()
+		}
+	}
+
+	reqDev := identity_usecase.CreateDeviceRequest{
+		VaultID:   userID,
+		PublicKey: pubKey,
+		KeyType:   identity_domain.DeviceKeyTypeEd25519,
+	}
+	if _, err := a.IdentityService.OnCreateDevice(ctx, reqDev); err != nil {
+		return "", "", fmt.Errorf("failed to create identity device: %w", err)
+	}
+	return pubKey, deviceSeed, nil
+}
+
 // Step 4: Account Creation
 type AccountCreationRequest struct {
-	Email       string `json:"email,omitempty"`
-	Password    string `json:"password,omitempty"`
-	IsAnonymous bool   `json:"is_anonymous"`
-	StellarKey  string `json:"stellar_key,omitempty"` // For anonymous accounts
-	UseCases    []string `json:"use_cases,omitempty"` 
+	Email       string   `json:"email,omitempty"`
+	Password    string   `json:"password,omitempty"`
+	IsAnonymous bool     `json:"is_anonymous"`
+	StellarKey  string   `json:"stellar_key,omitempty"` // For anonymous accounts
+	PublicKey   string   `json:"public_key,omitempty"`  // Optional device public key
+	DeviceSeed  string   `json:"device_seed,omitempty"`  // Optional device private seed
+	UseCases    []string `json:"use_cases,omitempty"`
 }
 
 type AccountCreationResponse struct {
@@ -116,7 +162,6 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		}
 		utils.LogPretty("CreateAccountUseCase - CreateKeypair - pub", pub)
 		utils.LogPretty("CreateAccountUseCase - CreateKeypair - secret", secret)
-		
 
 		// 2. ---------- Create user Onboarding with Stellar key as identifier ----------
 		user := &onboarding_domain.User{
@@ -130,8 +175,13 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		if createdUser == nil {
 			return nil, errors.New("createdUser is nil")
 		}
-		if err != nil {
-			return nil, err
+		var deviceSeed string
+		if createdUser != nil && createdUser.ID != "" {
+			_, devSeed, err := a.createDeviceForUser(context.Background(), createdUser.ID, pub, req.DeviceSeed)
+			if err != nil {
+				return nil, err
+			}
+			deviceSeed = devSeed
 		}
 
 		// 3. ---------- Fire Onboarding creation event ----------
@@ -166,6 +216,15 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 			Ciphertext: vaultKey,
 			CreatedAt:  time.Now().Unix(),
 		})
+		if deviceSeed != "" {
+			kr.Keys = append(kr.Keys, vaults_domain.EncryptedKey{
+				ID:         uuid.New().String(),
+				Type:       vaults_domain.KeyTypeDeviceSeed,
+				Version:    1,
+				Ciphertext: []byte(deviceSeed),
+				CreatedAt:  time.Now().Unix(),
+			})
+		}
 		// STELLAR WRAP
 		if createdUser.StellarPublicKey != "" {
 			enc, err := a.KeyEncryption.WrapKeyWithStellar(vaultKey, secret)
@@ -221,14 +280,25 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 	}
 	a.Logger.Info("createdUser: %v", createdUser)
 
+	var deviceSeed string
+	if createdUser != nil && createdUser.ID != "" {
+		pubKey := req.PublicKey
+		if pubKey == "" {
+			pubKey = createdUser.StellarPublicKey
+		}
+		_, devSeed, err := a.createDeviceForUser(context.Background(), createdUser.ID, pubKey, req.DeviceSeed)
+		if err != nil {
+			return nil, err
+		}
+		deviceSeed = devSeed
+	}
+
 	// 3. ---------- Create Vault key for user ----------
 	// 1. Generate VaultKey (DEK)
 	vaultKey := make([]byte, 32)
 	if _, err := rand.Read(vaultKey); err != nil {
-		utils.LogPretty("CreateAccountUseCase - CreateKeypair - failed to genarate vaultKey", err)
 		return nil, fmt.Errorf("failed to generate vault key: %w", err)
 	}
-	utils.LogPretty("CreateAccountUseCase - CreateKeypair - vaultKey", vaultKey)
 
 	// 2. Create empty keyring
 	kr := &vaults_domain.VaultKeyring{
@@ -237,7 +307,6 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		Wrappers:  []vaults_domain.WrappedKey{},
 		UpdatedAt: time.Now().Unix(),
 	}
-	utils.LogPretty("CreateAccountUseCase - CreateKeypair - kr", kr)
 
 	// 3. Store raw VaultKey as EncryptedKey (internal representation)
 	kr.Keys = append(kr.Keys, vaults_domain.EncryptedKey{
@@ -247,6 +316,15 @@ func (a *CreateAccountUseCase) Execute(req AccountCreationRequest) (*AccountCrea
 		Ciphertext: vaultKey,
 		CreatedAt:  time.Now().Unix(),
 	})
+	if deviceSeed != "" {
+		kr.Keys = append(kr.Keys, vaults_domain.EncryptedKey{
+			ID:         uuid.New().String(),
+			Type:       vaults_domain.KeyTypeDeviceSeed,
+			Version:    1,
+			Ciphertext: []byte(deviceSeed),
+			CreatedAt:  time.Now().Unix(),
+		})
+	}
 	utils.LogPretty("CreateAccountUseCase - CreateKeypair - kr.Keys", kr.Keys)
 
 	// save keyring WITH USER ONBOARDING

@@ -2,6 +2,7 @@ package channel_usecase
 
 import (
 	"context"
+	"fmt"
 
 	channel_application "vault-app/internal/channel/application"
 	channel_domain "vault-app/internal/channel/domain"
@@ -98,17 +99,25 @@ func (c *AcceptChannelInvitationUsecase) Execute(ctx context.Context, req *chann
 		return nil, err
 	}
 
+	fmt.Printf("[C3][ACCEPT_TRACE][HTTP_OUT] method=POST path=/channels/invitations/%s/accept invitationID=%s inviteeVaultID=%s status=sending\n",
+		req.InvitationID, req.InvitationID, req.InviteeVaultID)
+
 	resp, err := c.Repo.AcceptChannelInvitation(ctx, &channel_domain.AcceptInvitationRequest{
 		InvitationID:     req.InvitationID,
 		InviteeVaultID:   req.InviteeVaultID,
 		InviteePublicKey: req.InviteePublicKey,
 	})
 	if err != nil {
+		fmt.Printf("[C3][ACCEPT_TRACE][HTTP_OUT] method=POST path=/channels/invitations/%s/accept invitationID=%s status=failed error=%v\n",
+			req.InvitationID, req.InvitationID, err)
 		return nil, err
 	}
 	if resp == nil {
 		return nil, channel_domain.ErrRepositoryResponse
 	}
+
+	fmt.Printf("[C3][ACCEPT_TRACE][HTTP_OUT] method=POST path=/channels/invitations/%s/accept invitationID=%s status=200\n",
+		req.InvitationID, req.InvitationID)
 
 	return &resp.Data, nil
 }

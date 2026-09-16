@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/logger/logger"
 	share_entry_domain "vault-app/internal/share_entry/domain"
@@ -40,6 +41,7 @@ func NewEntrySnapshotService(
 type BuildRequest struct {
 	// Required for the share
 	Share     *share_entry_domain.ShareEntry
+	C3Share *c3_asset_domain.ShareEntry
 	Recipient share_entry_domain.Recipient
 
 	// Per‑user context (vault context)
@@ -58,10 +60,7 @@ type BuildResponse struct {
 	Attachments []vaults_domain.Attachment
 }
 
-func (s *EntrySnapshotService) Build(
-	ctx context.Context,
-	req BuildRequest,
-) (BuildResponse, error) {
+func (s *EntrySnapshotService) Build(ctx context.Context, req BuildRequest) (BuildResponse, error) {
 	// 1. Process attachments under the given context
 	updatedSnapshot, attachments, err := s.Process(ctx, req)
 	if err != nil {

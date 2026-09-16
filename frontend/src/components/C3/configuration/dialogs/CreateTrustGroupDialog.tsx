@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useC3ConfigurationStore } from "../store/useC3ConfigurationStore";
+import { useVaultStore } from "@/store/vaultStore";
 
 interface CreateTrustGroupDialogProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const CreateTrustGroupDialog: React.FC<CreateTrustGroupDialogProps> = ({
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+    const { vault  } = useVaultStore();
 
   const createTrustGroup = useC3ConfigurationStore((state) => state.createTrustGroup);
 
@@ -33,6 +35,7 @@ export const CreateTrustGroupDialog: React.FC<CreateTrustGroupDialogProps> = ({
       await createTrustGroup({
         name: name.trim(),
         description: description.trim(),
+        vaultName: vault?.Vault.name,
       });
 
       setName("");

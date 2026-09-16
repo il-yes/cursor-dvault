@@ -14,3 +14,6 @@ frontend/.env
 vault
 data/keyrings*
 tmp-keyrings*
+
+
+.gocache/

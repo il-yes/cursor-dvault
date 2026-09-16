@@ -266,11 +266,15 @@ func (h *ChannelHandler) InviteToChannel(
 		InviteeVaultID: inviteeVaultID,
 	}
 
+	fmt.Printf("[C3][INVITE][USECASE] channelID=%s inviterVaultID=%s inviteeVaultID=%s\n", channelID, inviterVaultID, inviteeVaultID)
+
 	inv, err := h.inviteToChannelUseCase.Execute(ctx, req)
 	if err != nil {
+		fmt.Printf("[C3][INVITE][PERSIST] InviteToChannel failed: %v\n", err)
 		return nil, err
 	}
 
+	fmt.Printf("[C3][INVITE][PERSIST] InviteToChannel succeeded invitationID=%s status=%s\n", inv.ID, inv.Status)
 	return toChannelInvitationDTO(inv), nil
 }
 
@@ -291,6 +295,8 @@ func (h *ChannelHandler) AcceptChannelInvitation(
 		return nil, fmt.Errorf("accept channel invitation use case is not initialized")
 	}
 
+	fmt.Printf("[C3][INVITE][ACCEPT] invitationID=%s inviteeVaultID=%s inviteePublicKey=%s\n", invitationID, inviteeVaultID, inviteePublicKey)
+
 	req := &channel_application.AcceptChannelInvitationRequest{
 		InvitationID:     invitationID,
 		InviteeVaultID:   inviteeVaultID,
@@ -299,9 +305,11 @@ func (h *ChannelHandler) AcceptChannelInvitation(
 
 	inv, err := h.acceptInvitationUseCase.Execute(ctx, req)
 	if err != nil {
+		fmt.Printf("[C3][INVITE][ACCEPT] AcceptChannelInvitation failed: %v\n", err)
 		return nil, err
 	}
 
+	fmt.Printf("[C3][INVITE][ACCEPT] AcceptChannelInvitation succeeded invitationID=%s status=%s channelID=%s\n", inv.ID, inv.Status, inv.ChannelID)
 	return toChannelInvitationDTO(inv), nil
 }
 

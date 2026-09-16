@@ -3,6 +3,7 @@ package trustgroup_member_usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -45,12 +46,8 @@ func (u *AddMemberToTrustGroupUsecase) ValidateRequest(req trustgroup_dtos.AddMe
 		return errors.New("trust group id is required")
 	}
 
-	if strings.TrimSpace(req.ChannelID) == "" {
-		return errors.New("channel id is required")
-	}
-
-	if strings.TrimSpace(req.MemberID) == "" {
-		return errors.New("member id is required")
+	if strings.TrimSpace(req.VaultID) == "" {
+		return errors.New("vault id is required")
 	}
 
 	return nil
@@ -60,7 +57,12 @@ func (u *AddMemberToTrustGroupUsecase) Execute(
 	ctx context.Context,
 	req trustgroup_dtos.AddMemberToTrustGroupRequest,
 ) (*trustgroup_domain.TrustGroup, error) {
-
+	fmt.Printf(
+		"[C3][ADD_MEMBER][ENTRY] trustGroupID=%s target=%s role=%s\n",
+		req.TrustGroupID,
+		req.VaultID,
+		req.Role,
+	)
 	if err := u.ValidateDependencies(); err != nil {
 		return nil, err
 	}
@@ -69,28 +71,44 @@ func (u *AddMemberToTrustGroupUsecase) Execute(
 		return nil, err
 	}
 
+	fmt.Printf("[C3][TRACE][ADD_MEMBER][trace=tgcrud-001][04] layer=DESKTOP_USECASE file=internal/trust_group/application/usecases/member/create_usecase.go function=AddMemberToTrustGroupUsecase.Execute input.TrustGroupID=%s input.VaultID=%s input.Role=%s\n",
+		req.TrustGroupID, req.VaultID, req.Role)
+
+	role := strings.TrimSpace(req.Role)
+	if role == "" {
+		role = "member"
+	}
+
 	updated, err := u.repo.AddMemberToTrustGroup(
 		ctx,
 		&trustgroup_domain.AddMemberToTrustGroupRequest{
 			TrustGroupID: req.TrustGroupID,
-			MemberID:     req.MemberID,
+			VaultID:      req.VaultID,
+			Role:         role,
 		},
 	)
 	if err != nil {
+		fmt.Printf("[C3][MEMBERSHIP][WRITE] trustGroupID=%s vaultID=%s UPDATE_FAILED=%v\n",
+			req.TrustGroupID, req.VaultID, err)
 		return nil, err
 	}
+
+	memberCount := len(updated.Data.MemberCIDs)
+	memberCIDsStr := strings.Join(updated.Data.MemberCIDs, ", ")
+	fmt.Printf("[C3][MEMBERSHIP][WRITE] trustGroupID=%s vaultID=%s memberCountAfter=%d MemberCIDs=[%s]\n",
+		req.TrustGroupID, req.VaultID, memberCount, memberCIDsStr)
 
 	event := trustgroup_domain.MemberAddedToTrustGroup{
 		EventID:        uuid.NewString(),
 		EventTimestamp: time.Now().UTC(),
-
-		TrustGroupID: req.TrustGroupID,
-		ChannelID:      req.ChannelID,
-		MemberID:       req.MemberID,
+		TrustGroupID:   req.TrustGroupID,
+		MemberID:       req.VaultID,
 	}
 
-	if err := u.eventBus.PublishMemberAddedToTrustGroup(ctx, event); err != nil {
-		return nil, err
+	if u.eventBus != nil {
+		if err := u.eventBus.PublishMemberAddedToTrustGroup(ctx, event); err != nil {
+			return nil, err
+		}
 	}
 
 	return &updated.Data, nil

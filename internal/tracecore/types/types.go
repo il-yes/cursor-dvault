@@ -164,6 +164,17 @@ type AccessCryptoShareRequest struct {
 	IPAddress      string `json:"ip_address,omitempty"`
 }
 
+type ThreadDataAccessRequest struct {
+	ThreadID          string `json:"thread_id"`
+	EventID           string `json:"event_id"`
+	RequestingVaultID string `json:"requesting_vault_id"`
+	Challenge         string `json:"challenge"`
+	Signature         string `json:"signature"`
+	IPAddress         string `json:"ip_address,omitempty"`
+	TrustGroupID      string `json:"trust_group_id"`
+	SourceVaultID     string `json:"source_vault_id,omitempty"`
+}
+
 // AccessCryptoShareResponse holds the decrypted data returned after accessing a share.
 type AccessCryptoShareResponse struct {
 	EncryptedKey     string
@@ -490,4 +501,18 @@ type CreateCollaborativeShareRequestDTO struct {
 type CreateCollaborativeShareResponseDTO struct {
 	ShareEntryRef ShareEntryRefDTO `json:"share_entry_ref"`
 	ThreadEvent   ThreadEventDTO   `json:"thread_event"`
+}
+
+type VaultIdentity struct {
+	VaultID string
+	VaultAddress string		
+	OrganizationID string
+	SigningKey string
+	EncryptionKey string
+	Endpoint string
+	Anchor string
+	Status string
+	Capabilities []string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

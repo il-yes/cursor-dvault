@@ -329,7 +329,6 @@ export function EntryDetailPanel({ entry, editMode, onEdit, onSave, onCancel, on
     }, []);
 
 
-
     const handleFieldChange = (fieldName: string, value: any) => {
         setEditData(prev => ({ ...prev, [fieldName]: value }));
     };

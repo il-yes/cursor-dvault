@@ -5,7 +5,6 @@ import (
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
-	"vault-app/internal/utils"
 )
 
 type StorageFactory interface {
@@ -15,7 +14,7 @@ type StorageFactory interface {
 type DefaultStorageFactory struct {}
 
 func (f *DefaultStorageFactory) New(vaultCtx *app_config_domain.VaultContext) app_config.StorageProvider {
-	utils.LogPretty("DefaultStorageFactory - New - vaultCtx", vaultCtx)
+	// utils.LogPretty("DefaultStorageFactory - New - vaultCtx", vaultCtx)
 	return blockchain.NewStorageProvider(
 		blockchain.Config{
 			StorageConfig: vaultCtx.StorageConfig,

@@ -284,6 +284,10 @@ func (f *fakeAppConfigHandler) SaveConfigs(input *app_config_dto.CreateConfigCom
 	return &app_config_dto.CreateConfigCommandOutput{}, nil
 }
 
+func (f *fakeAppConfigHandler) GetDeviceConfigsByUserID(userID string, vaultName string) ([]app_config_domain.DeviceConfig, error) {
+	return []app_config_domain.DeviceConfig{}, nil
+}
+
 // ============= fakeAppStateRepo =======================================================
 type fakeAppStateRepo struct {
 	called                    bool

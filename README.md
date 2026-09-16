@@ -1468,3 +1468,7 @@ curl -X POST http://localhost:4001/api/workspaces \
 
 2026/08/27 10:42:40 [ERROR] App - LoadAvatar - error: unauthorized: expired token
 
+
+
+
+========================================================================================================================

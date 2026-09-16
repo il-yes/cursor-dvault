@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	billing_usecase "vault-app/internal/billing/application/usecase"
@@ -59,6 +58,7 @@ type AppConfigHandlerInterface interface {
 	InitAppConfig(input *app_config_commands.CreateAppConfigCommandInput) (*app_config_commands.CreateAppConfigCommandOutput, error)
 	InitUserConfig(input *app_config_commands.CreateUserConfigCommandInput) (*app_config_commands.CreateUserConfigCommandOutput, error)
 	GetUserConfigByUserID(userID string) (*app_config_domain.UserConfig, error)
+	GetDeviceConfigsByUserID(userID string, vaultName string) ([]app_config_domain.DeviceConfig, error)
 }
 
 // ----------- Request -----------
@@ -177,22 +177,10 @@ func (uc *OnboardUseCase) Execute(ctx context.Context, req OnboardRequest) (*Onb
 	configs.Subscription.Plan = req.Tier
 
 	// Devices ===============================
-	deviceName, err := uc.GetDeviceName()
-	if err != nil {
-		uc.Logger.Error("OnboardUseCase - Execute - Failed to get device name: %v", err)
-		return nil, err
-	}
-
-	configs.Devices = []app_config_domain.DeviceConfig{
-		{
-			BaseVaultConfig: app_config_domain.BaseVaultConfig{
-				ID:        uuid.NewString(),
-				UserID:    onboardUser.ID,
-				VaultName: req.VaultName,
-			},
-			DeviceID:   uuid.NewString(),
-			DeviceName: deviceName,
-		},
+	if uc.AppConfigHandler != nil {
+		if existingDevs, err := uc.AppConfigHandler.GetDeviceConfigsByUserID(onboardUser.ID, req.VaultName); err == nil && len(existingDevs) > 0 {
+			configs.Devices = existingDevs
+		}
 	}
 
 	// Onboarding ===============================

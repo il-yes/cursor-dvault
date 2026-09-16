@@ -14,6 +14,7 @@ import (
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
 	vault_dto "vault-app/internal/vault/application/dto"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type CollaborationHandler struct {
@@ -80,6 +81,8 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 	notes string,
 	password string,
 	stellarSecret string,
+	config app_config_domain.Config,
+	vault vaults_domain.Vault,
 ) (*tracecore_types.ShareEntryRefDTO, error) {
 	if h.createCollabShareUC == nil {
 		return nil, errors.New("create collaborative share use case is not initialized")
@@ -95,6 +98,9 @@ func (h *CollaborationHandler) CreateCollaborativeShare(
 		},
 		Password:     password,
 		StellarSecret: stellarSecret,
+		Configs:      config,
+		Vault:        vault,
+		UserID:       userID,
 	}
 
 	resp, err := h.createCollabShareUC.Execute(ctx, req)

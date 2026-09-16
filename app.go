@@ -656,7 +656,7 @@ func NewApp() *App {
 	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
 	cloudIPFSStorage := blockchain.NewCloudIPFSStorage(tracecoreClient, "", "")
-	createCollabShareUC.WithCrypto(cryptoOrchestrator, cloudAssetResolver, identityResolver, cloudIPFSStorage)
+	createCollabShareUC.WithCrypto(cryptoOrchestrator, cloudAssetResolver, identityResolver, cloudIPFSStorage, vaultHandler)
 
 	resolveCollabShareUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(
 		cloudShareRepo,
@@ -1971,6 +1971,14 @@ func (a *App) AccessDecryptVaultEntry(jwtToken string, entry tracecore_types.Acc
 	}
 	a.Logger.LogPretty("App - DecryptVaultEntry - stellarAccount", stellarAccount)
 
+	aesService := &vault_infrastructure_crypto.AESService{}
+	resp, err := aesService.AsymetricDecrypt(res.Data.EncryptedPayload, res.Data.EncryptedKey)
+	if err != nil {
+		return nil, err
+	}
+
+	utils.LogPretty("App - DecryptVaultEntry - res", string(resp))
+
 	response, err := a.Vault.DecryptVaultEntry(context.Background(), req, a.Vault.TracecoreClient)
 	if err != nil {
 		return nil, err
@@ -2241,7 +2249,7 @@ func (a *App) PostIPFSEntry(jwtToken string, entryID string, entryType string, p
 		return "", err
 	}
 
-	// Post to IPFS
+	// Post to IPFS without encryption
 	entryCID, err := a.Vault.PostIPFSEntry(claims.UserID, vault_dto.PostIPFSEntryRequest{
 		EntryID:            entryID,
 		EntryType:          entryType,
@@ -2250,6 +2258,7 @@ func (a *App) PostIPFSEntry(jwtToken string, entryID string, entryType string, p
 		UserSubscriptionID: sub.UserID, // TODO: replace with configs.Subscription.UserID
 		Password:           password,
 		UserOnboarding:     userOnboarding.ID,
+		IsShared:           true,
 	})
 	if err != nil {
 		a.Logger.Error("App - PostIPFSEntry - error: %v", err)
@@ -4631,6 +4640,12 @@ func (a *App) CreateCollaborativeShare(
 		return nil, err
 	}
 
+	configs, err := a.AppConfigHandler.GetConfig(claims.UserID, *vault, sub)
+	if err != nil {
+		a.Logger.Error("App - GetAllConfigs - error: %v", err)
+		return nil, err
+	}
+
 	stellarAccount := userConfig.StellarAccount
 
 	return a.CollaborationHandler.CreateCollaborativeShare(
@@ -4642,6 +4657,8 @@ func (a *App) CreateCollaborativeShare(
 		notes,
 		"password",
 		stellarAccount.PrivateKey,
+		*configs,
+		*vault,
 	)
 }
 
@@ -4776,6 +4793,18 @@ func (a *App) ResolveCollaborativeShare(
 		stellarAccount,
 		getFileReq,
 	)
+
+	if err != nil {
+		fmt.Printf(
+			"[C3-FORENSIC][03] (*App).ResolveCollaborativeShare failed "+
+				"identityID=%s vaultID=%s shareEntryID=%s err=%v\n",
+			claims.UserID,
+			callerVaultID,
+			shareEntryID,
+			err,
+		)
+		return nil, err
+	}
 	plaintext := resp.Plaintext
 
 	fmt.Printf(

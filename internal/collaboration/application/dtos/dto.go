@@ -4,6 +4,7 @@ import (
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	app_config_domain "vault-app/internal/config/domain"
 	vault_dto "vault-app/internal/vault/application/dto"
+	vaults_domain "vault-app/internal/vault/domain"
 )
 
 type ShareAssetWithTrustGroupRequest struct {
@@ -25,6 +26,8 @@ type CreateCollaborativeShareRequest struct {
 	UserID string  `json:"user_id"`
 	Password     string            `json:"password,omitempty"`
 	StellarSecret string          `json:"stellar_secret,omitempty"`
+	Configs      app_config_domain.Config 
+	Vault        vaults_domain.Vault
 }
 
 type CreateCollaborativeShareResponse struct {

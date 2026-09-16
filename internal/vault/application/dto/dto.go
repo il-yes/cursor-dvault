@@ -138,4 +138,5 @@ type PostIPFSEntryRequest struct {
 	SymKey             []byte
 	Configs            app_config_domain.Config
 	UserOnboarding     string
+	IsShared     bool
 }

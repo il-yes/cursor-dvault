@@ -14,6 +14,7 @@ import (
 	trustgroup_usecases "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	"vault-app/internal/utils"
+	vault_dto "vault-app/internal/vault/application/dto"
 )
 
 type CreateCollaborativeShareUseCase struct {
@@ -23,6 +24,7 @@ type CreateCollaborativeShareUseCase struct {
 	assetResolver      collaboration_ports.AssetContentResolver
 	identityResolver   collaboration_ports.SovereignIdentityResolver
 	assetStorage       app_config.StorageProvider
+	ipfsResolver	collaboration_ports.IPFSFileResolverInterface
 }
 
 func NewCreateCollaborativeShareUseCase(
@@ -40,11 +42,13 @@ func (u *CreateCollaborativeShareUseCase) WithCrypto(
 	assetResolver collaboration_ports.AssetContentResolver,
 	identityResolver collaboration_ports.SovereignIdentityResolver,
 	assetStorage app_config.StorageProvider,
+	ipfsResolver collaboration_ports.IPFSFileResolverInterface,
 ) *CreateCollaborativeShareUseCase {
 	u.cryptoOrchestrator = cryptoOrchestrator
 	u.assetResolver = assetResolver
 	u.identityResolver = identityResolver
 	u.assetStorage = assetStorage
+	u.ipfsResolver = ipfsResolver
 	return u
 }
 
@@ -79,8 +83,9 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 	var assetCID = req.AssetCID
 	var wrappedDEKBytes []byte
 
+	// Get sharing data without decryption
 	if u.cryptoOrchestrator != nil && u.assetResolver != nil && u.identityResolver != nil {
-		keyring, err := u.identityResolver.GetVaultKeyring(ctx, req.CreatedBy, req.Password, req.StellarSecret)
+		keyring, err := u.identityResolver.GetVaultKeyring(ctx, req.UserID, req.Password, req.StellarSecret)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve vault keyring: %w", err)
 		}
@@ -88,7 +93,17 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 			return nil, errors.New("vault keyring is nil")
 		}
 
-		rawPayload, err := u.assetResolver.FetchEncryptedAsset(ctx, req.AssetCID)
+		rawPayload, err := u.ipfsResolver.GetFileFromIPFS(ctx, vault_dto.GetFileFromIPFSRequest{
+			CID:          req.AssetCID,
+			UserID:       req.CreatedBy,
+			Vault:        req.Vault,
+			Password:     req.Password,
+			PrivateKey:   req.StellarSecret,
+			EncryptedKey: "",
+			SymKey:    		[]byte{},
+			Configs:      &req.Configs,
+			IsShared:     true,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch encrypted asset: %w", err)
 		}
@@ -102,6 +117,7 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 			"[C3-FORENSIC][WRITE] rawPayload firstBytes=%x\n",
 			rawPayload[:min(32, len(rawPayload))],
 		)
+		utils.LogPretty("CreateCollaborativeShareUseCase - Execute - rawPayload", rawPayload) // should be plain text
 
 		prepared, err := u.cryptoOrchestrator.PrepareCollaborativeAsset(
 			ctx,
@@ -109,7 +125,7 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 				AssetID:      req.AssetCID,
 				TrustGroupID: req.TrustGroupID,
 				KEKVersion:   kekVersion,
-				RawPayload:   rawPayload,
+				RawPayload:   []byte(rawPayload),
 				Keyring:      keyring,
 			},
 		)
@@ -172,6 +188,9 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 		ShareEntry: *shareEntry,
 	}, nil
 }
+
+
+
 
 func (u *CreateCollaborativeShareUseCase) SetAssetResolver(
 	resolver collaboration_ports.AssetContentResolver,

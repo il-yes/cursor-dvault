@@ -170,8 +170,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 	if err != nil {
 		vh.Logger.Error("AppConfigHandler: GetConfig - Failed to get vault config: %v", err)
 	}
-	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", appConfig)
-	vh.Logger.LogPretty("AppConfigHandler: GetConfig - appConfig", userConfig)
 
 	subscriptionConfig, err := vh.GetSubscriptionConfigByUserID(sub.UserID, vault.Name)
 	if err != nil {
@@ -239,8 +237,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 		"entryAttachmentCIDsMap": entryAttCIDsMap,
 	})
 
-	// vh.Logger.LogPretty("AppConfigHandler: GetConfig - AppConfig.Branch", session.Runtime.AppConfig.Branch)
-
 	// Get User Oboarding
 	var opt map[string]interface{}
 	userOnboarding, err := vh.OnboardingHandler.UserRepo.FindByEmail(userConfig.Email)
@@ -268,7 +264,6 @@ func (vh *AppConfigHandler) GetConfig(userID string, vault vaults_domain.Vault, 
 		}
 	}
 	vh.Logger.LogPretty("AppConfigHandler: GetConfig - onboardingConfig", onboardingConfig)
-	// vh.Logger.Info("AppConfigHandler: GetConfig - appConfig: %v", appConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - userConfig: %v", userConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - vaultConfig: %v", vaultConfig)
 	// vh.Logger.Info("AppConfigHandler: GetConfig - subscriptionConfig: %v", subscriptionConfig)

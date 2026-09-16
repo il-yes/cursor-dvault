@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"vault-app/internal/utils"
 
 	"github.com/stellar/go/strkey"
 	"golang.org/x/crypto/nacl/box"
+
+	"vault-app/internal/utils"
 )
 
 const (
@@ -192,4 +193,14 @@ func (uc *AESService) AsymetricDecrypt(
 	}
 
 	return symKey, nil
+	// 5️⃣ Decrypt payload
+	// cipherBytes, err := base64.StdEncoding.DecodeString(req.EncryptedPayload)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// // 6️⃣ Decrypt payload
+	// plain, err := uc.Decrypt(cipherBytes, symKey)
+
+
+	// return  plain.ToString(), nil
 }

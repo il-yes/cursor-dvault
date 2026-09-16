@@ -184,10 +184,12 @@ Responsibilities:
 
 Status:
 
-FOUNDATION IMPLEMENTED
+DURABLE OUTBOX & DISPATCHER ACTIVE
 
 Responsibilities:
 
+- durable outbound queueing (`GormOutboundQueueRepository` / `federation_outbound_queue`)
+- async outbound worker dispatcher (`OutboundWorker`) with retry & ACK correlation
 - remote vault trust
 - message validation
 - cryptographic verification

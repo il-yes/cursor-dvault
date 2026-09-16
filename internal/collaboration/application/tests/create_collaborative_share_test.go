@@ -21,9 +21,27 @@ import (
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	vaults_domain "vault-app/internal/vault/domain"
+	vault_dto "vault-app/internal/vault/application/dto"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
+
+type mockIPFSResolverCreate struct {
+	storage *memoryStorageProvider
+}
+
+func (m *mockIPFSResolverCreate) GetIPFSFile(_ vault_queries.GetIPFSDataQuerry) ([]byte, error) {
+	return nil, nil
+}
+
+func (m *mockIPFSResolverCreate) GetFileFromIPFS(ctx context.Context, req vault_dto.GetFileFromIPFSRequest) (string, error) {
+	data, err := m.storage.Get(ctx, req.CID)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
 
 // Fake ShareEntry Repository
 type fakeShareEntryRepo struct {
@@ -41,7 +59,7 @@ func (r *fakeShareEntryRepo) CreateShareEntry(ctx context.Context, req *c3_asset
 func (r *fakeShareEntryRepo) GetShareEntry(ctx context.Context, req *c3_asset_domain.GetShareEntryRequest) (*tracecore_types.CloudResponse[c3_asset_domain.ShareEntry], error) {
 	entry, ok := r.entries[req.ShareEntryID]
 	if !ok {
-		return nil, nil
+		return &tracecore_types.CloudResponse[c3_asset_domain.ShareEntry]{Data: c3_asset_domain.ShareEntry{ID: ""}}, nil
 	}
 	return &tracecore_types.CloudResponse[c3_asset_domain.ShareEntry]{Data: entry}, nil
 }
@@ -70,7 +88,7 @@ func (r *fakeTrustGroupRepo) CreateTrustGroup(ctx context.Context, req *trustgro
 func (r *fakeTrustGroupRepo) GetTrustGroup(ctx context.Context, req *trustgroup_domain.GetTrustGroupRequest) (*tracecore_types.CloudResponse[trustgroup_domain.TrustGroup], error) {
 	tg, ok := r.groups[req.TrustGroupID]
 	if !ok {
-		return nil, nil
+		return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Data: trustgroup_domain.TrustGroup{ID: ""}}, nil
 	}
 	return &tracecore_types.CloudResponse[trustgroup_domain.TrustGroup]{Data: *tg}, nil
 }
@@ -232,12 +250,14 @@ func TestCreateCollaborativeShare_EndToEnd(t *testing.T) {
 		assetResolver,
 		identityResolver,
 		assetStorage,
+		&mockIPFSResolverCreate{storage: assetStorage},
 	)
 
 	// 8. Execute CreateCollaborativeShareUseCase
 	collabReq := collaboration_dtos.CreateCollaborativeShareRequest{
 		TrustGroupID: tg.ID,
 		CreatedBy:    "user-1",
+		UserID:       "user-1",
 		AssetCID:     rawAssetCID,
 		Metadata: map[string]string{
 			"type": "blueprint",

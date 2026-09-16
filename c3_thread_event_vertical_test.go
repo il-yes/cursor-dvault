@@ -18,19 +18,36 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
 	auth_usecases "vault-app/internal/auth/application/use_cases"
 	auth_domain "vault-app/internal/auth/domain"
 	auth_ui "vault-app/internal/auth/ui"
+	"vault-app/internal/blockchain"
 	c3_asset_domain "vault-app/internal/c3_asset/domain"
 	collaboration_usecases "vault-app/internal/collaboration/application/usecases"
 	collaboration_infra "vault-app/internal/collaboration/infrastructure"
 	collaboration_ui "vault-app/internal/collaboration/ui"
+	app_config_domain "vault-app/internal/config/domain"
+	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
+	app_config_ui "vault-app/internal/config/ui"
+	"vault-app/internal/logger/logger"
+	onboarding_domain "vault-app/internal/onboarding/domain"
+	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
+	subscription_domain "vault-app/internal/subscription/domain"
+	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
+	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	thread_ui "vault-app/internal/thread/ui"
 	"vault-app/internal/tracecore"
+	tracecore_types "vault-app/internal/tracecore/types"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
+	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
+	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 	vault_ui "vault-app/internal/vault/ui"
 )
@@ -189,6 +206,15 @@ func (s *threadEventStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		threadID := parts[len(parts)-2]
 		writeEnvelope(w, http.StatusOK, s.events[threadID])
 
+	case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/storage"):
+		var streamReq tracecore_types.SyncVaultStreamRequest
+		_ = json.NewDecoder(r.Body).Decode(&streamReq)
+		hash := sha256.Sum256(streamReq.Stream)
+		cid := "bafybeievent" + hex.EncodeToString(hash[:8])
+		writeEnvelope(w, http.StatusOK, map[string]interface{}{
+			"cid": cid,
+		})
+
 	default:
 		http.Error(w, "not found", http.StatusNotFound)
 	}
@@ -264,18 +290,88 @@ func TestAppendThreadEvent_ReferencesPersistedShareEntry(t *testing.T) {
 
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tc, tracecore.NewCloudShareEntryRepository(tc))
 	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, nil)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, blockchain.NewCloudIPFSStorage(tc, "", ""), &testIPFSResolver{})
 	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, nil)
 
 	appendEventUC := thread_usecase.NewAppendThreadEventUsecase(tc)
 	listEventsUC := thread_usecase.NewListThreadEventsUsecase(tc)
+	dbMem, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	_ = dbMem.AutoMigrate(
+		&subscription_persistence.SubscriptionMapper{},
+		&app_config_persistence.UserConfigMapper{},
+		&app_config_domain.AppConfig{},
+		&app_config_domain.VaultConfigBeta{},
+		&app_config_domain.DeviceConfig{},
+		&app_config_domain.SubscriptionConfig{},
+		&app_config_persistence.OnboardingConfigSqlDB{},
+		&onboarding_persistence.UserDB{},
+		&vaults_persistence.SessionMapper{},
+	)
+
+	vaultHandler := vault_ui.NewVaultHandler(nil, logger.Logger{}, ctx, nil, nil, dbMem, tc, t.TempDir())
+	vaultHandler.VaultRepository = &topLevelVaultRepo{}
+	_, _ = vaultHandler.SessionManager.Prepare("user_alice")
+	_, _ = vaultHandler.SessionManager.AttachRuntime("user_alice", &vault_session.RuntimeContext{
+		AppConfig: app_config_domain.AppConfig{
+			Branch: "main",
+		},
+	})
+
+	subRepo := subscription_persistence.NewSubscriptionRepository(dbMem, nil)
+	_ = subRepo.Save(ctx, &subscription_domain.Subscription{
+		ID:     "sub_alice",
+		UserID: "user_alice",
+		Email:  "alice@ankhora.test",
+	})
+	logSvc := &logger.Logger{}
+	appConfigHandler := app_config_ui.NewAppConfigHandler(dbMem, *logSvc)
+	appConfigHandler.VaultHandler = vaultHandler
+	_ = appConfigHandler.UserConfigRepository.CreateUserConfig(&app_config_domain.UserConfig{
+		ID:    "user_alice",
+		Email: "alice@ankhora.test",
+	})
+	_ = appConfigHandler.AppConfigRepository.CreateAppConfig(&app_config_domain.AppConfig{
+		UserID: "user_alice",
+		Branch: "main",
+	})
+	_, _ = appConfigHandler.VaultConfigRepository.Create(&app_config_domain.VaultConfigBeta{
+		BaseVaultConfig: app_config_domain.BaseVaultConfig{
+			ID:        "vc_alice",
+			UserID:    "user_alice",
+			VaultName: "Default Vault",
+		},
+	})
+	_ = appConfigHandler.SubscriptionConfigRepository.Create(&app_config_domain.SubscriptionConfig{
+		BaseVaultConfig: app_config_domain.BaseVaultConfig{
+			ID:        "sc_alice",
+			UserID:    "user_alice",
+			VaultName: "Default Vault",
+		},
+	})
+	_ = appConfigHandler.OnboardingConfigRepository.Create(&app_config_domain.OnboardingConfig{
+		UserID: "user_alice",
+	})
+	onboardingHandler := onboarding_ui_wails.NewOnBoardingHandler(nil, nil, nil, tc, dbMem, logSvc, *keyringSvc)
+	_, _ = onboardingHandler.UserRepo.Create(&onboarding_domain.User{
+		ID:    "user_alice_1",
+		Email: "alice@ankhora.test",
+	})
+	_, _ = onboardingHandler.UserRepo.Create(&onboarding_domain.User{
+		ID:    "user_alice",
+		Email: "",
+	})
+	appConfigHandler.SetOnboardingHandler(*onboardingHandler)
+	subHandler := subscription_ui_wails.NewSubscriptionHandler(dbMem, tc, nil, nil, nil, nil, nil, *appConfigHandler, *logSvc)
 	threadHandler := thread_ui.NewThreadHandler(nil, nil, listEventsUC, appendEventUC)
 
 	app := &App{
 		AuthHandler:          authHandler,
 		CollaborationHandler: collabHandler,
 		ThreadHandler:        threadHandler,
-		Vault:                &vault_ui.VaultHandler{TracecoreClient: tc}, // SessionManager nil -> RestoreCloudTokenForUser no-ops
+		Vault:                vaultHandler,
+		SubscriptionHandler:  subHandler,
+		AppConfigHandler:     appConfigHandler,
+		tracecoreClient:      tc,
 		ctx:                  ctx,
 	}
 

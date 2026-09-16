@@ -13,10 +13,15 @@ import (
 	"vault-app/internal/utils"
 )
 
+type OutboundQueueAckRepository interface {
+	MarkAcknowledged(ctx context.Context, eventID string) error
+}
+
 type Client struct {
-	url    string
-	dialer *websocket.Dialer
-	Ack    *realtime_client_infrastructure.AckSender
+	url          string
+	dialer       *websocket.Dialer
+	Ack          *realtime_client_infrastructure.AckSender
+	OutboundRepo OutboundQueueAckRepository
 }
 
 func NewClient(url string) *Client {
@@ -25,6 +30,11 @@ func NewClient(url string) *Client {
 		dialer: websocket.DefaultDialer,
 		Ack:    realtime_client_infrastructure.NewAckSender(),
 	}
+}
+
+func (c *Client) WithOutboundQueueRepo(repo OutboundQueueAckRepository) *Client {
+	c.OutboundRepo = repo
+	return c
 }
 
 func (c *Client) Start(
@@ -41,6 +51,16 @@ func (c *Client) Start(
 
 		var msg shared_realtime.Message
 		if err := json.Unmarshal(data, &msg); err != nil {
+			continue
+		}
+
+		if msg.Type == shared_realtime.NotificationAck {
+			var ackPayload shared_realtime.NotificationAckPayload
+			if err := json.Unmarshal(msg.Payload, &ackPayload); err == nil && ackPayload.NotificationID != "" && c.OutboundRepo != nil {
+				if err := c.OutboundRepo.MarkAcknowledged(ctx, ackPayload.NotificationID); err != nil {
+					log.Printf("WS Start MarkAcknowledged failed notificationID=%s err=%v", ackPayload.NotificationID, err)
+				}
+			}
 			continue
 		}
 
@@ -121,8 +141,20 @@ func (c *Client) readLoop(
 		}
 		log.Printf("WS message: %s", string(data))
 
-		// Ignore ACK messages
+		// Process ACK messages
 		if msg.Type == shared_realtime.NotificationAck {
+			var ackPayload shared_realtime.NotificationAckPayload
+			if err := json.Unmarshal(msg.Payload, &ackPayload); err != nil {
+				log.Printf("WS ACK payload decode failed seq=%d err=%v", msg.Seq, err)
+				continue
+			}
+			if ackPayload.NotificationID != "" && c.OutboundRepo != nil {
+				if err := c.OutboundRepo.MarkAcknowledged(ctx, ackPayload.NotificationID); err != nil {
+					log.Printf("WS MarkAcknowledged failed notificationID=%s err=%v", ackPayload.NotificationID, err)
+				} else {
+					log.Printf("WS MarkAcknowledged succeeded notificationID=%s", ackPayload.NotificationID)
+				}
+			}
 			continue
 		}
 

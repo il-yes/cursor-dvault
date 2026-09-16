@@ -18,6 +18,8 @@ import (
 	trustgroup_member_usecases "vault-app/internal/trust_group/application/usecases/member"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	trustgroup_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
+	vaults_domain "vault-app/internal/vault/domain"
+	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
 
 type memoryInvitationOrchestrationRepo struct {
@@ -136,6 +138,15 @@ func TestInvitationAcceptanceOrchestration_FullLifecycle(t *testing.T) {
 		},
 	}
 
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), vault_infrastructure_security.OSFileSystem{})
+	kr := &vaults_domain.VaultKeyring{UserID: userA_VaultID, VaultID: userA_VaultID}
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, err = keyringSvc.StoreTrustGroupKEK(kr, tgID, 1, testKEK)
+	require.NoError(t, err)
+
 	// Setup usecases
 	addMemberUC := trustgroup_member_usecases.NewAddMemberToTrustGroupUsecase(repo, trustgroup_eventbus.NewMemoryBus())
 	addEnvelopeUC := trustgroup_usecases.NewAddTrustGroupKeyEnvelopeUseCase(repo, mockDevResolver)
@@ -145,7 +156,7 @@ func TestInvitationAcceptanceOrchestration_FullLifecycle(t *testing.T) {
 		mockDevResolver,
 		nil,
 		addEnvelopeUC,
-		nil,
+		keyringSvc,
 	)
 
 	// TEST 2: Before acceptance, User B is NOT in TrustGroup
@@ -174,7 +185,7 @@ func TestInvitationAcceptanceOrchestration_FullLifecycle(t *testing.T) {
 		MemberID:        userB_VaultID,
 		DeviceID:        deviceB_ID,
 		DevicePublicKey: kpBob.Address(),
-	}, nil)
+	}, kr)
 	require.NoError(t, err)
 
 	// TEST 1: Final verification of full acceptance pipeline
@@ -189,7 +200,7 @@ func TestInvitationAcceptanceOrchestration_FullLifecycle(t *testing.T) {
 		MemberID:        userB_VaultID,
 		DeviceID:        deviceB_ID,
 		DevicePublicKey: kpBob.Address(),
-	}, nil)
+	}, kr)
 	require.NoError(t, err)
 
 	tgIdempotent, err := repo.GetTrustGroup(ctx, &trustgroup_domain.GetTrustGroupRequest{TrustGroupID: tgID})

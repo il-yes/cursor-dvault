@@ -664,12 +664,20 @@ Completed:
   - Failure F: Concurrent rotations handled safely with exactly one winning and second rejected cleanly
   - Zero-Knowledge boundary enforced (backend receives zero raw KEK/DEK/private key material)
 
-
-
-
-
-
 ---
+
+### Step 6 — Phase 8B: Durable C3 Federation Outbox
+
+Completed:
+
+* Updated `AppendThreadEventUsecase` to propagate `OutboundQueue.SaveItem` errors for strict atomic error handling
+* Activated `GormOutboundQueueRepository` (`federation_outbound_queue` table) for durable outbox persistence
+* Implemented `OutboundWorker` dispatcher in `internal/realtime_client/application/worker/outbound_worker.go`
+* Wired `OutboundQueueRepository` and `OutboundWorker` in `app.go`
+* Verified complete ACK path: dispatch -> remote inbound -> ACK generation (`AckSender` / `NotificationAckPayload`) -> ACK transport -> local ACK handler -> `EventID` correlation -> `MarkAcknowledged`
+* Verified lost ACK & retry semantics with identity preservation (`EventID`, `IdempotencyKey`, sequence, resource ref preserved; duplicate deduplicated by remote)
+* Enforced 100% zero-knowledge security boundary (zero plaintext assets, raw DEKs, raw KEKs, device seeds, or private keys in outbound payload)
+
 
 ### Step 4 — ShareEntry Refactoring
 

@@ -17,8 +17,12 @@ import (
 	thread_usecase "vault-app/internal/thread/application/usecases"
 	thread_domain "vault-app/internal/thread/domain"
 	tracecore_types "vault-app/internal/tracecore/types"
+	app_config_domain "vault-app/internal/config/domain"
 	trustgroup_orchestrator "vault-app/internal/trust_group/application/orchestrator"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
+	vault_dto "vault-app/internal/vault/application/dto"
+	vault_queries "vault-app/internal/vault/application/queries"
+	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
 
@@ -141,19 +145,43 @@ func (s *stubThreadRepo) AppendThreadEvent(_ context.Context, req *thread_domain
 	return &tracecore_types.CloudResponse[thread_domain.ThreadEvent]{Data: evt}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Helper setup
-// ---------------------------------------------------------------------------
-func setupHandler(tg *trustgroup_domain.TrustGroup, threadRepo *stubThreadRepo) (*collaboration_ui.CollaborationHandler, *stubShareEntryRepo) {
+type stubAssetResolver struct{}
+
+func (s *stubAssetResolver) FetchEncryptedAsset(_ context.Context, _ string) ([]byte, error) {
+	return []byte("dummy-encrypted-asset"), nil
+}
+
+type stubIPFSResolver struct{}
+
+func (s *stubIPFSResolver) GetFileFromIPFS(_ context.Context, _ vault_dto.GetFileFromIPFSRequest) (string, error) {
+	return "dummy-asset-content", nil
+}
+
+func (s *stubIPFSResolver) GetIPFSFile(_ vault_queries.GetIPFSDataQuerry) ([]byte, error) {
+	return []byte("dummy-asset-content"), nil
+}
+
+func setupHandler(t *testing.T, tg *trustgroup_domain.TrustGroup, threadRepo *stubThreadRepo) (*collaboration_ui.CollaborationHandler, *stubShareEntryRepo) {
 	tgRepo := &stubTrustGroupRepo{group: tg}
 	shareRepo := &stubShareEntryRepo{}
 
-	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "", nil)
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), vault_infrastructure_security.OSFileSystem{})
 	cryptoOrchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, nil, nil)
 	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
 
+	kr := &vaults_domain.VaultKeyring{UserID: "user_1", VaultID: "v_1"}
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, _ = keyringSvc.StoreTrustGroupKEK(kr, tg.ID, tg.KEKVersion, testKEK)
+	_ = keyringSvc.SaveHybrid(kr, "user_1", "", "")
+
+	assetResolver := &stubAssetResolver{}
+	ipfsResolver := &stubIPFSResolver{}
+
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tgRepo, shareRepo)
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(cryptoOrchestrator, nil, identityResolver, nil)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(cryptoOrchestrator, assetResolver, identityResolver, nil, ipfsResolver)
 	appendEventUC := thread_usecase.NewAppendThreadEventUsecase(threadRepo)
 
 	handler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, appendEventUC)
@@ -172,9 +200,9 @@ func TestOrchestration_CaseA_CompleteSuccess(t *testing.T) {
 	th := thread_domain.NewThread("ch_1", "document", "Title", "Subtitle")
 	_, _ = threadRepo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: th})
 
-	handler, shareRepo := setupHandler(tg, threadRepo)
+	handler, shareRepo := setupHandler(t, tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
@@ -201,9 +229,9 @@ func TestOrchestration_CaseB_ThreadAppendFailure(t *testing.T) {
 	_, _ = threadRepo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: th})
 	threadRepo.appendError = assert.AnError
 
-	handler, shareRepo := setupHandler(tg, threadRepo)
+	handler, shareRepo := setupHandler(t, tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	assert.ErrorIs(t, err, assert.AnError)
 	require.NotNil(t, res, "ShareEntry result reference MUST be returned even if Thread append fails")
 
@@ -223,9 +251,9 @@ func TestOrchestration_CaseC_ThreadEventRetry(t *testing.T) {
 	th := thread_domain.NewThread("ch_1", "document", "Title", "Subtitle")
 	_, _ = threadRepo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: th})
 
-	handler, shareRepo := setupHandler(tg, threadRepo)
+	handler, shareRepo := setupHandler(t, tg, threadRepo)
 
-	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
+	res1, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	require.NoError(t, err)
 
 	// Direct retry of AppendThreadEvent with canonical ShareEntryID & idempotency key
@@ -256,18 +284,18 @@ func TestOrchestration_CaseD_InvalidOrClosedThread(t *testing.T) {
 	thClosed.Status = thread_domain.ThreadClosed
 	_, _ = threadRepoClosed.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: thClosed})
 
-	handlerClosed, shareRepoClosed := setupHandler(tg, threadRepoClosed)
+	handlerClosed, shareRepoClosed := setupHandler(t, tg, threadRepoClosed)
 
-	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "note")
+	resClosed, err := handlerClosed.CreateCollaborativeShare(ctx, "user_1", thClosed.ID, tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	assert.ErrorIs(t, err, thread_domain.ErrThreadClosed)
 	require.NotNil(t, resClosed)
 	assert.Len(t, shareRepoClosed.createdEntries, 1, "ShareEntry remains valid even when Thread is closed")
 
 	// Invalid / Missing Thread
 	threadRepoMissing := newStubThreadRepo()
-	handlerMissing, shareRepoMissing := setupHandler(tg, threadRepoMissing)
+	handlerMissing, shareRepoMissing := setupHandler(t, tg, threadRepoMissing)
 
-	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "note")
+	resMissing, err := handlerMissing.CreateCollaborativeShare(ctx, "user_1", "nonexistent_thread", tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	assert.ErrorIs(t, err, thread_domain.ErrThreadNotFound)
 	require.NotNil(t, resMissing)
 	assert.Len(t, shareRepoMissing.createdEntries, 1, "ShareEntry remains valid even when Thread does not exist")
@@ -281,9 +309,9 @@ func TestOrchestration_CaseE_SecurityBoundaryVerification(t *testing.T) {
 	th := thread_domain.NewThread("ch_1", "contract", "NDA", "")
 	_, _ = threadRepo.CreateThread(ctx, &thread_domain.CreateThreadRequest{Thread: th})
 
-	handler, _ := setupHandler(tg, threadRepo)
+	handler, _ := setupHandler(t, tg, threadRepo)
 
-	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note")
+	res, err := handler.CreateCollaborativeShare(ctx, "user_1", th.ID, tg.ID, "cid_blueprint", "note", "", "", app_config_domain.Config{}, vaults_domain.Vault{})
 	require.NoError(t, err)
 
 	evt := threadRepo.events[th.ID][0]

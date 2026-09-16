@@ -46,22 +46,36 @@ func TestTrustGroupCryptoOrchestrator_FullFlow(t *testing.T) {
 		VaultID: "vault-1",
 	}
 
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, err := keyringSvc.StoreTrustGroupKEK(kr, "tg-alpha", 1, testKEK)
+	require.NoError(t, err)
+
+	kp, err := keypair.Random()
+	require.NoError(t, err)
+
 	original := []byte("TOP SECRET COLLABORATIVE ASSET CONTENT")
 
 	prepared, err := orchestrator.PrepareCollaborativeAsset(
 		ctx,
 		trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
-			AssetID:       "asset-777",
-			TrustGroupID:  "tg-alpha",
-			KEKVersion:    1,
-			RawPayload:    original,
-			Keyring:       kr,
+			AssetID:      "asset-777",
+			TrustGroupID: "tg-alpha",
+			KEKVersion:   1,
+			RawPayload:   original,
+			Keyring:      kr,
+			ActiveDevices: []trustgroup_orchestrator.ActiveDevice{
+				{DeviceID: "dev-1", MemberID: "user-1", PublicKey: kp.Address(), IsActive: true},
+			},
 		},
 	)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, prepared.EncryptedData)
 	require.NotEmpty(t, prepared.WrappedDEK)
+	require.Len(t, prepared.Envelopes, 1)
 
 	storedKEK, err := keyringSvc.GetTrustGroupKEK(
 		kr,
@@ -76,10 +90,11 @@ func TestTrustGroupCryptoOrchestrator_FullFlow(t *testing.T) {
 		trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
 			AssetID:       prepared.AssetID,
 			TrustGroupID:  prepared.TrustGroupID,
-			KEKVersion:    prepared.KEKVersion,
+			KEKVersion:    int(prepared.KEKVersion),
 			EncryptedData: prepared.EncryptedData,
 			WrappedDEK:    prepared.WrappedDEK,
-			Keyring:       kr,
+			WrappedKEK:    prepared.Envelopes[0].WrappedKEK,
+			PrivateKey:    kp.Seed(),
 		},
 	)
 	require.NoError(t, err)
@@ -117,7 +132,7 @@ func TestTrustGroupCryptoOrchestrator_ResolveCollaborativeAsset(t *testing.T) {
 	ctx := context.Background()
 	aesSvc := &vault_infrastructure_crypto.AESService{}
 	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
-	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, "/tmp/keyz2", &mockFileSystem{})
+	keyringSvc := vault_infrastructure_security.NewKeyringService(nil, nil, t.TempDir(), vault_infrastructure_security.OSFileSystem{})
 
 	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
@@ -125,6 +140,13 @@ func TestTrustGroupCryptoOrchestrator_ResolveCollaborativeAsset(t *testing.T) {
 	require.NoError(t, err)
 
 	kr := &vaults_domain.VaultKeyring{UserID: "user-1", VaultID: "vault-1"}
+	testKEK := make([]byte, 32)
+	for i := range testKEK {
+		testKEK[i] = byte(i + 1)
+	}
+	_, err = keyringSvc.StoreTrustGroupKEK(kr, "tg-finance", 1, testKEK)
+	require.NoError(t, err)
+
 	rawContent := []byte("CONFIDENTIAL AUDIT REPORT")
 
 	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
@@ -144,44 +166,29 @@ func TestTrustGroupCryptoOrchestrator_ResolveCollaborativeAsset(t *testing.T) {
 
 	wrappedKEK := prepared.Envelopes[0].WrappedKEK
 
-	// 1. Resolve via Slow Path (No Keyring cache)
-	emptyKr := &vaults_domain.VaultKeyring{UserID: "user-1", VaultID: "vault-1"}
+	// Resolve asset using member private key
 	resolved, err := orchestrator.ResolveCollaborativeAsset(ctx, trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
 		AssetID:       prepared.AssetID,
 		TrustGroupID:  prepared.TrustGroupID,
-		KEKVersion:    prepared.KEKVersion,
+		KEKVersion:    int(prepared.KEKVersion),
 		EncryptedData: prepared.EncryptedData,
 		WrappedDEK:    prepared.WrappedDEK,
 		WrappedKEK:    wrappedKEK,
-		DeviceSeed:    kp.Seed(),
-		Keyring:       emptyKr,
+		PrivateKey:    kp.Seed(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	assert.Equal(t, "asset-999", resolved.AssetID)
 	assert.Equal(t, rawContent, resolved.Plaintext)
 
-	// 2. Resolve via Fast Path (Keyring cache populated from step 1)
-	resolvedFast, err := orchestrator.ResolveCollaborativeAsset(ctx, trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
-		AssetID:       prepared.AssetID,
-		TrustGroupID:  prepared.TrustGroupID,
-		KEKVersion:    prepared.KEKVersion,
-		EncryptedData: prepared.EncryptedData,
-		WrappedDEK:    prepared.WrappedDEK,
-		Keyring:       emptyKr, // Now contains cached KEK
-	})
-	require.NoError(t, err)
-	assert.Equal(t, rawContent, resolvedFast.Plaintext)
-
-	// 3. Validation Errors & Invalid Seed
+	// Validation Errors & Invalid Seed
 	_, err = orchestrator.ResolveCollaborativeAsset(ctx, trustgroup_orchestrator.ResolveCollaborativeAssetPayload{
 		TrustGroupID:  "tg-finance",
 		KEKVersion:    1,
 		EncryptedData: prepared.EncryptedData,
 		WrappedDEK:    prepared.WrappedDEK,
 		WrappedKEK:    wrappedKEK,
-		DeviceSeed:    "INVALID_SEED",
-		Keyring:       &vaults_domain.VaultKeyring{},
+		PrivateKey:    "INVALID_SEED",
 	})
 	assert.Error(t, err)
 }

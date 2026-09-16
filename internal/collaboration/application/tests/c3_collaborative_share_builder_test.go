@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"testing"
@@ -25,6 +26,9 @@ import (
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
 	vaults_domain "vault-app/internal/vault/domain"
+	app_config_domain "vault-app/internal/config/domain"
+	vault_dto "vault-app/internal/vault/application/dto"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
 )
@@ -48,6 +52,22 @@ func (r *memoryAssetResolver) AccessThreadData(ctx context.Context, req tracecor
 		EncryptedPayload: "",
 		DownloadAllowed:  true,
 	}, nil
+}
+
+type mockIPFSResolverBuilder struct {
+	assetResolver *memoryAssetResolver
+}
+
+func (m *mockIPFSResolverBuilder) GetIPFSFile(_ vault_queries.GetIPFSDataQuerry) ([]byte, error) {
+	return nil, nil
+}
+
+func (m *mockIPFSResolverBuilder) GetFileFromIPFS(ctx context.Context, req vault_dto.GetFileFromIPFSRequest) (string, error) {
+	data, err := m.assetResolver.FetchEncryptedAsset(ctx, req.CID)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 type memoryStorageProvider struct {
@@ -83,7 +103,7 @@ func (r *memoryIdentityResolver) GetDeviceSeed(ctx context.Context, userID strin
 	return seed, nil
 }
 
-func (r *memoryIdentityResolver) GetVaultKeyring(ctx context.Context, userID string) (*vaults_domain.VaultKeyring, error) {
+func (r *memoryIdentityResolver) GetVaultKeyring(ctx context.Context, userID string, password string, stellarSecret string) (*vaults_domain.VaultKeyring, error) {
 	kr, ok := r.keyrings[userID]
 	if !ok {
 		return nil, errors.New("vault keyring not found")
@@ -237,6 +257,13 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 	provisionUC := trustgroup_envelope_uc.NewProvisionTrustGroupDeviceEnvelopeUseCase(repo, identityResolver, orchestrator, addEnvelopeUC, keyringSvc)
 	aliceKeyring := identityResolver.keyrings[userAliceID]
 
+	testKEK0 := make([]byte, 32)
+	for i := range testKEK0 {
+		testKEK0[i] = byte(i + 1)
+	}
+	_, err = keyringSvc.StoreTrustGroupKEK(aliceKeyring, tg.ID, 1, testKEK0)
+	require.NoError(t, err)
+
 	_, err = provisionUC.Execute(ctx, trustgroup_dtos.ProvisionTrustGroupDeviceEnvelopeRequest{
 		TrustGroupID:    tg.ID,
 		MemberID:        userBobID,
@@ -267,6 +294,7 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 		assetResolver,
 		identityResolver,
 		storageProvider,
+		&mockIPFSResolverBuilder{assetResolver: assetResolver},
 	)
 
 	// Execute CreateCollaborativeShareUseCase
@@ -275,6 +303,7 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 		TrustGroupID: tg.ID,
 		KEKVersion:   1,
 		CreatedBy:    userAliceID,
+		UserID:       userAliceID,
 		Metadata:     map[string]string{"title": "Legal Contract", "thread_id": threadID},
 	})
 	require.NoError(t, err)
@@ -313,13 +342,14 @@ func TestC3_CollaborativeShare_StorageAndCryptoIntegration(t *testing.T) {
 	encHash := sha256.Sum256(retrievedEncryptedBytes)
 
 	// 5. Execute ResolveCollaborativeShareUseCase for User B passing real appended ThreadID and EventID
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, &mockIPFSResolverBuilder{assetResolver: assetResolver})
 	resolved, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     persistedShareEntry.ID,
 		CallerVaultID:    userBobID,
 		CallerIdentityID: userBobID,
 		ThreadID:         appendedEvent.ThreadID,
 		EventID:          appendedEvent.ID,
+		StellarAccount:   app_config_domain.StellarAccountConfig{PrivateKey: kpBob.Seed()},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resolved)
@@ -391,7 +421,7 @@ func TestC3_SecurityNegatives_NonMember_Denied(t *testing.T) {
 		MemberCIDs: []string{"vault_alice"},
 	}
 
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, &mockIPFSResolverBuilder{assetResolver: assetResolver})
 	_, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_charlie_non_member",
@@ -430,7 +460,7 @@ func TestC3_SecurityNegatives_RevokedShare_Denied(t *testing.T) {
 		MemberCIDs: []string{"vault_alice"},
 	}
 
-	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
+	resolveUC := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, &mockIPFSResolverBuilder{assetResolver: assetResolver})
 	_, err := resolveUC.Execute(ctx, collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     se.ID,
 		CallerVaultID:    "vault_alice",
@@ -470,6 +500,13 @@ func TestResolveCollaborativeShare_UsesVaultIDForMembershipAndIdentityIDForKeyRe
 	asymSvc := &vault_infrastructure_crypto.AsymmetricService{}
 	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
+	testKEK1 := make([]byte, 32)
+	for i := range testKEK1 {
+		testKEK1[i] = byte(i + 1)
+	}
+	_, err = keyringSvc.StoreTrustGroupKEK(identityResolver.keyrings[callerIdentityID], trustGroupID, 1, testKEK1)
+	require.NoError(t, err)
+
 	prepPayload := trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
 		AssetID:      shareEntryID,
 		TrustGroupID: trustGroupID,
@@ -490,7 +527,7 @@ func TestResolveCollaborativeShare_UsesVaultIDForMembershipAndIdentityIDForKeyRe
 		KEKVersion:   1,
 		Status:       c3_asset_domain.ShareEntryStatusActive,
 		AssetCID:     "asset-cid",
-		WrappedDEK:   string(prepared.WrappedDEK),
+		WrappedDEK:   base64.StdEncoding.EncodeToString(prepared.WrappedDEK),
 	}
 	repo.entries[shareEntry.ID] = shareEntry
 
@@ -511,13 +548,14 @@ func TestResolveCollaborativeShare_UsesVaultIDForMembershipAndIdentityIDForKeyRe
 	}
 	repo.groups[trustGroupID] = &trustGroup
 
-	uc := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, nil)
+	uc := collaboration_usecases.NewResolveCollaborativeShareUseCase(repo, repo, assetResolver, identityResolver, orchestrator, &mockIPFSResolverBuilder{assetResolver: assetResolver})
 
 	req := collaboration_dtos.ResolveCollaborativeShareRequest{
 		ShareEntryID:     shareEntry.ID,
 		CallerVaultID:    callerVaultID,
 		CallerIdentityID: callerIdentityID,
 		CallerUserID:     callerIdentityID,
+		StellarAccount:   app_config_domain.StellarAccountConfig{PrivateKey: kpAlice.Seed()},
 	}
 
 	result, err := uc.Execute(ctx, req)

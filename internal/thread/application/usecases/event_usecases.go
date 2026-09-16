@@ -2,12 +2,18 @@ package thread_usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	realtime_client_infrastructure_persistence "vault-app/internal/realtime_client/infrastructure/persistence"
 	thread_domain "vault-app/internal/thread/domain"
 )
+
+type OutboundQueueSaver interface {
+	SaveItem(ctx context.Context, item *realtime_client_infrastructure_persistence.OutboundDeliveryModel) error
+}
 
 type ListThreadEventsUsecase struct {
 	Repo thread_domain.ThreadRepository
@@ -41,13 +47,19 @@ func (uc *ListThreadEventsUsecase) Execute(ctx context.Context, threadID string)
 }
 
 type AppendThreadEventUsecase struct {
-	Repo thread_domain.ThreadRepository
+	Repo          thread_domain.ThreadRepository
+	OutboundQueue OutboundQueueSaver
 }
 
 func NewAppendThreadEventUsecase(repo thread_domain.ThreadRepository) *AppendThreadEventUsecase {
 	return &AppendThreadEventUsecase{
 		Repo: repo,
 	}
+}
+
+func (uc *AppendThreadEventUsecase) WithOutboundQueue(queue OutboundQueueSaver) *AppendThreadEventUsecase {
+	uc.OutboundQueue = queue
+	return uc
 }
 
 func (uc *AppendThreadEventUsecase) Execute(
@@ -109,5 +121,31 @@ func (uc *AppendThreadEventUsecase) Execute(
 	}
 
 	fmt.Printf("[APPEND][STEP=05] AppendThreadEventUsecase.Execute success eventID=%s\n", resp.Data.ID)
+
+	if uc.OutboundQueue != nil {
+		payloadBytes, _ := json.Marshal(map[string]interface{}{
+			"ref_type":       payload.RefType,
+			"share_entry_id": payload.ShareEntryID,
+			"trust_group_id": payload.TrustGroupID,
+			"thread_id":      threadID,
+			"event_id":       resp.Data.ID,
+			"idempotency_key": key,
+		})
+		outboundItem := &realtime_client_infrastructure_persistence.OutboundDeliveryModel{
+			EnvelopeID:  "env_" + resp.Data.ID,
+			EventID:     resp.Data.ID,
+			EventType:   eventType,
+			Status:      "PENDING",
+			PayloadJSON: payloadBytes,
+			Attempts:    0,
+			MaxAttempts: 5,
+		}
+		if err := uc.OutboundQueue.SaveItem(ctx, outboundItem); err != nil {
+			fmt.Printf("[APPEND][OUTBOX] failed to enqueue outbound item: %v\n", err)
+			return nil, fmt.Errorf("failed to enqueue outbound delivery item: %w", err)
+		}
+		fmt.Printf("[APPEND][OUTBOX] successfully enqueued outbound item eventID=%s status=PENDING\n", resp.Data.ID)
+	}
+
 	return &resp.Data, nil
 }

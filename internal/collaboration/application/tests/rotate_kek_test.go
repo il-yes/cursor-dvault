@@ -64,6 +64,12 @@ func TestRotateTrustGroupKEK_FullSuiteAndKeyInvariant(t *testing.T) {
 	require.NoError(t, err)
 
 	kr := &vaults_domain.VaultKeyring{UserID: "user-b", VaultID: "vault-member-B"}
+	testKEK1 := make([]byte, 32)
+	for i := range testKEK1 {
+		testKEK1[i] = byte(i + 1)
+	}
+	_, err = keyringSvc.StoreTrustGroupKEK(kr, tg.ID, 1, testKEK1)
+	require.NoError(t, err)
 
 	// Assets 1 & 2 encrypted locally on Desktop
 	rawPayloadAsset1 := []byte("CONFIDENTIAL PAYLOAD ASSET 1")

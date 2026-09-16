@@ -58,6 +58,8 @@ import (
 	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
 	realtime_client_handlers "vault-app/internal/realtime_client/application/handlers"
 	realtime_client_application_services "vault-app/internal/realtime_client/application/services"
+	realtime_client_worker "vault-app/internal/realtime_client/application/worker"
+	realtime_client_infrastructure_persistence "vault-app/internal/realtime_client/infrastructure/persistence"
 	realtime_client_infrastructure_websocket "vault-app/internal/realtime_client/infrastructure/websocket"
 	"vault-app/internal/registry"
 	share_entry_application_dto "vault-app/internal/share_entry/application"
@@ -635,6 +637,19 @@ func NewApp() *App {
 	listThreadsUC := thread_usecase.NewListThreadsUsecase(tracecoreClient)
 	listThreadEventsUC := thread_usecase.NewListThreadEventsUsecase(tracecoreClient)
 	appendThreadEventUC := thread_usecase.NewAppendThreadEventUsecase(tracecoreClient)
+	if db != nil && db.DB != nil {
+		outboundQueueRepo := realtime_client_infrastructure_persistence.NewGormOutboundQueueRepository(db.DB)
+		appendThreadEventUC.WithOutboundQueue(outboundQueueRepo)
+		outboundWorker := realtime_client_worker.NewOutboundWorker(outboundQueueRepo, func(ctx context.Context, item *realtime_client_infrastructure_persistence.OutboundDeliveryModel) error {
+			payloadMap := map[string]interface{}{}
+			_ = json.Unmarshal(item.PayloadJSON, &payloadMap)
+			threadID, _ := payloadMap["thread_id"].(string)
+			idempotencyKey, _ := payloadMap["idempotency_key"].(string)
+			_, err := tracecoreClient.AppendThreadEventDirect(ctx, "me", threadID, item.EventType, payloadMap, idempotencyKey)
+			return err
+		})
+		go outboundWorker.Start(context.Background())
+	}
 	threadHandler := thread_ui.NewThreadHandler(createThreadUC, listThreadsUC, listThreadEventsUC, appendThreadEventUC)
 
 	// C3 collaboration: real Cloud-backed repositories (TracecoreClient

@@ -315,10 +315,10 @@ func (r *topLevelVaultRepo) GetVaultByCID(vaultID string) (*vaults_domain.Vault,
 func (r *topLevelVaultRepo) UpdateVault(vault *vaults_domain.Vault) error            { return nil }
 func (r *topLevelVaultRepo) DeleteVault(vaultID string) error                         { return nil }
 func (r *topLevelVaultRepo) GetLatestByUserID(userID string) (*vaults_domain.Vault, error) {
-	return nil, nil
+	return &vaults_domain.Vault{ID: "v_" + userID, UserID: userID, Name: "Default Vault"}, nil
 }
 func (r *topLevelVaultRepo) GetByUserIDAndName(userID string, name string) (*vaults_domain.Vault, error) {
-	return nil, nil
+	return &vaults_domain.Vault{ID: "v_" + userID, UserID: userID, Name: name}, nil
 }
 func (r *topLevelVaultRepo) UpdateVaultCID(vaultID, cid string) error { return nil }
 

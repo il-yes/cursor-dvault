@@ -179,7 +179,7 @@ func TestC3_ProductionWorkflow_AddMember_Provision_And_Readback(t *testing.T) {
 	orchestrator := trustgroup_orchestrator.NewTrustGroupCryptoOrchestrator(keyringSvc, aesSvc, asymSvc)
 
 	keyring := vaults_domain.NewVaultKeyring(callerVaultID)
-	rawKEK := []byte("32_byte_kek_for_trust_group_001")
+	rawKEK := []byte("32_byte_kek_for_trust_group_0001")
 	keyring.Keys = append(keyring.Keys, vaults_domain.EncryptedKey{
 		ID:           "k_kek_01",
 		Type:         vaults_domain.KeyTypeTrustGroupKEK,

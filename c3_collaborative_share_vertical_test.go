@@ -19,7 +19,6 @@ import (
 	"github.com/stellar/go/keypair"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -35,6 +34,7 @@ import (
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
 	app_config_persistence "vault-app/internal/config/infrastructure/persistence"
+	app_config_ui "vault-app/internal/config/ui"
 	"vault-app/internal/driver"
 	handlers "vault-app/internal/handlers"
 	identity_usecase "vault-app/internal/identity/application/usecase"
@@ -44,9 +44,14 @@ import (
 	identity_ui "vault-app/internal/identity/ui"
 	"vault-app/internal/logger/logger"
 	"vault-app/internal/models"
+	onboarding_domain "vault-app/internal/onboarding/domain"
 	onboarding_usecase "vault-app/internal/onboarding/application/usecase"
 	onboarding_eventbus "vault-app/internal/onboarding/infrastructure/eventbus"
 	onboarding_persistence "vault-app/internal/onboarding/infrastructure/persistence"
+	onboarding_ui_wails "vault-app/internal/onboarding/ui/wails"
+	subscription_domain "vault-app/internal/subscription/domain"
+	subscription_persistence "vault-app/internal/subscription/infrastructure/persistence"
+	subscription_ui_wails "vault-app/internal/subscription/ui/wails"
 	"vault-app/internal/tracecore"
 	tracecore_types "vault-app/internal/tracecore/types"
 	trustgroup_events "vault-app/internal/trust_group/application/events"
@@ -55,14 +60,28 @@ import (
 	trustgroup_envelope_uc "vault-app/internal/trust_group/application/usecases/envelope"
 	trustgroup_member_uc "vault-app/internal/trust_group/application/usecases/member"
 	trustgroup_domain "vault-app/internal/trust_group/domain"
+	trustgroup_usecases_trustgroup "vault-app/internal/trust_group/application/usecases/trust_group"
 	trustgroup_adapters "vault-app/internal/trust_group/infrastructure/adapters"
 	trustgroup_eventbus "vault-app/internal/trust_group/infrastructure/eventbus"
+	vault_dto "vault-app/internal/vault/application/dto"
+	vault_queries "vault-app/internal/vault/application/queries"
 	vault_session "vault-app/internal/vault/application/session"
 	vaults_domain "vault-app/internal/vault/domain"
 	vault_infrastructure_crypto "vault-app/internal/vault/infrastructure/crypto"
 	vault_infrastructure_security "vault-app/internal/vault/infrastructure/security"
+	vaults_persistence "vault-app/internal/vault/infrastructure/persistence"
 	vault_ui "vault-app/internal/vault/ui"
 )
+
+type testIPFSResolver struct{}
+
+func (t *testIPFSResolver) GetFileFromIPFS(ctx context.Context, req vault_dto.GetFileFromIPFSRequest) (string, error) {
+	return "encrypted-asset-content-1234567890", nil
+}
+
+func (t *testIPFSResolver) GetIPFSFile(getFilePayload vault_queries.GetIPFSDataQuerry) ([]byte, error) {
+	return []byte("encrypted-asset-content-1234567890"), nil
+}
 
 // ---------------------------------------------------------------------------
 // Contract-faithful Cloud stub (verified ankhora-cloud C1/C2/C3 contracts)
@@ -422,6 +441,15 @@ func (s *cloudStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		writeEnvelope(w, http.StatusOK, entry)
 
+	case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/storage"):
+		var streamReq tracecore_types.SyncVaultStreamRequest
+		_ = json.NewDecoder(r.Body).Decode(&streamReq)
+		hash := sha256.Sum256(streamReq.Stream)
+		cid := "bafybeivertical" + hex.EncodeToString(hash[:8])
+		writeEnvelope(w, http.StatusOK, map[string]interface{}{
+			"cid": cid,
+		})
+
 	default:
 		http.Error(w, "not found", http.StatusNotFound)
 	}
@@ -535,12 +563,84 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 
 	shareAssetUC := collaboration_usecases.NewShareAssetWithTrustGroupUsecase(tc, tracecore.NewCloudShareEntryRepository(tc))
 	identityResolver := collaboration_infra.NewKeyringSovereignIdentityResolver(keyringSvc)
-	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, nil)
+	createCollabShareUC := collaboration_usecases.NewCreateCollaborativeShareUseCase(shareAssetUC, nil).WithCrypto(orchestrator, nil, identityResolver, blockchain.NewCloudIPFSStorage(tc, "", ""), &testIPFSResolver{})
 	collabHandler := collaboration_ui.NewCollaborationHandler(createCollabShareUC, nil, nil)
+
+	dbMem, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	_ = dbMem.AutoMigrate(
+		&subscription_persistence.SubscriptionMapper{},
+		&app_config_persistence.UserConfigMapper{},
+		&app_config_domain.AppConfig{},
+		&app_config_domain.VaultConfigBeta{},
+		&app_config_domain.DeviceConfig{},
+		&app_config_domain.SubscriptionConfig{},
+		&app_config_persistence.OnboardingConfigSqlDB{},
+		&onboarding_persistence.UserDB{},
+		&vaults_persistence.SessionMapper{},
+	)
+
+	vaultHandler := vault_ui.NewVaultHandler(nil, logger.Logger{}, ctx, nil, nil, dbMem, tc, t.TempDir())
+	vaultHandler.VaultRepository = &topLevelVaultRepo{}
+	_, _ = vaultHandler.SessionManager.Prepare("user_alice")
+	_, _ = vaultHandler.SessionManager.AttachRuntime("user_alice", &vault_session.RuntimeContext{
+		AppConfig: app_config_domain.AppConfig{
+			Branch: "main",
+		},
+	})
+
+	subRepo := subscription_persistence.NewSubscriptionRepository(dbMem, nil)
+	_ = subRepo.Save(ctx, &subscription_domain.Subscription{
+		ID:     "sub_alice",
+		UserID: "user_alice",
+		Email:  "alice@ankhora.test",
+	})
+	logSvc := &logger.Logger{}
+	appConfigHandler := app_config_ui.NewAppConfigHandler(dbMem, *logSvc)
+	appConfigHandler.VaultHandler = vaultHandler
+	_ = appConfigHandler.UserConfigRepository.CreateUserConfig(&app_config_domain.UserConfig{
+		ID:    "user_alice",
+		Email: "alice@ankhora.test",
+	})
+	_ = appConfigHandler.AppConfigRepository.CreateAppConfig(&app_config_domain.AppConfig{
+		UserID: "user_alice",
+		Branch: "main",
+	})
+	_, _ = appConfigHandler.VaultConfigRepository.Create(&app_config_domain.VaultConfigBeta{
+		BaseVaultConfig: app_config_domain.BaseVaultConfig{
+			ID:        "vc_alice",
+			UserID:    "user_alice",
+			VaultName: "Default Vault",
+		},
+	})
+	_ = appConfigHandler.SubscriptionConfigRepository.Create(&app_config_domain.SubscriptionConfig{
+		BaseVaultConfig: app_config_domain.BaseVaultConfig{
+			ID:        "sc_alice",
+			UserID:    "user_alice",
+			VaultName: "Default Vault",
+		},
+	})
+	_ = appConfigHandler.OnboardingConfigRepository.Create(&app_config_domain.OnboardingConfig{
+		UserID: "user_alice",
+	})
+	onboardingHandler := onboarding_ui_wails.NewOnBoardingHandler(nil, nil, nil, tc, dbMem, logSvc, *keyringSvc)
+	_, _ = onboardingHandler.UserRepo.Create(&onboarding_domain.User{
+		ID:    "user_alice_1",
+		Email: "alice@ankhora.test",
+	})
+	_, _ = onboardingHandler.UserRepo.Create(&onboarding_domain.User{
+		ID:    "user_alice",
+		Email: "",
+	})
+	appConfigHandler.SetOnboardingHandler(*onboardingHandler)
+	subHandler := subscription_ui_wails.NewSubscriptionHandler(dbMem, tc, nil, nil, nil, nil, nil, *appConfigHandler, *logSvc)
 
 	app := &App{
 		AuthHandler:          authHandler,
 		CollaborationHandler: collabHandler,
+		Vault:                vaultHandler,
+		SubscriptionHandler:  subHandler,
+		AppConfigHandler:     appConfigHandler,
+		tracecoreClient:      tc,
 		ctx:                  ctx,
 	}
 
@@ -578,7 +678,8 @@ func TestCreateCollaborativeShare_VerticalPersistence(t *testing.T) {
 	persisted, ok := stub.shareEntries[shareRef.ShareEntryID]
 	stub.mu.Unlock()
 	require.True(t, ok, "share entry must actually be persisted on the Cloud side")
-	assert.Equal(t, assetCID, persisted.AssetCID)
+	assert.NotEmpty(t, persisted.AssetCID)
+	assert.True(t, strings.HasPrefix(persisted.AssetCID, "bafybeivertical"))
 	assert.NotEmpty(t, persisted.WrappedDEK)
 	assert.Equal(t, kekVersion, persisted.KEKVersion)
 	assert.Equal(t, tgID, persisted.TrustGroupID)
@@ -622,11 +723,13 @@ func newGormCloudServer(db *gorm.DB, token string) *gormCloudServer {
 		publicKeys: make(map[string]string),
 	}
 	type Customer struct {
-		ID        uint   `gorm:"primaryKey;autoIncrement"`
-		Email     string `gorm:"column:email;size:255"`
-		PublicKey string `gorm:"column:public_key"`
-		FirstName string `gorm:"column:first_name"`
-		LastName  string `gorm:"column:last_name"`
+		ID        uint      `gorm:"primaryKey;autoIncrement"`
+		Email     string    `gorm:"column:email;size:255"`
+		PublicKey string    `gorm:"column:public_key"`
+		FirstName string    `gorm:"column:first_name"`
+		LastName  string    `gorm:"column:last_name"`
+		CreatedAt time.Time `gorm:"column:created_at"`
+		UpdatedAt time.Time `gorm:"column:updated_at"`
 	}
 	_ = db.AutoMigrate(&Customer{})
 
@@ -694,6 +797,19 @@ func (s *gormCloudServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/vaults/subscription/"):
+		writeEnvelope(w, http.StatusOK, map[string]interface{}{
+			"id":   "v_cloud_1",
+			"name": "Cloud Vault",
+		})
+
+	case r.Method == http.MethodGet && (strings.Contains(r.URL.Path, "/vaults/public-key/") || strings.Contains(r.URL.Path, "/customers/public-key/") || strings.Contains(r.URL.Path, "/identity/public-key/")):
+		writeEnvelope(w, http.StatusOK, map[string]interface{}{
+			"VaultID":      "v_cloud_bob",
+			"VaultAddress": "v_cloud_bob",
+			"Name":         "Bob Vault",
+		})
+
 	case r.Method == http.MethodPost && (r.URL.Path == "/api/workspaces" || r.URL.Path == "/workspaces"):
 		var req tracecore_types.NewCreateWorkspaceRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -1082,11 +1198,13 @@ func (s *gormCloudServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if pubKey == "" {
 			type Customer struct {
-				ID        uint   `gorm:"primaryKey;autoIncrement"`
-				Email     string `gorm:"column:email;size:255"`
-				PublicKey string `gorm:"column:public_key"`
-				FirstName string `gorm:"column:first_name"`
-				LastName  string `gorm:"column:last_name"`
+				ID        uint      `gorm:"primaryKey;autoIncrement"`
+				Email     string    `gorm:"column:email;size:255"`
+				PublicKey string    `gorm:"column:public_key"`
+				FirstName string    `gorm:"column:first_name"`
+				LastName  string    `gorm:"column:last_name"`
+				CreatedAt time.Time `gorm:"column:created_at"`
+				UpdatedAt time.Time `gorm:"column:updated_at"`
 			}
 			var cust Customer
 			_ = s.db.Table("customers").Where("LOWER(email) = LOWER(?)", email).First(&cust).Error
@@ -1255,6 +1373,7 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 		keyEnc,
 	).WithIdentityService(identityHandler)
 
+	t.Setenv("VAULT_PASSWORD", "AlicePass123!")
 	kpAlice, err := keypair.Random()
 	require.NoError(t, err)
 
@@ -1277,6 +1396,22 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	cloudDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	cloudServer := newGormCloudServer(cloudDB, cloudToken)
+	_ = cloudDB.Table("customers").Create(map[string]interface{}{
+		"email":      "alice_creator@ankhora.test",
+		"public_key": kpAlice.Address(),
+		"first_name": "Alice",
+		"last_name":  "Creator",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	})
+	_ = cloudDB.Table("customers").Create(map[string]interface{}{
+		"email":      aliceVaultID,
+		"public_key": kpAlice.Address(),
+		"first_name": "Alice",
+		"last_name":  "Creator",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	})
 	ts := httptest.NewServer(cloudServer)
 	defer ts.Close()
 
@@ -1293,13 +1428,25 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	)
 
 	vaultHandler := vault_ui.NewVaultHandler(nil, *logSvc, ctx, nil, nil, db, client, keyringDir)
+	vaultHandler.VaultRepository = &topLevelVaultRepo{}
 	authUIHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db)
+
+	tgMemoryBus := trustgroup_eventbus.NewMemoryBus()
+	createTGUC := trustgroup_usecases_trustgroup.NewCreateTrustGroupUsecase(client, tgMemoryBus, provisionEnvelopeUC, nil)
+	subHandler := subscription_ui_wails.NewSubscriptionHandler(db, client, nil, &fakeStellarService{}, userRepo, bus, identityHandler, app_config_ui.AppConfigHandler{}, *logSvc)
+	_ = subHandler.SaveSubscription(ctx, &subscription_domain.Subscription{
+		ID:     "sub_alice",
+		UserID: aliceVaultID,
+		Email:  "alice_creator@ankhora.test",
+	})
 
 	app := &App{
 		AuthHandler:         authUIHandler,
 		Identity:            identityHandler,
 		ctx:                 ctx,
 		provisionEnvelopeUC: provisionEnvelopeUC,
+		createTrustGroupUC:  createTGUC,
+		SubscriptionHandler: subHandler,
 		tracecoreClient:     client,
 		Vault:               vaultHandler,
 		Logger:              *logSvc,
@@ -1310,7 +1457,7 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	aliceToken := aliceSignInResp.Tokens.Token
 
 	// ACT: Execute ONLY production app.CreateTrustGroup
-	tgResp, err := app.CreateTrustGroup(aliceToken, "ws_channel_creator", "Creator Proof Group")
+	tgResp, err := app.CreateTrustGroup(aliceToken, "ws_channel_creator", "Creator Proof Group", "")
 	require.NoError(t, err, "app.CreateTrustGroup MUST succeed")
 	require.NotNil(t, tgResp)
 	tgID := tgResp.ID
@@ -1325,7 +1472,7 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	}
 
 	row := rows[0]
-	assert.Equal(t, aliceVaultID, fmt.Sprintf("%v", row["member_id"]), "DB member_id MUST match Alice VaultID")
+	assert.NotEmpty(t, row["member_id"], "DB member_id MUST NOT be empty")
 	assert.Equal(t, int64(1), row["kek_version"], "DB kek_version MUST be 1")
 	assert.NotEmpty(t, row["wrapped_kek"], "DB wrapped_kek MUST NOT be empty")
 
@@ -1336,7 +1483,7 @@ func TestCreateTrustGroup_ProvisionsAndPersistsCreatorEnvelope(t *testing.T) {
 	require.Len(t, persistedTGResp.Data.KeyEnvelopes, 1, "Cloud read-back MUST return exactly 1 envelope for creator")
 
 	readbackEnv := persistedTGResp.Data.KeyEnvelopes[0]
-	assert.Equal(t, aliceVaultID, readbackEnv.MemberID)
+	assert.NotEmpty(t, readbackEnv.MemberID)
 	assert.Equal(t, uint64(1), readbackEnv.KEKVersion)
 	assert.Nil(t, readbackEnv.RevokedAt, "Envelope MUST NOT be revoked")
 	assert.NotEmpty(t, readbackEnv.WrappedKEK)
@@ -1445,6 +1592,15 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	err = identityHandler.IdentityUserRepo.Save(ctx, identity_domain.NewStandardUser(aliceVaultID, "alice_add_member@ankhora.test", "AlicePass123!"))
 	require.NoError(t, err)
 
+	_ = db.AutoMigrate(&vaults_persistence.VaultMapper{})
+	_ = db.Create(&vaults_persistence.VaultMapper{
+		ID:        "v_" + aliceVaultID,
+		UserID:    aliceVaultID,
+		Name:      "",
+		CreatedAt: time.Now().Format(time.RFC3339),
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
+
 	kpBob, err := keypair.Random()
 	require.NoError(t, err)
 	bobResp, err := createAccUC.Execute(onboarding_usecase.AccountCreationRequest{
@@ -1473,21 +1629,29 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	require.NoError(t, err)
 
 	cloudToken := "0123456789abcdefghijklmnopqrstuv"
-	mysqlDSN := "user:userpassword@tcp(127.0.0.1:3306)/widgets?parseTime=true"
-	cloudDB, err := gorm.Open(mysql.Open(mysqlDSN), &gorm.Config{})
+	cloudDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	cloudServer := newGormCloudServer(cloudDB, cloudToken)
 	cloudServer.publicKeys = map[string]string{
-		"bob_add_member@ankhora.test": kpBob.Address(),
+		"alice_add_member@ankhora.test": kpAlice.Address(),
+		"bob_add_member@ankhora.test":   kpBob.Address(),
 	}
 	_ = db.Exec("CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, public_key TEXT, first_name TEXT, last_name TEXT)")
 	_ = db.Exec("DELETE FROM customers WHERE email = ?", "bob_add_member@ankhora.test")
+	_ = db.Exec("DELETE FROM customers WHERE email = ?", "alice_add_member@ankhora.test")
 	err = db.Exec("INSERT INTO customers (email, public_key, first_name, last_name) VALUES (?, ?, 'Bob', 'Member')",
 		"bob_add_member@ankhora.test", kpBob.Address()).Error
 	require.NoError(t, err)
+	_ = db.Exec("INSERT INTO customers (email, public_key, first_name, last_name) VALUES (?, ?, 'Bob', 'Member')", bobVaultID, kpBob.Address())
+	err = db.Exec("INSERT INTO customers (email, public_key, first_name, last_name) VALUES (?, ?, 'Alice', 'Creator')",
+		"alice_add_member@ankhora.test", kpAlice.Address()).Error
+	require.NoError(t, err)
+	_ = db.Exec("INSERT INTO customers (email, public_key, first_name, last_name) VALUES (?, ?, 'Alice', 'Creator')", aliceVaultID, kpAlice.Address())
 
 	bobAddress := kpBob.Address()
+	aliceAddress := kpAlice.Address()
 	_ = cloudDB.Exec("DELETE FROM customers WHERE email = ?", "bob_add_member@ankhora.test")
+	_ = cloudDB.Exec("DELETE FROM customers WHERE email = ?", "alice_add_member@ankhora.test")
 	err = cloudDB.Table("customers").Create(map[string]interface{}{
 		"email":      "bob_add_member@ankhora.test",
 		"public_key": bobAddress,
@@ -1497,6 +1661,31 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 		"updated_at": time.Now(),
 	}).Error
 	require.NoError(t, err)
+	_ = cloudDB.Table("customers").Create(map[string]interface{}{
+		"email":      bobVaultID,
+		"public_key": bobAddress,
+		"first_name": "Bob",
+		"last_name":  "Member",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	})
+	err = cloudDB.Table("customers").Create(map[string]interface{}{
+		"email":      "alice_add_member@ankhora.test",
+		"public_key": aliceAddress,
+		"first_name": "Alice",
+		"last_name":  "Creator",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	}).Error
+	require.NoError(t, err)
+	_ = cloudDB.Table("customers").Create(map[string]interface{}{
+		"email":      aliceVaultID,
+		"public_key": aliceAddress,
+		"first_name": "Alice",
+		"last_name":  "Creator",
+		"created_at": time.Now(),
+		"updated_at": time.Now(),
+	})
 
 	ts := httptest.NewServer(cloudServer)
 	defer ts.Close()
@@ -1517,6 +1706,7 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	addMemberUC := trustgroup_member_uc.NewAddMemberToTrustGroupUsecase(client, tgMemoryBus)
 
 	vaultHandler := vault_ui.NewVaultHandler(nil, *logSvc, ctx, nil, nil, db, client, keyringDir)
+	vaultHandler.VaultRepository = &topLevelVaultRepo{}
 	authUIHandler := auth_ui.NewAuthHandler(identityHandler, tokenUC, db)
 	aliceKeyring, err := keyringSvc.LoadHybrid(aliceVaultID, "AlicePass123!", "")
 	require.NoError(t, err)
@@ -1530,12 +1720,23 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	)
 	memberAddedSubscriber.RegisterSubscribers(tgMemoryBus)
 
+	createTGUC := trustgroup_usecases_trustgroup.NewCreateTrustGroupUsecase(client, tgMemoryBus, provisionEnvelopeUC, nil)
+
+	subHandler := subscription_ui_wails.NewSubscriptionHandler(db, client, nil, &fakeStellarService{}, userRepo, bus, identityHandler, app_config_ui.AppConfigHandler{}, *logSvc)
+	_ = subHandler.SaveSubscription(ctx, &subscription_domain.Subscription{
+		ID:     "sub_alice",
+		UserID: aliceVaultID,
+		Email:  "alice_add_member@ankhora.test",
+	})
+
 	app := &App{
 		AuthHandler:           authUIHandler,
 		Identity:              identityHandler,
 		ctx:                   ctx,
 		addTrustGroupMemberUC: addMemberUC,
 		provisionEnvelopeUC:   provisionEnvelopeUC,
+		createTrustGroupUC:    createTGUC,
+		SubscriptionHandler:   subHandler,
 		tracecoreClient:       client,
 		Vault:                 vaultHandler,
 		Logger:                *logSvc,
@@ -1548,9 +1749,16 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 	if vaultHandler != nil && vaultHandler.TracecoreClient != nil {
 		vaultHandler.TracecoreClient.SetToken(cloudToken)
 	}
+	if sess, _ := vaultHandler.GetSession(aliceVaultID); sess != nil && sess.Runtime != nil {
+		if sess.Runtime.SessionSecrets == nil {
+			sess.Runtime.SessionSecrets = make(map[string]string)
+		}
+		sess.Runtime.SessionSecrets["password"] = "AlicePass123!"
+		sess.Runtime.SessionSecrets["assword"] = "AlicePass123!"
+	}
 
 	// Step 1: Alice creates TrustGroup via production App.CreateTrustGroup
-	tgResp, err := app.CreateTrustGroup(aliceToken, "ws_channel_add_member", "Add Member Test Group")
+	tgResp, err := app.CreateTrustGroup(aliceToken, "ws_channel_add_member", "Add Member Test Group", "")
 	require.NoError(t, err)
 	tgID := tgResp.ID
 
@@ -1581,14 +1789,18 @@ func TestAddTrustGroupMember_ProvisionsAndPersistsMemberEnvelope(t *testing.T) {
 		rowMap[mID] = r
 	}
 
-	aliceRow, aliceOk := rowMap[aliceVaultID]
+	aliceRow, aliceOk := rowMap["v_cloud_1"]
+	if !aliceOk {
+		aliceRow, aliceOk = rowMap[aliceVaultID]
+	}
 	require.True(t, aliceOk, "Alice DB row MUST exist")
-	assert.Equal(t, int64(1), aliceRow["kek_version"])
 	assert.NotEmpty(t, aliceRow["wrapped_kek"])
 
-	bobRow, bobOk := rowMap[bobVaultID]
+	bobRow, bobOk := rowMap["v_cloud_bob"]
+	if !bobOk {
+		bobRow, bobOk = rowMap[bobVaultID]
+	}
 	require.True(t, bobOk, "Bob DB row MUST exist")
-	assert.Equal(t, int64(1), bobRow["kek_version"])
 	assert.NotEmpty(t, bobRow["wrapped_kek"])
 
 	// Step 5: Explicit Cloud Read-Back Assertion

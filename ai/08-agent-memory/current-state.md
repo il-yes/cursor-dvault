@@ -344,8 +344,18 @@ Completed:
 * Desktop Cryptographic Orchestrator (`TrustGroupCryptoOrchestrator`)
 * Collaborative `ShareEntry` / CID Workflow Integration (`CreateCollaborativeShareUseCase`)
 * Production-Hardened V1 KEK Rotation (`RotateTrustGroupKEKUseCase`) with atomicity, idempotency, stale client rejection, and concurrency safety
-
-### Current Focus
+* Verified End-to-End Collaborative Share Write & Read Flow:
+  - C3 collaborative write verified (`CreateCollaborativeShareUseCase`)
+  - Plaintext source boundary verified (`App.PostIPFSEntry` with `IsShared: true`)
+  - `PUBLIC_MODE` source retrieval verified (`GetFileFromIPFS` returning unencrypted source bytes)
+  - TrustGroup KEK resolution verified (from creator's `VaultKeyring`)
+  - DEK generation, AES-256-GCM encryption, and DEK/KEK wrapping verified
+  - C3-encrypted asset storage & retrieval verified
+  - Collaborative read verified (`ResolveCollaborativeShareUseCase`)
+  - 958-byte application plaintext round-trip verified end-to-end
+  - Wails IPC response & `desktopResourceService` decoding verified
+  - React UI rendering & masking/reveal verified (`C3ResourceCard` + `ClassicalEntryRenderer`)
+  - Cloud remains 100% Zero-Knowledge (zero raw KEKs, DEKs, or plaintext received)
 
 Move from domain implementation toward:
 

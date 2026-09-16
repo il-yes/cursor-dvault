@@ -15,7 +15,7 @@ type StorageFactory interface {
 type DefaultStorageFactory struct {}
 
 func (f *DefaultStorageFactory) New(vaultCtx *app_config_domain.VaultContext) app_config.StorageProvider {
-	utils.LogPretty("DefaultStorageFactory - New - vaultCtx", vaultCtx)
+	// utils.LogPretty("DefaultStorageFactory - New - vaultCtx", vaultCtx)
 	return blockchain.NewStorageProvider(
 		blockchain.Config{
 			StorageConfig: vaultCtx.StorageConfig,

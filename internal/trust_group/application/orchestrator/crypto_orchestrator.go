@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"log"
 
 	trustgroup_dtos "vault-app/internal/trust_group/application/dtos"
 	"vault-app/internal/utils"
@@ -119,10 +120,13 @@ func (o *TrustGroupCryptoOrchestrator) PrepareCollaborativeAsset(
 	sum := sha256.Sum256(kek)
 
 	fmt.Printf(
-		"[C3][CRYPTO][WRITE] trustGroupID=%s kekVersion=%d kekFingerprint=%x\n",
+		"[C3-FORENSIC][KEK-WRITE] assetID=%s trustGroupID=%s kekVersion=%d kekSHA256=%x keyringVaultID=%s keyringIdentityID=%s\n",
+		req.AssetID,
 		req.TrustGroupID,
 		req.KEKVersion,
-		sum[:8],
+		sum,
+		req.Keyring.VaultID,
+		req.Keyring.UserID,
 	)
 
 	// 2. Generate Asset DEK (32 bytes)
@@ -239,6 +243,13 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 	)
 	utils.LogPretty("TrustGroupCryptoOrchestrator - ResolveCollaborativeAsset - kek", utils.FingerprintKey(kek))
 	if err != nil {
+		fmt.Printf(
+			"[C3-FORENSIC][KEK-READ-ASYM-ERR] shareEntryID=%s trustGroupID=%s kekVersion=%d err=%v\n",
+			req.AssetID,
+			req.TrustGroupID,
+			req.KEKVersion,
+			err,
+		)
 		return nil, fmt.Errorf(
 			"failed to unwrap trust group KEK v%d: %w",
 			req.KEKVersion,
@@ -253,6 +264,15 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 		)
 	}
 
+	sumRead := sha256.Sum256(kek)
+	fmt.Printf(
+		"[C3-FORENSIC][KEK-READ] shareEntryID=%s trustGroupID=%s kekVersion=%d kekSHA256=%x\n",
+		req.AssetID,
+		req.TrustGroupID,
+		req.KEKVersion,
+		sumRead,
+	)
+
 	// -------------------------------------------------------------------------
 	// 2. Recover the asset DEK using the TrustGroup KEK.
 	//
@@ -263,6 +283,14 @@ func (o *TrustGroupCryptoOrchestrator) ResolveCollaborativeAsset(
 		kek,
 	)
 	if err != nil {
+		log.Printf(
+			"[C3-FORENSIC][KEK-READ-DEK-ERR] shareEntryID=%s trustGroupID=%s kekVersion=%d kekSHA256=%s err=%v",
+			req.AssetID,
+			req.TrustGroupID,
+			req.KEKVersion,
+			sumRead,
+			err,
+		)
 		return nil, fmt.Errorf(
 			"failed to unwrap DEK with trust group KEK v%d: %w",
 			req.KEKVersion,

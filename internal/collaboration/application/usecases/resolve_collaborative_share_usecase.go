@@ -220,7 +220,7 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 	req.GetIPFSFile.CID = shareEntry.AssetCID
 
 	encryptedPayload, err := u.ipfsFileResolver.GetFileFromIPFS(
-		context.Background(),
+		ctx,
 		req.GetIPFSFile,
 	)
 	if err != nil {
@@ -305,6 +305,8 @@ func (u *ResolveCollaborativeShareUseCase) Execute(
 		"[C3][READ][13] collaborative asset resolved plaintextBytes=%d\n",
 		len(cryptoResult.Plaintext),
 	)
+
+
 
 	// 9. Return plaintext
 	return &collaboration_dtos.ResolveCollaborativeShareResponse{

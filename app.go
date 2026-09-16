@@ -3801,7 +3801,7 @@ func (a *App) CreateTrustGroup(
 		userSession.Runtime != nil &&
 		userSession.Runtime.SessionSecrets != nil {
 
-		pass = userSession.Runtime.SessionSecrets["vault_password"]
+		pass = userSession.Runtime.SessionSecrets["assword"]
 		secret = userSession.Runtime.SessionSecrets["stellar_secret"]
 
 		if secret == "" {
@@ -4623,7 +4623,6 @@ func (a *App) CreateCollaborativeShare(
 	a.CollaborationHandler.SetAssetStorage(userStorage)
 	a.CollaborationHandler.SetAssetResolver(assetResolver)
 
-
 	// -------------------------------------------------------------------------
 	// User config
 	// -------------------------------------------------------------------------
@@ -4633,7 +4632,6 @@ func (a *App) CreateCollaborativeShare(
 	}
 
 	stellarAccount := userConfig.StellarAccount
-
 
 	return a.CollaborationHandler.CreateCollaborativeShare(
 		a.ctx,
@@ -4778,6 +4776,29 @@ func (a *App) ResolveCollaborativeShare(
 		stellarAccount,
 		getFileReq,
 	)
+	plaintext := resp.Plaintext
+
+	fmt.Printf(
+		"[C3-FORENSIC][RESPONSE] plaintextBytes=%d\n",
+		len(plaintext),
+	)
+
+	if len(plaintext) > 0 {
+		previewLen := len(plaintext)
+		if previewLen > 64 {
+			previewLen = 64
+		}
+
+		fmt.Printf(
+			"[C3-FORENSIC][RESPONSE] firstBytes=%x\n",
+			plaintext[:previewLen],
+		)
+
+		fmt.Printf(
+			"[C3-FORENSIC][RESPONSE] firstText=%q\n",
+			string(plaintext[:previewLen]),
+		)
+	}
 
 	if err != nil {
 		fmt.Printf(

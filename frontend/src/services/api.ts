@@ -512,6 +512,8 @@ export async function createSharedEntry(payload: {
 		console.log({ selectedEntry })
 		// convert the vaultEntry in an entryType
 
+		console.log("[SHARE][BEFORE-DTO]", payload.recipients);
+
 		// Build the proper CreateShareEntryPayload
 		const createSharePayload = new share_entry_application_dto.CreateShareEntryPayload({
 			entry_name: selectedEntry.entry_name,
@@ -531,6 +533,8 @@ export async function createSharedEntry(payload: {
 			download_allowed: payload.download_allowed || false,
 			attachmentCIDs: payload?.attachmentCIDs,
 		});
+
+		console.log("[SHARE][AFTER-DTO]", createSharePayload.recipients);
 
 		// Wails backend is exposed via the global App object
 		// This calls your Go handler CreateShare
@@ -1603,9 +1607,8 @@ export async function getChannel(channelId: string): Promise<ChannelResponse> {
 	console.log(`[BOUNDARIES][READ] api.getChannel channelId=${channelId}`);
 	const result = await AppAPI.GetChannel(jwtToken, channelId);
 	console.log(`[BOUNDARIES][READ] api.getChannel returned=`, JSON.stringify(result));
-  console.log("RAW slots:", result?.slots);
-  console.log("RAW Slots:", result?.Slots);
-  
+	console.log("RAW slots:", result?.slots);
+
 	return result as ChannelResponse;
 }
 
@@ -1905,7 +1908,7 @@ export async function acceptChannelInvitation(invitationId: string): Promise<Cha
 	if (!identity) {
 		throw new Error('Vault identity is required to accept an invitation');
 	}
-	console.log({identity})
+	console.log({ identity })
 
 	const result = await AppAPI.AcceptChannelInvitation(
 		jwtToken,

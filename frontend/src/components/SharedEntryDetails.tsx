@@ -161,8 +161,29 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 		setIsRevealing(fieldName);
 		setDecryptingField(fieldName);
 
+
 		const rowRecipient = getRowRecipient();
-		if (!rowRecipient) return;
+		if (!rowRecipient) {
+			console.error("[REVEAL][RECIPIENT] recipient not found", {
+				currentEmail: authUser?.email ?? authUser?.Email,
+				recipients,
+			});
+
+			setIsRevealing(null);
+			setDecryptingField(null);
+			return;
+		}
+
+
+		console.log("[REVEAL][RECIPIENT]", {
+			rowRecipient,
+			recipients,
+			user,
+			userEmail: user?.email,
+			userEmailUpper: user?.Email,
+			authUser,
+			entryOwner: entry.owner_id,
+		});
 
 		try {
 			const keypair = Keypair.fromSecret(stellar.private_key);
@@ -407,7 +428,7 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 
 		const renderEntryContent = () => {
 			const effectiveEntry = (decryptedEntry as any) || entry;
-			const type = effectiveEntry?.type?.toLowerCase();
+			const type = effectiveEntry?.entry_type?.toLowerCase();
 
 
 			console.log("revealed entry", revealed);
@@ -749,7 +770,9 @@ export function SharedEntryDetails({ entry, view, updateRecipients }: SharedEntr
 	};
 
 	const getRowRecipient = () => {
-		return recipients.find((r) => r.email === user?.Email)
+		const currentEmail = user?.email ?? user?.Email ?? authUser?.email ?? authUser?.Email;
+
+		return recipients.find((r) => r.email === currentEmail);
 	}
 
 	return (

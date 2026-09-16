@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { desktopResourceService, OpenedResourceResult } from "@/services/desktopResourceService";
 import { C3ActionMenu } from "./actions/C3ActionMenu";
+import { ClassicalEntryRenderer } from "../ClassicalEntryRenderer";
 
 interface C3ResourceCardProps {
   refType: "share_entry" | "storage_asset" | string;
@@ -22,6 +23,7 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
   const [status, setStatus] = useState<"idle" | "loading" | "resolved" | "error">("idle");
   const [result, setResult] = useState<OpenedResourceResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
 
   const handleOpen = async () => {
     setStatus("loading");
@@ -114,36 +116,72 @@ export const C3ResourceCard: React.FC<C3ResourceCardProps> = ({
         </div>
       )}
 
-      {status === "resolved" && result && (
-        <div
-          style={{
-            padding: "10px",
-            backgroundColor: "#161B22",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            borderRadius: "4px",
-            marginTop: "6px",
-          }}
-        >
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "#F0F6FC", marginBottom: "4px" }}>
-            {result.title || "Decrypted Application Payload"}
-          </div>
-          <pre
+      {status === "resolved" && result && (() => {
+        let parsedEntry: any = null;
+        try {
+          parsedEntry = JSON.parse(result.content);
+        } catch {
+          parsedEntry = null;
+        }
+
+        const type = parsedEntry && typeof parsedEntry === "object"
+          ? (parsedEntry.type || parsedEntry.entry_type || parsedEntry.record_type || "").toLowerCase()
+          : "";
+        const isClassicalType = ["login", "card", "identity", "note", "sshkey"].includes(type);
+
+        return (
+          <div
             style={{
-              margin: 0,
-              padding: "8px",
-              backgroundColor: "#0D1117",
+              padding: "10px",
+              backgroundColor: "#161B22",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
               borderRadius: "4px",
-              fontSize: "11px",
-              color: "#A5D6FF",
-              overflowX: "auto",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
+              marginTop: "6px",
             }}
           >
-            {result.content}
-          </pre>
-        </div>
-      )}
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#F0F6FC", marginBottom: "6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{result.title || "Decrypted Application Payload"}</span>
+              {isClassicalType && (
+                <button
+                  type="button"
+                  onClick={() => setIsRevealed(!isRevealed)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#C9D1D9",
+                    borderRadius: "3px",
+                    padding: "2px 6px",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {isRevealed ? "🙈 Mask" : "👁 Reveal"}
+                </button>
+              )}
+            </div>
+
+            {isClassicalType ? (
+              <ClassicalEntryRenderer entry={parsedEntry} isRevealed={isRevealed} />
+            ) : (
+              <pre
+                style={{
+                  margin: 0,
+                  padding: "8px",
+                  backgroundColor: "#0D1117",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  color: "#A5D6FF",
+                  overflowX: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                }}
+              >
+                {result.content}
+              </pre>
+            )}
+          </div>
+        );
+      })()}
 
       {status === "error" && errorMessage && (
         <div

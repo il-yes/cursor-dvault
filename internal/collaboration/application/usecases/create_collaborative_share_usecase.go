@@ -93,6 +93,16 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 			return nil, fmt.Errorf("failed to fetch encrypted asset: %w", err)
 		}
 
+		fmt.Printf(
+			"[C3-FORENSIC][WRITE] rawPayload bytes=%d\n",
+			len(rawPayload),
+		)
+
+		fmt.Printf(
+			"[C3-FORENSIC][WRITE] rawPayload firstBytes=%x\n",
+			rawPayload[:min(32, len(rawPayload))],
+		)
+
 		prepared, err := u.cryptoOrchestrator.PrepareCollaborativeAsset(
 			ctx,
 			trustgroup_orchestrator.PrepareCollaborativeAssetPayload{
@@ -110,12 +120,25 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 			)
 		}
 
+		fmt.Printf(
+			"[C3-FORENSIC][WRITE] prepared.EncryptedData bytes=%d\n",
+			len(prepared.EncryptedData),
+		)
+
+		fmt.Printf(
+			"[C3-FORENSIC][WRITE] prepared.EncryptedData firstBytes=%x\n",
+			prepared.EncryptedData[:min(32, len(prepared.EncryptedData))],
+		)
+
 		wrappedDEKBytes = prepared.WrappedDEK
 		utils.LogPretty("TrustGroupCryptoOrchestrator - PrepareCollaborativeAsset - assetStorage", u.assetStorage)
-		
 
 		if u.assetStorage != nil {
 			assetCID, err = u.assetStorage.Add(ctx, prepared.EncryptedData)
+			fmt.Printf(
+				"[C3-FORENSIC][WRITE] storing encrypted asset bytes=%d\n",
+				len(prepared.EncryptedData),
+			)
 			if err != nil {
 				return nil, fmt.Errorf(
 					"failed to upload encrypted asset: %w",
@@ -151,9 +174,9 @@ func (u *CreateCollaborativeShareUseCase) Execute(ctx context.Context, req colla
 }
 
 func (u *CreateCollaborativeShareUseCase) SetAssetResolver(
-    resolver collaboration_ports.AssetContentResolver,
+	resolver collaboration_ports.AssetContentResolver,
 ) {
-    u.assetResolver = resolver
+	u.assetResolver = resolver
 }
 
 func (u *CreateCollaborativeShareUseCase) WithStorageProvider(storage app_config.StorageProvider) *CreateCollaborativeShareUseCase {
@@ -180,4 +203,3 @@ func (u *CreateCollaborativeShareUseCase) ValidateRequest(req collaboration_dtos
 	}
 	return nil
 }
-

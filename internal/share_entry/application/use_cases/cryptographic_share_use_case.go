@@ -141,7 +141,7 @@ func (uc *ShareUseCase) Create(
 		EntryName:    share.EntryName,
 		EntryType:    share.EntryType,
 		OwnerID:      userID,
-		OwnerEmail: ownerEmail,
+		OwnerEmail:   ownerEmail,
 		CIDs:         attachementsAdded.CIDs,
 		Attachements: attachementsAdded.Attachments,
 	})
@@ -168,7 +168,6 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 	as := vault_infrastructure_crypto.AsymmetricService{}
 	symKey := as.GenerateSymmetricKey()
 
-
 	utils.LogPretty("share - ShareUseCase - vault", vault)
 
 	// ---------------------------------------------------------
@@ -180,12 +179,12 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			Share:              &share,
 			UserID:             userID,
 			UserSubscriptionID: userSubscriptionID,
-			UserOnboardingID: userOnboardingID,
+			UserOnboardingID:   userOnboardingID,
 			VaultName:          vault.Name,
 			Password:           "password",
 			SymKey:             symKey,
-			VaultSession: vp,
-			Configs: configs,
+			VaultSession:       vp,
+			Configs:            configs,
 		})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build entry snapshot: %w", err)
@@ -231,14 +230,25 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 				RecipientType: "trust_group",
 			}
 		} else {
-			// Personal User mode: existing user recipient logic
-			if rid.PublicKey != "" {
-				encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
-				if err != nil {
-					return nil, nil, err
-				}
-				str = encKey.ToString()
+			// Personal User mode
+			if rid.PublicKey == "" {
+				return nil, nil, fmt.Errorf(
+					"recipient %q has no public key",
+					rid.Email,
+				)
 			}
+
+			encKey, err := crypto.EncryptPayload(rid.PublicKey, symKey)
+			if err != nil {
+				return nil, nil, fmt.Errorf(
+					"failed to encrypt share key for recipient %q: %w",
+					rid.Email,
+					err,
+				)
+			}
+
+			str = encKey.ToString()
+
 			encryptedKeys[rid.Email] = str
 
 			recipients[rid.Email] = tracecore.CryptoRecipient{
@@ -289,6 +299,7 @@ func (uc *ShareUseCase) BuildProdShareRequest(
 			Attachments: buildResponse.Attachments,
 		}, nil
 }
+
 // ------------------------------------------------
 // Use case: list shared entries by the user
 // ------------------------------------------------

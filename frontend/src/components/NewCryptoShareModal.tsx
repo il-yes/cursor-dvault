@@ -107,7 +107,7 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 			let pendingShareIntents: string[] = []
 			const getCustomersFromCloud = async (email: string) => {
 				try {
-					const response = await AppAPI.CheckUserEmail(jwtToken, email);
+					const response = await AppAPI.CheckUserEmail(email, jwtToken);
 					console.log('getCustomersFromCloud response', response);
 					return response;
 
@@ -124,14 +124,6 @@ export function NewShareModal({ open, onOpenChange, onShareSuccess }: NewShareMo
 					}
 					return tempUser
 				}
-			};
-			const getPublicKey = async (email: string) => {
-				const response = await AppAPI.CheckUserEmail(jwtToken, email);
-				console.log('getPublicKey response', response);
-				if (!response) {
-					console.log('User not found with this email: ', email)
-				}
-				return response?.public_key;
 			};
 			// Get public key for recipients
 			const customers = await Promise.all(recipients.map(email => getCustomersFromCloud(email)));

@@ -5,7 +5,6 @@ import (
 	app_config "vault-app/internal/config"
 	app_config_domain "vault-app/internal/config/domain"
 	"vault-app/internal/tracecore"
-	"vault-app/internal/utils"
 )
 
 type StorageFactory interface {

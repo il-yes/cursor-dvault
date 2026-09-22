@@ -1,0 +1,2 @@
+Construction project intelligence and coordination infrastructure.
+Scenario: A material delivery becomes a multi-party coordination event, with a structural component required for the next construction phase is delayed.

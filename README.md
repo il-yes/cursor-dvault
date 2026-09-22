@@ -1473,3 +1473,1358 @@ curl -X POST http://localhost:4001/api/workspaces \
 
 ========================================================================================================================
 
+Yes — this is extremely relevant to what you're about to do with XS BIM.
+
+And the most important thing is that the webinar isn't merely saying "construction needs better software." It describes almost exactly the environment in which your architecture could become useful.
+
+The striking part is the convergence:
+
+WEBINAR PROBLEM                    YOUR ARCHITECTURE
+────────────────────────────────────────────────────────
+Fragmented stakeholders       →    C3
+Poor project visibility       →    TraceCore
+Document / evidence silos     →    Ankhora
+Supply-chain uncertainty      →    TraceCore + Federation
+BIM + field tools disconnected →   XS BIM
+Standards / certifications    →    verifiable records
+Material provenance           →    asset/event lineage
+Logistics coordination        →    C3
+Cross-country fragmentation   →    Federation
+Payment / milestones          →    Stellar
+AI / decision support         →    intelligence layer
+
+That's not a superficial match.
+
+The sentence I'd underline from the webinar
+
+"The impact is maximized when these tools are connected within a digital ecosystem that aligns all project stakeholders on a single collaborative platform."
+
+That is almost precisely the opening for XS BIM.
+
+But I'd make one important correction:
+
+Don't build "a single platform where everyone puts their data."
+
+Your differentiator can be:
+
+A shared coordination layer without requiring every participant to surrender control of their data.
+
+That is where your Ankhora + TraceCore + C3 architecture becomes meaningfully different.
+
+And look at the problems they identified
+
+They basically gave you your product roadmap.
+
+1. Workforce
+
+They talk about:
+
+skills
+certifications
+practical experience
+mentorship
+industrial attachments
+continuing training
+
+That's potentially your school / registration vertical later.
+
+Imagine eventually:
+
+Worker
+  │
+  ├── qualifications
+  ├── certifications
+  ├── training
+  ├── practical experience
+  ├── employer history
+  └── project participation
+
+And those aren't merely database fields.
+
+They can become verifiable credentials and evidence.
+
+So one of your six projects connects directly to another.
+
+2. Materials
+
+This is even more interesting.
+
+They describe:
+
+lack of standards → difficulty trusting local manufacturing → procurement problems → imports → delays.
+
+That's basically a provenance problem.
+
+Imagine:
+
+LOCAL MANUFACTURER
+        │
+        ▼
+Material batch
+        │
+        ├── specification
+        ├── test results
+        ├── certification
+        ├── production date
+        └── origin
+        │
+        ▼
+Construction project
+        │
+        ├── shipment
+        ├── reception
+        ├── inspection
+        └── installation
+
+Now TraceCore has something meaningful to record.
+
+And pharmacy supply chain suddenly looks less like an unrelated future project.
+
+The underlying primitive is:
+
+verifiable asset provenance across organizational boundaries.
+
+Construction materials and pharmaceutical products are different domains, but the infrastructure underneath them is remarkably similar.
+
+3. Logistics
+
+This is where C3 becomes particularly relevant.
+
+Think about the participants:
+
+                    PROJECT
+                       │
+       ┌───────────────┼───────────────┐
+       │               │               │
+    Supplier        Contractor       Site
+       │               │               │
+    Transport        Engineer       Manager
+       │               │               │
+       └───────────────┼───────────────┘
+                       │
+                    CLIENT
+
+The problem isn't necessarily lack of information.
+
+It's that information doesn't move correctly between organizations at the right time.
+
+That's precisely what C3 was built to address.
+
+4. Seasonal constraints
+
+This is another fantastic demo opportunity.
+
+Imagine your project dashboard:
+
+ABIDJAN — PROJECT 042
+
+PROJECT TIMELINE
+────────────────────────────────
+
+██████████ Foundation
+     ███████████ Structure
+             ███████ Roofing
+                    ███████ Finish
+
+WEATHER RISK
+████████████████░░░░
+
+MATERIAL ARRIVALS
+✓ Cement
+✓ Steel
+⚠ Roofing
+⚠ Generator
+
+DECISIONS REQUIRED
+3
+
+BLOCKED ACTIVITIES
+2
+
+Now the system isn't just storing construction information.
+
+It is helping people understand:
+
+What is going to block the project?
+
+That's where AI eventually becomes useful too.
+
+Not "AI generates a BIM model."
+
+Instead:
+
+"Based on current project state, deliveries, weather constraints, unresolved decisions and historical events, these activities are at risk."
+
+And crucially, the human remains responsible for the decision.
+
+5. The "truth to power" comment is extremely interesting
+
+The webinar says project managers need to tell clients when their decisions are creating problems.
+
+That suggests something deeper.
+
+A good coordination system shouldn't merely record:
+
+Client requested X.
+
+It should preserve:
+
+Decision
+   │
+   ├── requested by
+   ├── evidence
+   ├── technical assessment
+   ├── risks identified
+   ├── participants consulted
+   ├── decision
+   └── consequence
+
+Six months later:
+
+Why did we build it this way?
+
+You have the answer.
+
+That's TraceCore's raison d'être in construction.
+
+6. And corruption/accountability is another potential dimension
+
+The webinar explicitly talks about accountability and eliminating corrupt practices.
+
+I wouldn't make XS BIM a "corruption detection platform."
+
+That's too broad and politically sensitive.
+
+But you can build process transparency.
+
+For example:
+
+PROCUREMENT EVENT
+
+Specification published
+       ↓
+Suppliers invited
+       ↓
+Offers received
+       ↓
+Technical evaluation
+       ↓
+Decision
+       ↓
+Contract
+       ↓
+Delivery
+       ↓
+Inspection
+       ↓
+Payment
+
+Each important step can have:
+
+identity
+timestamp
+evidence
+authorization
+decision
+reference to previous state
+
+That's powerful without pretending that cryptography magically eliminates corruption.
+
+It simply makes the process more auditable.
+
+And now I see a much bigger XS BIM concept
+
+I wouldn't describe it simply as:
+
+BIM software.
+
+I'd think about:
+
+Construction project intelligence and coordination infrastructure.
+
+BIM is one input.
+
+The ecosystem becomes:
+
+                    XS BIM
+                      │
+       ┌──────────────┼──────────────┐
+       │              │              │
+      BIM          Logistics      Workforce
+       │              │              │
+       ├──────────────┼──────────────┤
+       │              │              │
+    Materials      Procurement    Decisions
+       │              │              │
+       └──────────────┼──────────────┘
+                      │
+                  TraceCore
+                      │
+                project history
+                      │
+                     C3
+                      │
+             stakeholder network
+                      │
+                  Federation
+
+And that starts looking like something much larger than a BIM viewer.
+
+Your first demo becomes obvious
+
+Don't try to demonstrate everything in that webinar.
+
+Pick one scenario that connects several of their pain points.
+
+I'd choose:
+
+"A delayed critical material"
+
+Scenario:
+
+A structural component required for the next construction phase is delayed.
+
+Then demonstrate:
+
+1. Supplier reports delay
+        ↓
+2. C3 distributes event
+        ↓
+3. Project schedule affected
+        ↓
+4. TraceCore records the event
+        ↓
+5. Contractor proposes alternative
+        ↓
+6. Engineer reviews
+        ↓
+7. Client approves
+        ↓
+8. New logistics plan
+        ↓
+9. Delivery confirmed
+        ↓
+10. Complete project history
+
+And show the same event from different perspectives.
+
+Supplier sees:
+
+shipment + commitment
+
+Contractor sees:
+
+schedule impact
+
+Engineer sees:
+
+technical alternative
+
+Client sees:
+
+decision + cost/time consequence
+
+TraceCore sees:
+
+the sequence of events
+
+Ankhora protects:
+
+the sensitive underlying documents
+
+That's a killer demo.
+
+And this webinar gives you something else: vocabulary
+
+This matters enormously when you start meeting people.
+
+Don't walk into a construction company talking about:
+
+decentralized sovereignty / blockchain / IPFS / cryptographic federation.
+
+Talk about the things they just told you hurt:
+
+project visibility
+material availability
+logistics
+site access
+procurement
+quality
+certification
+project coordination
+seasonal planning
+skills
+fragmented tools
+communication
+
+Then ask:
+
+"How are you handling this today?"
+
+That's your door into the market.
+
+Even better: contact the people from this ecosystem
+
+You found a meeting where people are already discussing precisely the problem you're interested in.
+
+That's potentially much more valuable than cold marketing.
+
+You don't approach them with:
+
+"I have a startup."
+
+Approach them with:
+
+"I'm developing a prototype around construction project coordination and verified project information. Your discussion about logistics, material availability and fragmented project data caught my attention. I'd like to understand how these problems are handled on actual projects."
+
+Then show the demo when it's ready.
+
+You're not selling yet.
+
+You're entering the conversation they are already having.
+
+And this validates your "demo → adventure" idea
+
+You now have:
+
+ARCHITECTURE
+     ↓
+XS BIM DEMO
+     ↓
+REAL CONSTRUCTION PROBLEM
+     ↓
+PEOPLE ALREADY DISCUSSING IT
+     ↓
+MEETINGS
+     ↓
+DESIGN PARTNER
+     ↓
+PILOT PROJECT
+     ↓
+REAL DATA
+     ↓
+REAL PRODUCT
+
+That's much more concrete than "let's launch a SaaS."
+
+And there is an especially nice symmetry here.
+
+The webinar says Africa needs:
+
+real-time, verified data + collaboration + connected digital tools.
+
+Your architecture is fundamentally about:
+
+sovereign data + verifiable history + collaboration + federation.
+
+So I wouldn't rush to build another feature.
+
+I'd build the first XS BIM scenario around one of the problems this webinar identified, then use this ecosystem as your first doorway into the market.
+
+This is exactly the kind of external signal you were looking for before committing the demo to a specific use case.
+
+
+++++++++++++++++++++++++++++++++++++++++
+2eme version:
+++++++++++++++++++++++++++++++++++++++++
+Yes — this is extremely relevant to what you're trying to build, because the webinar is essentially describing the ecosystem in which your construction project would live.
+
+And there is one particularly important sentence in your summary:
+
+“The impact is maximized when these tools are connected within a digital ecosystem that aligns all project stakeholders on a single collaborative platform.”
+
+That's almost a direct description of the gap XS BIM could investigate.
+
+But I would go one step further: don't interpret this as “we should build another construction management platform.” The webinar gives you a much better opportunity than that.
+
+What I see in the webinar
+
+There are actually three interconnected problems:
+
+                 AFRICAN CONSTRUCTION
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+      KNOWLEDGE       PROJECT        MATERIAL
+      & SKILLS       COORDINATION    SUPPLY
+          │              │              │
+          └──────────────┼──────────────┘
+                         ▼
+                    INFORMATION
+                         │
+                         ▼
+                  TRUST / VISIBILITY
+
+And the recurring problem underneath almost every section is:
+
+The right information doesn't reliably reach the right participant at the right moment, in a form they can trust and act upon.
+
+That's exactly where your architecture becomes interesting.
+
+The first thing I would NOT do
+
+Don't try to solve all seven categories.
+
+You'd immediately end up with:
+
+XS BIM
+├── BIM
+├── procurement
+├── logistics
+├── workforce
+├── training
+├── standards
+├── weather
+├── GPS
+├── inventory
+├── project management
+├── payments
+└── analytics
+
+That's a monster.
+
+Instead, take one thread running through the entire webinar:
+
+project information → coordination → decision → evidence → execution
+
+That's your entry point.
+
+I think your first demo just became clearer
+
+Instead of merely:
+
+"Construction Change Management"
+
+I'd build a scenario around material delivery + project coordination.
+
+Because look at how many problems converge there.
+
+Imagine:
+
+A construction project in Abidjan
+
+A contractor needs 500 tonnes of a particular material.
+
+PROJECT
+   │
+   ├── required material
+   ├── required quantity
+   ├── specification
+   ├── delivery window
+   ├── site
+   └── project phase
+
+Then:
+
+Supplier
+   │
+   ├── availability
+   ├── certification
+   ├── quantity
+   ├── production date
+   └── delivery estimate
+
+Transporter:
+
+Transport
+   │
+   ├── vehicle
+   ├── route
+   ├── ETA
+   ├── constraints
+   └── delivery confirmation
+
+Site:
+
+Site
+   │
+   ├── access window
+   ├── storage capacity
+   ├── weather
+   ├── inspection
+   └── acceptance
+
+Now you have a coordination event.
+
+This is where C3 suddenly has a very obvious purpose
+
+Instead of showing people a generic collaboration UI:
+
+Messages
+Files
+Chat
+Notifications
+
+you show:
+
+             DELIVERY #184
+                   │
+       ┌───────────┼───────────┐
+       ▼           ▼           ▼
+    Supplier    Transport    Site
+       │           │           │
+       └───────────┼───────────┘
+                   ▼
+              COORDINATION
+                   │
+          ┌────────┴────────┐
+          ▼                 ▼
+       Evidence          Decision
+          │                 │
+          └────────┬────────┘
+                   ▼
+                TRACECORE
+
+That's much more powerful.
+
+C3 isn't "chat".
+
+C3 coordinates an operational object.
+
+And TraceCore becomes immediately understandable
+
+Suppose the delivery eventually goes wrong.
+
+Six weeks later someone asks:
+
+Why was this material delivered on Tuesday instead of Friday?
+
+Your system can reconstruct:
+
+Aug 12 09:15
+Supplier confirmed availability
+
+Aug 13 14:22
+Contractor requested delivery
+
+Aug 14 08:03
+Transporter accepted
+
+Aug 15 11:41
+Road restriction reported
+
+Aug 15 12:05
+ETA changed
+
+Aug 15 12:17
+Site acknowledged
+
+Aug 16 07:51
+Material delivered
+
+Aug 16 09:20
+Quality inspection accepted
+
+That is TraceCore's reason to exist.
+
+Not blockchain.
+
+Not buzzwords.
+
+Operational memory.
+
+Then Ankhora has a natural role too
+
+Some information shouldn't be globally visible.
+
+For example:
+
+Supplier
+ ├── pricing
+ ├── contracts
+ └── commercial terms
+
+Contractor
+ ├── internal costs
+ └── negotiations
+
+Engineering firm
+ ├── technical models
+ └── calculations
+
+Developer
+ ├── financing
+ └── sensitive project information
+
+Those remain protected.
+
+What gets shared through C3 can be:
+
+"I confirm availability."
+
+"Specification X verified."
+
+"Delivery accepted."
+
+"Inspection passed."
+
+"Change approved."
+
+with references/evidence rather than dumping everybody's databases into a central SaaS.
+
+That is sovereign collaboration.
+
+And now the webinar's "real-time, verified data" phrase becomes important
+
+Because there's a huge difference between:
+
+Dashboard
+
+Delivery expected Friday.
+
+and:
+
+Verifiable operational state
+
+Supplier confirmed availability at 14:22.
+Transporter accepted at 16:07.
+Site confirmed receiving window at 09:14.
+Current delivery state: confirmed.
+
+That's the direction I'd push.
+
+The supply-chain problem could become your wedge
+
+And notice how beautifully this connects to your future pharmacy project.
+
+You could eventually have the same underlying primitives:
+
+                    TRACECORE
+                       │
+             operational provenance
+                       │
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+  Construction      Pharmacy         Estate
+       │               │               │
+  materials          drugs          assets
+       │               │               │
+       └───────────────┼───────────────┘
+                       ▼
+                 same primitives
+
+The vertical domain changes.
+
+The infrastructure doesn't.
+
+That's your economy of scale.
+
+There's another goldmine in the webinar: standards
+
+This is something I would absolutely put on your radar.
+
+The webinar talks about:
+
+inconsistent standards
+material quality
+certification
+professional qualifications
+harmonization
+measurable quality criteria
+
+That's not merely documentation.
+
+That's machine-readable domain knowledge.
+
+Imagine:
+
+Material
+   │
+   ├── standard
+   ├── specification
+   ├── certification
+   ├── test results
+   ├── supplier
+   └── batch
+
+Then TraceCore can record:
+
+WHO
+asserted
+WHAT
+against WHICH STANDARD
+based on WHICH EVIDENCE
+at WHAT TIME
+
+That becomes incredibly interesting later.
+
+And there's a direct connection to your school project
+
+Remember your sixth project:
+
+registration / restauration school
+
+The webinar says the industry has:
+
+practical skills shortages
+weak digital literacy
+inadequate certification
+insufficient mentorship
+weak links between training and industry.
+
+Suddenly the school project could eventually connect to construction:
+
+                  TRAINING
+                     │
+                     ▼
+               CERTIFICATION
+                     │
+                     ▼
+                WORKER PROFILE
+                     │
+                     ▼
+             PROJECT ASSIGNMENT
+                     │
+                     ▼
+              VERIFIED EXPERIENCE
+
+Now your six projects aren't six random SaaS ideas.
+
+They're starting to look like different views of the same digital infrastructure.
+
+And that is the really interesting part of this discovery
+
+You previously had:
+
+"Maybe Africa has more construction projects."
+
+Now you have something much stronger:
+
+There are industry participants explicitly describing the need for connected digital ecosystems, verified data, coordination, standards, supply-chain visibility and knowledge sharing.
+
+That is a signal.
+
+It doesn't prove that they'll buy XS BIM.
+
+But it tells you the problem space is real and recognized by people operating inside it.
+
+I would therefore change the demo slightly
+
+Your original five-step framework:
+
+Theme
+↓
+Scenario
+↓
+Domain
+↓
+UI
+↓
+Demo
+
+For XS BIM:
+
+Theme
+
+Sovereign construction coordination
+
+Scenario
+
+A material delivery becomes a multi-party coordination event.
+
+Domain
+Project
+Material
+Requirement
+Supplier
+Delivery
+Transport
+Site
+Evidence
+Decision
+Event
+UI
+
+A project dashboard centered around operational events, not generic CRUD.
+
+Demo
+
+From material requirement → supplier confirmation → transportation → site acceptance → TraceCore history.
+
+That would be a hell of a demo.
+
+And you can add BIM afterward.
+
+Then the meeting you discovered becomes useful immediately
+
+Don't approach the people from that webinar with:
+
+"I have built an AI/blockchain construction platform."
+
+I'd approach them with something closer to:
+
+I'm developing a construction coordination platform focused on verified operational information across project stakeholders. I found your discussion about logistics, supply-chain visibility and digital ecosystem integration particularly relevant. I'm currently building a demonstrator around material coordination and would like to understand how these workflows are actually handled on African projects.
+
+That's a conversation starter, not a sales pitch.
+
+And importantly, you already have something to show them.
+
+You can literally put the demo on the screen and ask:
+
+"Would this represent something useful in one of your projects?"
+
+That question is worth much more than another six months of architecture work.
+
+So I think the next move is becoming quite concrete
+                    THIS WEBINAR
+                         │
+                         ▼
+                identify 3–5 problems
+                         │
+                         ▼
+              choose ONE coordination
+                    workflow
+                         │
+                         ▼
+                  XS BIM DEMO
+                         │
+                         ▼
+               contact participants
+                         │
+                         ▼
+                    meetings
+                         │
+                         ▼
+                 design partner
+                         │
+                         ▼
+                   REAL PILOT
+                         │
+                         ▼
+                FIRST CUSTOMER
+
+And don't underestimate the meeting itself.
+
+The technology you've built gives you something to bring to the table. But now the real asset you're looking for is domain knowledge + relationships + access to a live project.
+
+That is how the demo becomes a company.
+
+
+
+
+
+
+ok i like the new ecosystem:
+                    XS BIM
+                      │
+       ┌──────────────┼──────────────┐
+       │              │              │
+      BIM          Logistics      Workforce
+       │              │              │
+       ├──────────────┼──────────────┤
+       │              │              │
+    Materials      Procurement    Decisions
+       │              │              │
+       └──────────────┼──────────────┘
+                      │
+                  TraceCore
+                      │
+                project history
+                      │
+                     C3
+                      │
+             stakeholder network
+                      │
+                  Federation
+
+
+I like all the points. 
+
+# Construction project intelligence and coordination infrastructure
+Project
+Material
+Requirement
+Supplier
+Delivery
+Transport
+Site
+Evidence
+Decision
+Event
+
+ProjectOverview
+    Name
+    Location
+    Status
+    Progress
+    TargetDate
+    Budget
+    Schedule
+    Requirements
+    Compliance
+    OpenIssues
+
+PROJECT
+   │
+   ├── Requirements (material, authorities, specs, qty...)
+   ├── specification
+   ├── delivery window
+   ├── site
+   └── project phase
+
+type Stakeholder struct {
+    ID        string
+    Name      string
+    Role      ConstructionRole
+    ContactID string
+}
+
+
+Worker
+  │
+  ├── qualifications
+  ├── certifications
+  ├── training
+  ├── practical experience
+  ├── employer history
+  └── project participation
+
+Decision
+   │
+   ├── requested by
+   ├── evidence
+   ├── technical assessment
+   ├── risks identified
+   ├── participants consulted
+   ├── decision
+   └── consequence
+
+Supplier
+  │
+  ├── availability
+  ├── certification
+  ├── quantity
+  ├── production date
+  └── delivery estimate
+
+Transport
+   │
+   ├── vehicle
+   ├── route
+   ├── ETA
+   ├── constraints
+   └── delivery confirmation
+
+Site
+   │
+   ├── access window
+   ├── storage capacity
+   ├── weather
+   ├── inspection
+   └── acceptance
+
+Material
+   │
+   ├── standard
+   ├── specification
+   ├── certification
+   ├── test results
+   ├── supplier
+   ├── production date
+   ├── origin
+   └── batch
+
+Request
+   │
+   ├── project
+   ├── type (material/service)
+   ├── specification
+   ├── delivery window
+
+Offer
+   │
+   ├── request
+   ├── material
+   ├── specification
+   ├── delivery window
+
+ServiceProvision
+   │
+   ├── request
+   ├── service
+   └── date
+
+
+
+type Inspection struct {
+    ID          string
+    ProjectID   string
+    Type        string
+    Zone        string
+    InspectorID string
+    Status      string
+    Notes       string
+    ScheduledAt time.Time
+    CompletedAt *time.Time
+}
+type Delivery struct {
+    ID          string
+    ProjectID   string
+    MaterialID  string
+    Reference   string
+    Status      string
+    ETA         time.Time
+    DriverID    string
+    Site        string
+}
+type ConstructionIssue struct {
+    ID          string
+    ProjectID   string
+    Title       string
+    Description string
+    Status      string
+    ReportedBy  string
+}
+type ConstructionDocument struct {
+    ID         string
+    ProjectID  string
+    Name       string
+    Category   string     // drawing / specification / permit / report / Blueprints / Contracts
+    CID        string
+    Status     string
+    UploadedBy string
+}
+type Action struct {
+    ID          string
+    ProjectID   string
+    Type        string      // approval / rejection / inspection / review / confirmation / transfer
+    ResourceID  string      // material / document / issue
+    AssignedTo  string      // user / organization
+    Status      string      // open / closed
+}
+
+Scenario: 
+- A material delivery becomes a multi-party coordination event, with a structural component required for the next construction phase is delayed.
+
+So we have Ankhora as: The sovereign vault storing entries.
+The bim will be stored in the tracecore app, handling the domain definitions:
+Project
+Material
+Requirement
+Supplier
+Delivery
+Transport
+Site
+Evidence
+Decision
+Event
+
+Starting from this, we can start to design the demo for the webinar:
+
+Theme: Sovereign construction coordination - Construction project intelligence and coordination infrastructure.
+Scenario: A material delivery becomes a multi-party coordination event, with a structural component required for the next construction phase is delayed.
+Bim: domain
+
+PROCUREMENT EVENT
+
+Specification published
+       ↓
+Suppliers invited
+       ↓
+Offers received
+       ↓
+Technical evaluation
+       ↓
+Decision
+       ↓
+Contract
+       ↓
+Delivery
+       ↓
+Inspection
+       ↓
+Payment
+
+
+Aug 12 09:15
+Supplier confirmed availability
+
+Aug 13 14:22
+Contractor requested delivery
+
+Aug 14 08:03
+Transporter accepted
+
+Aug 15 11:41
+Road restriction reported
+
+Aug 15 12:05
+ETA changed
+
+Aug 15 12:17
+Site acknowledged
+
+
+1. Supplier reports delay
+        ↓
+2. C3 distributes event
+        ↓
+3. Project schedule affected
+        ↓
+4. TraceCore records the event
+        ↓
+5. Contractor proposes alternative
+        ↓
+6. Engineer reviews
+        ↓
+7. Client approves
+        ↓
+8. New logistics plan
+        ↓
+9. Delivery confirmed
+        ↓
+10. Complete project history
+
+
+Aug 16 07:51
+Material delivered
+
+Aug 16 09:20
+Quality inspection accepted
+
+i can simulate in the cloud side using the infrastructure we've built, like we did for the engineering collaboration example.
+It's allow me to test the cloud side and the tracecore app.
+From material requirement → supplier confirmation → transportation → site acceptance → TraceCore history.
+
+I think i should tackle the template definition to modelize the construction domain, no?
+
+
+
+ok let's lodel the construction model.
+As the Ankhora models are decoupled from any use case, the construction domain is a definition template stored in the our cloud db (later on github...)
+So i just figured out that the front will be the very last step. As soon as i got the domain models, i can do the bog part from simulations. Simulators are the keys. I can develop the semantics and logic of the full experience througt the scenario the tracecore events.
+So first let's define the template for the Project model
+One example:
+curl "http://localhost:4001/api/templates/legal.matter.v1"
+{"status":200,"data":{"template_id":"legal.matter.v1","record_type":"legal_matter","schema_version":1,"fields":{"billing":{"cap":"","currency":"USD","fee_type":"hourly","rate":""},"client_name":"","client_reference":"","closed_at":"","confidentiality_level":"confidential","deadlines":[],"documents":[],"evidence_links":[],"jurisdiction":"","key_facts":[],"lead_counsel":"","matter_id":"","matter_type":"advisory","notes":"","opened_at":"","positions":{"our_position":"","their_position":""},"status":"open","summary":"","tags":[],"team_members":[],"title":""},"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"message":"Enregistrement recupéré avec succès","success":true}
+
+construction project could be like this:
+curl -X POST http://localhost:4001/api/templates -H "Content-Type: application/json" -d '{
+"template_id":"construction.project.v1", 
+"fields":{
+  "project_reference": "string",
+  "project_name": "string",
+  "project_type": "enum(residential|commercial|industrial|infrastructure|civil)",
+  "status": "enum(planning|design|execution|completion|handover|maintenance)",
+  "start_date": "date",
+  "planned_end_date": "date",
+  "actual_end_date": "date",
+
+  "budget_currency": "string (ISO 4217)",
+  "budget_total": "decimal",
+  "budget_allocated": "decimal",
+
+  "location": {
+    "address": "string",
+    "city": "string",
+    "country": "string",
+    "coordinates": {"lat": "number", "lng": "number"}
+  },
+
+  "client": {
+    "name": "string",
+    "contact_person": "string",
+    "email": "email",
+    "phone": "string"
+  },
+
+  "architect": {
+    "name": "string",
+    "firm": "string"
+  },
+
+  "contractor": {
+    "name": "string",
+    "firm": "string"
+  },
+
+  "main_materials": ["string"],
+  "critical_milestones": ["string"],
+
+  "permissions": {
+    "building_permit_required": "boolean",
+    "environmental_impact_assessment": "string",
+    "utility_connections": ["string"]
+  },
+
+  "progress_percentage": "number(0-100)",
+  "days_overdue": "integer",
+
+  "risks": [{
+    "id": "string",
+    "description": "string",
+    "severity": "enum(low|medium|high|critical)",
+    "mitigation": "string",
+    "status": "enum(open|mitigated|accepted)"
+  }],
+
+  "documents": [{
+    "id": "string",
+    "name": "string",
+    "type": "enum(plan|specification|permit|contract|invoice|report)",
+    "url": "string",
+    "uploaded_by": "string"
+  }],
+
+  "stakeholders": [{
+    "id": "string",
+    "name": "string",
+    "role": "enum(client|architect|contractor|engineer|supplier|regulator|investor)",
+    "contact": "string"
+  }],
+
+  "notes": "string",
+  "created_at": "timestamp",
+  "updated_at": "timestamp"
+}}
+This is just an example let's do it fitting our demo
+
+
+curl -X POST http://localhost:4001/api/templates -H "Content-Type: application/json" -d '{
+  "template_id": "construction.project.v1",
+  "record_type": "construction_project",
+  "schema_version": 1,
+  "fields": {
+    "project_reference": "string",
+    "project_name": "string",
+    "project_type": "string",
+    "status": "string",
+
+    "location": {
+      "address": "string",
+      "city": "string",
+      "country": "string",
+      "coordinates": {
+        "lat": "number",
+        "lng": "number"
+      }
+    },
+
+    "start_date": "date",
+    "planned_end_date": "date",
+    "actual_end_date": "date",
+
+    "budget": {
+      "currency": "string (ISO 4217)",
+      "total": "decimal",
+      "allocated": "decimal"
+    },
+
+    "progress_percentage": "number(0-100)",
+
+    "current_phase": "string",
+
+    "milestones": ["string"],
+
+    "stakeholder_ids": ["string"],
+
+    "requirement_ids": ["string"],
+
+    "site_id": "string",
+
+    "status_summary": "string",
+
+    "created_at": "timestamp",
+    "updated_at": "timestamp"
+  }
+}'

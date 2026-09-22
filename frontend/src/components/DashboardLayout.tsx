@@ -89,6 +89,7 @@ const dashboardNavItems = [
 
 const dashboardSecondaryItems = [
 	{ title: "Ledger", url: "/dashboard/c3/ledger", icon: MessageSquare },
+	{ title: "Construction POC", url: "/dashboard/construction", icon: Rocket },
 	{ title: "About", url: "/dashboard/about", icon: Info },
 	{ title: "Feedback", url: "/dashboard/feedback", icon: HelpCircle },
 ];

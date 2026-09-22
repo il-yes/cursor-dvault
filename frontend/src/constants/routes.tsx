@@ -20,4 +20,5 @@ export const THREAD = "/dashboard/c3/thread/:threadId";
 export const CHANNEL = "/dashboard/c3/channel/:channelId";
 export const C3_CONFIG = "/dashboard/c3/config";
 export const FEDERATION = "/dashboard/c3/federation";
+export const CONSTRUCTION = "/dashboard/construction";
 export const NOT_FOUND = "*";

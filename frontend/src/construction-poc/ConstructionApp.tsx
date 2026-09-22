@@ -1,60 +1,69 @@
-import React, { useState } from "react";
+import React from "react";
+import { Routes, Route, useNavigate } from "react-router-dom";
 import { ConstructionHeader } from "./components/ConstructionHeader";
-import { BottomNavigation, NavTabPath } from "./components/BottomNavigation";
+import { BottomNavigation } from "./components/BottomNavigation";
 import { ConstructionDashboard } from "./pages/ConstructionDashboard";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { StakeholdersPage } from "./pages/StakeholdersPage";
+import { MaterialRequirementPage } from "./pages/MaterialRequirementPage";
+import { SupplierOffersPage } from "./pages/SupplierOffersPage";
+import { DeliveryDetailPage } from "./pages/DeliveryDetailPage";
+import { TransportDelayPage } from "./pages/TransportDelayPage";
+import { ConstructionIssuePage } from "./pages/ConstructionIssuePage";
+import { DecisionPage } from "./pages/DecisionPage";
+import { InspectionPage } from "./pages/InspectionPage";
+import { FieldModePage } from "./pages/FieldModePage";
+import { CollaborationThreadPage } from "./pages/CollaborationThreadPage";
+import { ProvenanceWhyPage } from "./pages/ProvenanceWhyPage";
+import { ProjectHistoryPage } from "./pages/ProjectHistoryPage";
 import { ActivityPage } from "./pages/ActivityPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
 export const ConstructionApp: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<NavTabPath>("home");
-
-  const renderActiveTab = () => {
-    switch (activeTab) {
-      case "home":
-        return (
-          <ConstructionDashboard
-            onNavigateToProjects={() => setActiveTab("projects")}
-            onNavigateToActivity={() => setActiveTab("activity")}
-          />
-        );
-      case "projects":
-        return <ProjectsPage />;
-      case "activity":
-        return <ActivityPage />;
-      case "documents":
-        return <DocumentsPage />;
-      case "profile":
-        return <ProfilePage />;
-      default:
-        return (
-          <ConstructionDashboard
-            onNavigateToProjects={() => setActiveTab("projects")}
-            onNavigateToActivity={() => setActiveTab("activity")}
-          />
-        );
-    }
-  };
+  const navigate = useNavigate();
 
   return (
     <div className="bg-[#f7fafc] text-[#181c1e] font-sans min-h-screen flex flex-col antialiased">
       {/* BuildFlow Application Header */}
       <ConstructionHeader
-        onNotificationClick={() => setActiveTab("activity")}
-        onProfileClick={() => setActiveTab("profile")}
+        onNotificationClick={() => navigate("/dashboard/construction/activity")}
+        onProfileClick={() => navigate("/dashboard/construction/profile")}
       />
 
       {/* Main Screen Workspace */}
       <main className="flex-1 pt-16 pb-24 bg-[#f7fafc]">
-        {renderActiveTab()}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ConstructionDashboard
+                onNavigateToProjects={() => navigate("/dashboard/construction/projects")}
+                onNavigateToActivity={() => navigate("/dashboard/construction/activity")}
+              />
+            }
+          />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/stakeholders" element={<StakeholdersPage />} />
+          <Route path="/requirements" element={<MaterialRequirementPage />} />
+          <Route path="/offers" element={<SupplierOffersPage />} />
+          <Route path="/deliveries" element={<DeliveryDetailPage />} />
+          <Route path="/transport" element={<TransportDelayPage />} />
+          <Route path="/issues" element={<ConstructionIssuePage />} />
+          <Route path="/decisions" element={<DecisionPage />} />
+          <Route path="/inspections" element={<InspectionPage />} />
+          <Route path="/field" element={<FieldModePage />} />
+          <Route path="/thread" element={<CollaborationThreadPage />} />
+          <Route path="/provenance" element={<ProvenanceWhyPage />} />
+          <Route path="/history" element={<ProjectHistoryPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Routes>
       </main>
 
       {/* Sticky Bottom Navigation Bar */}
-      <BottomNavigation
-        activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
-      />
+      <BottomNavigation />
     </div>
   );
 };

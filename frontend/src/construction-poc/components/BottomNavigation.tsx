@@ -1,39 +1,60 @@
 import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export type NavTabPath = "home" | "projects" | "activity" | "documents" | "profile";
 
 interface BottomNavigationProps {
-  activeTab: NavTabPath;
-  onTabChange: (tab: NavTabPath) => void;
+  activeTab?: NavTabPath;
+  onTabChange?: (tab: NavTabPath) => void;
 }
 
 interface NavItem {
-  path: NavTabPath;
+  id: NavTabPath;
   label: string;
   iconName: string;
+  route: string;
 }
 
 const navItems: NavItem[] = [
-  { path: "home", label: "Home", iconName: "home" },
-  { path: "projects", label: "Projects", iconName: "architecture" },
-  { path: "activity", label: "Activity", iconName: "pending_actions" },
-  { path: "documents", label: "Docs", iconName: "description" },
-  { path: "profile", label: "Profile", iconName: "person_outline" },
+  { id: "home", label: "Home", iconName: "home", route: "/dashboard/construction" },
+  { id: "projects", label: "Projects", iconName: "architecture", route: "/dashboard/construction/projects" },
+  { id: "activity", label: "Activity", iconName: "pending_actions", route: "/dashboard/construction/activity" },
+  { id: "documents", label: "Docs", iconName: "description", route: "/dashboard/construction/documents" },
+  { id: "profile", label: "Profile", iconName: "person_outline", route: "/dashboard/construction/profile" },
 ];
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeTab,
   onTabChange,
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getIsActive = (item: NavItem) => {
+    if (activeTab) return activeTab === item.id;
+    const pathname = location.pathname;
+    if (item.id === "home") {
+      return pathname === "/dashboard/construction" || pathname === "/dashboard/construction/";
+    }
+    return pathname.startsWith(`/dashboard/construction/${item.id}`);
+  };
+
+  const handleClick = (item: NavItem) => {
+    if (onTabChange) {
+      onTabChange(item.id);
+    }
+    navigate(item.route);
+  };
+
   return (
     <nav className="fixed bottom-0 w-full z-50 bg-[#f7fafc]/80 backdrop-blur-xl shadow-[0_-1px_8px_rgba(0,0,0,0.04)] pb-safe">
       <div className="flex h-16 items-center justify-around px-2 max-w-7xl mx-auto">
         {navItems.map((item) => {
-          const isActive = activeTab === item.path;
+          const isActive = getIsActive(item);
           return (
             <button
-              key={item.path}
-              onClick={() => onTabChange(item.path)}
+              key={item.id}
+              onClick={() => handleClick(item)}
               className={`flex flex-col items-center justify-center gap-1 min-w-[64px] transition-all ${
                 isActive
                   ? "text-[#041627] font-semibold"

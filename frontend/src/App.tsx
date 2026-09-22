@@ -163,7 +163,7 @@ function AppContent() {
 			<Route path={ROUTES.CHANNEL} element={<ChannelPage />} />
 			<Route path={ROUTES.C3_CONFIG} element={<C3ConfigurationPage />} />
 			<Route path={ROUTES.FEDERATION} element={<FederationPage />} />
-			<Route path={ROUTES.CONSTRUCTION} element={<ConstructionApp />} />
+			<Route path={`${ROUTES.CONSTRUCTION}/*`} element={<ConstructionApp />} />
 
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 			<Route path={ROUTES.NOT_FOUND} element={<NotFound />} />

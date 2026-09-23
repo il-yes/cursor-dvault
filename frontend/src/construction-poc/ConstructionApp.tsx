@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
+import { RoleProvider } from "./hooks/useRoleContext";
 import { ConstructionHeader } from "./components/ConstructionHeader";
 import { BottomNavigation } from "./components/BottomNavigation";
 import { ConstructionDashboard } from "./pages/ConstructionDashboard";
@@ -16,11 +17,12 @@ import { FieldModePage } from "./pages/FieldModePage";
 import { CollaborationThreadPage } from "./pages/CollaborationThreadPage";
 import { ProvenanceWhyPage } from "./pages/ProvenanceWhyPage";
 import { ProjectHistoryPage } from "./pages/ProjectHistoryPage";
+import { ProjectChannelsPage } from "./pages/ProjectChannelsPage";
 import { ActivityPage } from "./pages/ActivityPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
-export const ConstructionApp: React.FC = () => {
+export const ConstructionAppInner: React.FC = () => {
   const navigate = useNavigate();
 
   return (
@@ -34,16 +36,16 @@ export const ConstructionApp: React.FC = () => {
       {/* Main Screen Workspace */}
       <main className="flex-1 pt-16 pb-24 bg-[#f7fafc]">
         <Routes>
-          <Route
-            path="/"
-            element={
-              <ConstructionDashboard
-                onNavigateToProjects={() => navigate("/dashboard/construction/projects")}
-                onNavigateToActivity={() => navigate("/dashboard/construction/activity")}
-              />
-            }
-          />
+          {/* Sovereign Vault Home Front Door */}
+          <Route path="/" element={<ConstructionDashboard />} />
+
+          {/* Projects & Channels Entry Surfaces */}
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/channels" element={<ProjectChannelsPage />} />
+          <Route path="/channels/:channelId" element={<ProjectChannelsPage />} />
+          <Route path="/channels/:channelId/threads/:threadId" element={<ProjectChannelsPage />} />
+
+          {/* Construction Scenario Entity Detail Views */}
           <Route path="/stakeholders" element={<StakeholdersPage />} />
           <Route path="/requirements" element={<MaterialRequirementPage />} />
           <Route path="/offers" element={<SupplierOffersPage />} />
@@ -56,6 +58,8 @@ export const ConstructionApp: React.FC = () => {
           <Route path="/thread" element={<CollaborationThreadPage />} />
           <Route path="/provenance" element={<ProvenanceWhyPage />} />
           <Route path="/history" element={<ProjectHistoryPage />} />
+
+          {/* Secondary Pages */}
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
@@ -67,5 +71,11 @@ export const ConstructionApp: React.FC = () => {
     </div>
   );
 };
+
+export const ConstructionApp: React.FC = () => (
+  <RoleProvider>
+    <ConstructionAppInner />
+  </RoleProvider>
+);
 
 export default ConstructionApp;

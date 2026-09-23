@@ -1,157 +1,196 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import { useRoleContext } from "../hooks/useRoleContext";
+import { CreateProjectModal } from "../components/CreateProjectModal";
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { activeRole, roleConfig } = useRoleContext();
   const { project, requirement, delivery, issue, decision, inspection } = SCENARIO_DATA;
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
-    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6">
-      {/* Project Header Banner */}
-      <div className="p-6 bg-white border border-[#e0e3e5] rounded-xl shadow-sm mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-xs text-[#44474c] font-semibold tracking-wider">
-            <span className="bg-[#041627] text-white px-2 py-0.5 rounded font-mono">{project.code}</span>
-            <span className="w-1 h-1 rounded-full bg-[#c4c6cd]"></span>
+    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 gap-6">
+      {/* Header Banner & Create Project Button */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-[#181c1e]">Projects Directory</h1>
+            <span className="px-2.5 py-0.5 bg-[#041627] text-white text-xs font-bold rounded">
+              {roleConfig.label} View
+            </span>
+          </div>
+          <p className="text-xs text-[#44474c]">
+            Role-aware project entry surface for sovereign workspace.
+          </p>
+        </div>
+
+        {/* PM Role Action: Create Project */}
+        {activeRole === "PM" && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 py-2.5 bg-[#041627] text-white font-bold text-xs rounded-lg hover:bg-[#041627]/90 transition-colors shadow flex items-center gap-1.5"
+          >
+            <span className="material-symbols-outlined text-[18px]">add_business</span>
+            + Create Project
+          </button>
+        )}
+      </div>
+
+      {/* Main Active Project Card: PRJ-001 */}
+      <div className="bg-white border border-[#e0e3e5] rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#44474c]">
+            <span className="bg-[#041627] text-white px-2.5 py-1 rounded font-mono">{project.code}</span>
+            <span>•</span>
             <span>{project.type}</span>
           </div>
-          <span className="inline-flex items-center px-2.5 py-1 rounded bg-[#6cf8bb]/20 text-[#00714d] font-semibold text-xs">
-            {project.status}
+          <span className="px-3 py-1 bg-[#6cf8bb]/20 text-[#00714d] rounded-full text-xs font-semibold">
+            Execution • 42% Complete
           </span>
         </div>
 
-        <h1 className="text-2xl font-bold text-[#181c1e] mb-2">{project.name}</h1>
+        <h2 className="text-2xl font-bold text-[#181c1e] mb-2">{project.name}</h2>
         <p className="text-sm text-[#44474c] mb-4">{project.description}</p>
         
-        <div className="flex items-center gap-2 text-sm text-[#44474c]">
-          <span className="material-symbols-outlined text-[18px]">location_on</span>
+        <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
+          <span className="material-symbols-outlined text-[18px] text-[#041627]">location_on</span>
           <span>{project.location}</span>
         </div>
-      </div>
 
-      {/* Quick Navigation Cards to Project Entity Views */}
-      <h2 className="text-lg font-bold text-[#181c1e] mb-3">Project Management Views</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <button
-          onClick={() => navigate("/dashboard/construction/stakeholders")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#041627] text-[24px] mb-2">groups</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Stakeholders</h3>
-            <p className="text-[11px] text-[#44474c]">4 Active Partners</p>
-          </div>
-        </button>
+        {/* Role-Specific Actions Grid */}
+        <div className="pt-4 border-t border-[#f0f3f5]">
+          <span className="text-xs font-bold text-[#44474c] uppercase tracking-wider block mb-3">
+            Available Operations ({roleConfig.label})
+          </span>
 
-        <button
-          onClick={() => navigate("/dashboard/construction/requirements")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#041627] text-[24px] mb-2">assignment</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Requirements</h3>
-            <p className="text-[11px] text-[#44474c]">{requirement.code}</p>
-          </div>
-        </button>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* General Project Channels Button */}
+            <button
+              onClick={() => navigate("/dashboard/construction/channels")}
+              className="p-3 bg-[#f7fafc] border border-[#e0e3e5] rounded-lg hover:border-[#041627] text-left transition-colors flex flex-col justify-between"
+            >
+              <span className="material-symbols-outlined text-[#041627] text-[20px] mb-1">forum</span>
+              <div>
+                <h4 className="font-bold text-[#181c1e] text-xs">Project Channels</h4>
+                <p className="text-[10px] text-[#44474c]">Collaboration Topology</p>
+              </div>
+            </button>
 
-        <button
-          onClick={() => navigate("/dashboard/construction/deliveries")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#b76e00] text-[24px] mb-2">local_shipping</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Deliveries</h3>
-            <p className="text-[11px] text-[#b76e00] font-semibold">{delivery.reference} (Delayed)</p>
-          </div>
-        </button>
+            {/* PM Specific Actions */}
+            {(activeRole === "PM" || activeRole === "ARCHITECT" || activeRole === "ENGINEER") && (
+              <button
+                onClick={() => navigate("/dashboard/construction/requirements")}
+                className="p-3 bg-[#f7fafc] border border-[#e0e3e5] rounded-lg hover:border-[#041627] text-left transition-colors flex flex-col justify-between"
+              >
+                <span className="material-symbols-outlined text-[#041627] text-[20px] mb-1">assignment</span>
+                <div>
+                  <h4 className="font-bold text-[#181c1e] text-xs">Requirements</h4>
+                  <p className="text-[10px] text-[#44474c]">{requirement.code}</p>
+                </div>
+              </button>
+            )}
 
-        <button
-          onClick={() => navigate("/dashboard/construction/issues")}
-          className="p-4 bg-white border border-[#ffcdd2] rounded-xl hover:border-[#d32f2f] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#d32f2f] text-[24px] mb-2">warning</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Issues</h3>
-            <p className="text-[11px] text-[#d32f2f] font-semibold">{issue.reference}</p>
-          </div>
-        </button>
+            {/* Supplier / Logistics Actions */}
+            {(activeRole === "PM" || activeRole === "SUPPLIER" || activeRole === "LOGISTICS") && (
+              <button
+                onClick={() => navigate("/dashboard/construction/deliveries")}
+                className="p-3 bg-[#f7fafc] border border-[#e0e3e5] rounded-lg hover:border-[#b76e00] text-left transition-colors flex flex-col justify-between"
+              >
+                <span className="material-symbols-outlined text-[#b76e00] text-[20px] mb-1">local_shipping</span>
+                <div>
+                  <h4 className="font-bold text-[#181c1e] text-xs">Deliveries</h4>
+                  <p className="text-[10px] text-[#b76e00] font-semibold">{delivery.reference} (Delayed)</p>
+                </div>
+              </button>
+            )}
 
-        <button
-          onClick={() => navigate("/dashboard/construction/decisions")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#041627] text-[24px] mb-2">gavel</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Decisions</h3>
-            <p className="text-[11px] text-[#006c49] font-semibold">{decision.reference} ({decision.status})</p>
-          </div>
-        </button>
+            {/* Site Superintendent Action */}
+            {(activeRole === "PM" || activeRole === "SITE_SUPERINTENDENT") && (
+              <button
+                onClick={() => navigate("/dashboard/construction/field")}
+                className="p-3 bg-[#181c1e] text-white rounded-lg hover:bg-[#181c1e]/90 text-left transition-colors flex flex-col justify-between"
+              >
+                <span className="material-symbols-outlined text-[#6cf8bb] text-[20px] mb-1">smartphone</span>
+                <div>
+                  <h4 className="font-bold text-white text-xs">Field Mode</h4>
+                  <p className="text-[10px] text-[#6cf8bb]">Site Superintendent</p>
+                </div>
+              </button>
+            )}
 
-        <button
-          onClick={() => navigate("/dashboard/construction/inspections")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#006c49] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#006c49] text-[24px] mb-2">fact_check</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Inspections</h3>
-            <p className="text-[11px] text-[#006c49] font-semibold">{inspection.reference} ({inspection.status})</p>
-          </div>
-        </button>
+            {/* QA Inspector Action */}
+            {(activeRole === "PM" || activeRole === "ENGINEER" || activeRole === "QA") && (
+              <button
+                onClick={() => navigate("/dashboard/construction/inspections")}
+                className="p-3 bg-[#f7fafc] border border-[#e0e3e5] rounded-lg hover:border-[#006c49] text-left transition-colors flex flex-col justify-between"
+              >
+                <span className="material-symbols-outlined text-[#006c49] text-[20px] mb-1">fact_check</span>
+                <div>
+                  <h4 className="font-bold text-[#181c1e] text-xs">Inspections</h4>
+                  <p className="text-[10px] text-[#006c49] font-semibold">{inspection.reference}</p>
+                </div>
+              </button>
+            )}
 
-        <button
-          onClick={() => navigate("/dashboard/construction/provenance")}
-          className="p-4 bg-[#041627] text-white rounded-xl hover:bg-[#041627]/90 text-left transition-all shadow-md flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#6cf8bb] text-[24px] mb-2">account_tree</span>
-          <div>
-            <h3 className="font-bold text-white text-sm">Why Is It Late?</h3>
-            <p className="text-[11px] text-[#6cf8bb]">Provenance Story</p>
-          </div>
-        </button>
+            {/* PM / Decision Action */}
+            {activeRole === "PM" && (
+              <button
+                onClick={() => navigate("/dashboard/construction/decisions")}
+                className="p-3 bg-[#f7fafc] border border-[#e0e3e5] rounded-lg hover:border-[#041627] text-left transition-colors flex flex-col justify-between"
+              >
+                <span className="material-symbols-outlined text-[#041627] text-[20px] mb-1">gavel</span>
+                <div>
+                  <h4 className="font-bold text-[#181c1e] text-xs">Decisions</h4>
+                  <p className="text-[10px] text-[#006c49] font-semibold">{decision.reference}</p>
+                </div>
+              </button>
+            )}
 
-        <button
-          onClick={() => navigate("/dashboard/construction/history")}
-          className="p-4 bg-white border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-all shadow-sm flex flex-col justify-between"
-        >
-          <span className="material-symbols-outlined text-[#041627] text-[24px] mb-2">history</span>
-          <div>
-            <h3 className="font-bold text-[#181c1e] text-sm">Trace History</h3>
-            <p className="text-[11px] text-[#44474c]">Milestones</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Metrics Summary Grid */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-[#44474c]">
-            <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Budget</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-semibold text-[#181c1e]">{project.budgetSpentPercent}%</span>
-            <span className="text-sm text-[#44474c]">spent</span>
-          </div>
-          <div className="w-full h-1.5 bg-[#e5e9eb] rounded-full overflow-hidden mt-1">
-            <div className="h-full bg-[#041627] rounded-full" style={{ width: `${project.budgetSpentPercent}%` }}></div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-[#44474c]">
-            <span className="material-symbols-outlined text-[20px]">calendar_today</span>
-            <span className="text-[11px] uppercase tracking-wider font-semibold">Schedule</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-semibold text-[#181c1e]">Day {project.scheduleDay}</span>
-          </div>
-          <div className="text-sm text-[#b76e00] flex items-center gap-1 mt-1 font-medium">
-            <span className="material-symbols-outlined text-[16px]">warning</span>
-            <span>{project.scheduleStatus} (DEL-1042 Reroute)</span>
+            {/* Provenance Button */}
+            <button
+              onClick={() => navigate("/dashboard/construction/provenance")}
+              className="p-3 bg-[#041627] text-white rounded-lg hover:bg-[#041627]/90 text-left transition-colors flex flex-col justify-between"
+            >
+              <span className="material-symbols-outlined text-[#6cf8bb] text-[20px] mb-1">account_tree</span>
+              <div>
+                <h4 className="font-bold text-white text-xs">Why Is It Late?</h4>
+                <p className="text-[10px] text-[#6cf8bb]">Provenance Story</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Project Status Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-white border border-[#e0e3e5] rounded-xl shadow-sm">
+          <span className="text-xs text-[#44474c] font-semibold block mb-1">Budget Allocation</span>
+          <span className="text-xl font-bold text-[#181c1e]">{project.budgetSpentPercent}% Spent</span>
+          <div className="w-full bg-[#e5e9eb] h-1.5 rounded-full mt-2 overflow-hidden">
+            <div className="bg-[#041627] h-full" style={{ width: `${project.budgetSpentPercent}%` }}></div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-white border border-[#e0e3e5] rounded-xl shadow-sm">
+          <span className="text-xs text-[#44474c] font-semibold block mb-1">Schedule Milestone</span>
+          <span className="text-xl font-bold text-[#181c1e]">Day {project.scheduleDay}</span>
+          <span className="text-xs text-[#b76e00] font-medium block mt-1">3 Issues • 2 Pending Decisions</span>
+        </div>
+
+        <div className="p-4 bg-white border border-[#e0e3e5] rounded-xl shadow-sm">
+          <span className="text-xs text-[#44474c] font-semibold block mb-1">Compliance &amp; Quality</span>
+          <span className="text-xl font-bold text-[#006c49]">98/100</span>
+          <span className="text-xs text-[#006c49] font-medium block mt-1">Inspection {inspection.reference} Passed</span>
+        </div>
+      </div>
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   );
 };

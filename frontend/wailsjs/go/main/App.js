@@ -262,6 +262,10 @@ export function GetPendingPaymentRequests(arg1) {
   return window['go']['main']['App']['GetPendingPaymentRequests'](arg1);
 }
 
+export function GetProjectOverview(arg1, arg2) {
+  return window['go']['main']['App']['GetProjectOverview'](arg1, arg2);
+}
+
 export function GetRecommendedTier(arg1) {
   return window['go']['main']['App']['GetRecommendedTier'](arg1);
 }

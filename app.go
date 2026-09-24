@@ -1621,6 +1621,9 @@ func (a *App) RefreshToken(userID string) (*auth.TokenPairs, error) {
 }
 func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	utils.LogPretty("App - RequireAuth ", jwtToken)
+	if a.AuthHandler == nil {
+		return nil, fmt.Errorf("unauthorized: auth handler is not initialized")
+	}
 	claims, err := a.AuthHandler.VerifyToken(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -3559,6 +3562,23 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	}
 	return res, err
 }
+
+// GetProjectOverview fetches the construction project overview read model from Cloud
+// via GET /api/construction/projects/{id}.
+func (a *App) GetProjectOverview(JwtToken string, projectID string) (*tracecore_types.ProjectOverviewDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	return a.tracecoreClient.GetProjectOverview(a.ctx, projectID)
+}
+
 
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no

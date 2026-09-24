@@ -1,16 +1,30 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import { getDelivery, getProject, getTransportDelay, getIssue, getDecision, getInspection } from "../data";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 
 export const DeliveryDetailPage: React.FC = () => {
   const navigate = useNavigate();
-  const { delivery, project, transport, issue, decision, inspection } = SCENARIO_DATA;
+  const delivery = getDelivery();
+  const project = getProject("PRJ-001");
+  const transport = getTransportDelay();
+  const issue = getIssue();
+  const decision = getDecision();
+  const inspection = getInspection();
+
+  if (!delivery || !project || !transport || !issue || !decision || !inspection) {
+    return <div>Delivery details unavailable</div>;
+  }
 
   return (
-    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6">
+    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 font-[Inter]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
-        <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
+        <button
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+          className="hover:underline font-medium text-[#041627] cursor-pointer"
+        >
           {project.code}
         </button>
         <span>/</span>
@@ -60,7 +74,7 @@ export const DeliveryDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Transport Link */}
         <div 
-          onClick={() => navigate("/dashboard/construction/transport")}
+          onClick={() => navigate(CONSTRUCTION_ROUTES.TRANSPORT)}
           className="bg-white border border-[#e0e3e5] rounded-xl p-5 hover:border-[#041627] cursor-pointer transition-all shadow-sm flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-lg bg-[#041627]/5 text-[#041627] flex items-center justify-center">
@@ -75,7 +89,7 @@ export const DeliveryDetailPage: React.FC = () => {
 
         {/* Issue Link */}
         <div 
-          onClick={() => navigate("/dashboard/construction/issues")}
+          onClick={() => navigate(CONSTRUCTION_ROUTES.ISSUES)}
           className="bg-white border border-[#ffcdd2] rounded-xl p-5 hover:border-[#d32f2f] cursor-pointer transition-all shadow-sm flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-lg bg-[#ffebee] text-[#d32f2f] flex items-center justify-center">
@@ -90,7 +104,7 @@ export const DeliveryDetailPage: React.FC = () => {
 
         {/* Decision Link */}
         <div 
-          onClick={() => navigate("/dashboard/construction/decisions")}
+          onClick={() => navigate(CONSTRUCTION_ROUTES.DECISIONS)}
           className="bg-white border border-[#e0e3e5] rounded-xl p-5 hover:border-[#041627] cursor-pointer transition-all shadow-sm flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-lg bg-[#041627]/5 text-[#041627] flex items-center justify-center">
@@ -105,7 +119,7 @@ export const DeliveryDetailPage: React.FC = () => {
 
         {/* Inspection Link */}
         <div 
-          onClick={() => navigate("/dashboard/construction/inspections")}
+          onClick={() => navigate(CONSTRUCTION_ROUTES.INSPECTIONS)}
           className="bg-white border border-[#e0e3e5] rounded-xl p-5 hover:border-[#006c49] cursor-pointer transition-all shadow-sm flex items-start gap-4"
         >
           <div className="w-10 h-10 rounded-lg bg-[#e8f5e9] text-[#006c49] flex items-center justify-center">
@@ -126,8 +140,9 @@ export const DeliveryDetailPage: React.FC = () => {
           <p className="text-sm text-[#b7c8de]">View full multi-layer provenance story across Construction, C3, and TraceCore.</p>
         </div>
         <button
-          onClick={() => navigate("/dashboard/construction/provenance")}
-          className="px-5 py-2.5 bg-[#6cf8bb] text-[#041627] font-bold text-sm rounded-lg hover:bg-[#6cf8bb]/90 transition-colors whitespace-nowrap"
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.PROVENANCE)}
+          className="px-5 py-2.5 bg-[#6cf8bb] text-[#041627] font-bold text-sm rounded-lg hover:bg-[#6cf8bb]/90 transition-colors whitespace-nowrap cursor-pointer"
         >
           View Provenance Story →
         </button>

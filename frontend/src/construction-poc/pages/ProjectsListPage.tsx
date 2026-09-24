@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import { getProjects, getDecision, getInspection, getIssue } from "../data";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 import { useRoleContext } from "../hooks/useRoleContext";
 import { CreateProjectModal } from "../components/CreateProjectModal";
 
 export const ProjectsListPage: React.FC = () => {
   const navigate = useNavigate();
   const { activeRole } = useRoleContext();
-  const { project, issue, decision } = SCENARIO_DATA;
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,67 +19,14 @@ export const ProjectsListPage: React.FC = () => {
   const [showEmptyState, setShowEmptyState] = useState(false);
   const [filterMyAssigned, setFilterMyAssigned] = useState(false);
 
-  // Authoritative Scenario Data + Presentation Preview Cards confined to Frontend View
-  const authoritativeProject = {
-    id: project.id,
-    code: project.code,
-    name: project.name,
-    contractId: "BFD-EUR-2024-099",
-    type: project.type,
-    sector: "Infrastructure Sector • Transit Hub",
-    status: "Active • On Schedule",
-    location: project.location,
-    description: "Construction of an underground station hub, 3.2km dual-bore tunnel section, reinforced concrete platform shafts, and civil ventilation integration.",
-    currentPhase: "Structure (Phase 4 of 7)",
-    progressPercent: 68,
-    openIssuesCount: 7, // Presentation total count matching Stitch visual spec while linking real ISS-1042
-    pendingDecisionsCount: 1, // Presentation total count matching Stitch visual spec while linking real DEC-1042
-    activeDelay: "Route M1 Detour",
-    targetCompletion: "Oct 2026",
-    recentActivity: `Inspection #${SCENARIO_DATA.inspection.code} approved (Today, 09:42)`,
-    image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCyhdIyunCsHJbMDm1UWI9VXIvPj7GBEI9F2ZoXR61KUPGZkgrMZflrpqE21OhZxTYJcbn_ADHB5FvkGObh09NsqZmUiZtY9aDyNoP4FUXeR4JNKmUosU_MNAcafsPG_jS6TunbkQiEX4l8nddQ1vxS4FpY21vauK7SCpG5QVlLgJNoef0nj2oirgVq0lBL-ZiR1C4ouQH7N-QrOJpG6YENchuyphAPTX21Wib9fOGuSX1OEhMU3cs",
-    connectedOrgs: ["Acme Dev", "BuildCorp", "Engineering Partners", "EuroSteel", "FastBuild"],
-    isAuthoritative: true,
-  };
+  // Retrieve projects from the data boundary function
+  const allProjects = getProjects();
+  const authoritativeProject = allProjects.find((p) => p.isAuthoritative) || allProjects[0];
+  const secondaryPreviewProjects = allProjects.filter((p) => !p.isAuthoritative);
 
-  const secondaryPreviewProjects = [
-    {
-      id: "PRJ-002",
-      code: "PRJ-002",
-      name: "Commercial Plaza North",
-      type: "Commercial Mixed-Use",
-      status: "Active",
-      location: "Lyon, France",
-      currentPhase: "Phase 3 of 7: Foundation",
-      progressPercent: 42,
-      openIssuesCount: 0,
-      pendingDecisionsCount: 2,
-      targetCompletion: "Q2 2027",
-      recentActivity: "Formwork inspection scheduled",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBqV0HcND9OtO60ifVFcM1UpOyuC3fNdLNRbeb52p-yeTXGAxWlHHYN4nAJ1eKZmKtTECrFyDJuAQKsSZLBZV3kp4_yI1sjZjSeE3wjqh7JKvhhXEUDPPkO3M9HKLudq6hJ86eyUid-BL--zETvLZ1i67aHL7k8iMkraESDgz7cEAtXVMYHTV3wF2MmPIj1xP675VDXPvVVIeiMxB66Am_djeKn7Xf5OmwK5agWn5-v_V_Sok-WpxM",
-      connectedOrgs: ["BuildCorp", "Lyon Metropole"],
-      isAuthoritative: false,
-    },
-    {
-      id: "PRJ-003",
-      code: "PRJ-003",
-      name: "Riverside Logistics Hub",
-      type: "Industrial Logistics",
-      status: "Planning",
-      location: "Lille, France",
-      currentPhase: "Phase 2 of 7: Procurement",
-      progressPercent: 18,
-      openIssuesCount: 0,
-      pendingDecisionsCount: 3,
-      targetCompletion: "Q4 2027",
-      recentActivity: "Material specifications updated",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuALfyMUsVFSjYeWh6KhQj3f_xSm6PnPRu-0KUZBaC7j3_xi2NaVt64qQ17FpBARHKNwLMGQrWG9Hv_h0H0ygEKMHNEOwaZZz8uBMbI3KNIplL8UldeNgyKarOvs8EQ52nY9qp2dvmr5J-NNEb9UESAYCAtfxE1Zcz11XAaIWQ7I-vc9eFjZYYyzafSBXcpiOSJBt-U0QcpkRFmCyDIWNPTA88sUQk7pwru9tq3oEYwN6B0VT3f5yNI",
-      connectedOrgs: ["EuroSteel", "FastBuild"],
-      isAuthoritative: false,
-    },
-  ];
-
-  const allProjects = [authoritativeProject, ...secondaryPreviewProjects];
+  const decision = getDecision();
+  const inspection = getInspection();
+  const issue = getIssue();
 
   const filteredProjects = allProjects.filter((p) => {
     if (filterMyAssigned && !p.isAuthoritative) return false;
@@ -104,7 +51,7 @@ export const ProjectsListPage: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <nav className="flex items-center gap-1 text-[#44474c] text-xs font-semibold uppercase tracking-wider">
               <span
-                onClick={() => navigate("/dashboard/construction")}
+                onClick={() => navigate(CONSTRUCTION_ROUTES.HOME)}
                 className="hover:text-[#181c1e] transition-colors cursor-pointer"
               >
                 Vault Home
@@ -124,6 +71,7 @@ export const ProjectsListPage: React.FC = () => {
                 Structural Engineer • Engineering Partners
               </span>
               <button
+                type="button"
                 onClick={() => setFilterMyAssigned(!filterMyAssigned)}
                 className={`flex items-center gap-1 text-xs font-semibold transition-colors pl-2 cursor-pointer ${
                   filterMyAssigned
@@ -176,7 +124,7 @@ export const ProjectsListPage: React.FC = () => {
               <span className="material-symbols-outlined text-[#041627] text-[20px]">domain</span>
             </div>
             <div className="flex items-baseline gap-2 mt-3">
-              <span className="text-3xl font-bold text-[#041627]">3</span>
+              <span className="text-3xl font-bold text-[#041627]">{allProjects.length}</span>
               <span className="text-xs text-[#006c49] font-medium">+1 planned for Q4</span>
             </div>
             <div className="w-full bg-[#e5e9eb] h-1.5 rounded-full mt-3 overflow-hidden">
@@ -338,7 +286,7 @@ export const ProjectsListPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#f1f4f6]">
             {(
               [
-                { id: "ALL", label: "All Projects (3)" },
+                { id: "ALL", label: `All Projects (${allProjects.length})` },
                 { id: "ACTIVE", label: "Active (2)" },
                 { id: "ON_HOLD", label: "On Hold (1)" },
                 { id: "ARCHIVED", label: "Archived (0)" },
@@ -394,184 +342,186 @@ export const ProjectsListPage: React.FC = () => {
           /* Projects Grid Container */
           <div className="flex flex-col gap-6">
             {/* AUTHORITATIVE HERO CARD: PRJ-001 (Flagship Deep Layout) */}
-            <div className="bg-white rounded-xl shadow-sm border border-[#e0e3e5] overflow-hidden flex flex-col transition-all hover:shadow-md">
-              {/* Card Top Structural Bar */}
-              <div className="bg-[#f1f4f6] px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e9eb]">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-[#041627] tracking-tight">{authoritativeProject.code}</span>
-                  <span className="text-[#44474c]">•</span>
-                  <div className="flex items-center gap-1 text-[#44474c] text-sm">
-                    <span className="material-symbols-outlined text-[18px]">location_on</span>
-                    <span>{authoritativeProject.location}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#006c49]/10 text-[#006c49] text-xs font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#006c49]" />
-                    {authoritativeProject.status}
-                  </span>
-                  <span className="text-xs font-semibold text-[#44474c] bg-[#e0e3e5] px-2.5 py-1 rounded">
-                    Primary Authority (XS-BIM Scenario)
-                  </span>
-                </div>
-              </div>
-
-              {/* Main Body Split */}
-              <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left: Spatial Context & Blueprint Thumbnail */}
-                <div className="lg:col-span-4 flex flex-col gap-3">
-                  <div className="relative w-full h-52 rounded-xl overflow-hidden shadow-inner bg-[#1a2b3c]">
-                    <img
-                      src={authoritativeProject.image}
-                      alt="Metro Line 4 Excavation Spatial Context"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#041627]/80 via-transparent to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3 text-white flex items-center justify-between">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-[#e5e9eb] font-medium">
-                          Infrastructure Sector
-                        </p>
-                        <p className="text-sm font-semibold">Underground Rail & Transit Hub</p>
-                      </div>
-                      <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[20px] text-white">subway</span>
-                      </div>
+            {authoritativeProject && (
+              <div className="bg-white rounded-xl shadow-sm border border-[#e0e3e5] overflow-hidden flex flex-col transition-all hover:shadow-md">
+                {/* Card Top Structural Bar */}
+                <div className="bg-[#f1f4f6] px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#e5e9eb]">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-bold text-[#041627] tracking-tight">{authoritativeProject.code}</span>
+                    <span className="text-[#44474c]">•</span>
+                    <div className="flex items-center gap-1 text-[#44474c] text-sm">
+                      <span className="material-symbols-outlined text-[18px]">location_on</span>
+                      <span>{authoritativeProject.location}</span>
                     </div>
                   </div>
-
-                  {/* Connected Organizations Chips */}
-                  <div className="flex flex-col gap-1 pt-1">
-                    <span className="text-[11px] text-[#44474c] uppercase tracking-wider font-semibold">
-                      Connected Organizations
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#006c49]/10 text-[#006c49] text-xs font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#006c49]" />
+                      {authoritativeProject.status}
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {authoritativeProject.connectedOrgs.map((org) => (
-                        <span
-                          key={org}
-                          className="px-2.5 py-0.5 rounded bg-[#ebeef0] text-xs text-[#181c1e] font-medium"
-                        >
-                          {org}
-                        </span>
-                      ))}
-                      <span className="px-2 py-0.5 rounded bg-[#e0e3e5] text-xs text-[#44474c] font-bold">
-                        +2 others
-                      </span>
-                    </div>
+                    <span className="text-xs font-semibold text-[#44474c] bg-[#e0e3e5] px-2.5 py-1 rounded">
+                      Primary Authority (XS-BIM Scenario)
+                    </span>
                   </div>
                 </div>
 
-                {/* Center & Right: Phase Tracking, Indicators & Details */}
-                <div className="lg:col-span-8 flex flex-col justify-between gap-4">
-                  <div>
-                    <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
-                      <h2 className="text-2xl font-bold text-[#041627]">{authoritativeProject.name}</h2>
-                      <span className="text-xs text-[#44474c]">
-                        Contract ID: {authoritativeProject.contractId}
-                      </span>
+                {/* Main Body Split */}
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left: Spatial Context & Blueprint Thumbnail */}
+                  <div className="lg:col-span-4 flex flex-col gap-3">
+                    <div className="relative w-full h-52 rounded-xl overflow-hidden shadow-inner bg-[#1a2b3c]">
+                      <img
+                        src={authoritativeProject.image}
+                        alt="Metro Line 4 Excavation Spatial Context"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#041627]/80 via-transparent to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3 text-white flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wider text-[#e5e9eb] font-medium">
+                            Infrastructure Sector
+                          </p>
+                          <p className="text-sm font-semibold">Underground Rail & Transit Hub</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center">
+                          <span className="material-symbols-outlined text-[20px] text-white">subway</span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-[#44474c] line-clamp-2">
-                      {authoritativeProject.description}
-                    </p>
-                  </div>
 
-                  {/* Phase & Progress Ribbon */}
-                  <div className="bg-[#f1f4f6] rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs uppercase font-bold text-[#181c1e] tracking-wider">
-                          Current Phase:
-                        </span>
-                        <span className="text-sm font-semibold text-[#041627]">
-                          {authoritativeProject.currentPhase}
+                    {/* Connected Organizations Chips */}
+                    <div className="flex flex-col gap-1 pt-1">
+                      <span className="text-[11px] text-[#44474c] uppercase tracking-wider font-semibold">
+                        Connected Organizations
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {authoritativeProject.connectedOrgs.map((org) => (
+                          <span
+                            key={org}
+                            className="px-2.5 py-0.5 rounded bg-[#ebeef0] text-xs text-[#181c1e] font-medium"
+                          >
+                            {org}
+                          </span>
+                        ))}
+                        <span className="px-2 py-0.5 rounded bg-[#e0e3e5] text-xs text-[#44474c] font-bold">
+                          +2 others
                         </span>
                       </div>
-                      <span className="text-lg font-bold text-[#041627]">
-                        {authoritativeProject.progressPercent}% Complete
-                      </span>
+                    </div>
+                  </div>
+
+                  {/* Center & Right: Phase Tracking, Indicators & Details */}
+                  <div className="lg:col-span-8 flex flex-col justify-between gap-4">
+                    <div>
+                      <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
+                        <h2 className="text-2xl font-bold text-[#041627]">{authoritativeProject.name}</h2>
+                        <span className="text-xs text-[#44474c]">
+                          Contract ID: {authoritativeProject.contractId}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#44474c] line-clamp-2">
+                        {authoritativeProject.description}
+                      </p>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="w-full bg-[#e0e3e5] h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[#006c49] h-full rounded-full transition-all duration-500"
-                        style={{ width: `${authoritativeProject.progressPercent}%` }}
-                      />
-                    </div>
-
-                    {/* 7-Phase Stepper Dots */}
-                    <div className="grid grid-cols-7 gap-1 text-center pt-1">
-                      {[
-                        { code: "P1", label: "Prep", done: true },
-                        { code: "P2", label: "Design", done: true },
-                        { code: "P3", label: "Civil", done: true },
-                        { code: "P4", label: "Struct", active: true },
-                        { code: "P5", label: "Encl", done: false },
-                        { code: "P6", label: "MEP", done: false },
-                        { code: "P7", label: "Comms", done: false },
-                      ].map((st) => (
-                        <div key={st.code} className="flex flex-col items-center">
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full mb-1 ${
-                              st.active
-                                ? "bg-[#041627] ring-2 ring-[#b7c8de]"
-                                : st.done
-                                ? "bg-[#006c49]"
-                                : "bg-[#e0e3e5]"
-                            }`}
-                          />
-                          <span
-                            className={`text-[11px] ${
-                              st.active ? "font-bold text-[#041627]" : "text-[#44474c]"
-                            }`}
-                          >
-                            {st.code} {st.label}
+                    {/* Phase & Progress Ribbon */}
+                    <div className="bg-[#f1f4f6] rounded-xl p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs uppercase font-bold text-[#181c1e] tracking-wider">
+                            Current Phase:
+                          </span>
+                          <span className="text-sm font-semibold text-[#041627]">
+                            {authoritativeProject.currentPhase}
                           </span>
                         </div>
-                      ))}
+                        <span className="text-lg font-bold text-[#041627]">
+                          {authoritativeProject.progressPercent}% Complete
+                        </span>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="w-full bg-[#e0e3e5] h-2.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#006c49] h-full rounded-full transition-all duration-500"
+                          style={{ width: `${authoritativeProject.progressPercent}%` }}
+                        />
+                      </div>
+
+                      {/* 7-Phase Stepper Dots */}
+                      <div className="grid grid-cols-7 gap-1 text-center pt-1">
+                        {[
+                          { code: "P1", label: "Prep", done: true },
+                          { code: "P2", label: "Design", done: true },
+                          { code: "P3", label: "Civil", done: true },
+                          { code: "P4", label: "Struct", active: true },
+                          { code: "P5", label: "Encl", done: false },
+                          { code: "P6", label: "MEP", done: false },
+                          { code: "P7", label: "Comms", done: false },
+                        ].map((st) => (
+                          <div key={st.code} className="flex flex-col items-center">
+                            <span
+                              className={`w-2.5 h-2.5 rounded-full mb-1 ${
+                                st.active
+                                  ? "bg-[#041627] ring-2 ring-[#b7c8de]"
+                                  : st.done
+                                  ? "bg-[#006c49]"
+                                  : "bg-[#e0e3e5]"
+                              }`}
+                            />
+                            <span
+                              className={`text-[11px] ${
+                                st.active ? "font-bold text-[#041627]" : "text-[#44474c]"
+                              }`}
+                            >
+                              {st.code} {st.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Key Operational Indicators */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ffddb8] text-[#2a1700] text-xs font-semibold">
-                      <span className="material-symbols-outlined text-[16px]">schedule</span>
-                      1 Active Delay: {authoritativeProject.activeDelay}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ebeef0] text-[#181c1e] text-xs font-semibold">
-                      <span className="material-symbols-outlined text-[16px]">pending_actions</span>
-                      1 Pending Decision ({decision.code})
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ffdad6] text-[#93000a] text-xs font-semibold">
-                      <span className="material-symbols-outlined text-[16px]">bug_report</span>
-                      7 Open Issues (Flagship {issue.code})
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#e0e3e5] text-[#44474c] text-xs">
-                      <span className="material-symbols-outlined text-[16px]">event_available</span>
-                      Target: {authoritativeProject.targetCompletion}
-                    </span>
-                  </div>
-
-                  {/* Bottom Activity & Action Ribbon */}
-                  <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#e5e9eb]">
-                    <div className="flex items-center gap-1.5 text-[#44474c] text-xs">
-                      <span className="material-symbols-outlined text-[18px] text-[#006c49]">check_circle</span>
-                      <span className="font-semibold text-[#181c1e]">Recent Activity:</span>
-                      <span className="truncate max-w-xs">{authoritativeProject.recentActivity}</span>
+                    {/* Key Operational Indicators */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ffddb8] text-[#2a1700] text-xs font-semibold">
+                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        1 Active Delay: {authoritativeProject.activeDelay}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ebeef0] text-[#181c1e] text-xs font-semibold">
+                        <span className="material-symbols-outlined text-[16px]">pending_actions</span>
+                        1 Pending Decision ({decision?.reference})
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ffdad6] text-[#93000a] text-xs font-semibold">
+                        <span className="material-symbols-outlined text-[16px]">bug_report</span>
+                        7 Open Issues (Flagship {issue?.reference})
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#e0e3e5] text-[#44474c] text-xs">
+                        <span className="material-symbols-outlined text-[16px]">event_available</span>
+                        Target: {authoritativeProject.targetCompletion}
+                      </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/dashboard/construction/projects/${authoritativeProject.id}`)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#041627] text-white text-sm font-semibold hover:bg-[#1a2b3c] transition-all hover:translate-x-0.5 shadow-sm cursor-pointer"
-                    >
-                      <span>Open Project</span>
-                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                    </button>
+                    {/* Bottom Activity & Action Ribbon */}
+                    <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#e5e9eb]">
+                      <div className="flex items-center gap-1.5 text-[#44474c] text-xs">
+                        <span className="material-symbols-outlined text-[18px] text-[#006c49]">check_circle</span>
+                        <span className="font-semibold text-[#181c1e]">Recent Activity:</span>
+                        <span className="truncate max-w-xs">{authoritativeProject.recentActivity}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECT(authoritativeProject.id))}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#041627] text-white text-sm font-semibold hover:bg-[#1a2b3c] transition-all hover:translate-x-0.5 shadow-sm cursor-pointer"
+                      >
+                        <span>Open Project</span>
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Secondary Project Cards Grid (2-Column Setup) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -662,9 +612,14 @@ export const ProjectsListPage: React.FC = () => {
                     <div className="text-[#44474c] text-xs truncate max-w-[220px]">
                       <span className="font-semibold text-[#181c1e]">Recent:</span> {p.recentActivity}
                     </div>
-                    <span className="text-[11px] text-[#74777d] italic bg-[#f1f4f6] px-2 py-1 rounded">
-                      Presentation Preview Card
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECT(p.id))}
+                      className="inline-flex items-center gap-1 font-body-md text-xs font-semibold text-[#041627] hover:text-[#006c49] transition-colors cursor-pointer"
+                    >
+                      <span>Open Project</span>
+                      <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                    </button>
                   </div>
                 </div>
               ))}

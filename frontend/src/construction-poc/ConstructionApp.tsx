@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import { RoleProvider } from "./hooks/useRoleContext";
+import { CONSTRUCTION_ROUTES } from "./constants/routes";
 import { ConstructionHeader } from "./components/ConstructionHeader";
 import { BottomNavigation } from "./components/BottomNavigation";
 import { ConstructionDashboard } from "./pages/ConstructionDashboard";
@@ -30,8 +31,8 @@ export const ConstructionAppInner: React.FC = () => {
     <div className="bg-[#f7fafc] text-[#181c1e] font-sans min-h-screen flex flex-col antialiased">
       {/* BuildFlow Application Header */}
       <ConstructionHeader
-        onNotificationClick={() => navigate("/dashboard/construction/activity")}
-        onProfileClick={() => navigate("/dashboard/construction/profile")}
+        onNotificationClick={() => navigate(CONSTRUCTION_ROUTES.ACTIVITY)}
+        onProfileClick={() => navigate(CONSTRUCTION_ROUTES.PROFILE)}
       />
 
       {/* Main Screen Workspace */}

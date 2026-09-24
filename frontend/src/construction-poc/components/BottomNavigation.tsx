@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 
 export type NavTabPath = "home" | "projects" | "activity" | "documents" | "profile";
 
@@ -16,11 +17,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "home", label: "Home", iconName: "home", route: "/dashboard/construction" },
-  { id: "projects", label: "Projects", iconName: "architecture", route: "/dashboard/construction/projects" },
-  { id: "activity", label: "Activity", iconName: "pending_actions", route: "/dashboard/construction/activity" },
-  { id: "documents", label: "Docs", iconName: "description", route: "/dashboard/construction/documents" },
-  { id: "profile", label: "Profile", iconName: "person_outline", route: "/dashboard/construction/profile" },
+  { id: "home", label: "Home", iconName: "home", route: CONSTRUCTION_ROUTES.HOME },
+  { id: "projects", label: "Projects", iconName: "architecture", route: CONSTRUCTION_ROUTES.PROJECTS },
+  { id: "activity", label: "Activity", iconName: "pending_actions", route: CONSTRUCTION_ROUTES.ACTIVITY },
+  { id: "documents", label: "Docs", iconName: "description", route: CONSTRUCTION_ROUTES.DOCUMENTS },
+  { id: "profile", label: "Profile", iconName: "person_outline", route: CONSTRUCTION_ROUTES.PROFILE },
 ];
 
 export const BottomNavigation: React.FC<BottomNavigationProps> = ({
@@ -34,9 +35,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     if (activeTab) return activeTab === item.id;
     const pathname = location.pathname;
     if (item.id === "home") {
-      return pathname === "/dashboard/construction" || pathname === "/dashboard/construction/";
+      return pathname === CONSTRUCTION_ROUTES.HOME || pathname === `${CONSTRUCTION_ROUTES.HOME}/`;
     }
-    return pathname.startsWith(`/dashboard/construction/${item.id}`);
+    return pathname.startsWith(`${CONSTRUCTION_ROUTES.HOME}/${item.id}`);
   };
 
   const handleClick = (item: NavItem) => {

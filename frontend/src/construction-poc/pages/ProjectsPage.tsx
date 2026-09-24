@@ -1,14 +1,121 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { getProjectOverview, ProjectData, getRequirement, getSupplierOffer, getDelivery, getTransportDelay, getIssue, getDecision, getInspection, getEvidenceDocument } from "../data";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 import { useRoleContext } from "../hooks/useRoleContext";
 import { CreateProjectModal } from "../components/CreateProjectModal";
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
   const { activeRole, roleConfig } = useRoleContext();
-  const { project, requirement, offer, delivery, transportDelay, issue, decision, inspection, evidence } = SCENARIO_DATA;
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const [project, setProject] = useState<ProjectData | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!projectId) {
+      setLoading(false);
+      setProject(undefined);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    getProjectOverview(projectId)
+      .then((data) => {
+        if (isMounted) {
+          setProject(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error("Failed to load project overview:", err);
+          setError(err?.message || "Failed to load project overview");
+          setProject(undefined);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectId]);
+
+  const requirement = getRequirement();
+  const offer = getSupplierOffer();
+  const delivery = getDelivery();
+  const transportDelay = getTransportDelay();
+  const issue = getIssue();
+  const decision = getDecision();
+  const inspection = getInspection();
+  const evidence = getEvidenceDocument();
+
+  // Loading State
+  if (loading) {
+    return (
+      <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-xl border border-[#e0e3e5] p-8 max-w-md text-center shadow-sm flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-[#44474c] font-semibold">Loading project overview from Cloud...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Explicit API Error Presentation State (NO silent fallback to mock data)
+  if (error) {
+    return (
+      <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-xl border border-[#e0e3e5] p-8 max-w-md text-center shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-4">
+            <span className="material-symbols-outlined text-[36px]">error</span>
+          </div>
+          <h2 className="text-2xl font-bold text-[#041627] mb-2">Cloud API Error</h2>
+          <p className="text-sm text-[#44474c] mb-6">
+            Failed to fetch project <code className="bg-[#f1f4f6] px-2 py-0.5 rounded font-mono text-[#041627]">{projectId}</code>: {error}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+            className="px-5 py-2.5 bg-[#041627] text-white text-sm font-semibold rounded-xl hover:bg-[#1a2b3c] transition-colors cursor-pointer"
+          >
+            ← Return to Projects Directory
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Explicit Not Found Presentation State for invalid or missing project IDs
+  if (!project) {
+    return (
+      <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
+        <div className="bg-white rounded-xl border border-[#e0e3e5] p-8 max-w-md text-center shadow-sm">
+          <div className="w-16 h-16 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-4">
+            <span className="material-symbols-outlined text-[36px]">domain_disabled</span>
+          </div>
+          <h2 className="text-2xl font-bold text-[#041627] mb-2">Project Not Found</h2>
+          <p className="text-sm text-[#44474c] mb-6">
+            The requested project reference <code className="bg-[#f1f4f6] px-2 py-0.5 rounded font-mono text-[#041627]">{projectId || "undefined"}</code> could not be found in this workspace collection.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+            className="px-5 py-2.5 bg-[#041627] text-white text-sm font-semibold rounded-xl hover:bg-[#1a2b3c] transition-colors cursor-pointer"
+          >
+            ← Return to Projects Directory
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6">
@@ -17,14 +124,14 @@ export const ProjectsPage: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <nav className="flex items-center gap-1 text-[#44474c] text-xs font-semibold uppercase tracking-wider">
             <span
-              onClick={() => navigate("/dashboard/construction")}
+              onClick={() => navigate(CONSTRUCTION_ROUTES.HOME)}
               className="hover:text-[#181c1e] transition-colors cursor-pointer"
             >
               Vault Home
             </span>
             <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             <span
-              onClick={() => navigate("/dashboard/construction/projects")}
+              onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
               className="hover:text-[#181c1e] transition-colors cursor-pointer"
             >
               Projects
@@ -46,11 +153,16 @@ export const ProjectsPage: React.FC = () => {
             <div className="flex items-center gap-2 text-xs font-semibold text-[#44474c]">
               <span className="bg-[#041627] text-white px-2.5 py-1 rounded font-bold">{project.code}</span>
               <span>•</span>
-              <span className="uppercase tracking-wider">INFRASTRUCTURE SECTOR</span>
+              <span className="uppercase tracking-wider">{project.sector || project.type}</span>
+              {project.isAuthoritative && (
+                <span className="px-2 py-0.5 bg-[#006c49]/10 text-[#006c49] text-[10px] font-bold rounded">
+                  AUTHORITATIVE XS-BIM SCENARIO
+                </span>
+              )}
             </div>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#006c49]/10 text-[#006c49] text-xs font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-[#006c49]" />
-              ACTIVE • ON SCHEDULE
+              {project.status.toUpperCase()}
             </span>
           </div>
 
@@ -88,7 +200,7 @@ export const ProjectsPage: React.FC = () => {
             </div>
             <div className="text-xs text-[#006c49] font-semibold flex items-center gap-1 mt-1">
               <span className="material-symbols-outlined text-[16px]">trending_up</span>
-              <span>On Track • Target Oct 2026</span>
+              <span>On Track • Target {project.targetCompletion}</span>
             </div>
           </div>
 
@@ -101,7 +213,7 @@ export const ProjectsPage: React.FC = () => {
               <span className="text-lg font-bold text-[#006c49]">98/100</span>
             </div>
             <div className="text-xs text-[#44474c] mt-1">
-              All permits active. Inspection #{inspection.code} passed without major citations.
+              All permits active. Inspection #{inspection.reference} passed without major citations.
             </div>
           </div>
         </div>
@@ -112,18 +224,18 @@ export const ProjectsPage: React.FC = () => {
           <div className="lg:col-span-6 bg-white rounded-xl border border-[#e0e3e5] p-6 shadow-sm flex flex-col gap-4">
             <div className="flex items-center justify-between pb-2 border-b border-[#f1f4f6]">
               <h2 className="text-lg font-bold text-[#041627]">Project Lifecycle Timeline</h2>
-              <span className="text-xs font-semibold text-[#006c49]">Phase 4 in Progress</span>
+              <span className="text-xs font-semibold text-[#006c49]">{project.currentPhase}</span>
             </div>
 
             <div className="relative pl-6 space-y-4 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-[#e0e3e5]">
               {[
                 { phase: "PHASE 1", title: "Prep & Planning", status: "COMPLETE", desc: "Site survey finalized, city permits approved.", complete: true },
                 { phase: "PHASE 2", title: "Procurement", status: "COMPLETE", desc: `Steel requirement ${requirement.code} issued.`, complete: true },
-                { phase: "PHASE 3", title: "Civil & Excavation", status: "COMPLETE", desc: "3.2km dual-bore tunnel excavation finished.", complete: true },
-                { phase: "PHASE 4", title: "Structure & Tunneling", status: "IN PROGRESS", desc: "Reinforced concrete shafts reaching key depth. 68% complete.", active: true, progress: 68 },
-                { phase: "PHASE 5", title: "Envelope & Fitout", status: "UPCOMING", desc: "Ventilation integration and shaft enclosure.", upcoming: true },
-                { phase: "PHASE 6", title: "MEP & Signals", status: "UPCOMING", desc: "Substation power & signaling systems.", upcoming: true },
-                { phase: "PHASE 7", title: "Handover & Comms", status: "UPCOMING", desc: "Final transit authority handover.", upcoming: true },
+                { phase: "PHASE 3", title: "Civil & Excavation", status: "COMPLETE", desc: "Foundation and spatial excavation finished.", complete: true },
+                { phase: "PHASE 4", title: "Structure & Framework", status: "IN PROGRESS", desc: `Steel framework erection. ${project.progressPercent}% complete.`, active: true, progress: project.progressPercent },
+                { phase: "PHASE 5", title: "Envelope & Fitout", status: "UPCOMING", desc: "Building enclosure and structural waterproofing.", upcoming: true },
+                { phase: "PHASE 6", title: "MEP & Systems", status: "UPCOMING", desc: "Mechanical, electrical, and plumbing integration.", upcoming: true },
+                { phase: "PHASE 7", title: "Handover & Comms", status: "UPCOMING", desc: "Final client and authority handover.", upcoming: true },
               ].map((item, idx) => (
                 <div key={idx} className="relative flex items-start gap-4">
                   <div className="absolute -left-[30px] top-1">
@@ -204,7 +316,7 @@ export const ProjectsPage: React.FC = () => {
                 {/* Project Channels */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/channels")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.CHANNELS)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">forum</span>
@@ -217,7 +329,7 @@ export const ProjectsPage: React.FC = () => {
                 {/* Requirements */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/requirements")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.REQUIREMENTS)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">assignment</span>
@@ -230,20 +342,20 @@ export const ProjectsPage: React.FC = () => {
                 {/* Supplier Offers */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/offers")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.OFFERS)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">request_quote</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Supplier Offers</h4>
-                    <p className="text-[10px] text-[#041627] font-semibold">{offer.code}</p>
+                    <p className="text-[10px] text-[#041627] font-semibold">{offer.offerReference}</p>
                   </div>
                 </button>
 
                 {/* Deliveries */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/deliveries")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.DELIVERIES)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#ca8100] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#ca8100] text-[22px]">local_shipping</span>
@@ -256,33 +368,33 @@ export const ProjectsPage: React.FC = () => {
                 {/* Transport Delay */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/delays")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.TRANSPORT)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#ba1a1a] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#ba1a1a] text-[22px]">warning</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Transport Delay</h4>
-                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{transportDelay.code}</p>
+                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{transportDelay.id}</p>
                   </div>
                 </button>
 
                 {/* Issue */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/issues")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.ISSUES)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#ba1a1a] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#ba1a1a] text-[22px]">bug_report</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Construction Issue</h4>
-                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{issue.code}</p>
+                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{issue.reference}</p>
                   </div>
                 </button>
 
                 {/* Decision */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/decisions")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.DECISIONS)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#041627] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">gavel</span>
@@ -295,20 +407,20 @@ export const ProjectsPage: React.FC = () => {
                 {/* Inspection */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/inspections")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.INSPECTIONS)}
                   className="p-3 bg-[#f1f4f6] border border-[#e0e3e5] rounded-xl hover:border-[#006c49] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#006c49] text-[22px]">fact_check</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">QA Inspection</h4>
-                    <p className="text-[10px] text-[#006c49] font-semibold">{inspection.code}</p>
+                    <p className="text-[10px] text-[#006c49] font-semibold">{inspection.reference}</p>
                   </div>
                 </button>
 
                 {/* Field Mode */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/field")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.FIELD)}
                   className="p-3 bg-[#181c1e] text-white rounded-xl hover:bg-[#2d3133] text-left transition-colors flex flex-col justify-between cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[#6cf8bb] text-[22px]">smartphone</span>
@@ -321,7 +433,7 @@ export const ProjectsPage: React.FC = () => {
                 {/* Provenance Why */}
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/provenance")}
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.PROVENANCE)}
                   className="p-3 bg-[#041627] text-white rounded-xl hover:bg-[#1a2b3c] text-left transition-colors flex flex-col justify-between cursor-pointer col-span-2"
                 >
                   <div className="flex items-center justify-between">
@@ -347,8 +459,8 @@ export const ProjectsPage: React.FC = () => {
                 <span>Verified Stakeholders: 7 Personas</span>
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/people")}
-                  className="text-[#041627] font-bold hover:underline"
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.STAKEHOLDERS)}
+                  className="text-[#041627] font-bold hover:underline cursor-pointer"
                 >
                   Manage People →
                 </button>
@@ -357,8 +469,8 @@ export const ProjectsPage: React.FC = () => {
                 <span>Evidence Ledger: {evidence.code}</span>
                 <button
                   type="button"
-                  onClick={() => navigate("/dashboard/construction/history")}
-                  className="text-[#041627] font-bold hover:underline"
+                  onClick={() => navigate(CONSTRUCTION_ROUTES.HISTORY)}
+                  className="text-[#041627] font-bold hover:underline cursor-pointer"
                 >
                   View Audit History →
                 </button>

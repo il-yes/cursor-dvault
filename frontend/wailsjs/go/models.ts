@@ -4188,6 +4188,66 @@ export namespace tracecore_types {
 	}
 	
 	
+	export class ProjectOverviewDTO {
+	    id?: string;
+	    project_id?: string;
+	    code?: string;
+	    project_reference?: string;
+	    name?: string;
+	    project_name?: string;
+	    contract_id?: string;
+	    type?: string;
+	    project_type?: string;
+	    sector?: string;
+	    status?: string;
+	    location?: string;
+	    description?: string;
+	    current_phase?: string;
+	    progress_percent?: number;
+	    open_issues_count?: number;
+	    pending_decisions_count?: number;
+	    active_delay?: string;
+	    target_completion?: string;
+	    recent_activity?: string;
+	    image?: string;
+	    connected_orgs?: string[];
+	    is_authoritative?: boolean;
+	    budget_spent_percent?: number;
+	    schedule_day?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProjectOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.project_id = source["project_id"];
+	        this.code = source["code"];
+	        this.project_reference = source["project_reference"];
+	        this.name = source["name"];
+	        this.project_name = source["project_name"];
+	        this.contract_id = source["contract_id"];
+	        this.type = source["type"];
+	        this.project_type = source["project_type"];
+	        this.sector = source["sector"];
+	        this.status = source["status"];
+	        this.location = source["location"];
+	        this.description = source["description"];
+	        this.current_phase = source["current_phase"];
+	        this.progress_percent = source["progress_percent"];
+	        this.open_issues_count = source["open_issues_count"];
+	        this.pending_decisions_count = source["pending_decisions_count"];
+	        this.active_delay = source["active_delay"];
+	        this.target_completion = source["target_completion"];
+	        this.recent_activity = source["recent_activity"];
+	        this.image = source["image"];
+	        this.connected_orgs = source["connected_orgs"];
+	        this.is_authoritative = source["is_authoritative"];
+	        this.budget_spent_percent = source["budget_spent_percent"];
+	        this.schedule_day = source["schedule_day"];
+	    }
+	}
 	
 	export class ShareEntryRefDTO {
 	    share_entry_id: string;

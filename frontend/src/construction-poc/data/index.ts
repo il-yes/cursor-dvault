@@ -72,6 +72,86 @@ export async function getProjectOverview(projectId?: string): Promise<ProjectDat
   }
 }
 
+export interface ProcurementData {
+  id: string;
+  requirementId: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  code: string;
+  materialId: string;
+  materialName: string;
+  specification: string;
+  quantity: number;
+  unit: string;
+  targetPhase: string;
+  status: string;
+  requiredDate: string;
+  priority: string;
+  siteId: string;
+  siteName: string;
+  invitedSuppliersCount: number;
+  offersReceivedCount: number;
+  offerId: string;
+  offerReference: string;
+  supplierId: string;
+  supplierName: string;
+  totalPrice: string;
+  unitPrice: string;
+  promisedDeliveryDate: string;
+  offerStatus: string;
+  isVerifiedSupplier: boolean;
+}
+
+export function mapProcurementOverviewDTOToData(dto: tracecore_types.ProcurementOverviewDTO): ProcurementData {
+  const requirementId = dto.requirement_id || dto.id || dto.code || "";
+  return {
+    id: requirementId,
+    requirementId,
+    projectId: dto.project_id || "",
+    projectCode: dto.project_code || "",
+    projectName: dto.project_name || "",
+    code: dto.code || requirementId,
+    materialId: dto.material_id || "",
+    materialName: dto.material_name || "",
+    specification: dto.specification || "",
+    quantity: dto.quantity ?? 0,
+    unit: dto.unit || "",
+    targetPhase: dto.target_phase || "",
+    status: dto.status || "",
+    requiredDate: dto.required_date || "",
+    priority: dto.priority || "",
+    siteId: dto.site_id || "",
+    siteName: dto.site_name || "",
+    invitedSuppliersCount: dto.invited_suppliers_count ?? 0,
+    offersReceivedCount: dto.offers_received_count ?? 0,
+    offerId: dto.offer_id || "",
+    offerReference: dto.offer_reference || "",
+    supplierId: dto.supplier_id || "",
+    supplierName: dto.supplier_name || "",
+    totalPrice: dto.total_price || "",
+    unitPrice: dto.unit_price || "",
+    promisedDeliveryDate: dto.promised_delivery_date || "",
+    offerStatus: dto.offer_status || "",
+    isVerifiedSupplier: Boolean(dto.is_verified_supplier),
+  };
+}
+
+export async function getProcurementOverview(requirementId?: string): Promise<ProcurementData | undefined> {
+  if (!requirementId) return undefined;
+
+  const jwtToken = useAuthStore.getState().jwtToken || "";
+
+  try {
+    const dto = await AppAPI.GetProcurementOverview(jwtToken, requirementId);
+    if (!dto) return undefined;
+    return mapProcurementOverviewDTOToData(dto);
+  } catch (err) {
+    console.error(`[AppAPI] GetProcurementOverview failed for requirementId=${requirementId}:`, err);
+    throw err;
+  }
+}
+
 export function getActivityFeed(): ActivityItem[] {
   return MOCK_ACTIVITY_LOG;
 }

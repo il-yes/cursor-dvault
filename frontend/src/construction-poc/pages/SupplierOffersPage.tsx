@@ -1,21 +1,86 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import { getProcurementOverview, ProcurementData } from "../data";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 
 export const SupplierOffersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { offer, supplier, requirement, project } = SCENARIO_DATA;
+  const [data, setData] = useState<ProcurementData | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+
+    getProcurementOverview("REQ-STRUCT-001")
+      .then((res) => {
+        if (isMounted) {
+          setData(res);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error("Failed to load procurement overview:", err);
+          setError(err?.message || "Failed to load procurement overview");
+          setData(undefined);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col w-full min-h-[50vh] items-center justify-center p-6 text-center">
+        <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-sm font-semibold text-[#44474c]">Loading supplier offer overview from Cloud...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col w-full max-w-md mx-auto my-12 p-6 bg-white border border-[#e0e3e5] rounded-xl text-center shadow-sm font-[Inter]">
+        <div className="w-12 h-12 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-3">
+          <span className="material-symbols-outlined text-[28px]">error</span>
+        </div>
+        <h2 className="text-lg font-bold text-[#041627] mb-1">Procurement API Error</h2>
+        <p className="text-xs text-[#44474c] mb-4">{error || "Supplier offer data unavailable"}</p>
+        <button
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+          className="px-4 py-2 bg-[#041627] text-white text-xs font-semibold rounded-lg hover:bg-[#1a2b3c] transition-colors"
+        >
+          ← Return to Projects
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6">
+    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 font-[Inter]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
-        <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
-          {project.code}
+        <button
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+          className="hover:underline font-medium text-[#041627]"
+        >
+          {data.projectCode || "PRJ-001"}
         </button>
         <span>/</span>
-        <button onClick={() => navigate("/dashboard/construction/requirements")} className="hover:underline">
-          {requirement.code}
+        <button
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.REQUIREMENTS)}
+          className="hover:underline font-medium text-[#041627]"
+        >
+          {data.code}
         </button>
         <span>/</span>
         <span className="font-semibold text-[#041627]">Supplier Offer</span>
@@ -23,11 +88,11 @@ export const SupplierOffersPage: React.FC = () => {
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#181c1e]">Supplier Offer {offer.offerReference}</h1>
-          <p className="text-sm text-[#44474c]">Issued by {supplier.name} for Requirement {requirement.code}</p>
+          <h1 className="text-2xl font-bold text-[#181c1e]">Supplier Offer {data.offerReference}</h1>
+          <p className="text-sm text-[#44474c]">Issued by {data.supplierName} for Requirement {data.code}</p>
         </div>
         <span className="px-3 py-1 bg-[#6cf8bb]/20 text-[#00714d] rounded-full text-xs font-semibold">
-          {offer.status}
+          {data.offerStatus || "ACCEPTED"}
         </span>
       </div>
 
@@ -36,30 +101,33 @@ export const SupplierOffersPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="p-4 bg-[#f7fafc] rounded-lg border border-[#e0e3e5]">
             <span className="text-xs text-[#44474c] block mb-1">Total Contract Price</span>
-            <span className="text-2xl font-bold text-[#181c1e]">{offer.totalPrice}</span>
-            <span className="text-xs text-[#44474c] block mt-1">{offer.unitPrice}</span>
+            <span className="text-2xl font-bold text-[#181c1e]">{data.totalPrice}</span>
+            <span className="text-xs text-[#44474c] block mt-1">{data.unitPrice}</span>
           </div>
 
           <div className="p-4 bg-[#f7fafc] rounded-lg border border-[#e0e3e5]">
             <span className="text-xs text-[#44474c] block mb-1">Promised Delivery Date</span>
-            <span className="text-2xl font-bold text-[#181c1e]">{offer.promisedDeliveryDate}</span>
+            <span className="text-2xl font-bold text-[#181c1e]">{data.promisedDeliveryDate}</span>
             <span className="text-xs text-[#006c49] font-medium block mt-1">Guaranteed SLA</span>
           </div>
 
           <div className="p-4 bg-[#f7fafc] rounded-lg border border-[#e0e3e5]">
             <span className="text-xs text-[#44474c] block mb-1">Supplier Trust ID</span>
-            <span className="text-2xl font-bold text-[#041627]">{supplier.id}</span>
-            <span className="text-xs text-[#006c49] font-medium block mt-1">Verified Supplier</span>
+            <span className="text-2xl font-bold text-[#041627]">{data.supplierId || "SUP-001"}</span>
+            <span className="text-xs text-[#006c49] font-medium block mt-1">
+              {data.isVerifiedSupplier ? "Verified Supplier" : "Registered Supplier"}
+            </span>
           </div>
         </div>
 
         <div className="pt-4 border-t border-[#f0f3f5] flex items-center justify-between">
           <div className="text-xs text-[#44474c]">
-            Linked Requirement: <span className="font-semibold text-[#181c1e]">{requirement.materialName} ({requirement.quantity} {requirement.unit})</span>
+            Linked Requirement: <span className="font-semibold text-[#181c1e]">{data.materialName} ({data.quantity} {data.unit})</span>
           </div>
           <button
-            onClick={() => navigate("/dashboard/construction/deliveries")}
-            className="px-4 py-2 bg-[#041627] text-white font-semibold text-sm rounded-lg hover:bg-[#041627]/90 transition-colors"
+            type="button"
+            onClick={() => navigate(CONSTRUCTION_ROUTES.DELIVERIES)}
+            className="px-4 py-2 bg-[#041627] text-white font-semibold text-sm rounded-lg hover:bg-[#041627]/90 transition-colors cursor-pointer"
           >
             View Active Delivery (DEL-1042) →
           </button>
@@ -70,3 +138,4 @@ export const SupplierOffersPage: React.FC = () => {
 };
 
 export default SupplierOffersPage;
+

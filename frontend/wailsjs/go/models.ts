@@ -4188,6 +4188,72 @@ export namespace tracecore_types {
 	}
 	
 	
+	export class ProcurementOverviewDTO {
+	    id?: string;
+	    requirement_id?: string;
+	    project_id?: string;
+	    project_code?: string;
+	    project_name?: string;
+	    code?: string;
+	    material_id?: string;
+	    material_name?: string;
+	    specification?: string;
+	    quantity?: number;
+	    unit?: string;
+	    target_phase?: string;
+	    status?: string;
+	    required_date?: string;
+	    priority?: string;
+	    site_id?: string;
+	    site_name?: string;
+	    invited_suppliers_count?: number;
+	    offers_received_count?: number;
+	    offer_id?: string;
+	    offer_reference?: string;
+	    supplier_id?: string;
+	    supplier_name?: string;
+	    total_price?: string;
+	    unit_price?: string;
+	    promised_delivery_date?: string;
+	    offer_status?: string;
+	    is_verified_supplier?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProcurementOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.requirement_id = source["requirement_id"];
+	        this.project_id = source["project_id"];
+	        this.project_code = source["project_code"];
+	        this.project_name = source["project_name"];
+	        this.code = source["code"];
+	        this.material_id = source["material_id"];
+	        this.material_name = source["material_name"];
+	        this.specification = source["specification"];
+	        this.quantity = source["quantity"];
+	        this.unit = source["unit"];
+	        this.target_phase = source["target_phase"];
+	        this.status = source["status"];
+	        this.required_date = source["required_date"];
+	        this.priority = source["priority"];
+	        this.site_id = source["site_id"];
+	        this.site_name = source["site_name"];
+	        this.invited_suppliers_count = source["invited_suppliers_count"];
+	        this.offers_received_count = source["offers_received_count"];
+	        this.offer_id = source["offer_id"];
+	        this.offer_reference = source["offer_reference"];
+	        this.supplier_id = source["supplier_id"];
+	        this.supplier_name = source["supplier_name"];
+	        this.total_price = source["total_price"];
+	        this.unit_price = source["unit_price"];
+	        this.promised_delivery_date = source["promised_delivery_date"];
+	        this.offer_status = source["offer_status"];
+	        this.is_verified_supplier = source["is_verified_supplier"];
+	    }
+	}
 	export class ProjectOverviewDTO {
 	    id?: string;
 	    project_id?: string;

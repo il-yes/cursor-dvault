@@ -160,6 +160,8 @@ export function GetPacks(arg1:string):Promise<app_config_worker.PackDTO>;
 
 export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;
 
+export function GetProcurementOverview(arg1:string,arg2:string):Promise<tracecore_types.ProcurementOverviewDTO>;
+
 export function GetProjectOverview(arg1:string,arg2:string):Promise<tracecore_types.ProjectOverviewDTO>;
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;

@@ -3579,6 +3579,23 @@ func (a *App) GetProjectOverview(JwtToken string, projectID string) (*tracecore_
 	return a.tracecoreClient.GetProjectOverview(a.ctx, projectID)
 }
 
+// GetProcurementOverview fetches the construction procurement/requirement read model from Cloud
+// via GET /api/construction/requirements/{id}.
+func (a *App) GetProcurementOverview(JwtToken string, requirementID string) (*tracecore_types.ProcurementOverviewDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	return a.tracecoreClient.GetProcurementOverview(a.ctx, requirementID)
+}
+
+
 
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no

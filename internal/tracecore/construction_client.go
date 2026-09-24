@@ -99,3 +99,77 @@ func normalizeProjectOverview(dto tracecore_types.ProjectOverviewDTO) tracecore_
 	}
 	return dto
 }
+
+// GetProcurementOverview fetches the construction procurement/requirement read model from Cloud
+// via GET /api/construction/requirements/{id} or /api/construction/procurement/{id}.
+func (c *TracecoreClient) GetProcurementOverview(ctx context.Context, requirementID string) (*tracecore_types.ProcurementOverviewDTO, error) {
+	if requirementID == "" {
+		return nil, errors.New("requirementID is required")
+	}
+
+	baseUrl := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if baseUrl == "" {
+		baseUrl = strings.TrimRight(c.BaseURL, "/")
+	}
+
+	cleanPath := "/construction/requirements/" + requirementID
+	if !strings.HasSuffix(baseUrl, "/api") {
+		cleanPath = "/api" + cleanPath
+	}
+
+	targetURL := baseUrl + cleanPath
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body failed: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	// 1. Try CloudResponse envelope: { "status": 200, "data": { ... } }
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.ProcurementOverviewDTO]
+	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && (cloudResp.Data.ID != "" || cloudResp.Data.RequirementID != "" || cloudResp.Data.Code != "") {
+		dto := normalizeProcurementOverview(cloudResp.Data)
+		return &dto, nil
+	}
+
+	// 2. Try bare ProcurementOverviewDTO object
+	var dto tracecore_types.ProcurementOverviewDTO
+	if errDTO := json.Unmarshal(respBytes, &dto); errDTO == nil && (dto.ID != "" || dto.RequirementID != "" || dto.Code != "") {
+		dto = normalizeProcurementOverview(dto)
+		return &dto, nil
+	}
+
+	return nil, fmt.Errorf("TracecoreClient - GetProcurementOverview - unexpected Cloud response shape: %s", string(respBytes))
+}
+
+func normalizeProcurementOverview(dto tracecore_types.ProcurementOverviewDTO) tracecore_types.ProcurementOverviewDTO {
+	if dto.ID == "" && dto.RequirementID != "" {
+		dto.ID = dto.RequirementID
+	}
+	if dto.RequirementID == "" && dto.ID != "" {
+		dto.RequirementID = dto.ID
+	}
+	if dto.Code == "" && dto.RequirementID != "" {
+		dto.Code = dto.RequirementID
+	}
+	return dto
+}
+

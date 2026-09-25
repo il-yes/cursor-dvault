@@ -254,6 +254,10 @@ export function GetIPFSFile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetIPFSFile'](arg1, arg2, arg3, arg4);
 }
 
+export function GetLogisticsOverview(arg1, arg2) {
+  return window['go']['main']['App']['GetLogisticsOverview'](arg1, arg2);
+}
+
 export function GetPacks(arg1) {
   return window['go']['main']['App']['GetPacks'](arg1);
 }

@@ -173,3 +173,74 @@ func normalizeProcurementOverview(dto tracecore_types.ProcurementOverviewDTO) tr
 	return dto
 }
 
+// GetLogisticsOverview fetches the construction logistics/delivery read model from Cloud
+// via GET /api/construction/deliveries/{id}/overview.
+func (c *TracecoreClient) GetLogisticsOverview(ctx context.Context, deliveryID string) (*tracecore_types.LogisticsOverviewDTO, error) {
+	if deliveryID == "" {
+		return nil, errors.New("deliveryID is required")
+	}
+
+	baseUrl := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if baseUrl == "" {
+		baseUrl = strings.TrimRight(c.BaseURL, "/")
+	}
+
+	cleanPath := "/construction/deliveries/" + deliveryID + "/overview"
+	if !strings.HasSuffix(baseUrl, "/api") {
+		cleanPath = "/api" + cleanPath
+	}
+
+	targetURL := baseUrl + cleanPath
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body failed: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	// 1. Try CloudResponse envelope: { "status": 200, "data": { ... } }
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.LogisticsOverviewDTO]
+	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && (cloudResp.Data.Delivery.ID != "" || cloudResp.Data.Delivery.Reference != "") {
+		dto := normalizeLogisticsOverview(cloudResp.Data)
+		return &dto, nil
+	}
+
+	// 2. Try bare LogisticsOverviewDTO object
+	var dto tracecore_types.LogisticsOverviewDTO
+	if errDTO := json.Unmarshal(respBytes, &dto); errDTO == nil && (dto.Delivery.ID != "" || dto.Delivery.Reference != "") {
+		dto = normalizeLogisticsOverview(dto)
+		return &dto, nil
+	}
+
+	return nil, fmt.Errorf("TracecoreClient - GetLogisticsOverview - unexpected Cloud response shape: %s", string(respBytes))
+}
+
+func normalizeLogisticsOverview(dto tracecore_types.LogisticsOverviewDTO) tracecore_types.LogisticsOverviewDTO {
+	if dto.Delivery.ID == "" && dto.Delivery.Reference != "" {
+		dto.Delivery.ID = dto.Delivery.Reference
+	}
+	if dto.Delivery.Reference == "" && dto.Delivery.ID != "" {
+		dto.Delivery.Reference = dto.Delivery.ID
+	}
+	return dto
+}
+
+

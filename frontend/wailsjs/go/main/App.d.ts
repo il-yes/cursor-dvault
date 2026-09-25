@@ -156,6 +156,8 @@ export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_
 
 export function GetIPFSFile(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
+export function GetLogisticsOverview(arg1:string,arg2:string):Promise<tracecore_types.LogisticsOverviewDTO>;
+
 export function GetPacks(arg1:string):Promise<app_config_worker.PackDTO>;
 
 export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;

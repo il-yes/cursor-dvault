@@ -1,21 +1,85 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { getLogisticsOverview, LogisticsOverviewData } from "../data";
+import { CONSTRUCTION_ROUTES } from "../constants/routes";
 
 export const TransportDelayPage: React.FC = () => {
   const navigate = useNavigate();
-  const { transport, delivery, project, issue } = SCENARIO_DATA;
+  const { deliveryId } = useParams<{ deliveryId?: string }>();
+  const [data, setData] = useState<LogisticsOverviewData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const targetDeliveryId = deliveryId || "DEL-1042";
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+
+    getLogisticsOverview(targetDeliveryId)
+      .then((res) => {
+        if (isMounted) {
+          if (res) {
+            setData(res);
+          } else {
+            setError("Transport logistics overview unavailable");
+          }
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.error(`Failed to load transport delay for ${targetDeliveryId}:`, err);
+          setError(err?.message || "Failed to load transport delay");
+          setLoading(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [targetDeliveryId]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col w-full min-h-[50vh] items-center justify-center p-6 text-center font-[Inter]">
+        <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-sm font-semibold text-[#44474c]">Loading transport delay overview from Cloud...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col w-full max-w-md mx-auto my-12 p-6 bg-white border border-[#e0e3e5] rounded-xl text-center shadow-sm font-[Inter]">
+        <div className="w-12 h-12 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-3">
+          <span className="material-symbols-outlined text-[28px]">error</span>
+        </div>
+        <h2 className="text-lg font-bold text-[#041627] mb-1">Transport API Error</h2>
+        <p className="text-xs text-[#44474c] mb-4">{error || "Transport delay overview data unavailable"}</p>
+        <button
+          type="button"
+          onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)}
+          className="px-4 py-2 bg-[#041627] text-white text-xs font-semibold rounded-lg hover:bg-[#1a2b3c] transition-colors cursor-pointer"
+        >
+          ← Return to Projects
+        </button>
+      </div>
+    );
+  }
+
+  const { transport, delivery, project, issue } = data;
 
   return (
-    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6">
+    <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 font-[Inter]">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
-        <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
-          {project.code}
+        <button onClick={() => navigate(CONSTRUCTION_ROUTES.PROJECTS)} className="hover:underline font-medium text-[#041627] cursor-pointer">
+          {project.code || project.id}
         </button>
         <span>/</span>
-        <button onClick={() => navigate("/dashboard/construction/deliveries")} className="hover:underline">
-          {delivery.reference}
+        <button onClick={() => navigate(CONSTRUCTION_ROUTES.DELIVERY_DETAIL)} className="hover:underline font-medium text-[#041627] cursor-pointer">
+          {delivery.reference || delivery.id}
         </button>
         <span>/</span>
         <span className="font-semibold text-[#041627]">Transport &amp; Delay</span>
@@ -24,7 +88,7 @@ export const TransportDelayPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#181c1e]">Transport Operation {transport.id}</h1>
+          <h1 className="text-2xl font-bold text-[#181c1e]">Transport Operation {transport.reference || transport.id}</h1>
           <p className="text-sm text-[#44474c]">Vehicle: {transport.vehicle} • Driver: {transport.driver}</p>
         </div>
         <span className="px-3 py-1 bg-[#ffb74d]/20 text-[#b76e00] rounded-full text-xs font-semibold uppercase">
@@ -83,23 +147,25 @@ export const TransportDelayPage: React.FC = () => {
 
             <div className="p-4 bg-[#fff3e0] border border-[#ffe0b2] rounded-lg">
               <span className="text-xs text-[#b76e00] font-bold block mb-1">Delay Constraint &amp; Reason</span>
-              <p className="text-xs text-[#181c1e] font-semibold">{transport.delayReason}</p>
-              <p className="text-xs text-[#44474c] mt-1">{transport.constraints}</p>
+              <p className="text-xs text-[#181c1e] font-semibold">{transport.delayReason || "Road Restriction on route"}</p>
+              <p className="text-xs text-[#44474c] mt-1">{Array.isArray(transport.constraints) ? transport.constraints.join(", ") : transport.constraints}</p>
             </div>
           </div>
         </div>
 
-        <div className="pt-4 border-t border-[#f0f3f5] flex items-center justify-between">
-          <span className="text-xs text-[#44474c]">
-            Linked Issue: <span className="font-semibold text-[#181c1e]">{issue.reference} ({issue.title})</span>
-          </span>
-          <button
-            onClick={() => navigate("/dashboard/construction/issues")}
-            className="px-4 py-2 bg-[#d32f2f] text-white font-semibold text-sm rounded-lg hover:bg-[#d32f2f]/90 transition-colors"
-          >
-            View Issue &amp; Evidence ({issue.reference}) →
-          </button>
-        </div>
+        {issue && (
+          <div className="pt-4 border-t border-[#f0f3f5] flex items-center justify-between">
+            <span className="text-xs text-[#44474c]">
+              Linked Issue: <span className="font-semibold text-[#181c1e]">{issue.reference || issue.id} ({issue.title})</span>
+            </span>
+            <button
+              onClick={() => navigate(CONSTRUCTION_ROUTES.ISSUES)}
+              className="px-4 py-2 bg-[#d32f2f] text-white font-semibold text-sm rounded-lg hover:bg-[#d32f2f]/90 transition-colors cursor-pointer"
+            >
+              View Issue &amp; Evidence ({issue.reference || issue.id}) →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

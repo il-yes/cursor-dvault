@@ -4127,7 +4127,71 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class DecisionOverviewDTO {
+	    id?: string;
+	    reference?: string;
+	    subject?: string;
+	    context?: string;
+	    technical_assessment?: string;
+	    risks_identified?: string[];
+	    participants_consulted?: string[];
+	    options_considered?: string[];
+	    decision?: string;
+	    decided_by?: string;
+	    decision_date?: string;
+	    consequence?: string;
+	    status?: string;
 	
+	    static createFrom(source: any = {}) {
+	        return new DecisionOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.subject = source["subject"];
+	        this.context = source["context"];
+	        this.technical_assessment = source["technical_assessment"];
+	        this.risks_identified = source["risks_identified"];
+	        this.participants_consulted = source["participants_consulted"];
+	        this.options_considered = source["options_considered"];
+	        this.decision = source["decision"];
+	        this.decided_by = source["decided_by"];
+	        this.decision_date = source["decision_date"];
+	        this.consequence = source["consequence"];
+	        this.status = source["status"];
+	    }
+	}
+	
+	export class DeliveryOverviewDTO {
+	    id?: string;
+	    reference?: string;
+	    status?: string;
+	    planned_delivery_date?: string;
+	    eta?: string;
+	    actual_delivery_date?: string;
+	    quantity?: number;
+	    unit?: string;
+	    delivery_notes?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeliveryOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.status = source["status"];
+	        this.planned_delivery_date = source["planned_delivery_date"];
+	        this.eta = source["eta"];
+	        this.actual_delivery_date = source["actual_delivery_date"];
+	        this.quantity = source["quantity"];
+	        this.unit = source["unit"];
+	        this.delivery_notes = source["delivery_notes"];
+	    }
+	}
 	export class RemoteVaultDTO {
 	    id: string;
 	    endpoint: string;
@@ -4186,6 +4250,258 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class InspectionOverviewDTO {
+	    id?: string;
+	    reference?: string;
+	    type?: string;
+	    inspector?: string;
+	    inspection_date?: string;
+	    status?: string;
+	    result?: string;
+	    criteria?: string[];
+	    findings?: string[];
+	    notes?: string;
+	    evidence_references?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new InspectionOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.type = source["type"];
+	        this.inspector = source["inspector"];
+	        this.inspection_date = source["inspection_date"];
+	        this.status = source["status"];
+	        this.result = source["result"];
+	        this.criteria = source["criteria"];
+	        this.findings = source["findings"];
+	        this.notes = source["notes"];
+	        this.evidence_references = source["evidence_references"];
+	    }
+	}
+	export class IssueOverviewDTO {
+	    id?: string;
+	    reference?: string;
+	    title?: string;
+	    description?: string;
+	    severity?: string;
+	    status?: string;
+	    reported_by?: string;
+	    reported_at?: string;
+	    impact?: string;
+	    evidence_references?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new IssueOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.severity = source["severity"];
+	        this.status = source["status"];
+	        this.reported_by = source["reported_by"];
+	        this.reported_at = source["reported_at"];
+	        this.impact = source["impact"];
+	        this.evidence_references = source["evidence_references"];
+	    }
+	}
+	export class TransportOverviewDTO {
+	    id?: string;
+	    reference?: string;
+	    vehicle?: string;
+	    driver?: string;
+	    status?: string;
+	    origin?: string;
+	    destination?: string;
+	    route?: string;
+	    planned_departure?: string;
+	    actual_departure?: string;
+	    planned_arrival?: string;
+	    eta?: string;
+	    actual_arrival?: string;
+	    constraints?: string[];
+	    delay_reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TransportOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.vehicle = source["vehicle"];
+	        this.driver = source["driver"];
+	        this.status = source["status"];
+	        this.origin = source["origin"];
+	        this.destination = source["destination"];
+	        this.route = source["route"];
+	        this.planned_departure = source["planned_departure"];
+	        this.actual_departure = source["actual_departure"];
+	        this.planned_arrival = source["planned_arrival"];
+	        this.eta = source["eta"];
+	        this.actual_arrival = source["actual_arrival"];
+	        this.constraints = source["constraints"];
+	        this.delay_reason = source["delay_reason"];
+	    }
+	}
+	export class SiteReferenceDTO {
+	    id?: string;
+	    name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SiteReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class OfferReferenceDTO {
+	    id?: string;
+	    reference?: string;
+	    total_price?: string;
+	    unit_price?: string;
+	    promised_delivery_date?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OfferReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.reference = source["reference"];
+	        this.total_price = source["total_price"];
+	        this.unit_price = source["unit_price"];
+	        this.promised_delivery_date = source["promised_delivery_date"];
+	    }
+	}
+	export class SupplierReferenceDTO {
+	    id?: string;
+	    name?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SupplierReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class MaterialReferenceDTO {
+	    id?: string;
+	    name?: string;
+	    specification?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MaterialReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.specification = source["specification"];
+	    }
+	}
+	export class RequirementReferenceDTO {
+	    id?: string;
+	    code?: string;
+	    target_phase?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RequirementReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.code = source["code"];
+	        this.target_phase = source["target_phase"];
+	    }
+	}
+	export class ProjectReferenceDTO {
+	    id?: string;
+	    code?: string;
+	    name?: string;
+	    type?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProjectReferenceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	    }
+	}
+	export class LogisticsOverviewDTO {
+	    delivery: DeliveryOverviewDTO;
+	    project: ProjectReferenceDTO;
+	    requirement: RequirementReferenceDTO;
+	    material: MaterialReferenceDTO;
+	    supplier: SupplierReferenceDTO;
+	    offer: OfferReferenceDTO;
+	    site: SiteReferenceDTO;
+	    transport: TransportOverviewDTO;
+	    issue?: IssueOverviewDTO;
+	    decision?: DecisionOverviewDTO;
+	    inspection?: InspectionOverviewDTO;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogisticsOverviewDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.delivery = this.convertValues(source["delivery"], DeliveryOverviewDTO);
+	        this.project = this.convertValues(source["project"], ProjectReferenceDTO);
+	        this.requirement = this.convertValues(source["requirement"], RequirementReferenceDTO);
+	        this.material = this.convertValues(source["material"], MaterialReferenceDTO);
+	        this.supplier = this.convertValues(source["supplier"], SupplierReferenceDTO);
+	        this.offer = this.convertValues(source["offer"], OfferReferenceDTO);
+	        this.site = this.convertValues(source["site"], SiteReferenceDTO);
+	        this.transport = this.convertValues(source["transport"], TransportOverviewDTO);
+	        this.issue = this.convertValues(source["issue"], IssueOverviewDTO);
+	        this.decision = this.convertValues(source["decision"], DecisionOverviewDTO);
+	        this.inspection = this.convertValues(source["inspection"], InspectionOverviewDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
 	
 	
 	export class ProcurementOverviewDTO {
@@ -4315,6 +4631,8 @@ export namespace tracecore_types {
 	    }
 	}
 	
+	
+	
 	export class ShareEntryRefDTO {
 	    share_entry_id: string;
 	    trust_group_id?: string;
@@ -4337,6 +4655,8 @@ export namespace tracecore_types {
 	        this.created_at = source["created_at"];
 	    }
 	}
+	
+	
 	
 	export class ThreadDTO {
 	    id: string;
@@ -4432,6 +4752,7 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	
 	export class User {
 	    id: number;
 	    first_name: string;

@@ -2828,3 +2828,9 @@ curl -X POST http://localhost:4001/api/templates -H "Content-Type: application/j
     "updated_at": "timestamp"
   }
 }'
+
+
+
+ProjectsPage ✅ Cloud-backed ✅ authoritative ✅ AppAPI boundary MaterialRequirement 🟡 presentation-backed SupplierOffers 🟡 presentation-backed DeliveryDetail 🟡 presentation-backed TransportDelay 🟡 presentation-backed ConstructionIssue 🟡 presentation-backed Decision 🟡 presentation-backed Inspection 🟡 presentation-backed Stakeholders 🟡 existing C3 capability, needs field-level verification Documents 🟡 existing Vault/C3 capability, needs field-level verification ProjectHistory 🟡 TraceCore capability, needs application/API boundary ProvenanceWhy 🟡 cross-context read model 
+
+

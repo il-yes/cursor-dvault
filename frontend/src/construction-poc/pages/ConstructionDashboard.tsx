@@ -1,15 +1,22 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getActivityFeed, getProjects, getIssue, getDelivery } from "../data";
+import { getActivityFeed, getProjects, ProjectData, getIssue, getDelivery } from "../data";
 import { CONSTRUCTION_ROUTES } from "../constants/routes";
 
 export const ConstructionDashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const activityLog = getActivityFeed();
-  const projects = getProjects();
   const issue = getIssue();
   const delivery = getDelivery();
+
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+
+  useEffect(() => {
+    getProjects()
+      .then(setProjects)
+      .catch((err) => console.error("Dashboard failed to load projects:", err));
+  }, []);
 
   return (
     <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 gap-6 font-[Inter]">

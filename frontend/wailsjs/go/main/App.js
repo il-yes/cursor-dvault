@@ -354,6 +354,10 @@ export function ListChannels(arg1, arg2) {
   return window['go']['main']['App']['ListChannels'](arg1, arg2);
 }
 
+export function ListConstructionProjects(arg1, arg2) {
+  return window['go']['main']['App']['ListConstructionProjects'](arg1, arg2);
+}
+
 export function ListLinkSharesByMe(arg1) {
   return window['go']['main']['App']['ListLinkSharesByMe'](arg1);
 }

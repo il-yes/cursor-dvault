@@ -5,8 +5,8 @@ import { CONSTRUCTION_ROUTES } from "./constants/routes";
 import { ConstructionHeader } from "./components/ConstructionHeader";
 import { BottomNavigation } from "./components/BottomNavigation";
 import { ConstructionDashboard } from "./pages/ConstructionDashboard";
-import { ProjectsListPage } from "./pages/ProjectsListPage";
-import { ProjectsPage } from "./pages/ProjectsPage";
+import { ProjectListingPage } from "./pages/ProjectListingPage";
+import { ProjectPage } from "./pages/ProjectPage";
 import { StakeholdersPage } from "./pages/StakeholdersPage";
 import { MaterialRequirementPage } from "./pages/MaterialRequirementPage";
 import { SupplierOffersPage } from "./pages/SupplierOffersPage";
@@ -42,8 +42,8 @@ export const ConstructionAppInner: React.FC = () => {
           <Route path="/" element={<ConstructionDashboard />} />
 
           {/* Projects Collection List & Project Detail Hierarchy */}
-          <Route path="/projects" element={<ProjectsListPage />} />
-          <Route path="/projects/:projectId" element={<ProjectsPage />} />
+          <Route path="/projects" element={<ProjectListingPage />} />
+          <Route path="/projects/:projectId" element={<ProjectPage />} />
 
           {/* Channels & Threads Collaboration Surface */}
           <Route path="/channels" element={<ProjectChannelsPage />} />

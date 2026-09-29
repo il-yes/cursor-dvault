@@ -3,6 +3,7 @@ import { MOCK_ACTIVITY_LOG, ActivityItem } from "./scenario.mock";
 import { SCENARIO_DATA } from "./constructionScenarioAdapter";
 import * as AppAPI from "../../../wailsjs/go/main/App";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useVaultStore } from "@/store/vaultStore";
 import { tracecore_types } from "../../../wailsjs/go/models";
 
 export * from "./constructionScenarioAdapter";
@@ -16,14 +17,32 @@ export * from "./scenario.mock";
  * and Go backend endpoints without changing UI presentation components.
  */
 
-export function getProjects(): ProjectData[] {
+export function getMockProjects(): ProjectData[] {
   return MOCK_PROJECTS;
+}
+
+export async function getProjects(): Promise<ProjectData[]> {
+  const jwtToken = useAuthStore.getState().jwtToken || "";
+  const vaultId = useVaultStore.getState().vault?.vault_runtime_context?.VaultID || "";
+  try {
+    const dtos = await AppAPI.ListConstructionProjects(jwtToken, vaultId);
+    console.log("[BOUNDARY 4][AppAPI.ListConstructionProjects] raw dtos:", dtos, "isArray:", Array.isArray(dtos), "count:", Array.isArray(dtos) ? dtos.length : 0);
+    if (!dtos || !Array.isArray(dtos)) return [];
+    const mapped = dtos.map(mapProjectOverviewDTOToProjectData);
+    console.log("[BOUNDARY 5][getProjects mapper] mapped count:", mapped.length);
+    return mapped;
+  } catch (err) {
+    console.error("[AppAPI] ListConstructionProjects failed:", err);
+    throw err;
+  }
 }
 
 export function mapProjectOverviewDTOToProjectData(dto: tracecore_types.ProjectOverviewDTO): ProjectData {
   const id = dto.id || dto.project_id || "";
   const code = dto.code || dto.project_reference || id;
   const name = dto.name || dto.project_name || "";
+  const rawLoc = dto.location as any;
+  const locStr = typeof rawLoc === "string" ? rawLoc : (rawLoc?.city || rawLoc?.address || "");
 
   return {
     id,
@@ -33,15 +52,15 @@ export function mapProjectOverviewDTOToProjectData(dto: tracecore_types.ProjectO
     type: dto.type || dto.project_type || "",
     sector: dto.sector || "",
     status: dto.status || "",
-    location: dto.location || "",
+    location: locStr,
     description: dto.description || "",
     currentPhase: dto.current_phase || "",
-    progressPercent: dto.progress_percent ?? 0,
+    progressPercent: dto.progress_percent ?? (dto as any).progress_percentage ?? 0,
     openIssuesCount: dto.open_issues_count ?? 0,
     pendingDecisionsCount: dto.pending_decisions_count ?? 0,
     activeDelay: dto.active_delay || undefined,
     targetCompletion: dto.target_completion || "",
-    recentActivity: dto.recent_activity || "",
+    recentActivity: dto.recent_activity || (dto as any).status_summary || "",
     image: dto.image || "",
     connectedOrgs: dto.connected_orgs || [],
     isAuthoritative: Boolean(dto.is_authoritative),

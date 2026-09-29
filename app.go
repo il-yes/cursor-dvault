@@ -3563,6 +3563,34 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	return res, err
 }
 
+// ListConstructionProjects fetches all construction project overview read models from Cloud
+// via GET /api/construction/projects.
+func (a *App) ListConstructionProjects(JwtToken string, vaultId string) ([]tracecore_types.ProjectOverviewDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	targetVaultID := vaultId
+	if targetVaultID == "" {
+		targetVaultID = a.resolveVaultID(claims.UserID, claims.Email)
+	}
+
+	projects, err := a.tracecoreClient.ListConstructionProjects(a.ctx, targetVaultID)
+	if err != nil {
+		fmt.Printf("[BOUNDARY 1][App.ListConstructionProjects] error: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("[BOUNDARY 1][App.ListConstructionProjects] targetVaultID=%s count=%d\n", targetVaultID, len(projects))
+	return projects, nil
+}
+
 // GetProjectOverview fetches the construction project overview read model from Cloud
 // via GET /api/construction/projects/{id}.
 func (a *App) GetProjectOverview(JwtToken string, projectID string) (*tracecore_types.ProjectOverviewDTO, error) {

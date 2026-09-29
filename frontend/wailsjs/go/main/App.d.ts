@@ -206,6 +206,8 @@ export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<no
 
 export function ListChannels(arg1:string,arg2:string):Promise<Array<tracecore_types.ChannelDTO>>;
 
+export function ListConstructionProjects(arg1:string,arg2:string):Promise<Array<tracecore_types.ProjectOverviewDTO>>;
+
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 
 export function ListLinkSharesWithMe(arg1:string):Promise<any>;

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getProjectOverview, ProjectData, getRequirement, getSupplierOffer, getDelivery, getTransportDelay, getIssue, getDecision, getInspection, getEvidenceDocument } from "../data";
+import { getProject, ProjectData, getRequirement, getSupplierOffer, getDelivery, getTransportDelay, getIssue, getDecision, getInspection, getEvidenceDocument } from "../data";
 import { CONSTRUCTION_ROUTES } from "../constants/routes";
 import { useRoleContext } from "../hooks/useRoleContext";
 import { CreateProjectModal } from "../components/CreateProjectModal";
 
-export const ProjectsPage: React.FC = () => {
+export const ProjectPage: React.FC = () => {
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const { activeRole, roleConfig } = useRoleContext();
@@ -17,35 +17,22 @@ export const ProjectsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
     if (!projectId) {
-      setLoading(false);
       setProject(undefined);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const result = getProject(projectId);
 
-    getProjectOverview(projectId)
-      .then((data) => {
-        if (isMounted) {
-          setProject(data);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) {
-          console.error("Failed to load project overview:", err);
-          setError(err?.message || "Failed to load project overview");
-          setProject(undefined);
-          setLoading(false);
-        }
-      });
+    setProject(result);
+    setLoading(false);
 
-    return () => {
-      isMounted = false;
-    };
+    if (!result) {
+      setError(`Project ${projectId} not found`);
+    } else {
+      setError(null);
+    }
   }, [projectId]);
 
   const requirement = getRequirement();
@@ -255,28 +242,25 @@ export const ProjectsPage: React.FC = () => {
                   </div>
 
                   <div
-                    className={`flex-1 p-4 rounded-xl border transition-all ${
-                      item.active
+                    className={`flex-1 p-4 rounded-xl border transition-all ${item.active
                         ? "bg-[#041627] text-white border-[#041627] shadow-md"
                         : "bg-[#f7fafc] border-[#e0e3e5] text-[#181c1e]"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span
-                        className={`text-[11px] font-semibold tracking-wider ${
-                          item.active ? "text-[#b7c8de]" : "text-[#44474c]"
-                        }`}
+                        className={`text-[11px] font-semibold tracking-wider ${item.active ? "text-[#b7c8de]" : "text-[#44474c]"
+                          }`}
                       >
                         {item.phase}
                       </span>
                       <span
-                        className={`text-[11px] font-bold ${
-                          item.complete
+                        className={`text-[11px] font-bold ${item.complete
                             ? "text-[#006c49]"
                             : item.active
-                            ? "text-[#6cf8bb]"
-                            : "text-[#74777d]"
-                        }`}
+                              ? "text-[#6cf8bb]"
+                              : "text-[#74777d]"
+                          }`}
                       >
                         {item.status}
                       </span>
@@ -486,4 +470,4 @@ export const ProjectsPage: React.FC = () => {
   );
 };
 
-export default ProjectsPage;
+export default ProjectPage;

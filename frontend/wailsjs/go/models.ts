@@ -4250,6 +4250,56 @@ export namespace tracecore_types {
 		    return a;
 		}
 	}
+	export class LocationCoordinates {
+	    lat: number;
+	    lng: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocationCoordinates(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lat = source["lat"];
+	        this.lng = source["lng"];
+	    }
+	}
+	export class FlexLocation {
+	    address?: string;
+	    city?: string;
+	    country?: string;
+	    coordinates?: LocationCoordinates;
+	
+	    static createFrom(source: any = {}) {
+	        return new FlexLocation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.city = source["city"];
+	        this.country = source["country"];
+	        this.coordinates = this.convertValues(source["coordinates"], LocationCoordinates);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class InspectionOverviewDTO {
 	    id?: string;
 	    reference?: string;
@@ -4312,6 +4362,7 @@ export namespace tracecore_types {
 	        this.evidence_references = source["evidence_references"];
 	    }
 	}
+	
 	export class TransportOverviewDTO {
 	    id?: string;
 	    reference?: string;
@@ -4582,15 +4633,17 @@ export namespace tracecore_types {
 	    project_type?: string;
 	    sector?: string;
 	    status?: string;
-	    location?: string;
+	    location?: FlexLocation;
 	    description?: string;
 	    current_phase?: string;
 	    progress_percent?: number;
+	    progress_percentage?: number;
 	    open_issues_count?: number;
 	    pending_decisions_count?: number;
 	    active_delay?: string;
 	    target_completion?: string;
 	    recent_activity?: string;
+	    status_summary?: string;
 	    image?: string;
 	    connected_orgs?: string[];
 	    is_authoritative?: boolean;
@@ -4614,21 +4667,41 @@ export namespace tracecore_types {
 	        this.project_type = source["project_type"];
 	        this.sector = source["sector"];
 	        this.status = source["status"];
-	        this.location = source["location"];
+	        this.location = this.convertValues(source["location"], FlexLocation);
 	        this.description = source["description"];
 	        this.current_phase = source["current_phase"];
 	        this.progress_percent = source["progress_percent"];
+	        this.progress_percentage = source["progress_percentage"];
 	        this.open_issues_count = source["open_issues_count"];
 	        this.pending_decisions_count = source["pending_decisions_count"];
 	        this.active_delay = source["active_delay"];
 	        this.target_completion = source["target_completion"];
 	        this.recent_activity = source["recent_activity"];
+	        this.status_summary = source["status_summary"];
 	        this.image = source["image"];
 	        this.connected_orgs = source["connected_orgs"];
 	        this.is_authoritative = source["is_authoritative"];
 	        this.budget_spent_percent = source["budget_spent_percent"];
 	        this.schedule_day = source["schedule_day"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	

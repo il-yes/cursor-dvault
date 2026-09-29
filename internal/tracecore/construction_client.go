@@ -7,10 +7,86 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	tracecore_types "vault-app/internal/tracecore/types"
+	"vault-app/internal/utils"
 )
+
+// ListConstructionProjects fetches the collection of construction project read models from Cloud
+// via GET /api/construction/projects.
+func (c *TracecoreClient) ListConstructionProjects(ctx context.Context, vaultID string) ([]tracecore_types.ProjectOverviewDTO, error) {
+	baseUrl := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if baseUrl == "" {
+		baseUrl = strings.TrimRight(c.BaseURL, "/")
+	}
+
+	cleanPath := "/construction/projects"
+	if !strings.HasSuffix(baseUrl, "/api") {
+		cleanPath = "/api" + cleanPath
+	}
+
+	targetURL := baseUrl + cleanPath
+	if vaultID != "" {
+		targetURL += "?vault_id=" + url.QueryEscape(vaultID)
+	}
+	utils.LogPretty("TracecoreClient - ListConstructionProjects - targetUrl", targetURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	fmt.Printf("[BOUNDARY 2][TracecoreClient.ListConstructionProjects] token_present=%t token_length=%d authorization_header_set=%t\n", c.Token != "", len(c.Token), req.Header.Get("Authorization") != "")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body failed: %w", err)
+	}
+	fmt.Printf(
+		"[BOUNDARY 2][TracecoreClient.ListConstructionProjects] status=%d content_length=%d\n",
+		resp.StatusCode,
+		len(respBytes),
+	)
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	// 1. Try CloudResponse envelope: { "status": 200, "data": [ ... ] }
+	var cloudResp tracecore_types.CloudResponse[[]tracecore_types.ProjectOverviewDTO]
+	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && cloudResp.Data != nil {
+		fmt.Printf("[BOUNDARY 2][TracecoreClient.ListConstructionProjects] envelope unmarshal success count=%d\n", len(cloudResp.Data))
+		list := make([]tracecore_types.ProjectOverviewDTO, len(cloudResp.Data))
+		for i, item := range cloudResp.Data {
+			list[i] = normalizeProjectOverview(item)
+		}
+		return list, nil
+	}
+
+	// 2. Try bare []ProjectOverviewDTO array
+	var rawList []tracecore_types.ProjectOverviewDTO
+	if errList := json.Unmarshal(respBytes, &rawList); errList == nil {
+		fmt.Printf("[BOUNDARY 2][TracecoreClient.ListConstructionProjects] bare array unmarshal success count=%d\n", len(rawList))
+		list := make([]tracecore_types.ProjectOverviewDTO, len(rawList))
+		for i, item := range rawList {
+			list[i] = normalizeProjectOverview(item)
+		}
+		return list, nil
+	}
+
+	return nil, fmt.Errorf("TracecoreClient - ListConstructionProjects - unexpected Cloud response shape: %s", string(respBytes))
+}
 
 // GetProjectOverview fetches the construction ProjectOverview read model from Cloud
 // via GET /api/construction/projects/{id}.
@@ -97,6 +173,19 @@ func normalizeProjectOverview(dto tracecore_types.ProjectOverviewDTO) tracecore_
 	if dto.ProjectType == "" && dto.Type != "" {
 		dto.ProjectType = dto.Type
 	}
+	if dto.ProgressPercent == 0 && dto.ProgressPercentage != 0 {
+		dto.ProgressPercent = dto.ProgressPercentage
+	}
+	if dto.ProgressPercentage == 0 && dto.ProgressPercent != 0 {
+		dto.ProgressPercentage = dto.ProgressPercent
+	}
+	if dto.RecentActivity == "" && dto.StatusSummary != "" {
+		dto.RecentActivity = dto.StatusSummary
+	}
+	if dto.StatusSummary == "" && dto.RecentActivity != "" {
+		dto.StatusSummary = dto.RecentActivity
+	}
+	fmt.Printf("[BOUNDARY 3][normalizeProjectOverview] normalized id=%s code=%s name=%s progress=%d activity=%s\n", dto.ID, dto.Code, dto.Name, dto.ProgressPercent, dto.RecentActivity)
 	return dto
 }
 
@@ -242,5 +331,3 @@ func normalizeLogisticsOverview(dto tracecore_types.LogisticsOverviewDTO) tracec
 	}
 	return dto
 }
-
-

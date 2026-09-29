@@ -23,29 +23,25 @@ export const ProjectListingPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const fetchProjects = () => {
     setLoading(true);
     getProjects()
       .then((data) => {
-        if (isMounted) {
-          console.log("[BOUNDARY 6][ProjectListingPage] received allProjects count=", data.length, data);
-          setAllProjects(data);
-          setError(null);
-          setLoading(false);
-        }
+        console.log("[BOUNDARY 6][ProjectListingPage] received allProjects count=", data.length, data);
+        setAllProjects(data);
+        setError(null);
+        setLoading(false);
       })
       .catch((err) => {
-        if (isMounted) {
-          console.error("[BOUNDARY 6][ProjectListingPage] Failed to fetch project list from Cloud:", err);
-          setError(err instanceof Error ? err.message : String(err));
-          setAllProjects([]);
-          setLoading(false);
-        }
+        console.error("[BOUNDARY 6][ProjectListingPage] Failed to fetch project list from Cloud:", err);
+        setError(err instanceof Error ? err.message : String(err));
+        setAllProjects([]);
+        setLoading(false);
       });
-    return () => {
-      isMounted = false;
-    };
+  };
+
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
   const authoritativeProject = allProjects.length > 0 ? (allProjects.find((p) => p.isAuthoritative) || allProjects[0]) : undefined;
@@ -722,7 +718,11 @@ export const ProjectListingPage: React.FC = () => {
       </div>
 
       {/* Create Project Modal */}
-      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onProjectCreated={fetchProjects}
+      />
     </div>
   );
 };

@@ -40,23 +40,33 @@ func (fl *FlexLocation) UnmarshalJSON(b []byte) error {
 }
 
 func (fl FlexLocation) MarshalJSON() ([]byte, error) {
-	if fl.Value != "" {
-		return json.Marshal(fl.Value)
+	city := fl.City
+	country := fl.Country
+	address := fl.Address
+
+	if city == "" && country == "" && address == "" && fl.Value != "" {
+		parts := strings.Split(fl.Value, ",")
+		if len(parts) >= 2 {
+			city = strings.TrimSpace(parts[0])
+			country = strings.TrimSpace(strings.Join(parts[1:], ", "))
+		} else {
+			city = strings.TrimSpace(fl.Value)
+		}
 	}
-	parts := []string{}
-	if fl.Address != "" {
-		parts = append(parts, fl.Address)
+
+	type locStruct struct {
+		Address     string               `json:"address"`
+		City        string               `json:"city"`
+		Country     string               `json:"country"`
+		Coordinates *LocationCoordinates `json:"coordinates,omitempty"`
 	}
-	if fl.City != "" {
-		parts = append(parts, fl.City)
-	}
-	if fl.Country != "" {
-		parts = append(parts, fl.Country)
-	}
-	if len(parts) > 0 {
-		return json.Marshal(strings.Join(parts, ", "))
-	}
-	return json.Marshal("")
+
+	return json.Marshal(locStruct{
+		Address:     address,
+		City:        city,
+		Country:     country,
+		Coordinates: fl.Coordinates,
+	})
 }
 
 func (fl FlexLocation) String() string {
@@ -79,6 +89,7 @@ func (fl FlexLocation) String() string {
 type ProjectOverviewDTO struct {
 	ID                    string       `json:"id,omitempty"`
 	ProjectID             string       `json:"project_id,omitempty"`
+	WorkspaceID           string       `json:"workspace_id,omitempty"`
 	Code                  string       `json:"code,omitempty"`
 	ProjectReference      string       `json:"project_reference,omitempty"`
 	Name                  string       `json:"name,omitempty"`

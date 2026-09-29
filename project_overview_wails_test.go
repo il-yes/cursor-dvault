@@ -377,3 +377,133 @@ func TestApp_ListConstructionProjects_WithScalarVaultID_Success(t *testing.T) {
 	}
 }
 
+func TestApp_CreateConstructionProject_Success(t *testing.T) {
+	cloudToken := "valid-cloud-bearer-token"
+	expectedProjectID := "PRJ-002"
+
+	var receivedPayload map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/construction/projects" || r.Method != http.MethodPost {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer "+cloudToken {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		_ = json.NewDecoder(r.Body).Decode(&receivedPayload)
+
+		rawCloudJSON := `{
+			"status": 200,
+			"data": {
+				"project_id": "PRJ-002",
+				"workspace_id": "52e511f4-789d-4cf6-b5e3-bb5448d4714d",
+				"project_reference": "PRJ-002",
+				"project_name": "Commercial Plaza North",
+				"project_type": "COMMERCIAL",
+				"status": "active",
+				"location": {
+					"address": "",
+					"city": "Oaugadougou",
+					"country": "Burkina Faso",
+					"coordinates": {"lat": 0, "lng": 0}
+				},
+				"progress_percentage": 42,
+				"current_phase": "Phase 3 of 7: Foundation",
+				"status_summary": "Formwork inspection scheduled",
+				"created_at": "2026-09-28T18:00:00Z",
+				"updated_at": "2026-09-28T18:00:00Z"
+			},
+			"message": "Project created successfully",
+			"success": true
+		}`
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(rawCloudJSON))
+	}))
+	defer server.Close()
+
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("Failed to open test db: %v", err)
+	}
+
+	authV2 := auth_domain.Auth{
+		Issuer:        "test-issuer",
+		Audience:      "test-aud",
+		Secret:        "test-secret-32-bytes-minimum-secret-key-123",
+		TokenExpiry:   time.Minute * 15,
+		RefreshExpiry: time.Hour * 24,
+	}
+
+	authRepo := auth_persistence.NewGormAuthRepository(db)
+	tokenSvc := auth_usecases.NewTokenService(authV2, authRepo, db)
+	tokenUC := auth_usecases.NewGenerateTokensUseCase(authRepo, tokenSvc)
+	authH := auth_ui.NewAuthHandler(&identity_ui.IdentityHandler{}, tokenUC, db)
+
+	tokens, err := tokenSvc.GenerateTokenPair(&auth_domain.JwtUser{ID: "user-123", Username: "User", Email: "test@example.com"})
+	if err != nil {
+		t.Fatalf("Failed to generate token pair: %v", err)
+	}
+
+	traceClient := tracecore.NewTracecoreClient(server.URL+"/api", cloudToken, server.URL, server.URL)
+	vaultH := &vault_ui.VaultHandler{
+		TracecoreClient: traceClient,
+	}
+
+	runtimeCtx := &vault_session.RuntimeContext{
+		SessionSecrets: map[string]string{
+			"cloud_auth_token": cloudToken,
+		},
+	}
+
+	app := &App{
+		ctx:             context.Background(),
+		AuthHandler:     authH,
+		Vault:           vaultH,
+		tracecoreClient: traceClient,
+		RuntimeContext:  runtimeCtx,
+	}
+
+	inputDTO := tracecore_types.ProjectOverviewDTO{
+		ID:                 expectedProjectID,
+		ProjectID:          expectedProjectID,
+		Code:               "PRJ-002",
+		ProjectReference:   "PRJ-002",
+		Name:               "Commercial Plaza North",
+		ProjectName:        "Commercial Plaza North",
+		Type:               "COMMERCIAL",
+		ProjectType:        "COMMERCIAL",
+		Status:             "active",
+		Location:           tracecore_types.FlexLocation{City: "Oaugadougou", Country: "Burkina Faso"},
+		ProgressPercent:    42,
+		ProgressPercentage: 42,
+		CurrentPhase:       "Phase 3 of 7: Foundation",
+		RecentActivity:     "Formwork inspection scheduled",
+		StatusSummary:      "Formwork inspection scheduled",
+	}
+
+	res, err := app.CreateConstructionProject(tokens.Token, inputDTO)
+	if err != nil {
+		t.Fatalf("App.CreateConstructionProject returned unexpected error: %v", err)
+	}
+
+	if res.ProjectID != "PRJ-002" || res.ProjectName != "Commercial Plaza North" {
+		t.Errorf("Unexpected created project: %+v", res)
+	}
+	if receivedPayload["project_id"] != "PRJ-002" {
+		t.Errorf("Expected sent payload project_id 'PRJ-002', got %v", receivedPayload["project_id"])
+	}
+	locMap, ok := receivedPayload["location"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected sent payload location to be an object/map, got %T: %v", receivedPayload["location"], receivedPayload["location"])
+	}
+	if locMap["city"] != "Oaugadougou" || locMap["country"] != "Burkina Faso" {
+		t.Errorf("Expected city 'Oaugadougou' and country 'Burkina Faso', got %+v", locMap)
+	}
+}
+
+

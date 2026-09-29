@@ -4624,6 +4624,7 @@ export namespace tracecore_types {
 	export class ProjectOverviewDTO {
 	    id?: string;
 	    project_id?: string;
+	    workspace_id?: string;
 	    code?: string;
 	    project_reference?: string;
 	    name?: string;
@@ -4658,6 +4659,7 @@ export namespace tracecore_types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.project_id = source["project_id"];
+	        this.workspace_id = source["workspace_id"];
 	        this.code = source["code"];
 	        this.project_reference = source["project_reference"];
 	        this.name = source["name"];

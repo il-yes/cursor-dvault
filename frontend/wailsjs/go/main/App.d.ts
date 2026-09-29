@@ -92,6 +92,8 @@ export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,ar
 
 export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ShareEntryRefDTO>;
 
+export function CreateConstructionProject(arg1:string,arg2:tracecore_types.ProjectOverviewDTO):Promise<tracecore_types.ProjectOverviewDTO>;
+
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;

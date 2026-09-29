@@ -6,6 +6,8 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { tracecore_types } from "../../../wailsjs/go/models";
 
+import { listWorkspaces } from "@/services/api";
+
 export * from "./constructionScenarioAdapter";
 export * from "./projects.mock";
 export * from "./scenario.mock";
@@ -36,6 +38,66 @@ export async function getProjects(): Promise<ProjectData[]> {
     throw err;
   }
 }
+
+export async function createProject(params: {
+  code: string;
+  name: string;
+  type: string;
+  location: string;
+}): Promise<ProjectData> {
+  const jwtToken = useAuthStore.getState().jwtToken || "";
+
+  let workspaceId = "";
+  try {
+    const workspaces = await listWorkspaces();
+    if (workspaces && workspaces.length > 0) {
+      workspaceId = workspaces[0].id;
+    }
+  } catch (err) {
+    console.warn("[createProject] Could not resolve workspaceId:", err);
+  }
+
+  const code = params.code.trim() || "PRJ-002";
+  const name = params.name.trim() || "Commercial Plaza North";
+  const type = params.type.trim() || "COMMERCIAL";
+  const loc = params.location.trim() || "Oaugadougou, Burkina Faso";
+  let city = loc;
+  let country = "";
+  if (loc.includes(",")) {
+    const parts = loc.split(",");
+    city = parts[0].trim();
+    country = parts.slice(1).join(",").trim();
+  }
+
+  const dto: tracecore_types.ProjectOverviewDTO = new tracecore_types.ProjectOverviewDTO({
+    id: code,
+    project_id: code,
+    workspace_id: workspaceId,
+    code: code,
+    project_reference: code,
+    name: name,
+    project_name: name,
+    type: type,
+    project_type: type,
+    status: "active",
+    location: {
+      address: "",
+      city: city,
+      country: country,
+    } as any,
+    progress_percent: 42,
+    progress_percentage: 42,
+    current_phase: "Phase 3 of 7: Foundation",
+    recent_activity: "Formwork inspection scheduled",
+    status_summary: "Formwork inspection scheduled",
+  });
+
+  console.log("[BOUNDARY 4][AppAPI.CreateConstructionProject] sending dto:", dto);
+  const createdDto = await AppAPI.CreateConstructionProject(jwtToken, dto);
+  console.log("[BOUNDARY 4][AppAPI.CreateConstructionProject] returned dto:", createdDto);
+  return mapProjectOverviewDTOToProjectData(createdDto);
+}
+
 
 export function mapProjectOverviewDTOToProjectData(dto: tracecore_types.ProjectOverviewDTO): ProjectData {
   const id = dto.id || dto.project_id || "";

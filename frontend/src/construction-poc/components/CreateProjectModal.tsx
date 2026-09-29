@@ -1,28 +1,52 @@
 import React, { useState } from "react";
+import { createProject } from "../data";
 
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onProjectCreated?: () => void;
 }
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   isOpen,
   onClose,
+  onProjectCreated,
 }) => {
   const [projectCode, setProjectCode] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectType, setProjectType] = useState("INFRASTRUCTURE");
   const [location, setLocation] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedNotice, setSubmittedNotice] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Do NOT call CreateWorkspace or fabricate fake backend project endpoints
-    setSubmittedNotice(
-      `Create Construction Project UX boundary validated for "${projectName || "New Project"}" (${projectCode || "PRJ-NEW"}).\n\nNotice: A backend CreateConstructionProject application API endpoint is not yet exposed on Wails AppAPI. (CreateWorkspace is a C3 concept and is not conflated with Construction Project creation).`
-    );
+    if (!projectCode.trim() || !projectName.trim()) return;
+
+    setIsSubmitting(true);
+    setSubmittedNotice(null);
+    try {
+      const created = await createProject({
+        code: projectCode.trim(),
+        name: projectName.trim(),
+        type: projectType.trim(),
+        location: location.trim(),
+      });
+
+      setSubmittedNotice(
+        `Project "${created.name}" (${created.code}) created successfully in Cloud under workspace context.`
+      );
+      if (onProjectCreated) {
+        onProjectCreated();
+      }
+    } catch (err: any) {
+      console.error("Create project failed:", err);
+      setSubmittedNotice(`Failed to create project in Cloud: ${err?.message || err}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -128,9 +152,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#041627] text-white font-bold rounded-lg hover:bg-[#041627]/90"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-[#041627] text-white font-bold rounded-lg hover:bg-[#041627]/90 disabled:opacity-50"
                 >
-                  Create Project
+                  {isSubmitting ? "Creating..." : "Create Project"}
                 </button>
               </div>
             </div>

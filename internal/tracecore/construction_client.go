@@ -88,6 +88,65 @@ func (c *TracecoreClient) ListConstructionProjects(ctx context.Context, vaultID 
 	return nil, fmt.Errorf("TracecoreClient - ListConstructionProjects - unexpected Cloud response shape: %s", string(respBytes))
 }
 
+// CreateConstructionProject posts a new construction project to Cloud via POST /api/construction/projects.
+func (c *TracecoreClient) CreateConstructionProject(ctx context.Context, project tracecore_types.ProjectOverviewDTO) (*tracecore_types.ProjectOverviewDTO, error) {
+	baseUrl := strings.TrimRight(c.AnkhoraCloudUrl, "/")
+	if baseUrl == "" {
+		baseUrl = strings.TrimRight(c.BaseURL, "/")
+	}
+
+	cleanPath := "/construction/projects"
+	if !strings.HasSuffix(baseUrl, "/api") {
+		cleanPath = "/api" + cleanPath
+	}
+
+	targetURL := baseUrl + cleanPath
+
+	payloadBytes, err := json.Marshal(project)
+	if err != nil {
+		return nil, fmt.Errorf("marshal project failed: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(string(payloadBytes)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body failed: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Cloud backend returned status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var cloudResp tracecore_types.CloudResponse[tracecore_types.ProjectOverviewDTO]
+	if err := json.Unmarshal(respBytes, &cloudResp); err == nil && (cloudResp.Data.ID != "" || cloudResp.Data.ProjectID != "") {
+		dto := normalizeProjectOverview(cloudResp.Data)
+		return &dto, nil
+	}
+
+	var dto tracecore_types.ProjectOverviewDTO
+	if errDTO := json.Unmarshal(respBytes, &dto); errDTO == nil && (dto.ID != "" || dto.ProjectID != "") {
+		dto = normalizeProjectOverview(dto)
+		return &dto, nil
+	}
+
+	return nil, fmt.Errorf("TracecoreClient - CreateConstructionProject - unexpected Cloud response shape: %s", string(respBytes))
+}
+
+
 // GetProjectOverview fetches the construction ProjectOverview read model from Cloud
 // via GET /api/construction/projects/{id}.
 func (c *TracecoreClient) GetProjectOverview(ctx context.Context, projectID string) (*tracecore_types.ProjectOverviewDTO, error) {

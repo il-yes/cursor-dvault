@@ -50,13 +50,13 @@ export const ProjectPage: React.FC = () => {
       <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
         <div className="bg-white rounded-xl border border-[#e0e3e5] p-8 max-w-md text-center shadow-sm flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#44474c] font-semibold">Loading project overview from Cloud...</p>
+          <p className="text-sm text-[#44474c] font-semibold">Loading project overview...</p>
         </div>
       </div>
     );
   }
 
-  // Explicit API Error Presentation State (NO silent fallback to mock data)
+  // Explicit Error Presentation State (NO silent fallback to mock data)
   if (error) {
     return (
       <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
@@ -64,7 +64,7 @@ export const ProjectPage: React.FC = () => {
           <div className="w-16 h-16 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-4">
             <span className="material-symbols-outlined text-[36px]">error</span>
           </div>
-          <h2 className="text-2xl font-bold text-[#041627] mb-2">Cloud API Error</h2>
+          <h2 className="text-2xl font-bold text-[#041627] mb-2">Unable to Load Project</h2>
           <p className="text-sm text-[#44474c] mb-6">
             Failed to fetch project <code className="bg-[#f1f4f6] px-2 py-0.5 rounded font-mono text-[#041627]">{projectId}</code>: {error}
           </p>

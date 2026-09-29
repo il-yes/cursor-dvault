@@ -33,7 +33,7 @@ export const ProjectListingPage: React.FC = () => {
         setLoading(false);
       })
       .catch((err) => {
-        console.error("[BOUNDARY 6][ProjectListingPage] Failed to fetch project list from Cloud:", err);
+        console.error("[BOUNDARY 6][ProjectListingPage] Failed to fetch project list:", err);
         setError(err instanceof Error ? err.message : String(err));
         setAllProjects([]);
         setLoading(false);
@@ -74,7 +74,7 @@ export const ProjectListingPage: React.FC = () => {
       <div className="w-full bg-[#f7fafc] min-h-screen text-[#181c1e] font-[Inter] p-6 flex flex-col items-center justify-center">
         <div className="bg-white rounded-xl border border-[#e0e3e5] p-8 max-w-md text-center shadow-sm flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#44474c] font-semibold">Loading projects directory from Cloud...</p>
+          <p className="text-sm text-[#44474c] font-semibold">Loading projects directory...</p>
         </div>
       </div>
     );
@@ -87,7 +87,7 @@ export const ProjectListingPage: React.FC = () => {
           <div className="w-16 h-16 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-4">
             <span className="material-symbols-outlined text-[36px]">error</span>
           </div>
-          <h2 className="text-2xl font-bold text-[#041627] mb-2">Cloud API Error</h2>
+          <h2 className="text-2xl font-bold text-[#041627] mb-2">Unable to Load Projects</h2>
           <p className="text-sm text-[#44474c] mb-6">
             Failed to fetch construction projects list: {error}
           </p>
@@ -188,7 +188,7 @@ export const ProjectListingPage: React.FC = () => {
             </div>
             <div className="flex items-baseline gap-2 mt-3">
               <span className="text-3xl font-bold text-[#041627]">{allProjects.length}</span>
-              <span className="text-xs text-[#006c49] font-medium">Cloud Synchronized</span>
+              <span className="text-xs text-[#006c49] font-medium">Data Source Active</span>
             </div>
             <div className="w-full bg-[#e5e9eb] h-1.5 rounded-full mt-3 overflow-hidden">
               <div className="bg-[#041627] h-full rounded-full" style={{ width: allProjects.length > 0 ? "100%" : "0%" }} />
@@ -556,7 +556,7 @@ export const ProjectListingPage: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-[#44474c] text-xs">
                         <span className="material-symbols-outlined text-[18px] text-[#006c49]">check_circle</span>
                         <span className="font-semibold text-[#181c1e]">Recent Activity:</span>
-                        <span className="truncate max-w-xs">{authoritativeProject.recentActivity || "Synchronized with Cloud"}</span>
+                        <span className="truncate max-w-xs">{authoritativeProject.recentActivity || "No recent activity"}</span>
                       </div>
 
                       <button

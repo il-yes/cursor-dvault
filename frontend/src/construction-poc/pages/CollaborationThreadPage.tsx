@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
-import * as AppAPI from "../../../wailsjs/go/main/App";
-import { useAuthStore } from "@/store/useAuthStore";
+import { appendThreadEvent } from "../data";
 
 interface C3EventItem {
   id: string;
@@ -14,7 +13,6 @@ interface C3EventItem {
 export const CollaborationThreadPage: React.FC = () => {
   const navigate = useNavigate();
   const { project, delivery, issue } = SCENARIO_DATA;
-  const { jwtToken } = useAuthStore();
 
   const [messages, setMessages] = useState<C3EventItem[]>([
     {
@@ -59,13 +57,11 @@ export const CollaborationThreadPage: React.FC = () => {
     setMessages(prev => [...prev, newMsgObj]);
     setNewMessage("");
 
-    // Call Wails AppAPI if backend session active
-    if (jwtToken) {
-      try {
-        await AppAPI.AppendThreadEvent(jwtToken, "DEL-1042-THREAD", "COMMENT", newMsgObj.content);
-      } catch (err) {
-        console.warn("Wails backend thread event append handled locally:", err);
-      }
+    // Persist through the data boundary; the active provider decides the target.
+    try {
+      await appendThreadEvent("DEL-1042-THREAD", "COMMENT", newMsgObj.content);
+    } catch (err) {
+      console.warn("Thread event append handled locally:", err);
     }
   };
 

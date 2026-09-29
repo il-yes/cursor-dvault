@@ -2,9 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRoleContext, UserRole } from "../hooks/useRoleContext";
 import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import { appendThreadEvent } from "../data";
 import { ContextualInviteModal } from "../components/ContextualInviteModal";
-import * as AppAPI from "../../../wailsjs/go/main/App";
-import { useAuthStore } from "@/store/useAuthStore";
 
 interface ChannelConfig {
   id: string;
@@ -141,7 +140,6 @@ export const ProjectChannelsPage: React.FC = () => {
   const { channelId, threadId } = useParams<{ channelId?: string; threadId?: string }>();
   const { activeRole, roleConfig } = useRoleContext();
   const { project } = SCENARIO_DATA;
-  const { jwtToken } = useAuthStore();
 
   // Filter channels visible to current active role
   const visibleChannels = PREDEFINED_CHANNELS.filter(c => c.roles.includes(activeRole));
@@ -191,11 +189,11 @@ export const ProjectChannelsPage: React.FC = () => {
     setEvents(prev => [...prev, newEvt]);
     setNewEventText("");
 
-    if (jwtToken && activeThread) {
+    if (activeThread) {
       try {
-        await AppAPI.AppendThreadEvent(jwtToken, activeThread.id, "COMMENT", newEvt.content);
+        await appendThreadEvent(activeThread.id, "COMMENT", newEvt.content);
       } catch (err) {
-        console.warn("Wails AppendThreadEvent handled locally:", err);
+        console.warn("Thread event append handled locally:", err);
       }
     }
   };

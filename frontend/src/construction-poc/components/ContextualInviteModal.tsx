@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import * as AppAPI from "../../../wailsjs/go/main/App";
-import { useAuthStore } from "@/store/useAuthStore";
+import { inviteToChannel } from "../data";
 import { UserRole, ROLES } from "../hooks/useRoleContext";
 
 interface ContextualInviteModalProps {
@@ -26,7 +25,6 @@ export const ContextualInviteModal: React.FC<ContextualInviteModalProps> = ({
   threadTitle,
   defaultRole = "SUPPLIER",
 }) => {
-  const { jwtToken } = useAuthStore();
   const [inviteeVaultId, setInviteeVaultId] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole>(defaultRole);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -44,19 +42,14 @@ export const ContextualInviteModal: React.FC<ContextualInviteModalProps> = ({
     const messageText = `You are being invited to collaborate on ${threadTitle || threadId || "the channel"} within the ${channelName} channel of ${workspaceName}.`;
 
     try {
-      if (jwtToken) {
-        // Call Wails AppAPI InviteToChannel(token, workspaceId, channelId, inviteeVaultId)
-        await AppAPI.InviteToChannel(jwtToken, workspaceId, channelId, inviteeVaultId.trim());
-        setStatusMessage(
-          `Invitation sent successfully via C3 backend!\n\nContext:\n- Workspace: ${workspaceName} (${workspaceId})\n- Channel: ${channelName} (${channelId})\n- Thread: ${threadTitle || "N/A"}\n- Role: ${ROLES[selectedRole].label}\n- Invitee Vault ID: ${inviteeVaultId}\n\nNotice: threadId and role are UI presentation context parameters attached to the thread invitation (Go InviteToChannel signature accepts token, workspaceId, channelId, inviteeVaultId).`
-        );
-      } else {
-        setStatusMessage(
-          `Invitation UX boundary validated locally.\n\nContext Message:\n"${messageText}"\n\nInvitee: ${inviteeVaultId}\nRole: ${ROLES[selectedRole].label}`
-        );
-      }
+      const dispatched = await inviteToChannel(workspaceId, channelId, inviteeVaultId.trim());
+      setStatusMessage(
+        dispatched
+          ? `Invitation sent successfully via C3 backend!\n\nContext:\n- Workspace: ${workspaceName} (${workspaceId})\n- Channel: ${channelName} (${channelId})\n- Thread: ${threadTitle || "N/A"}\n- Role: ${ROLES[selectedRole].label}\n- Invitee Vault ID: ${inviteeVaultId}\n\nNotice: threadId and role are UI presentation context parameters attached to the thread invitation (Go InviteToChannel signature accepts token, workspaceId, channelId, inviteeVaultId).`
+          : `Invitation UX boundary validated locally.\n\nContext Message:\n"${messageText}"\n\nInvitee: ${inviteeVaultId}\nRole: ${ROLES[selectedRole].label}`
+      );
     } catch (err: any) {
-      console.warn("Wails InviteToChannel execution:", err);
+      console.warn("Channel invitation execution:", err);
       setStatusMessage(
         `Invitation boundary processed.\n\nContext Message:\n"${messageText}"\n\nInvitee: ${inviteeVaultId}\nRole: ${ROLES[selectedRole].label}`
       );

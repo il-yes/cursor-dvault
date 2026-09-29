@@ -44,7 +44,7 @@ export const TransportDelayPage: React.FC = () => {
     return (
       <div className="flex flex-col w-full min-h-[50vh] items-center justify-center p-6 text-center font-[Inter]">
         <div className="w-8 h-8 border-4 border-[#041627] border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="text-sm font-semibold text-[#44474c]">Loading transport delay overview from Cloud...</p>
+        <p className="text-sm font-semibold text-[#44474c]">Loading transport delay overview...</p>
       </div>
     );
   }
@@ -55,7 +55,7 @@ export const TransportDelayPage: React.FC = () => {
         <div className="w-12 h-12 rounded-full bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center mx-auto mb-3">
           <span className="material-symbols-outlined text-[28px]">error</span>
         </div>
-        <h2 className="text-lg font-bold text-[#041627] mb-1">Transport API Error</h2>
+        <h2 className="text-lg font-bold text-[#041627] mb-1">Transport Details Unavailable</h2>
         <p className="text-xs text-[#44474c] mb-4">{error || "Transport delay overview data unavailable"}</p>
         <button
           type="button"

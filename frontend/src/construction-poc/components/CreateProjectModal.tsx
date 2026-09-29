@@ -36,14 +36,14 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       });
 
       setSubmittedNotice(
-        `Project "${created.name}" (${created.code}) created successfully in Cloud under workspace context.`
+        `Project "${created.name}" (${created.code}) created successfully.`
       );
       if (onProjectCreated) {
         onProjectCreated();
       }
     } catch (err: any) {
       console.error("Create project failed:", err);
-      setSubmittedNotice(`Failed to create project in Cloud: ${err?.message || err}`);
+      setSubmittedNotice(`Failed to create project: ${err?.message || err}`);
     } finally {
       setIsSubmitting(false);
     }

@@ -65,19 +65,29 @@ export const getProcurementOverview = (requirementId?: string) =>
 export const getLogisticsOverview = (deliveryId?: string) =>
   activeProvider.getLogisticsOverview(deliveryId);
 
-/* Scenario */
+/* Scenario — canonical record access */
 
 export const getActivityFeed = () => activeProvider.getActivityFeed();
+export const getProjectRecord = () => activeProvider.getProjectRecord();
+export const getMaterial = () => activeProvider.getMaterial();
 export const getRequirement = () => activeProvider.getRequirement();
+export const getSupplier = () => activeProvider.getSupplier();
 export const getSupplierOffer = () => activeProvider.getSupplierOffer();
+export const getSite = () => activeProvider.getSite();
 export const getDelivery = () => activeProvider.getDelivery();
 export const getTransportDelay = () => activeProvider.getTransportDelay();
 export const getIssue = () => activeProvider.getIssue();
+export const getAction = () => activeProvider.getAction();
 export const getEvidenceDocument = () => activeProvider.getEvidenceDocument();
+export const getCertificateDocument = () => activeProvider.getCertificateDocument();
 export const getDecision = () => activeProvider.getDecision();
 export const getInspection = () => activeProvider.getInspection();
-export const getStakeholders = () => activeProvider.getStakeholders();
-export const getTraceMilestones = () => activeProvider.getTraceMilestones();
+/** The three real vault actors. There is no ConstructionStakeholder aggregate. */
+export const getParticipants = () => activeProvider.getParticipants();
+export const getCollaboration = () => activeProvider.getCollaboration();
+export const getShareEntry = () => activeProvider.getShareEntry();
+/** The authoritative 23-event sequence. */
+export const getThreadEvents = () => activeProvider.getThreadEvents();
 
 /* Collaboration */
 

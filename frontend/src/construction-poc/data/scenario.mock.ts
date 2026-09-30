@@ -1,86 +1,53 @@
-import { SCENARIO_DATA } from "./constructionScenarioAdapter";
+/**
+ * Activity feed, projected from the canonical XS-BIM thread event sequence.
+ *
+ * The 23 events in the authoritative scenario are the scenario's real trace
+ * history (they are mirrored 1:1 into TraceCore as commits), so the feed is
+ * generated from them rather than hand-authored rows.
+ *
+ * @gap The scenario records a monotonic `cursor` but no wall-clock time per
+ * event, so `time` is left empty. The listing view renders the cursor ordinal
+ * instead of fabricating timestamps.
+ */
+
+import { CANONICAL_SCENARIO } from "./constructionScenarioAdapter";
+import { actorLabel } from "./scenarioMappers";
 
 export interface ActivityItem {
+  /** The canonical event idempotency key. */
   id: string;
+  cursor: number;
+  /** Always empty — the scenario has no per-event timestamp. */
   time: string;
   type: string;
+  /** The canonical event type, e.g. `construction.issue.reported`. */
   badge: string;
   title: string;
+  /** Derived from the actor's canonical vault address, never invented. */
   actor: string;
   link: string;
 }
 
-export const MOCK_ACTIVITY_LOG: ActivityItem[] = [
-  {
-    id: "ACT-001",
-    time: "08:42",
-    type: "PROJECT_CREATED",
-    badge: "PRJ-001",
-    title: "Project created: Metro Line 4 Expansion",
-    actor: "Manuel (Project Owner)",
-    link: "/dashboard/construction/projects/PRJ-001",
-  },
-  {
-    id: "ACT-002",
-    time: "08:51",
-    type: "STAKEHOLDER_INVITED",
-    badge: "STK-001",
-    title: "Stakeholder invited: Lead Architect → Project",
-    actor: "Manuel (Project Owner)",
-    link: "/dashboard/construction/stakeholders",
-  },
-  {
-    id: "ACT-003",
-    time: "09:14",
-    type: "REQUIREMENT_CREATED",
-    badge: SCENARIO_DATA.requirement.code,
-    title: `Requirement created: ${SCENARIO_DATA.requirement.materialName}`,
-    actor: "Alex Rivera (Project Manager)",
-    link: "/dashboard/construction/requirements",
-  },
-  {
-    id: "ACT-004",
-    time: "09:42",
-    type: "SUPPLIER_INVITED",
-    badge: SCENARIO_DATA.supplier.id,
-    title: `Supplier invitation sent: ${SCENARIO_DATA.supplier.name} (${SCENARIO_DATA.supplier.id})`,
-    actor: "Alex Rivera (Project Manager)",
-    link: "/dashboard/construction/offers",
-  },
-  {
-    id: "ACT-005",
-    time: "10:05",
-    type: "DELIVERY_DELAYED",
-    badge: SCENARIO_DATA.delivery.reference,
-    title: `Delivery delayed: ${SCENARIO_DATA.delivery.reference} (ETA moved to 2026-08-16 07:30)`,
-    actor: "David Chen (Logistics Coordinator)",
-    link: "/dashboard/construction/deliveries",
-  },
-  {
-    id: "ACT-006",
-    time: "10:07",
-    type: "ISSUE_REPORTED",
-    badge: SCENARIO_DATA.issue.reference,
-    title: `Issue reported: ${SCENARIO_DATA.issue.title} (${SCENARIO_DATA.issue.severity} Severity)`,
-    actor: "Mark Vance (Freight Operator)",
-    link: "/dashboard/construction/issues",
-  },
-  {
-    id: "ACT-007",
-    time: "10:21",
-    type: "DECISION_APPROVED",
-    badge: SCENARIO_DATA.decision.reference,
-    title: `Decision approved: ${SCENARIO_DATA.decision.title}`,
-    actor: "Alex Rivera (Project Manager)",
-    link: "/dashboard/construction/decisions",
-  },
-  {
-    id: "ACT-008",
-    time: "10:48",
-    type: "INSPECTION_COMPLETED",
-    badge: SCENARIO_DATA.inspection.reference,
-    title: `Inspection completed: ${SCENARIO_DATA.inspection.title} (${SCENARIO_DATA.inspection.status})`,
-    actor: "Sarah Jenkins, PE (Site Superintendent)",
-    link: "/dashboard/construction/inspections",
-  },
-];
+function linkFor(eventType: string): string {
+  if (eventType.includes("issue")) return "/dashboard/construction/issues/ISS-1042";
+  if (eventType.includes("decision")) return "/dashboard/construction/decisions/DEC-1042";
+  if (eventType.includes("inspection")) return "/dashboard/construction/inspections/INSP-1042";
+  if (eventType.includes("delivery") || eventType.includes("transport")) {
+    return "/dashboard/construction/deliveries/DEL-1042";
+  }
+  if (eventType.includes("supplier") || eventType.includes("offer")) {
+    return "/dashboard/construction/requirements/REQ-STRUCT-001/suppliers";
+  }
+  return `/dashboard/construction/projects/${CANONICAL_SCENARIO.project.projectId}`;
+}
+
+export const MOCK_ACTIVITY_LOG: ActivityItem[] = CANONICAL_SCENARIO.threadEvents.map((e) => ({
+  id: e.idempotencyKey,
+  cursor: e.cursor,
+  time: "",
+  type: e.eventType,
+  badge: e.eventType,
+  title: e.eventType,
+  actor: actorLabel(e.actorId),
+  link: linkFor(e.eventType)
+}));

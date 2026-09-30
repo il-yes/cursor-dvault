@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRoleContext, UserRole } from "../hooks/useRoleContext";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
-import { appendThreadEvent } from "../data";
+import { getProjectRecord, getThreadEvents, appendThreadEvent } from "../data";
+import { actorLabel } from "../data/scenarioMappers";
 import { ContextualInviteModal } from "../components/ContextualInviteModal";
 
 interface ChannelConfig {
@@ -46,10 +46,10 @@ const PREDEFINED_CHANNELS: ChannelConfig[] = [
     threads: [
       {
         id: "THREAD-DES-001",
-        title: "W18x86 Beam ASTM A992 Technical Specs",
+        title: "MAT-STRUCT-001 Precast Beam EN 13369 Technical Specs",
         businessObjectId: "REQ-STRUCT-001",
         businessObjectType: "Requirement",
-        description: "Architectural steel grade and corrosion coating specs."
+        description: "C50/60 concrete specification and 12m precast beam requirements."
       }
     ]
   },
@@ -65,7 +65,7 @@ const PREDEFINED_CHANNELS: ChannelConfig[] = [
         title: "REQ-STRUCT-001 Supplier Sourcing & Offer OFF-1042",
         businessObjectId: "REQ-STRUCT-001",
         businessObjectType: "Requirement",
-        description: "Procurement thread for structural steel beams with Apex Steel."
+        description: "Procurement thread for precast concrete beams with Apex Precast Logistics."
       }
     ]
   },
@@ -78,10 +78,10 @@ const PREDEFINED_CHANNELS: ChannelConfig[] = [
     threads: [
       {
         id: "THREAD-LOG-001",
-        title: "DEL-1042 Transport TR-1042 Route M1 Restriction",
+        title: "DEL-1042 Transport TR-1042 Route Restriction",
         businessObjectId: "DEL-1042",
         businessObjectType: "Delivery",
-        description: "Logistics coordination for heavy hauler rerouting via Highway B."
+        description: "Logistics coordination for heavy hauler rerouting via Route-B."
       }
     ]
   },
@@ -94,26 +94,26 @@ const PREDEFINED_CHANNELS: ChannelConfig[] = [
     threads: [
       {
         id: "THREAD-SITE-001",
-        title: "Site Alpha South Pier Framework Receiving",
-        businessObjectId: "SITE-SOUTH-01",
+        title: "North Hub Station Site Receiving",
+        businessObjectId: "SITE-HUB-NORTH",
         businessObjectType: "Site",
-        description: "Pier 4 receiving schedule post-reroute."
+        description: "Receiving schedule post-reroute."
       }
     ]
   },
   {
     id: "quality",
     name: "Quality",
-    description: "Inspection sign-offs, ultrasonic weld tests & compliance",
+    description: "Inspection sign-offs, material tests & compliance",
     icon: "fact_check",
     roles: ["PM", "ENGINEER", "QA", "SITE_SUPERINTENDENT"],
     threads: [
       {
         id: "THREAD-QUAL-001",
-        title: "INSP-1042 Structural Steel Weld Inspection Sign-Off",
+        title: "INSP-1042 Precast Concrete Inspection Sign-Off",
         businessObjectId: "INSP-1042",
         businessObjectType: "Inspection",
-        description: "QA inspection thread for Pier 4 steel acceptance."
+        description: "QA inspection thread for material acceptance at the hub site."
       }
     ]
   },
@@ -126,10 +126,10 @@ const PREDEFINED_CHANNELS: ChannelConfig[] = [
     threads: [
       {
         id: "THREAD-DEC-001",
-        title: "DEC-1042 Highway B Reroute Approval",
+        title: "DEC-1042 Route-B Reroute Approval",
         businessObjectId: "DEC-1042",
         businessObjectType: "Decision",
-        description: "Decision approval thread for alternative route B execution."
+        description: "Decision approval thread for alternative route execution."
       }
     ]
   }
@@ -139,7 +139,7 @@ export const ProjectChannelsPage: React.FC = () => {
   const navigate = useNavigate();
   const { channelId, threadId } = useParams<{ channelId?: string; threadId?: string }>();
   const { activeRole, roleConfig } = useRoleContext();
-  const { project } = SCENARIO_DATA;
+  const project = getProjectRecord();
 
   // Filter channels visible to current active role
   const visibleChannels = PREDEFINED_CHANNELS.filter(c => c.roles.includes(activeRole));
@@ -152,27 +152,17 @@ export const ProjectChannelsPage: React.FC = () => {
 
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-  // Local thread event state
-  const [events, setEvents] = useState([
-    {
-      id: "EVT-01",
-      sender: "Mark Vance (Logistics Operator)",
-      time: "2026-08-15 11:41",
-      content: "Road restriction reported on M1 Km 42 bridge structure. Weight limit reduced to 35T."
-    },
-    {
-      id: "EVT-02",
-      sender: "David Chen (Supplier / Apex Steel)",
-      time: "2026-08-15 12:05",
-      content: "Delivery DEL-1042 ETA updated to 2026-08-16 07:30. Proposing alternative Route B."
-    },
-    {
-      id: "EVT-03",
-      sender: "Alex Rivera (Project Manager)",
-      time: "2026-08-15 14:20",
-      content: "Decision DEC-1042 approved. Transport TR-1042 rerouted via Highway B."
-    }
-  ]);
+  // Local thread event state, seeded from the canonical append-only event log.
+  const [events, setEvents] = useState(() =>
+    getThreadEvents().map((e) => ({
+      id: e.idempotencyKey,
+      sender: `${actorLabel(e.actorId)} (${e.actorId})`,
+      time: `#${e.cursor}`,
+      content: e.payload
+        ? `${e.eventType} — attachment ${e.payload.cid} (${e.payload.size} bytes)`
+        : e.eventType
+    }))
+  );
   const [newEventText, setNewEventText] = useState("");
 
   const handlePostEvent = async (e: React.FormEvent) => {
@@ -203,7 +193,7 @@ export const ProjectChannelsPage: React.FC = () => {
       {/* Breadcrumb Header */}
       <div className="flex items-center gap-2 text-xs text-[#44474c]">
         <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
-          {project.code}
+          {project.projectReference}
         </button>
         <span>/</span>
         <span className="font-semibold text-[#041627]">Project Channels</span>
@@ -347,8 +337,8 @@ export const ProjectChannelsPage: React.FC = () => {
       <ContextualInviteModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        workspaceId={project.code}
-        workspaceName={project.name}
+        workspaceId={project.projectId}
+        workspaceName={project.projectName}
         channelId={activeChannel.name}
         channelName={activeChannel.name}
         threadId={activeThread?.id}

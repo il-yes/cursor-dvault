@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getProject, ProjectData, getRequirement, getSupplierOffer, getDelivery, getTransportDelay, getIssue, getDecision, getInspection, getEvidenceDocument } from "../data";
+import { getProject, ProjectData, getRequirement, getSupplierOffer, getDelivery, getTransportDelay, getIssue, getDecision, getInspection, getEvidenceDocument, getParticipants } from "../data";
 import { CONSTRUCTION_ROUTES } from "../constants/routes";
 import { useRoleContext } from "../hooks/useRoleContext";
 import { CreateProjectModal } from "../components/CreateProjectModal";
@@ -43,6 +43,7 @@ export const ProjectPage: React.FC = () => {
   const decision = getDecision();
   const inspection = getInspection();
   const evidence = getEvidenceDocument();
+  const participants = getParticipants();
 
   // Loading State
   if (loading) {
@@ -200,7 +201,7 @@ export const ProjectPage: React.FC = () => {
               <span className="text-lg font-bold text-[#006c49]">98/100</span>
             </div>
             <div className="text-xs text-[#44474c] mt-1">
-              All permits active. Inspection #{inspection.reference} passed without major citations.
+              All permits active. Inspection #{inspection.inspectionReference} passed without major citations.
             </div>
           </div>
         </div>
@@ -217,7 +218,7 @@ export const ProjectPage: React.FC = () => {
             <div className="relative pl-6 space-y-4 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-[#e0e3e5]">
               {[
                 { phase: "PHASE 1", title: "Prep & Planning", status: "COMPLETE", desc: "Site survey finalized, city permits approved.", complete: true },
-                { phase: "PHASE 2", title: "Procurement", status: "COMPLETE", desc: `Steel requirement ${requirement.code} issued.`, complete: true },
+                { phase: "PHASE 2", title: "Procurement", status: "COMPLETE", desc: `Structural requirement ${requirement.requirementReference} issued.`, complete: true },
                 { phase: "PHASE 3", title: "Civil & Excavation", status: "COMPLETE", desc: "Foundation and spatial excavation finished.", complete: true },
                 { phase: "PHASE 4", title: "Structure & Framework", status: "IN PROGRESS", desc: `Steel framework erection. ${project.progressPercent}% complete.`, active: true, progress: project.progressPercent },
                 { phase: "PHASE 5", title: "Envelope & Fitout", status: "UPCOMING", desc: "Building enclosure and structural waterproofing.", upcoming: true },
@@ -319,7 +320,7 @@ export const ProjectPage: React.FC = () => {
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">assignment</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Material Requirement</h4>
-                    <p className="text-[10px] text-[#006c49] font-semibold">{requirement.code}</p>
+                    <p className="text-[10px] text-[#006c49] font-semibold">{requirement.requirementReference}</p>
                   </div>
                 </button>
 
@@ -345,7 +346,7 @@ export const ProjectPage: React.FC = () => {
                   <span className="material-symbols-outlined text-[#ca8100] text-[22px]">local_shipping</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Delivery Tracking</h4>
-                    <p className="text-[10px] text-[#ca8100] font-semibold">{delivery.reference} (Delayed)</p>
+                    <p className="text-[10px] text-[#ca8100] font-semibold">{delivery.deliveryReference} ({delivery.status})</p>
                   </div>
                 </button>
 
@@ -358,7 +359,7 @@ export const ProjectPage: React.FC = () => {
                   <span className="material-symbols-outlined text-[#ba1a1a] text-[22px]">warning</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Transport Delay</h4>
-                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{transportDelay.id}</p>
+                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{transportDelay.transportReference}</p>
                   </div>
                 </button>
 
@@ -371,7 +372,7 @@ export const ProjectPage: React.FC = () => {
                   <span className="material-symbols-outlined text-[#ba1a1a] text-[22px]">bug_report</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">Construction Issue</h4>
-                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{issue.reference}</p>
+                    <p className="text-[10px] text-[#ba1a1a] font-semibold">{issue.issueReference}</p>
                   </div>
                 </button>
 
@@ -383,8 +384,8 @@ export const ProjectPage: React.FC = () => {
                 >
                   <span className="material-symbols-outlined text-[#041627] text-[22px]">gavel</span>
                   <div className="mt-2">
-                    <h4 className="font-bold text-[#041627] text-xs">Architect Decision</h4>
-                    <p className="text-[10px] text-[#006c49] font-semibold">{decision.reference}</p>
+                    <h4 className="font-bold text-[#041627] text-xs">Construction Decision</h4>
+                    <p className="text-[10px] text-[#006c49] font-semibold">{decision.decisionReference}</p>
                   </div>
                 </button>
 
@@ -397,7 +398,7 @@ export const ProjectPage: React.FC = () => {
                   <span className="material-symbols-outlined text-[#006c49] text-[22px]">fact_check</span>
                   <div className="mt-2">
                     <h4 className="font-bold text-[#041627] text-xs">QA Inspection</h4>
-                    <p className="text-[10px] text-[#006c49] font-semibold">{inspection.reference}</p>
+                    <p className="text-[10px] text-[#006c49] font-semibold">{inspection.inspectionReference}</p>
                   </div>
                 </button>
 
@@ -440,7 +441,7 @@ export const ProjectPage: React.FC = () => {
             <div className="bg-white rounded-xl border border-[#e0e3e5] p-6 shadow-sm flex flex-col gap-3">
               <h3 className="text-sm font-bold text-[#041627]">Stakeholders & Traceability Artifacts</h3>
               <div className="flex items-center justify-between text-xs text-[#44474c] pt-1">
-                <span>Verified Stakeholders: 7 Personas</span>
+                <span>Verified Stakeholders: {participants.length} Vault Identities</span>
                 <button
                   type="button"
                   onClick={() => navigate(CONSTRUCTION_ROUTES.STAKEHOLDERS)}
@@ -450,7 +451,7 @@ export const ProjectPage: React.FC = () => {
                 </button>
               </div>
               <div className="flex items-center justify-between text-xs text-[#44474c]">
-                <span>Evidence Ledger: {evidence.code}</span>
+                <span>Evidence Ledger: {evidence.documentReference}</span>
                 <button
                   type="button"
                   onClick={() => navigate(CONSTRUCTION_ROUTES.HISTORY)}

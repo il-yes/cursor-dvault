@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getActivityFeed, getProjects, ProjectData, getIssue, getDelivery } from "../data";
+import { getActivityFeed, getProjects, ProjectData, getIssue, getDelivery, getDecision } from "../data";
 import { CONSTRUCTION_ROUTES } from "../constants/routes";
+
+/** Mirrors TERMINAL_ISSUE_STATUSES in projects.mock.ts: a resolved/closed issue is not open. */
+const TERMINAL_ISSUE_STATUSES = ["resolved", "closed"];
 
 export const ConstructionDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -9,6 +12,7 @@ export const ConstructionDashboard: React.FC = () => {
   const activityLog = getActivityFeed();
   const issue = getIssue();
   const delivery = getDelivery();
+  const decision = getDecision();
 
   const [projects, setProjects] = useState<ProjectData[]>([]);
 
@@ -17,6 +21,10 @@ export const ConstructionDashboard: React.FC = () => {
       .then(setProjects)
       .catch((err) => console.error("Dashboard failed to load projects:", err));
   }, []);
+
+  const activeProjects = projects.filter((p) => p.status === "active");
+  const openIssue = !TERMINAL_ISSUE_STATUSES.includes(issue.status);
+  const pendingDecision = decision.status !== "approved" && decision.status !== "rejected";
 
   return (
     <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6 gap-6 font-[Inter]">
@@ -47,30 +55,42 @@ export const ConstructionDashboard: React.FC = () => {
         <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 shadow-sm flex flex-col justify-between">
           <span className="text-xs text-[#44474c] font-semibold uppercase tracking-wider">Projects</span>
           <div className="text-2xl font-bold text-[#041627] mt-2">{projects.length}</div>
-          <span className="text-[10px] text-[#006c49] font-medium mt-1">1 Active (PRJ-001)</span>
+          <span className="text-[10px] text-[#006c49] font-medium mt-1">
+            {activeProjects.length} Active{activeProjects[0] ? ` (${activeProjects[0].code})` : ""}
+          </span>
         </div>
 
         <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 shadow-sm flex flex-col justify-between">
           <span className="text-xs text-[#44474c] font-semibold uppercase tracking-wider">Open Issues</span>
-          <div className="text-2xl font-bold text-[#d32f2f] mt-2">3</div>
-          <span className="text-[10px] text-[#d32f2f] font-medium mt-1">1 Critical ({issue?.reference})</span>
+          <div className="text-2xl font-bold text-[#d32f2f] mt-2">{openIssue ? 1 : 0}</div>
+          <span className="text-[10px] text-[#d32f2f] font-medium mt-1">
+            {openIssue
+              ? `1 ${issue.severity} (${issue.issueReference})`
+              : `No open issues (${issue.issueReference} ${issue.status})`}
+          </span>
         </div>
 
         <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 shadow-sm flex flex-col justify-between">
           <span className="text-xs text-[#44474c] font-semibold uppercase tracking-wider">Pending Actions</span>
-          <div className="text-2xl font-bold text-[#b76e00] mt-2">7</div>
-          <span className="text-[10px] text-[#b76e00] font-medium mt-1">Approvals &amp; Sign-offs</span>
+          <div className="text-2xl font-bold text-[#b76e00] mt-2">{pendingDecision ? 1 : 0}</div>
+          <span className="text-[10px] text-[#b76e00] font-medium mt-1">
+            {pendingDecision
+              ? "Approvals & Sign-offs"
+              : `No approvals pending (${decision.decisionReference} ${decision.status})`}
+          </span>
         </div>
 
         <div className="bg-white border border-[#e0e3e5] rounded-xl p-4 shadow-sm flex flex-col justify-between">
           <span className="text-xs text-[#44474c] font-semibold uppercase tracking-wider">Deliveries</span>
-          <div className="text-2xl font-bold text-[#041627] mt-2">12</div>
-          <span className="text-[10px] text-[#b76e00] font-medium mt-1">1 Delayed ({delivery?.reference})</span>
+          <div className="text-2xl font-bold text-[#041627] mt-2">1</div>
+          <span className="text-[10px] text-[#b76e00] font-medium mt-1">
+            1 {delivery.status} ({delivery.deliveryReference})
+          </span>
         </div>
 
         <div className="col-span-2 md:col-span-1 bg-white border border-[#e0e3e5] rounded-xl p-4 shadow-sm flex flex-col justify-between">
           <span className="text-xs text-[#44474c] font-semibold uppercase tracking-wider">Recent Events</span>
-          <div className="text-2xl font-bold text-[#006c49] mt-2">24</div>
+          <div className="text-2xl font-bold text-[#006c49] mt-2">{activityLog.length}</div>
           <span className="text-[10px] text-[#006c49] font-medium mt-1">Verified Audit Log</span>
         </div>
       </div>
@@ -82,7 +102,7 @@ export const ConstructionDashboard: React.FC = () => {
             <span className="material-symbols-outlined text-[#041627] text-[20px]">history</span>
             <h2 className="text-base font-bold text-[#181c1e]">Sovereign Workspace Activity Feed</h2>
           </div>
-          <span className="text-xs font-mono text-[#44474c]">Today</span>
+          <span className="text-xs font-mono text-[#44474c]">Cursor-Ordered</span>
         </div>
 
         <div className="flex flex-col gap-0 relative">
@@ -90,7 +110,7 @@ export const ConstructionDashboard: React.FC = () => {
           
           {activityLog.map((act) => (
             <div key={act.id} className="flex items-start gap-4 py-3 relative z-10 hover:bg-[#f7fafc] px-2 rounded-lg transition-colors">
-              <span className="text-xs font-mono text-[#44474c] min-w-[45px] pt-1">{act.time}</span>
+              <span className="text-xs font-mono text-[#44474c] min-w-[45px] pt-1">#{act.cursor}</span>
               <div className="w-5 h-5 rounded-full bg-[#041627] text-white flex items-center justify-center text-[10px] font-bold mt-0.5 flex-shrink-0">
                 •
               </div>

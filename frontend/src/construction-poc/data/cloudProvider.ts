@@ -22,6 +22,29 @@ import type {
 } from "./constructionTypes";
 import type { ConstructionDataProvider } from "./provider";
 
+/**
+ * The generated TraceCore DTO models lag the canonical Construction records, so
+ * some canonical fields are absent from them. This reads such a field without
+ * widening the mapper's parameter types.
+ */
+function canonicalField(dto: object, ...keys: string[]): unknown {
+  const record = dto as Record<string, unknown>;
+  for (const key of keys) {
+    if (record[key] !== undefined) return record[key];
+  }
+  return undefined;
+}
+
+function canonicalString(dto: object, ...keys: string[]): string {
+  const value = canonicalField(dto, ...keys);
+  return typeof value === "string" ? value : "";
+}
+
+function canonicalStringArray(dto: object, ...keys: string[]): string[] {
+  const value = canonicalField(dto, ...keys);
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
 export const cloudProvider: ConstructionDataProvider = {
   ...scenarioAccessors,
 
@@ -179,7 +202,8 @@ export function mapProjectOverviewDTOToProjectData(dto: tracecore_types.ProjectO
     name,
     contractId: dto.contract_id || "",
     type: dto.type || dto.project_type || "",
-    sector: dto.sector || "",
+    // @gap the canonical ConstructionProject has no sector concept.
+    sector: canonicalString(dto, "sector"),
     status: dto.status || "",
     location: locStr,
     description: dto.description || "",
@@ -200,6 +224,8 @@ export function mapProjectOverviewDTOToProjectData(dto: tracecore_types.ProjectO
 
 export function mapProcurementOverviewDTOToData(dto: tracecore_types.ProcurementOverviewDTO): ProcurementData {
   const requirementId = dto.requirement_id || dto.id || dto.code || "";
+  // Several canonical fields are absent from the generated DTO; read them
+  // defensively so the mapper stays correct if the backend later exposes them.
   return {
     id: requirementId,
     requirementId,
@@ -209,6 +235,7 @@ export function mapProcurementOverviewDTOToData(dto: tracecore_types.Procurement
     code: dto.code || requirementId,
     materialId: dto.material_id || "",
     materialName: dto.material_name || "",
+    materialStandard: canonicalString(dto, "material_standard", "standard"),
     specification: dto.specification || "",
     quantity: dto.quantity ?? 0,
     unit: dto.unit || "",
@@ -218,17 +245,20 @@ export function mapProcurementOverviewDTOToData(dto: tracecore_types.Procurement
     priority: dto.priority || "",
     siteId: dto.site_id || "",
     siteName: dto.site_name || "",
-    invitedSuppliersCount: dto.invited_suppliers_count ?? 0,
     offersReceivedCount: dto.offers_received_count ?? 0,
     offerId: dto.offer_id || "",
     offerReference: dto.offer_reference || "",
     supplierId: dto.supplier_id || "",
     supplierName: dto.supplier_name || "",
+    supplierStatus: canonicalString(dto, "supplier_status"),
+    supplierCertifications: canonicalStringArray(dto, "supplier_certifications"),
     totalPrice: dto.total_price || "",
     unitPrice: dto.unit_price || "",
-    promisedDeliveryDate: dto.promised_delivery_date || "",
+    currency: canonicalString(dto, "currency"),
+    proposedDeliveryDate: canonicalString(dto, "proposed_delivery_date") || dto.promised_delivery_date || "",
+    availabilityDate: canonicalString(dto, "availability_date"),
+    validUntil: canonicalString(dto, "valid_until"),
     offerStatus: dto.offer_status || "",
-    isVerifiedSupplier: Boolean(dto.is_verified_supplier),
   };
 }
 
@@ -282,17 +312,25 @@ export function mapLogisticsOverviewDTOToData(dto: any): LogisticsOverviewData {
       reference: o.reference || o.id || "",
       totalPrice: o.total_price || "",
       unitPrice: o.unit_price || "",
-      promisedDeliveryDate: o.promised_delivery_date || "",
+      currency: o.currency || "",
+      proposedDeliveryDate: o.proposed_delivery_date || o.promised_delivery_date || "",
     },
     site: {
       id: st.id || "",
       name: st.name || "",
+      accessWindow: st.access_window || undefined,
+      accessConstraints: st.access_constraints || undefined,
+      storageCapacity: st.storage_capacity || undefined,
+      receivingRequirements: st.receiving_requirements || undefined,
+      inspectionRequired: st.inspection_required ?? undefined,
+      acceptanceRequired: st.acceptance_required ?? undefined,
     },
     transport: {
       id: t.id || t.reference || "",
       reference: t.reference || t.id || "",
       vehicle: t.vehicle || "",
-      driver: t.driver || "",
+      vehicleReference: t.vehicle_reference || "",
+      driverId: t.driver_id || t.driver || "",
       status: t.status || "",
       origin: t.origin || "",
       destination: t.destination || "",
@@ -310,11 +348,15 @@ export function mapLogisticsOverviewDTOToData(dto: any): LogisticsOverviewData {
       reference: iss.reference || iss.id || "",
       title: iss.title || "",
       description: iss.description || "",
+      type: iss.type || "",
       severity: iss.severity || "",
       status: iss.status || "",
       reportedBy: iss.reported_by || "",
       reportedAt: iss.reported_at || "",
       impact: iss.impact || "",
+      assignedTo: iss.assigned_to || "",
+      resolution: iss.resolution || undefined,
+      resolvedAt: iss.resolved_at || undefined,
       evidenceReferences: iss.evidence_references || undefined,
     } : undefined,
     decision: dec ? {

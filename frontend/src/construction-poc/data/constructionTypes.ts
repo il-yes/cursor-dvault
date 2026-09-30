@@ -19,29 +19,40 @@ export interface ProcurementData {
   projectId: string;
   projectCode: string;
   projectName: string;
+  /** Canonical `requirementReference`; `id`/`requirementId` carry the primary key. */
   code: string;
   materialId: string;
   materialName: string;
+  materialStandard: string;
   specification: string;
   quantity: number;
   unit: string;
+  /** Canonical `projectPhase`. */
   targetPhase: string;
   status: string;
   requiredDate: string;
+  /** Canonical `priority`; no derivation. */
   priority: string;
+  /** From `delivery.siteId` — the requirement's own siteId is not persisted. */
   siteId: string;
   siteName: string;
-  invitedSuppliersCount: number;
+  /** The scenario models exactly one offer against this requirement. */
   offersReceivedCount: number;
   offerId: string;
   offerReference: string;
   supplierId: string;
   supplierName: string;
+  supplierStatus: string;
+  supplierCertifications: string[];
+  /** Formatted for display from canonical `totalPrice` + `currency`. */
   totalPrice: string;
   unitPrice: string;
-  promisedDeliveryDate: string;
+  currency: string;
+  /** Canonical `proposedDeliveryDate`. */
+  proposedDeliveryDate: string;
+  availabilityDate: string;
+  validUntil: string;
   offerStatus: string;
-  isVerifiedSupplier: boolean;
 }
 
 export interface LogisticsOverviewData {
@@ -81,17 +92,27 @@ export interface LogisticsOverviewData {
     reference: string;
     totalPrice: string;
     unitPrice: string;
-    promisedDeliveryDate: string;
+    currency: string;
+    proposedDeliveryDate: string;
   };
   site: {
     id: string;
     name: string;
+    accessWindow?: { start: string; end: string };
+    accessConstraints?: string[];
+    storageCapacity?: { value: number; unit: string };
+    receivingRequirements?: string[];
+    inspectionRequired?: boolean;
+    acceptanceRequired?: boolean;
   };
   transport: {
     id: string;
     reference: string;
+    /** Canonical `vehicleType`. */
     vehicle: string;
-    driver: string;
+    vehicleReference: string;
+    /** Canonical `driverId` — an identity id, there is no driver aggregate. */
+    driverId: string;
     status: string;
     origin: string;
     destination: string;
@@ -109,11 +130,15 @@ export interface LogisticsOverviewData {
     reference: string;
     title: string;
     description: string;
+    type: string;
     severity: string;
     status: string;
     reportedBy: string;
     reportedAt: string;
     impact: string;
+    assignedTo: string;
+    resolution?: string;
+    resolvedAt?: string;
     evidenceReferences?: string[];
   };
   decision?: {

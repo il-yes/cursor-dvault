@@ -89,7 +89,7 @@ export const TransportDelayPage: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#181c1e]">Transport Operation {transport.reference || transport.id}</h1>
-          <p className="text-sm text-[#44474c]">Vehicle: {transport.vehicle} • Driver: {transport.driver}</p>
+          <p className="text-sm text-[#44474c]">Vehicle: {transport.vehicle} • Driver: {transport.driverId}</p>
         </div>
         <span className="px-3 py-1 bg-[#ffb74d]/20 text-[#b76e00] rounded-full text-xs font-semibold uppercase">
           {transport.status}

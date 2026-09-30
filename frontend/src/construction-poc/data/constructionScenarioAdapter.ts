@@ -1,56 +1,164 @@
 /**
- * Presentation Data Adapter for Authoritative XS-BIM Construction Scenario.
- * 
- * Note: This file provides presentation data structures matching the authoritative
- * XS-BIM scenario (PRJ-001, REQ-STRUCT-001, DEL-1042, etc.) for UI views whose backend
- * endpoints are not yet exposed in AppAPI.
- * 
- * This is NOT a second domain model or persistence engine.
+ * CANONICAL PROJECTION of the authoritative XS-BIM construction scenario.
+ *
+ * Source of truth (do NOT diverge from):
+ *   ankhora-cloud/internal/scenarios/xs-bim/
+ *     - records.go            -> type aliases onto construction_domain models
+ *     - simulator.go          -> the instantiated scenario data
+ *     - simulator_test.go     -> the executable contract (values pinned here)
+ *     - internal/construction/domain/models.go -> the struct definitions
+ *
+ * Every field below mirrors a Go struct field (camelCase of the json tag) and
+ * carries the value produced by the scenario AFTER the full run completes, i.e.
+ * the final state, not the creation state.
+ *
+ * Deliberate presentation transformations (currency formatting, humanised
+ * labels, status capitalisation) do NOT live here. They belong in
+ * scenarioMappers.ts so this file stays a 1:1 projection and any divergence
+ * from the authoritative source remains reviewable.
+ *
+ * Known authoritative-source gaps are marked `@gap` and reported, not patched.
  */
 
-export interface ConstructionProject {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  status: "ACTIVE" | "COMPLETED" | "ON_HOLD";
-  location: string;
-  budgetSpentPercent: number;
-  scheduleDay: number;
-  scheduleStatus: "On Track" | "Delayed" | "Ahead";
-  complianceScore: number;
-  description: string;
+export interface ScenarioDateWindow {
+  start: string;
+  end: string;
 }
 
-export interface MaterialRequirement {
-  id: string;
+export interface ScenarioLocation {
+  address: string;
+  city: string;
+  country: string;
+}
+
+export interface ScenarioParticipant {
+  /** Canonical vault identity id. This is what every scenario record references. */
+  vaultId: string;
+  vaultAddress: string;
+  organizationId: string;
+  endpoint: string;
+  /** Role this actor plays in the scenario, as evidenced by its trust-group role. */
+  scenarioRole: "owner" | "member" | "reviewer";
+}
+
+export interface ConstructionProjectRecord {
   projectId: string;
-  code: string;
+  projectReference: string;
+  projectName: string;
+  projectType: string;
+  status: string;
+  currentPhase: string;
+  startDate: string;
+  plannedEndDate: string;
+  actualEndDate: string;
+  progressPercentage: number;
+  statusSummary: string;
+  location: ScenarioLocation;
+  /** @gap never populated by the simulator — the project is not an aggregate root. */
+  siteId: string;
+  /** @gap never populated by the simulator. */
+  requirementIds: string[];
+  /** @gap never populated by the simulator; there is no ConstructionStakeholder aggregate. */
+  stakeholderIds: string[];
+  /** @gap never populated by the simulator. */
+  milestones: string[];
+}
+
+export interface ConstructionMaterialRecord {
   materialId: string;
-  materialName: string;
+  materialReference: string;
+  name: string;
+  category: string;
+  description: string;
+  standard: string;
   specification: string;
+  unit: string;
+  origin: string;
+  productionDate: string;
+  batchReference: string;
+  certificationReferences: string[];
+  /** Final value after AcceptConstructionMaterial. */
+  status: string;
+}
+
+export interface ConstructionRequirementRecord {
+  requirementId: string;
+  requirementReference: string;
+  projectId: string;
+  type: string;
+  description: string;
+  specification: string;
+  materialId: string;
   quantity: number;
   unit: string;
-  targetPhase: string;
-  status: "fulfilled_delayed" | "pending" | "fulfilled";
   requiredDate: string;
+  deliveryWindow: ScenarioDateWindow;
+  /**
+   * @gap The scenario assigns `requirement.SiteID` in memory (simulator.go:552)
+   * but never persists it — there is no UpdateRequirement call. The API returns
+   * "". Use `delivery.siteId` (persisted at creation) for the site relationship.
+   */
+  siteId: string;
+  projectPhase: string;
+  priority: string;
+  /** Never mutated by the scenario. */
+  status: string;
 }
 
-export interface SupplierOffer {
-  id: string;
+export interface ConstructionSupplierRecord {
+  supplierId: string;
+  supplierReference: string;
+  name: string;
+  type: string;
+  description: string;
+  /** Dangling reference — no contact aggregate exists in the domain. */
+  contactId: string;
+  materialCategories: string[];
+  certificationReferences: string[];
+  serviceAreas: string[];
+  status: string;
+}
+
+export interface ConstructionOfferRecord {
+  offerId: string;
+  offerReference: string;
   requirementId: string;
   supplierId: string;
-  supplierName: string;
-  offerReference: string;
-  totalPrice: string;
-  unitPrice: string;
-  promisedDeliveryDate: string;
-  status: "ACCEPTED" | "PENDING" | "REJECTED";
+  materialId: string;
+  quantity: number;
+  unit: string;
+  specification: string;
+  unitPrice: number;
+  currency: string;
+  totalPrice: number;
+  availabilityDate: string;
+  proposedDeliveryDate: string;
+  deliveryWindow: ScenarioDateWindow;
+  validUntil: string;
+  certificationReferences: string[];
+  /** Final value after AcceptConstructionOffer. */
+  status: string;
+  notes: string;
 }
 
-export interface Delivery {
-  id: string;
-  reference: string;
+export interface ConstructionSiteRecord {
+  siteId: string;
+  siteReference: string;
+  projectId: string;
+  name: string;
+  /** Time-of-day window, not timestamps. */
+  accessWindow: ScenarioDateWindow;
+  accessConstraints: string[];
+  storageCapacity: { value: number; unit: string };
+  receivingRequirements: string[];
+  inspectionRequired: boolean;
+  acceptanceRequired: boolean;
+  status: string;
+}
+
+export interface ConstructionDeliveryRecord {
+  deliveryId: string;
+  deliveryReference: string;
   projectId: string;
   requirementId: string;
   materialId: string;
@@ -58,338 +166,532 @@ export interface Delivery {
   offerId: string;
   quantity: number;
   unit: string;
-  status: "delayed" | "in_transit" | "arrived" | "received" | "inspected";
+  /** Final value: planned -> in_transit -> delayed -> in_transit -> received -> accepted */
+  status: string;
   plannedDeliveryDate: string;
   eta: string;
-  actualDeliveryDate?: string;
+  actualDeliveryDate: string;
   siteId: string;
-  siteName: string;
   transportId: string;
+  driverId: string;
+  reference: string;
   deliveryNotes: string;
 }
 
-export interface Transport {
-  id: string;
+export interface ConstructionTransportRecord {
+  transportId: string;
+  transportReference: string;
   deliveryId: string;
-  vehicle: string;
-  driver: string;
-  origin: string;
-  destination: string;
-  route: string;
+  vehicleReference: string;
+  vehicleType: string;
+  /** An identity id, not a person's name — there is no driver aggregate. */
+  driverId: string;
+  origin: ScenarioLocation;
+  destinationSiteId: string;
+  /** Final value after UpdateRouteAndResumeDelivery. */
+  routeReference: string;
   plannedDeparture: string;
   actualDeparture: string;
+  plannedArrival: string;
   eta: string;
-  constraints: string;
+  actualArrival: string;
+  constraints: string[];
+  status: string;
   delayReason: string;
-  status: "delayed" | "rerouted" | "in_transit" | "delivered";
-}
-
-export interface ConstructionIssue {
-  id: string;
-  reference: string;
-  deliveryId: string;
-  transportId: string;
-  title: string;
-  description: string;
-  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  status: "OPEN" | "RESOLVED";
-  reportedAt: string;
-  evidenceDocId: string;
-}
-
-export interface EvidenceDocument {
-  id: string;
-  code: string;
-  title: string;
-  fileName: string;
-  fileSize: string;
-  hash: string;
-  uploadedAt: string;
-  author: string;
-}
-
-export interface ConstructionDecision {
-  id: string;
-  reference: string;
-  issueId: string;
-  title: string;
-  proposedAction: string;
-  impactSummary: string;
-  status: "PROPOSED" | "APPROVED" | "EXECUTED";
-  proposedBy: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  actionTaken: string;
-}
-
-export interface Inspection {
-  id: string;
-  reference: string;
-  deliveryId: string;
-  materialId: string;
-  title: string;
-  inspector: string;
-  inspectionDate: string;
-  status: "PASSED" | "FAILED" | "PENDING";
-  ultrasonicWeldIntegrity: string;
-  dimensionalCompliance: string;
   notes: string;
 }
 
-export interface Stakeholder {
-  id: string;
+export interface ConstructionIssueRecord {
+  issueId: string;
+  issueReference: string;
+  projectId: string;
+  title: string;
+  description: string;
+  type: string;
+  severity: string;
+  /** Final value after ResolveConstructionIssue. */
+  status: string;
+  reportedBy: string;
+  reportedAt: string;
+  /** Polymorphic reference pair, per domain convention. */
+  affectedResourceType: string;
+  affectedResourceId: string;
+  siteId: string;
+  impact: string;
+  evidenceReferences: string[];
+  /** Free-text role, not a participant id. */
+  assignedTo: string;
+  resolution: string;
+  resolvedAt: string;
+}
+
+export interface ConstructionActionRecord {
+  actionId: string;
+  actionReference: string;
+  projectId: string;
+  type: string;
+  resourceType: string;
+  resourceId: string;
+  assignedTo: string;
+  status: string;
+  priority: string;
+  description: string;
+  dueDate: string;
+  completedAt: string;
+  result: string;
+  evidenceReferences: string[];
+}
+
+export interface ConstructionDecisionRecord {
+  decisionId: string;
+  decisionReference: string;
+  projectId: string;
+  type: string;
+  requestedBy: string;
+  requestDate: string;
+  subject: string;
+  context: string;
+  evidenceReferences: string[];
+  technicalAssessment: string;
+  risksIdentified: string[];
+  participantsConsulted: string[];
+  optionsConsidered: string[];
+  decision: string;
+  decidedBy: string;
+  decisionDate: string;
+  consequence: string;
+  status: string;
+}
+
+export interface ConstructionInspectionRecord {
+  inspectionId: string;
+  inspectionReference: string;
+  projectId: string;
+  deliveryId: string;
+  materialId: string;
+  type: string;
+  zone: string;
+  inspectorId: string;
+  scheduledAt: string;
+  completedAt: string;
+  criteria: string[];
+  status: string;
+  result: string;
+  findings: string[];
+  evidenceReferences: string[];
+  notes: string;
+}
+
+export interface ConstructionDocumentRecord {
+  documentId: string;
+  documentReference: string;
+  projectId: string;
   name: string;
-  role: string;
-  organization: string;
-  trustStatus: "VERIFIED" | "PENDING";
-  email: string;
-  phone: string;
+  category: string;
+  description: string;
+  cid: string;
+  contentHash: string;
+  version: string;
+  status: string;
+  uploadedBy: string;
+  issuedBy: string;
+  issuedAt: string;
+  effectiveFrom: string;
+  expiresAt: string;
+  relatedResourceType: string;
+  relatedResourceId: string;
 }
 
-export interface TraceMilestone {
-  timestamp: string;
-  layer: "Construction" | "C3 Collaboration" | "TraceCore";
-  event: string;
-  entityId: string;
-  actor: string;
+export interface ScenarioShareEntry {
+  title: string;
+  entryType: string;
+  downloadAllowed: boolean;
+  senderUserId: string;
+  senderEmail: string;
+  signature: string;
+  c3Cid: string;
 }
 
-export const SCENARIO_DATA = {
-  project: {
-    id: "PRJ-001",
-    code: "PRJ-001",
-    name: "Metro Line 4 Expansion",
-    type: "INFRASTRUCTURE",
-    status: "ACTIVE",
-    location: "South Corridor - Segment 3, Chicago, IL",
-    budgetSpentPercent: 62,
-    scheduleDay: 142,
-    scheduleStatus: "Delayed",
-    complianceScore: 98,
-    description: "Expansion of Metro Line 4 heavy rail transit corridor including underground tunneling, station structures, and elevated viaducts."
-  } as ConstructionProject,
+export interface ScenarioThreadEvent {
+  /** Monotonic ordering only. The scenario records no wall-clock time per event. */
+  cursor: number;
+  eventType: string;
+  /** Vault identity id of the actor that appended the event. */
+  actorId: string;
+  idempotencyKey: string;
+  /** Only `construction.action.completed` carries a payload. */
+  payload?: { cid: string; contentHash: string; size: number };
+}
 
-  requirement: {
-    id: "REQ-STRUCT-001",
-    projectId: "PRJ-001",
-    code: "REQ-STRUCT-001",
-    materialId: "MAT-STRUCT-001",
-    materialName: "High-Strength Structural Steel Beams (Grade A992)",
-    specification: "W18x86 Heavy Flange Beams, ASTM A992 certified, anti-corrosion primer coated.",
-    quantity: 120,
-    unit: "Metric Tons",
-    targetPhase: "Phase 4 - Structure Pier Support",
-    status: "fulfilled_delayed",
-    requiredDate: "2026-08-15"
-  } as MaterialRequirement,
+export const CANONICAL_SCENARIO = {
+  /** The three scenario actors. @gap no ConstructionStakeholder aggregate exists. */
+  participants: [
+    {
+      vaultId: "vault_001-oem",
+      vaultAddress: "oem-metro@partner.com",
+      organizationId: "org_001",
+      endpoint: "https://vault_oem@partner.com",
+      scenarioRole: "owner"
+    },
+    {
+      vaultId: "vault_002-michelin",
+      vaultAddress: "apex-supplier@partner.com",
+      organizationId: "org_002",
+      endpoint: "https://vault_supplier@partner.com",
+      scenarioRole: "member"
+    },
+    {
+      vaultId: "vault_003-faa",
+      vaultAddress: "regulator@faa.gov",
+      organizationId: "org_003",
+      endpoint: "https://vault_regulator@faa.gov",
+      scenarioRole: "reviewer"
+    }
+  ] as ScenarioParticipant[],
 
-  supplier: {
-    id: "SUP-001",
-    name: "Apex Steel Fabrication Ltd."
+  collaboration: {
+    workspace: {
+      name: "Metro Line 4 Expansion Program",
+      description: "Civil & Structural Logistics",
+      ownerId: "org_001"
+    },
+    channel: {
+      templateId: "construction-logistics",
+      title: "Site Logistics & Supply Chain",
+      slotName: "Site Logistics & Supply Chain",
+      slotRole: "lead-contractor",
+      gated: true,
+      slotOrder: 1,
+      slotOwnerId: "ProjectManager-01"
+    },
+    thread: {
+      title: "Material Delivery Tracking - Beam D-1042",
+      subtitle: "Metro Line 4 Extension",
+      assetType: "construction_delivery"
+    },
+    trustGroup: {
+      name: "Logistics Coordination Group",
+      groupKey: "logistics-group-key",
+      keyVersion: 1
+    },
+    partnerTrust: [
+      { vaultId: "vault_002-michelin", trustName: "supplier-logistics-trust", direction: "inbound" },
+      { vaultId: "vault_003-faa", trustName: "site-inspection-trust", direction: "inbound" }
+    ]
   },
 
+  project: {
+    projectId: "PRJ-001",
+    projectReference: "PRJ-METRO-001",
+    projectName: "Metro Line 4 Expansion",
+    projectType: "Infrastructure",
+    status: "active",
+    currentPhase: "Phase 2 Structural",
+    startDate: "2026-01-01",
+    plannedEndDate: "2027-12-31",
+    actualEndDate: "",
+    progressPercentage: 25.0,
+    statusSummary: "Civil works underway",
+    location: { address: "", city: "", country: "" },
+    siteId: "",
+    requirementIds: [],
+    stakeholderIds: [],
+    milestones: []
+  } as ConstructionProjectRecord,
+
+  material: {
+    materialId: "MAT-STRUCT-001",
+    materialReference: "MAT-REF-88",
+    name: "Precast Concrete Beam Heavy Grade",
+    category: "Structural Concrete",
+    description: "High load capacity precast structural beam",
+    standard: "EN 13369",
+    specification: "C50/60 Concrete, 12m length",
+    unit: "units",
+    origin: "Apex Fabrication Facility",
+    productionDate: "2026-08-01",
+    batchReference: "BATCH-2026-08-A",
+    certificationReferences: ["CERT-MAT-881"],
+    status: "accepted"
+  } as ConstructionMaterialRecord,
+
+  requirement: {
+    requirementId: "REQ-STRUCT-001",
+    requirementReference: "REQ-REF-1042",
+    projectId: "PRJ-001",
+    type: "Structural Material",
+    description: "Heavy grade precast beams required for viaduct section 4",
+    specification: "EN 13369 C50/60",
+    materialId: "MAT-STRUCT-001",
+    quantity: 12.0,
+    unit: "units",
+    requiredDate: "2026-08-15",
+    deliveryWindow: { start: "2026-08-15T08:00:00Z", end: "2026-08-15T12:00:00Z" },
+    siteId: "",
+    projectPhase: "Phase 2 Structural",
+    priority: "critical",
+    status: "open"
+  } as ConstructionRequirementRecord,
+
+  supplier: {
+    supplierId: "SUP-001",
+    supplierReference: "SUP-APEX",
+    name: "Apex Precast Logistics",
+    type: "Manufacturer",
+    description: "Specialized heavy concrete component supplier",
+    contactId: "contact-apex-01",
+    materialCategories: ["Structural Concrete", "Precast Beams"],
+    certificationReferences: ["ISO-9001-APEX"],
+    serviceAreas: ["Metropolitan Region"],
+    status: "active"
+  } as ConstructionSupplierRecord,
+
   offer: {
-    id: "OFF-1042",
+    offerId: "OFF-1042",
+    offerReference: "OFF-REF-1042",
     requirementId: "REQ-STRUCT-001",
     supplierId: "SUP-001",
-    supplierName: "Apex Steel Fabrication Ltd.",
-    offerReference: "OFF-1042",
-    totalPrice: "$142,500.00",
-    unitPrice: "$1,187.50 / Ton",
-    promisedDeliveryDate: "2026-08-15",
-    status: "ACCEPTED"
-  } as SupplierOffer,
+    materialId: "MAT-STRUCT-001",
+    quantity: 12.0,
+    unit: "units",
+    specification: "C50/60 Concrete, 12m length",
+    unitPrice: 4500.0,
+    currency: "EUR",
+    totalPrice: 54000.0,
+    availabilityDate: "2026-08-10",
+    proposedDeliveryDate: "2026-08-15",
+    deliveryWindow: { start: "2026-08-15T08:00:00Z", end: "2026-08-15T12:00:00Z" },
+    validUntil: "2026-08-30",
+    certificationReferences: ["CERT-MAT-881"],
+    status: "accepted",
+    notes: "Includes specialized transport vehicle and driver"
+  } as ConstructionOfferRecord,
+
+  site: {
+    siteId: "SITE-001",
+    siteReference: "SITE-HUB-NORTH",
+    projectId: "PRJ-001",
+    name: "North Hub Station Site",
+    accessWindow: { start: "06:00", end: "18:00" },
+    accessConstraints: ["Heavy vehicle access via Gate 3 only"],
+    storageCapacity: { value: 500, unit: "sqm" },
+    receivingRequirements: ["Crane operator standby", "Inspector on site"],
+    inspectionRequired: true,
+    acceptanceRequired: true,
+    status: "active"
+  } as ConstructionSiteRecord,
 
   delivery: {
-    id: "DEL-1042",
-    reference: "DEL-1042",
+    deliveryId: "DEL-1042",
+    deliveryReference: "DEL-REF-1042",
     projectId: "PRJ-001",
     requirementId: "REQ-STRUCT-001",
     materialId: "MAT-STRUCT-001",
     supplierId: "SUP-001",
     offerId: "OFF-1042",
-    quantity: 120,
-    unit: "Metric Tons",
-    status: "delayed",
+    quantity: 12.0,
+    unit: "units",
+    status: "accepted",
     plannedDeliveryDate: "2026-08-15",
-    eta: "2026-08-16 07:30",
-    actualDeliveryDate: "2026-08-16 07:51",
-    siteId: "SITE-SOUTH-01",
-    siteName: "Site Alpha - South Pier Foundation",
+    eta: "2026-08-16T07:30:00Z",
+    actualDeliveryDate: "2026-08-16T07:30:00Z",
+    siteId: "SITE-001",
     transportId: "TR-1042",
-    deliveryNotes: "Critical structural load for Pier 4 framework. Delayed en route due to bridge load restriction on M1."
-  } as Delivery,
+    driverId: "driver-heavy-09",
+    reference: "EXT-LOG-1042",
+    deliveryNotes: "Structural beams for viaduct section 4"
+  } as ConstructionDeliveryRecord,
 
   transport: {
-    id: "TR-1042",
+    transportId: "TR-1042",
+    transportReference: "TR-REF-1042",
     deliveryId: "DEL-1042",
-    vehicle: "Heavy Hauler Truck #88 (48-Ton Multi-Axle Trailer)",
-    driver: "Mark Vance (CDL Class-A)",
-    origin: "Apex Plant #2, Gary, IN",
-    destination: "Site Alpha - South Pier, Chicago, IL",
-    route: "M1 Highway Northbound → Rerouted via Highway B",
-    plannedDeparture: "2026-08-15 06:00",
-    actualDeparture: "2026-08-15 06:15",
-    eta: "2026-08-16 07:30",
-    constraints: "Axle weight limit max 35T on M1 Km 42 bridge structure.",
-    delayReason: "Road Restriction on M1 Highway - Weight limit enforced.",
-    status: "rerouted"
-  } as Transport,
+    vehicleReference: "TRUCK-HEAVY-9",
+    vehicleType: "Heavy Transporter",
+    driverId: "driver-heavy-09",
+    origin: { address: "Factory St 10", city: "Industrial Park", country: "DE" },
+    destinationSiteId: "SITE-001",
+    routeReference: "Route-B",
+    plannedDeparture: "2026-08-15T06:00:00Z",
+    actualDeparture: "2026-08-15T06:05:00Z",
+    plannedArrival: "2026-08-15T10:00:00Z",
+    eta: "2026-08-16T07:30:00Z",
+    actualArrival: "2026-08-16T07:30:00Z",
+    constraints: ["Road restriction on planned route M1"],
+    status: "completed",
+    delayReason: "Road restriction on planned route M1",
+    notes: ""
+  } as ConstructionTransportRecord,
 
   issue: {
-    id: "ISS-1042",
-    reference: "ISS-1042",
-    deliveryId: "DEL-1042",
-    transportId: "TR-1042",
-    title: "Road Restriction on M1 Highway - Axle Weight Limit",
-    description: "Illinois DOT issued emergency weight reduction to 35T on M1 Km 42 bridge structure. Transport TR-1042 total load is 48T, blocking primary transit route.",
-    severity: "CRITICAL",
-    status: "RESOLVED",
-    reportedAt: "2026-08-15 11:41",
-    evidenceDocId: "DOC-EVID-001"
-  } as ConstructionIssue,
+    issueId: "ISS-1042",
+    issueReference: "ISS-REF-1042",
+    projectId: "PRJ-001",
+    title: "Critical Beam Delivery Delayed by Route M1 Blockage",
+    description:
+      "Severe road restriction on highway M1 prevents heavy transport vehicle TR-1042 from reaching site on scheduled date",
+    type: "logistics",
+    severity: "high",
+    status: "resolved",
+    reportedBy: "vault_002-michelin",
+    reportedAt: "2026-08-15T11:41:00Z",
+    affectedResourceType: "construction_delivery",
+    affectedResourceId: "DEL-1042",
+    siteId: "SITE-001",
+    impact: "Delay in phase 2 structural assembly",
+    evidenceReferences: ["DOC-EVID-001"],
+    assignedTo: "Logistics Manager",
+    resolution: "Material rerouted via Route B and accepted after site inspection",
+    resolvedAt: "2026-08-16T09:20:00Z"
+  } as ConstructionIssueRecord,
 
-  evidenceDoc: {
-    id: "DOC-EVID-001",
-    code: "DOC-EVID-001",
-    title: "DOT Emergency Road Restriction Notice & Permit Report",
-    fileName: "DOT_M1_Restriction_Permit_2026.pdf",
-    fileSize: "2.4 MB",
-    hash: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    uploadedAt: "2026-08-15 11:45",
-    author: "Mark Vance (Freight Operator)"
-  } as EvidenceDocument,
+  action: {
+    actionId: "ACT-1042",
+    actionReference: "ACT-REF-1042",
+    projectId: "PRJ-001",
+    type: "review",
+    resourceType: "construction_issue",
+    resourceId: "ISS-1042",
+    assignedTo: "Logistics Team",
+    status: "completed",
+    priority: "high",
+    description: "Evaluate alternative transport route B and clear axle load limits",
+    dueDate: "2026-08-15",
+    completedAt: "2026-08-15T13:00:00Z",
+    result: "Route B detour evaluated and verified compatible with heavy vehicle constraints",
+    evidenceReferences: ["DOC-EVID-001"]
+  } as ConstructionActionRecord,
 
   decision: {
-    id: "DEC-1042",
-    reference: "DEC-1042",
-    issueId: "ISS-1042",
-    title: "Approve Alternative Route B & Heavy Load Permit Reroute",
-    proposedAction: "Reroute transport via Highway B with state police escort, splitting secondary axle load at intermediate weigh station.",
-    impactSummary: "Foundation phase delayed by 1 day. Delivery ETA moved from Aug 15 to Aug 16, 07:30.",
-    status: "EXECUTED",
-    proposedBy: "David Chen (Logistics Coordinator)",
-    approvedBy: "Alex Rivera (Project Manager)",
-    approvedAt: "2026-08-15 14:20",
-    actionTaken: "Alternative Route B approved and executed. Transport rerouted successfully."
-  } as ConstructionDecision,
+    decisionId: "DEC-1042",
+    decisionReference: "DEC-REF-1042",
+    projectId: "PRJ-001",
+    type: "Delivery Route Change",
+    requestedBy: "Logistics Manager",
+    requestDate: "2026-08-15",
+    subject: "Structural material delivery delay alternative route",
+    context: "Route M1 blocked, ETA delayed to 2026-08-16T07:30:00Z",
+    evidenceReferences: ["DOC-EVID-001"],
+    technicalAssessment:
+      "Alternative Route B bypasses M1 restriction; clear height and axle load requirements satisfied",
+    risksIdentified: ["6-hour travel extension", "Additional transport cost"],
+    participantsConsulted: ["Contractor", "Supplier", "Logistics", "Project Manager"],
+    optionsConsidered: ["Wait for M1 clearance", "Use Route B detour"],
+    decision: "Approve Route B alternative transport",
+    decidedBy: "Project Manager",
+    decisionDate: "2026-08-15",
+    consequence: "Transport re-routed via Route B, delivery expected 2026-08-16T07:30:00Z",
+    status: "approved"
+  } as ConstructionDecisionRecord,
 
   inspection: {
-    id: "INSP-1042",
-    reference: "INSP-1042",
+    inspectionId: "INSP-1042",
+    inspectionReference: "INSP-REF-1042",
+    projectId: "PRJ-001",
     deliveryId: "DEL-1042",
     materialId: "MAT-STRUCT-001",
-    title: "Structural Steel Weld & Dimensional Acceptance Inspection",
-    inspector: "Sarah Jenkins, PE (Lead Site Superintendent)",
-    inspectionDate: "2026-08-16 09:20",
-    status: "PASSED",
-    ultrasonicWeldIntegrity: "100% Pass - Zero structural defects detected",
-    dimensionalCompliance: "Conforms strictly to ASTM A992 & REQ-STRUCT-001 specs",
-    notes: "Material received in prime condition post-reroute. Approved for immediate hoisting on Pier 4 framework."
-  } as Inspection,
+    type: "Receiving Inspection",
+    zone: "Unloading Bay 2",
+    inspectorId: "vault_003-faa",
+    scheduledAt: "2026-08-16T08:00:00Z",
+    completedAt: "2026-08-16T09:20:00Z",
+    criteria: ["Dimensional check", "Surface crack inspection", "Mill test certificate match"],
+    status: "completed",
+    result: "accepted",
+    findings: [
+      "Beams delivered in sound structural condition",
+      "No microcracks or transport damage observed"
+    ],
+    evidenceReferences: ["DOC-CERT-882"],
+    notes: "Material verified compliant with EN 13369"
+  } as ConstructionInspectionRecord,
 
-  stakeholders: [
-    {
-      id: "STK-001",
-      name: "Alex Rivera",
-      role: "Project Manager",
-      organization: "Metro Transit Authority",
-      trustStatus: "VERIFIED",
-      email: "arivera@metrotransit.org",
-      phone: "+1 (312) 555-0142"
-    },
-    {
-      id: "STK-002",
-      name: "David Chen",
-      role: "Logistics Coordinator",
-      organization: "Apex Steel Fabrication Ltd.",
-      trustStatus: "VERIFIED",
-      email: "dchen@apexsteel.com",
-      phone: "+1 (312) 555-0188"
-    },
-    {
-      id: "STK-003",
-      name: "Mark Vance",
-      role: "Freight Driver / Operator",
-      organization: "Vance Logistics Group",
-      trustStatus: "VERIFIED",
-      email: "mvance@vancelogistics.com",
-      phone: "+1 (312) 555-0204"
-    },
-    {
-      id: "STK-004",
-      name: "Sarah Jenkins, PE",
-      role: "Lead Site Superintendent & QA",
-      organization: "Ankhora Construction Management",
-      trustStatus: "VERIFIED",
-      email: "sjenkins@ankhora-cm.com",
-      phone: "+1 (312) 555-0199"
-    }
-  ] as Stakeholder[],
+  /** Road-restriction notice, the only C3-shared artifact. */
+  evidenceDoc: {
+    documentId: "DOC-EVID-001",
+    documentReference: "DOC-REF-001",
+    projectId: "PRJ-001",
+    name: "Road Restriction Official Notice M1",
+    category: "road_restriction_report",
+    description: "Department of Transportation closure notice for Highway M1",
+    cid: "QmRoadRestrictionReport1042",
+    contentHash: "hash-restriction-notice-m1",
+    version: "1.0",
+    status: "issued",
+    uploadedBy: "vault_002-michelin",
+    issuedBy: "Highway Authority",
+    issuedAt: "2026-08-15T11:00:00Z",
+    effectiveFrom: "",
+    expiresAt: "",
+    relatedResourceType: "construction_transport",
+    relatedResourceId: "TR-1042"
+  } as ConstructionDocumentRecord,
 
-  traceMilestones: [
+  /** Inspection certificate, cited by `inspection.evidenceReferences`. */
+  certDoc: {
+    documentId: "DOC-CERT-882",
+    documentReference: "DOC-REF-882",
+    projectId: "PRJ-001",
+    name: "Site Delivery Quality Inspection Certificate",
+    category: "inspection_certificate",
+    description: "On-site quality audit and ultrasonic testing report",
+    cid: "QmInspectionCert882",
+    contentHash: "hash-cert-882",
+    version: "1.0",
+    status: "issued",
+    uploadedBy: "vault_003-faa",
+    issuedBy: "Site Quality Auditor",
+    issuedAt: "2026-08-16T09:15:00Z",
+    effectiveFrom: "",
+    expiresAt: "",
+    relatedResourceType: "construction_delivery",
+    relatedResourceId: "DEL-1042"
+  } as ConstructionDocumentRecord,
+
+  shareEntry: {
+    title: "Road Restriction Report M1",
+    entryType: "road_restriction_report",
+    downloadAllowed: true,
+    senderUserId: "user_supplier_01",
+    senderEmail: "vault_002-michelin",
+    signature: "sig-supplier-doc",
+    c3Cid: "QmRoadRestrictionReport1042"
+  } as ScenarioShareEntry,
+
+  /**
+   * The authoritative event sequence, in emission order. These 23 events are
+   * mirrored 1:1 into TraceCore as commits (RepoID PRJ-001, Branch thread.ID),
+   * so this array is the scenario's full trace history.
+   */
+  threadEvents: [
+    { cursor: 1, eventType: "construction.project.phase.started", actorId: "vault_001-oem", idempotencyKey: "evt-proj-started" },
+    { cursor: 2, eventType: "construction.requirement.created", actorId: "vault_001-oem", idempotencyKey: "evt-req-created" },
+    { cursor: 3, eventType: "construction.supplier.invited", actorId: "vault_001-oem", idempotencyKey: "evt-sup-invited" },
+    { cursor: 4, eventType: "construction.offer.submitted", actorId: "vault_002-michelin", idempotencyKey: "evt-off-submitted" },
+    { cursor: 5, eventType: "construction.offer.accepted", actorId: "vault_001-oem", idempotencyKey: "evt-off-accepted" },
+    { cursor: 6, eventType: "construction.supplier.confirmed", actorId: "vault_002-michelin", idempotencyKey: "evt-sup-confirmed" },
+    { cursor: 7, eventType: "construction.delivery.requested", actorId: "vault_001-oem", idempotencyKey: "evt-del-requested" },
+    { cursor: 8, eventType: "construction.transport.assigned", actorId: "vault_002-michelin", idempotencyKey: "evt-tr-assigned" },
+    { cursor: 9, eventType: "construction.transport.accepted", actorId: "vault_002-michelin", idempotencyKey: "evt-tr-accepted" },
+    { cursor: 10, eventType: "construction.transport.departed", actorId: "vault_002-michelin", idempotencyKey: "evt-tr-departed" },
+    { cursor: 11, eventType: "construction.transport.constraint.reported", actorId: "vault_002-michelin", idempotencyKey: "evt-tr-constraint" },
+    { cursor: 12, eventType: "construction.transport.eta.updated", actorId: "vault_002-michelin", idempotencyKey: "evt-tr-eta-updated" },
+    { cursor: 13, eventType: "construction.delivery.delayed", actorId: "vault_001-oem", idempotencyKey: "evt-del-delayed" },
+    { cursor: 14, eventType: "construction.issue.reported", actorId: "vault_002-michelin", idempotencyKey: "evt-iss-reported" },
+    { cursor: 15, eventType: "construction.action.created", actorId: "vault_001-oem", idempotencyKey: "evt-act-created" },
     {
-      timestamp: "2026-08-15 08:03",
-      layer: "Construction",
-      event: "Transport TR-1042 accepted by carrier",
-      entityId: "TR-1042",
-      actor: "Mark Vance"
+      cursor: 16,
+      eventType: "construction.action.completed",
+      actorId: "vault_001-oem",
+      idempotencyKey: "evt-act-completed",
+      payload: { cid: "QmRoadRestrictionReport1042", contentHash: "hash-restriction-notice-m1", size: 2048 }
     },
-    {
-      timestamp: "2026-08-15 11:41",
-      layer: "C3 Collaboration",
-      event: "Construction issue ISS-1042 logged: M1 Road restriction",
-      entityId: "ISS-1042",
-      actor: "Mark Vance"
-    },
-    {
-      timestamp: "2026-08-15 11:45",
-      layer: "C3 Collaboration",
-      event: "Evidence document DOC-EVID-001 attached to thread",
-      entityId: "DOC-EVID-001",
-      actor: "Mark Vance"
-    },
-    {
-      timestamp: "2026-08-15 12:05",
-      layer: "Construction",
-      event: "Delivery DEL-1042 status updated to delayed. ETA: 2026-08-16 07:30",
-      entityId: "DEL-1042",
-      actor: "David Chen"
-    },
-    {
-      timestamp: "2026-08-15 12:17",
-      layer: "C3 Collaboration",
-      event: "Site Superintendent acknowledged delivery delay notice",
-      entityId: "DEL-1042",
-      actor: "Sarah Jenkins"
-    },
-    {
-      timestamp: "2026-08-15 13:02",
-      layer: "Construction",
-      event: "Alternative Route B proposal DEC-1042 created",
-      entityId: "DEC-1042",
-      actor: "David Chen"
-    },
-    {
-      timestamp: "2026-08-15 14:20",
-      layer: "Construction",
-      event: "Decision DEC-1042 approved by Project Manager",
-      entityId: "DEC-1042",
-      actor: "Alex Rivera"
-    },
-    {
-      timestamp: "2026-08-16 07:51",
-      layer: "TraceCore",
-      event: "Delivery DEL-1042 received at Site Alpha South Pier",
-      entityId: "DEL-1042",
-      actor: "Sarah Jenkins"
-    },
-    {
-      timestamp: "2026-08-16 09:20",
-      layer: "TraceCore",
-      event: "Inspection INSP-1042 completed: Structural Steel Accepted",
-      entityId: "INSP-1042",
-      actor: "Sarah Jenkins"
-    }
-  ] as TraceMilestone[]
-};
+    { cursor: 17, eventType: "construction.decision.proposed", actorId: "vault_001-oem", idempotencyKey: "evt-dec-proposed" },
+    { cursor: 18, eventType: "construction.decision.approved", actorId: "vault_001-oem", idempotencyKey: "evt-dec-approved" },
+    { cursor: 19, eventType: "construction.delivery.updated", actorId: "vault_002-michelin", idempotencyKey: "evt-del-updated" },
+    { cursor: 20, eventType: "construction.delivery.received", actorId: "vault_002-michelin", idempotencyKey: "evt-del-received" },
+    { cursor: 21, eventType: "construction.inspection.completed", actorId: "vault_003-faa", idempotencyKey: "evt-insp-completed" },
+    { cursor: 22, eventType: "construction.issue.resolved", actorId: "vault_001-oem", idempotencyKey: "evt-iss-resolved" },
+    { cursor: 23, eventType: "construction.material.accepted", actorId: "vault_001-oem", idempotencyKey: "evt-mat-accepted" }
+  ] as ScenarioThreadEvent[]
+} as const;

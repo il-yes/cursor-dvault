@@ -1,21 +1,39 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
+import {
+  getProjectRecord,
+  getDelivery,
+  getIssue,
+  getEvidenceDocument,
+  getDecision,
+  getTransportDelay,
+  getInspection,
+  getMaterial,
+  getSite,
+} from "../data";
 
 export const ProvenanceWhyPage: React.FC = () => {
   const navigate = useNavigate();
-  const { project, delivery, issue, evidenceDoc, decision, transport, inspection, requirement, traceMilestones } = SCENARIO_DATA;
+  const project = getProjectRecord();
+  const delivery = getDelivery();
+  const issue = getIssue();
+  const evidenceDoc = getEvidenceDocument();
+  const decision = getDecision();
+  const transport = getTransportDelay();
+  const inspection = getInspection();
+  const material = getMaterial();
+  const site = getSite();
 
   return (
     <div className="flex flex-col w-full pb-8 max-w-4xl mx-auto px-6 pt-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
         <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
-          {project.code}
+          {project.projectReference}
         </button>
         <span>/</span>
         <button onClick={() => navigate("/dashboard/construction/deliveries")} className="hover:underline">
-          {delivery.reference}
+          {delivery.deliveryReference}
         </button>
         <span>/</span>
         <span className="font-semibold text-[#041627]">Provenance / Why?</span>
@@ -31,9 +49,9 @@ export const ProvenanceWhyPage: React.FC = () => {
             VERIFIED HISTORICAL CHAIN
           </span>
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">Why is {delivery.reference} late?</h1>
+        <h1 className="text-2xl font-bold text-white mb-2">Why is {delivery.deliveryReference} late?</h1>
         <p className="text-sm text-[#b7c8de]">
-          Reconstructed operational causal chain for {requirement.materialName} on {project.name}.
+          Reconstructed operational causal chain for {material.name} on {project.projectName}.
         </p>
       </div>
 
@@ -53,8 +71,11 @@ export const ProvenanceWhyPage: React.FC = () => {
             </div>
             <div className="p-4 bg-[#fff5f5] border border-[#ffcdd2] rounded-lg flex-1">
               <span className="text-xs font-bold text-[#d32f2f] uppercase tracking-wider block mb-1">Root Cause</span>
-              <h3 className="font-bold text-[#181c1e] text-base mb-1">Road Restriction on M1 Highway</h3>
-              <p className="text-xs text-[#44474c]">{transport.delayReason}. Weight limit max 35T vs vehicle load 48T.</p>
+              <h3 className="font-bold text-[#181c1e] text-base mb-1">{transport.delayReason}</h3>
+              <p className="text-xs text-[#44474c]">
+                Reported on route {transport.routeReference} by transport {transport.transportReference}.{" "}
+                {transport.constraints.join("; ")}.
+              </p>
             </div>
           </div>
 
@@ -66,7 +87,7 @@ export const ProvenanceWhyPage: React.FC = () => {
             <div className="p-4 bg-white border border-[#e0e3e5] rounded-lg flex-1">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-xs font-bold text-[#041627] uppercase tracking-wider">Construction Issue</span>
-                <span className="text-xs font-mono text-[#44474c]">{issue.reference}</span>
+                <span className="text-xs font-mono text-[#44474c]">{issue.issueReference}</span>
               </div>
               <h3 className="font-bold text-[#181c1e] text-base mb-1">{issue.title}</h3>
               <p className="text-xs text-[#44474c]">{issue.description}</p>
@@ -81,10 +102,13 @@ export const ProvenanceWhyPage: React.FC = () => {
             <div className="p-4 bg-white border border-[#e0e3e5] rounded-lg flex-1">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-xs font-bold text-[#041627] uppercase tracking-wider">Evidence Document</span>
-                <span className="text-xs font-mono text-[#006c49]">{evidenceDoc.code}</span>
+                <span className="text-xs font-mono text-[#006c49]">{evidenceDoc.documentReference}</span>
               </div>
-              <h3 className="font-bold text-[#181c1e] text-base mb-1">{evidenceDoc.title}</h3>
-              <p className="text-xs text-[#44474c] font-mono">{evidenceDoc.fileName} • Hash: {evidenceDoc.hash.substring(0, 24)}...</p>
+              <h3 className="font-bold text-[#181c1e] text-base mb-1">{evidenceDoc.name}</h3>
+              <p className="text-xs text-[#44474c] font-mono">
+                {evidenceDoc.category} v{evidenceDoc.version} • CID: {evidenceDoc.cid} • Hash:{" "}
+                {evidenceDoc.contentHash.substring(0, 24)}...
+              </p>
             </div>
           </div>
 
@@ -96,10 +120,10 @@ export const ProvenanceWhyPage: React.FC = () => {
             <div className="p-4 bg-white border border-[#e0e3e5] rounded-lg flex-1">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-xs font-bold text-[#006c49] uppercase tracking-wider">Approved Decision</span>
-                <span className="text-xs font-mono text-[#041627]">{decision.reference}</span>
+                <span className="text-xs font-mono text-[#041627]">{decision.decisionReference}</span>
               </div>
-              <h3 className="font-bold text-[#181c1e] text-base mb-1">{decision.title}</h3>
-              <p className="text-xs text-[#44474c]">{decision.proposedAction}</p>
+              <h3 className="font-bold text-[#181c1e] text-base mb-1">{decision.subject}</h3>
+              <p className="text-xs text-[#44474c]">{decision.decision}</p>
             </div>
           </div>
 
@@ -110,8 +134,13 @@ export const ProvenanceWhyPage: React.FC = () => {
             </div>
             <div className="p-4 bg-[#e8f5e9] border border-[#c8e6c9] rounded-lg flex-1">
               <span className="text-xs font-bold text-[#006c49] uppercase tracking-wider block mb-1">Delivery Received &amp; Material Accepted</span>
-              <h3 className="font-bold text-[#181c1e] text-base mb-1">Delivery {delivery.reference} Received at Site Alpha</h3>
-              <p className="text-xs text-[#44474c]">Inspection {inspection.reference} completed on {inspection.inspectionDate}. Weld integrity 100% pass.</p>
+              <h3 className="font-bold text-[#181c1e] text-base mb-1">
+                Delivery {delivery.deliveryReference} Received at {site.name}
+              </h3>
+              <p className="text-xs text-[#44474c]">
+                Inspection {inspection.inspectionReference} ({inspection.type}) completed {inspection.completedAt}. Result:{" "}
+                {inspection.result}.
+              </p>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SCENARIO_DATA } from "../data/constructionScenarioAdapter";
-import { appendThreadEvent } from "../data";
+import { getProjectRecord, getDelivery, getIssue, getThreadEvents, appendThreadEvent } from "../data";
+import { actorLabel } from "../data/scenarioMappers";
 
 interface C3EventItem {
   id: string;
@@ -10,36 +10,30 @@ interface C3EventItem {
   content: string;
 }
 
+/**
+ * The canonical scenario thread is an append-only event log, not a chat log:
+ * it records `cursor`, `eventType`, `actorId` and `idempotencyKey`, with no
+ * wall-clock time and no free-text body. The 23 scenario events are therefore
+ * rendered verbatim; only user-posted messages carry generated text/time.
+ */
+function canonicalEventsToMessages(): C3EventItem[] {
+  return getThreadEvents().map((e) => ({
+    id: e.idempotencyKey,
+    sender: `${actorLabel(e.actorId)} (${e.actorId})`,
+    timestamp: `#${e.cursor}`,
+    content: e.payload
+      ? `${e.eventType} — attachment ${e.payload.cid} (${e.payload.size} bytes)`
+      : e.eventType
+  }));
+}
+
 export const CollaborationThreadPage: React.FC = () => {
   const navigate = useNavigate();
-  const { project, delivery, issue } = SCENARIO_DATA;
+  const project = getProjectRecord();
+  const delivery = getDelivery();
+  const issue = getIssue();
 
-  const [messages, setMessages] = useState<C3EventItem[]>([
-    {
-      id: "MSG-001",
-      sender: "Mark Vance (Freight Operator)",
-      timestamp: "2026-08-15 11:41",
-      content: "Road restriction encountered on M1 Km 42 bridge. Weight limit reduced to 35T. TR-1042 load is 48T."
-    },
-    {
-      id: "MSG-002",
-      sender: "David Chen (Logistics)",
-      timestamp: "2026-08-15 12:05",
-      content: "Delivery DEL-1042 ETA moved to Aug 16, 07:30. Preparing alternative route proposal via Highway B."
-    },
-    {
-      id: "MSG-003",
-      sender: "Sarah Jenkins (Site Superintendent)",
-      timestamp: "2026-08-15 12:17",
-      content: "Acknowledged. Foundation crew rescheduled for morning arrival on Aug 16."
-    },
-    {
-      id: "MSG-004",
-      sender: "Alex Rivera (Project Manager)",
-      timestamp: "2026-08-15 14:20",
-      content: "Decision DEC-1042 approved. Reroute via Highway B with secondary police escort confirmed."
-    }
-  ]);
+  const [messages, setMessages] = useState<C3EventItem[]>(canonicalEventsToMessages);
 
   const [newMessage, setNewMessage] = useState("");
 
@@ -70,11 +64,11 @@ export const CollaborationThreadPage: React.FC = () => {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-[#44474c] mb-4">
         <button onClick={() => navigate("/dashboard/construction/projects")} className="hover:underline">
-          {project.code}
+          {project.projectReference}
         </button>
         <span>/</span>
         <button onClick={() => navigate("/dashboard/construction/deliveries")} className="hover:underline">
-          {delivery.reference}
+          {delivery.deliveryReference}
         </button>
         <span>/</span>
         <span className="font-semibold text-[#041627]">C3 Collaboration Thread</span>
@@ -83,7 +77,7 @@ export const CollaborationThreadPage: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#181c1e]">C3 Collaboration Thread</h1>
-          <p className="text-sm text-[#44474c]">Evidence &amp; Coordination Log for Issue {issue.reference}</p>
+          <p className="text-sm text-[#44474c]">Evidence &amp; Coordination Log for Issue {issue.issueReference}</p>
         </div>
         <span className="px-3 py-1 bg-[#041627] text-white rounded-full text-xs font-bold">
           C3 ENCRYPTED

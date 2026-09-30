@@ -106,16 +106,16 @@ export const SupplierOffersPage: React.FC = () => {
           </div>
 
           <div className="p-4 bg-[#f7fafc] rounded-lg border border-[#e0e3e5]">
-            <span className="text-xs text-[#44474c] block mb-1">Promised Delivery Date</span>
-            <span className="text-2xl font-bold text-[#181c1e]">{data.promisedDeliveryDate}</span>
-            <span className="text-xs text-[#006c49] font-medium block mt-1">Guaranteed SLA</span>
+            <span className="text-xs text-[#44474c] block mb-1">Proposed Delivery Date</span>
+            <span className="text-2xl font-bold text-[#181c1e]">{data.proposedDeliveryDate}</span>
+            <span className="text-xs text-[#006c49] font-medium block mt-1">Valid until {data.validUntil}</span>
           </div>
 
           <div className="p-4 bg-[#f7fafc] rounded-lg border border-[#e0e3e5]">
             <span className="text-xs text-[#44474c] block mb-1">Supplier Trust ID</span>
-            <span className="text-2xl font-bold text-[#041627]">{data.supplierId || "SUP-001"}</span>
+            <span className="text-2xl font-bold text-[#041627]">{data.supplierId}</span>
             <span className="text-xs text-[#006c49] font-medium block mt-1">
-              {data.isVerifiedSupplier ? "Verified Supplier" : "Registered Supplier"}
+              {data.supplierStatus} Supplier
             </span>
           </div>
         </div>

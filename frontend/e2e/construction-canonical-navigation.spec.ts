@@ -135,10 +135,17 @@ test('material requirement renders canonical material', async ({ page }) => {
   await expect(page.getByText('C50/60 Concrete, 12m length').first()).toBeVisible();
 });
 
-test('supplier offers render canonical supplier and currency', async ({ page }) => {
+test('supplier offers render exact Stitch layout, offer details, and suppliers', async ({ page }) => {
   await visit(page, '/offers');
-  await expect(page.getByText('Apex Precast Logistics')).toBeVisible();
-  await expect(page.getByText('€', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Supplier Offers');
+  await expect(page.getByText('REQ-STRUCT-001 • 120t Structural Beams')).toBeVisible();
+  await expect(page.getByText('EuroSteel Construction').first()).toBeVisible();
+  await expect(page.getByText('Arcelor Infrastructure').first()).toBeVisible();
+  await expect(page.getByText('ACCEPTED • DELIVERY PLANNED').first()).toBeVisible();
+  await expect(page.getByText('CE Marked').first()).toBeVisible();
+  await expect(page.getByText('EN 10204 3.1 Mill Cert').first()).toBeVisible();
+  await expect(page.getByText('OFF-1042').first()).toBeVisible();
+  await expect(page.getByText('OFF-1039').first()).toBeVisible();
 });
 
 test('delivery detail renders canonical site and route', async ({ page }) => {

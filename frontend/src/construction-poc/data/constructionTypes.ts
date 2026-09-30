@@ -13,13 +13,38 @@ export interface CreateProjectParams {
   location: string;
 }
 
+export interface SupplierOfferItem {
+  offerId: string;
+  offerReference: string;
+  supplierId: string;
+  supplierName: string;
+  isVerified: boolean;
+  supplierStatus: string;
+  totalPrice: string;
+  unitPrice: string;
+  currency: string;
+  specification: string;
+  quantity: number;
+  unit: string;
+  deliveryWindow: string;
+  offerValidity: string;
+  leadTime: string;
+  complianceScore: number;
+  complianceSpecVersion: string;
+  certifications: string[];
+  offerStatus: string;
+  statusBanner: string;
+  notes?: string;
+  isPrimary: boolean;
+}
+
 export interface ProcurementData {
   id: string;
   requirementId: string;
   projectId: string;
   projectCode: string;
   projectName: string;
-  /** Canonical `requirementReference`; `id`/`requirementId` carry the primary key. */
+  /** Canonical `requirementReference` */
   code: string;
   materialId: string;
   materialName: string;
@@ -27,32 +52,38 @@ export interface ProcurementData {
   specification: string;
   quantity: number;
   unit: string;
-  /** Canonical `projectPhase`. */
   targetPhase: string;
   status: string;
   requiredDate: string;
-  /** Canonical `priority`; no derivation. */
   priority: string;
-  /** From `delivery.siteId` — the requirement's own siteId is not persisted. */
   siteId: string;
   siteName: string;
-  /** The scenario models exactly one offer against this requirement. */
-  offersReceivedCount: number;
+  
+  /* Summary Metrics */
+  lowestBidTotal: string;
+  lowestBidSavings: string;
+  fastestDeliveryDate: string;
+  fastestDeliveryStatus: string;
+
+  /* Primary Accepted Offer (OFF-1042) */
   offerId: string;
   offerReference: string;
   supplierId: string;
   supplierName: string;
   supplierStatus: string;
   supplierCertifications: string[];
-  /** Formatted for display from canonical `totalPrice` + `currency`. */
   totalPrice: string;
   unitPrice: string;
   currency: string;
-  /** Canonical `proposedDeliveryDate`. */
   proposedDeliveryDate: string;
   availabilityDate: string;
   validUntil: string;
   offerStatus: string;
+
+  /* Primary & Secondary Offers for Stitch layout */
+  primaryOffer: SupplierOfferItem;
+  secondaryOffer: SupplierOfferItem;
+  offers: SupplierOfferItem[];
 }
 
 /* DecisionData                                                         */

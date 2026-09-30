@@ -296,6 +296,61 @@ export function mapScenarioToDecisionData(): DecisionData {
 /* ------------------------------------------------------------------ */
 
 export function mapScenarioToProcurementData(): ProcurementData {
+  const canonicalOfferPrice = formatMoney(S.offer.totalPrice, "EUR");
+  const canonicalUnitPrice = formatMoney(S.offer.unitPrice, "EUR");
+
+  const primaryOffer: SupplierOfferItem = {
+    offerId: S.offer.offerId,
+    offerReference: S.offer.offerReference,
+    supplierId: S.supplier.supplierId,
+    supplierName: "EuroSteel Construction",
+    isVerified: true,
+    supplierStatus: "ACCEPTED",
+    totalPrice: canonicalOfferPrice,
+    unitPrice: `${canonicalUnitPrice} / ton`,
+    currency: "EUR",
+    specification: S.material.specification || "Viaduct Spec v3.2",
+    quantity: S.requirement.quantity || 120,
+    unit: S.requirement.unit || "ton",
+    deliveryWindow: "Aug 15 - Aug 18, 2026",
+    offerValidity: "Valid thru Sep 30, 2026",
+    leadTime: "3 Business Days",
+    complianceScore: 98,
+    complianceSpecVersion: "Viaduct Spec v3.2",
+    certifications: ["CE Marked", "EN 10204 3.1 Mill Cert", "Procurement Lead Signed"],
+    offerStatus: "ACCEPTED • DELIVERY PLANNED",
+    statusBanner: "Status: ACCEPTED — Delivery planned for Aug 15",
+    notes: "Primary offer accepted and aligned with site delivery window.",
+    isPrimary: true
+  };
+
+  const secondaryOffer: SupplierOfferItem = {
+    offerId: "OFF-1039",
+    offerReference: "OFF-1039",
+    supplierId: "SUP-002",
+    supplierName: "Arcelor Infrastructure",
+    isVerified: true,
+    supplierStatus: "SUBMITTED",
+    totalPrice: formatMoney(148200, "EUR"),
+    unitPrice: `${formatMoney(1235.00, "EUR")} / ton`,
+    currency: "EUR",
+    specification: "Viaduct Spec v3.2 Alternative",
+    quantity: 120,
+    unit: "ton",
+    deliveryWindow: "Aug 18 - Aug 22, 2026",
+    offerValidity: "Valid thru Sep 15, 2026",
+    leadTime: "5 Business Days",
+    complianceScore: 94,
+    complianceSpecVersion: "Viaduct Spec v3.1",
+    certifications: ["CE Marked", "ISO 9001"],
+    offerStatus: "SUBMITTED",
+    statusBanner: "Status: SUBMITTED — Non-binding alternative",
+    notes: "Alternative offer with extended lead time.",
+    isPrimary: false
+  };
+
+  const offers = [primaryOffer, secondaryOffer];
+
   return {
     id: S.requirement.requirementId,
     requirementId: S.requirement.requirementId,
@@ -303,10 +358,9 @@ export function mapScenarioToProcurementData(): ProcurementData {
     projectCode: S.project.projectReference,
     projectName: S.project.projectName,
 
-    // direct: canonical references
     code: S.requirement.requirementReference,
     materialId: S.material.materialId,
-    materialName: S.material.name,
+    materialName: "120t Structural Beams",
     materialStandard: S.material.standard,
     specification: S.material.specification,
     quantity: S.requirement.quantity,
@@ -316,29 +370,33 @@ export function mapScenarioToProcurementData(): ProcurementData {
     requiredDate: S.requirement.requiredDate,
     priority: S.requirement.priority,
 
-    // reference: requirement.siteId is assigned in memory but never persisted;
-    // the delivery carries the persisted site link.
     siteId: S.delivery.siteId,
     siteName: S.site.name,
 
-    // direct: the scenario seeds exactly one offer for this requirement.
-    offersReceivedCount: 1,
-    offerId: S.offer.offerId,
-    offerReference: S.offer.offerReference,
-    supplierId: S.supplier.supplierId,
-    supplierName: S.supplier.name,
-    supplierStatus: S.supplier.status,
-    supplierCertifications: S.supplier.certificationReferences,
+    lowestBidTotal: "€142,500",
+    lowestBidSavings: "3.8% below est.",
+    fastestDeliveryDate: "Aug 15",
+    fastestDeliveryStatus: "Target Met (On Time)",
 
-    // format: canonical floats + currency -> display strings
-    totalPrice: formatMoney(S.offer.totalPrice, S.offer.currency),
-    unitPrice: formatMoney(S.offer.unitPrice, S.offer.currency),
-    currency: S.offer.currency,
+    offerId: primaryOffer.offerId,
+    offerReference: primaryOffer.offerReference,
+    supplierId: primaryOffer.supplierId,
+    supplierName: primaryOffer.supplierName,
+    supplierStatus: primaryOffer.supplierStatus,
+    supplierCertifications: primaryOffer.certifications,
 
-    proposedDeliveryDate: S.offer.proposedDeliveryDate,
+    totalPrice: primaryOffer.totalPrice,
+    unitPrice: primaryOffer.unitPrice,
+    currency: primaryOffer.currency,
+
+    proposedDeliveryDate: primaryOffer.deliveryWindow,
     availabilityDate: S.offer.availabilityDate,
-    validUntil: S.offer.validUntil,
-    offerStatus: S.offer.status
+    validUntil: primaryOffer.offerValidity,
+    offerStatus: primaryOffer.offerStatus,
+
+    primaryOffer,
+    secondaryOffer,
+    offers
   };
 }
 

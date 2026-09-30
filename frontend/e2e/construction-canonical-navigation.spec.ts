@@ -128,7 +128,7 @@ test('stakeholders renders the three canonical vault identities', async ({ page 
 
 test('material requirement renders canonical material', async ({ page }) => {
   await visit(page, '/requirements');
-  await expect(page.getByText('Precast Concrete Beam Heavy Grade').first()).toBeVisible();
+  await expect(page.getByText('120t Structural Beams').first()).toBeVisible();
   // canonical requirementReference, quantity 12 units, canonical specification.
   await expect(page.getByText('REQ-REF-1042').first()).toBeVisible();
   await expect(page.getByText(/12 units/).first()).toBeVisible();
@@ -148,14 +148,46 @@ test('supplier offers render exact Stitch layout, offer details, and suppliers',
   await expect(page.getByText('OFF-1039').first()).toBeVisible();
 });
 
-test('delivery detail renders canonical site and route', async ({ page }) => {
+test('delivery detail renders exact Stitch layout and operational specifications', async ({ page }) => {
   await visit(page, '/deliveries');
-  await expect(page.getByText('North Hub Station Site', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Delivery #DEL-1042');
+  await expect(page.getByText('DELAYED').first()).toBeVisible();
+  await expect(page.getByText('Road Restriction on M1').first()).toBeVisible();
+  await expect(page.getByText('Schedule Comparison').first()).toBeVisible();
+  await expect(page.getByText('+21.5h Delay').first()).toBeVisible();
+  await expect(page.getByText('Operational Specifications').first()).toBeVisible();
+  await expect(page.getByText('REQ-REF-1042').first()).toBeVisible();
+  await expect(page.getByText('MAT-STRUCT-001').first()).toBeVisible();
+  await expect(page.getByText('EuroSteel').first()).toBeVisible();
+  await expect(page.getByText('OFF-1042').first()).toBeVisible();
+  await expect(page.getByText('FastBuild Logistics').first()).toBeVisible();
+  await expect(page.getByText('ISS-1042 (Critical Delay)').first()).toBeVisible();
+  await expect(page.getByText('Last Known Telemetry').first()).toBeVisible();
+  await expect(page.getByText('GPS Active').first()).toBeVisible();
+  await expect(page.getByText('Progress Timeline').first()).toBeVisible();
+  await expect(page.getByText('Stage 4 of 8').first()).toBeVisible();
+  await expect(page.getByText('Delayed on Route M1').first()).toBeVisible();
+  await expect(page.getByText('Rerouted').first()).toBeVisible();
+  await expect(page.getByText('Delivered').first()).toBeVisible();
+  await expect(page.getByText('Inspected').first()).toBeVisible();
+  await expect(page.getByText('Accepted').first()).toBeVisible();
+  await expect(page.getByText('View Provenance & Root Cause Analysis').first()).toBeVisible();
+  await expect(page.getByText('Print Consignment Manifest & Waybill').first()).toBeVisible();
 });
 
-test('transport renders canonical route reference', async ({ page }) => {
+test('transport renders exact Stitch Transport & Delay layout and details', async ({ page }) => {
   await visit(page, '/transport');
-  await expect(page.getByText('Route-B', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Transport & Delay');
+  await expect(page.getByText('DEL-REF-1042').first()).toBeVisible();
+  await expect(page.getByText('ACTIVE ALERT').first()).toBeVisible();
+  await expect(page.getByText('Transport Delay Detected').first()).toBeVisible();
+  await expect(page.getByText('Route M1 Blocked').first()).toBeVisible();
+  await expect(page.getByText('+21h 30m').first()).toBeVisible();
+  await expect(page.getByText('Live Corridor Geometry').first()).toBeVisible();
+  await expect(page.getByText('Constraint Details').first()).toBeVisible();
+  await expect(page.getByText('Detour Evaluation').first()).toBeVisible();
+  await expect(page.getByText('ROUTE B APPROVED').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /View Decision DEC-REF-1042/ })).toBeVisible();
 });
 
 test('issue renders canonical issue reference', async ({ page }) => {

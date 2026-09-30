@@ -200,6 +200,41 @@ export interface LogisticsOverviewData {
     quantity: number;
     unit: string;
     deliveryNotes?: string;
+
+    /* Stitch Delivery Detail fields */
+    statusTag?: string;
+    lastUpdatedAge?: string;
+    headlineTitle?: string;
+    headlineQuantity?: string;
+    alertTitle?: string;
+    alertDescription?: string;
+    delayBadgeLabel?: string;
+    plannedDateLabel?: string;
+    plannedTimeLabel?: string;
+    revisedDateLabel?: string;
+    revisedTimeLabel?: string;
+    primaryDelayFactor?: string;
+    materialGradeText?: string;
+    supplierNameText?: string;
+    supplierCodeText?: string;
+    contractOfferCodeText?: string;
+    destinationSiteNameText?: string;
+    destinationBayText?: string;
+    carrierAgencyText?: string;
+    carrierVehicleText?: string;
+    linkedIncidentReference?: string;
+    linkedIncidentLabel?: string;
+    telemetryStatusText?: string;
+    telemetryLocationText?: string;
+    telemetryStateText?: string;
+    timelineStageText?: string;
+    timelineStages?: Array<{
+      stageNumber: number;
+      title: string;
+      subtitle: string;
+      state: "completed" | "active" | "pending" | "future";
+      badge?: string;
+    }>;
   };
   project: {
     id: string;
@@ -258,6 +293,30 @@ export interface LogisticsOverviewData {
     actualArrival?: string;
     constraints?: string[];
     delayReason?: string;
+
+    /* Stitch Transport & Delay fields */
+    statusTag?: string;
+    alertTitle?: string;
+    alertConstraint?: string;
+    originalEtaLabel?: string;
+    revisedEtaLabel?: string;
+    delayDurationLabel?: string;
+    gpsSyncAge?: string;
+    clearanceConstraint?: string;
+    blockedRouteName?: string;
+    bypassRouteName?: string;
+    primaryIncidentText?: string;
+    sitePhaseImpact?: string;
+    reportedByText?: string;
+    driverInitials?: string;
+    driverName?: string;
+    carrierName?: string;
+    detourStatusTag?: string;
+    detourCorridorText?: string;
+    deltaDistanceText?: string;
+    scheduleModificationText?: string;
+    clearanceAuthorityText?: string;
+    decisionReference?: string;
   };
   issue?: {
     id: string;

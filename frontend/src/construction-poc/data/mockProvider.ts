@@ -86,7 +86,7 @@ export const mockProvider: ConstructionDataProvider = {
   },
 
   async getLogisticsOverview(deliveryId?: string): Promise<LogisticsOverviewData | undefined> {
-    if (!scenarioHasDelivery(deliveryId)) return undefined;
+    if (deliveryId && !scenarioHasDelivery(deliveryId)) return undefined;
     return mapScenarioToLogisticsOverviewData();
   },
 

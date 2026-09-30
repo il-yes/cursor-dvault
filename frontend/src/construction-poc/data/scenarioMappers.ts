@@ -541,7 +541,7 @@ export function mapScenarioToLogisticsOverviewData(): LogisticsOverviewData {
     issue: {
       id: S.issue.issueId,
       reference: S.issue.issueReference,
-      title: S.issue.title,
+      title: "Critical Beam Delivery Delayed by Route M1 Blockage",
       description: S.issue.description,
       type: S.issue.type,
       severity: S.issue.severity,
@@ -554,7 +554,51 @@ export function mapScenarioToLogisticsOverviewData(): LogisticsOverviewData {
       assignedTo: S.issue.assignedTo,
       resolution: S.issue.resolution,
       resolvedAt: S.issue.resolvedAt,
-      evidenceReferences: S.issue.evidenceReferences
+      evidenceReferences: S.issue.evidenceReferences,
+
+      /* Stitch Issue ISS-1042 presentation values */
+      categoryBadge: "LOGISTICS BOTTLENECK",
+      severityTag: "SEVERITY: CRITICAL",
+      statusTag: "RESOLVED",
+      mitigationLabel: "Rerouted via Decision DEC-1042",
+      mitigationActionText: "Inspect",
+      zoneContextText: "Zone 4 Viaduct",
+      affectedResourceCode: "DEL-1042",
+      affectedResourceDescription: "Structural Beams (44t Prefabricated)",
+      projectPhaseText: "Foundation",
+      projectZoneText: "Viaduct Zone 4",
+      rootCauseTitle: "Route M1 Alert",
+      rootCauseSecondary: "Overpass clearance",
+      reporterInitials: "DK",
+      reporterNameText: "David K. (Logistics Mgr)",
+      reporterTimeText: "Aug 15, 11:41 AM",
+      stakeholders: [
+        { name: "BuildCorp (Main)", role: "Main Contractor", icon: "domain" },
+        { name: "FastBuild Logistics", role: "Carrier", icon: "local_shipping" },
+        { name: "Engineering Partners", role: "Consultant", icon: "engineering" }
+      ],
+      impactBadgeText: "Schedule Impact",
+      primaryImpactTitle: "Foundation Phase Delayed",
+      primaryImpactSubtitle: "Viaduct Zone 4 erection paused awaiting beam arrival",
+      primaryImpactDescription: "Foundation heavy assembly team diverted to auxiliary drainage culverts until crane access window re-opens.",
+      rescheduleLabel: "Assembly Reschedule",
+      reschedulePlannedLabel: "Aug 15 (Planned)",
+      rescheduleAdjustedLabel: "Aug 16 Morning (Adjusted)",
+      evidenceFiles: [
+        {
+          filename: "Road_Restriction_Notice_M1.pdf",
+          metadata: "Official Dept of Roads Alert • 1.4 MB",
+          icon: "picture_as_pdf",
+          size: "1.4 MB"
+        },
+        {
+          filename: "Transport_Detour_Report_TR1042.pdf",
+          metadata: "Carrier route survey & clearance • 2.1 MB",
+          icon: "alt_route",
+          size: "2.1 MB"
+        }
+      ],
+      threadUpdateCount: 8
     },
     decision: {
       id: S.decision.decisionId,

@@ -333,6 +333,39 @@ export interface LogisticsOverviewData {
     resolution?: string;
     resolvedAt?: string;
     evidenceReferences?: string[];
+
+    /* Stitch Issue ISS-1042 presentation fields */
+    categoryBadge?: string;
+    severityTag?: string;
+    statusTag?: string;
+    mitigationLabel?: string;
+    mitigationActionText?: string;
+    zoneContextText?: string;
+    affectedResourceCode?: string;
+    affectedResourceDescription?: string;
+    projectPhaseText?: string;
+    projectZoneText?: string;
+    rootCauseTitle?: string;
+    rootCauseSecondary?: string;
+    reporterInitials?: string;
+    reporterNameText?: string;
+    reporterTimeText?: string;
+    stakeholders?: Array<{ name: string; role: string; icon: string }>;
+    impactBadgeText?: string;
+    primaryImpactTitle?: string;
+    primaryImpactSubtitle?: string;
+    primaryImpactDescription?: string;
+    rescheduleLabel?: string;
+    reschedulePlannedLabel?: string;
+    rescheduleAdjustedLabel?: string;
+    rescheduleNotes?: string;
+    evidenceFiles?: Array<{
+      filename: string;
+      metadata: string;
+      icon: string;
+      size: string;
+    }>;
+    threadUpdateCount?: number;
   };
   decision?: {
     id: string;

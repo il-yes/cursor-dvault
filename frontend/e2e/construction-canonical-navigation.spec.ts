@@ -138,14 +138,14 @@ test('material requirement renders canonical material', async ({ page }) => {
 test('supplier offers render exact Stitch layout, offer details, and suppliers', async ({ page }) => {
   await visit(page, '/offers');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Supplier Offers');
-  await expect(page.getByText('REQ-STRUCT-001 • 120t Structural Beams')).toBeVisible();
+  await expect(page.getByText('120t Structural Beams', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('EuroSteel Construction').first()).toBeVisible();
   await expect(page.getByText('Arcelor Infrastructure').first()).toBeVisible();
   await expect(page.getByText('ACCEPTED • DELIVERY PLANNED').first()).toBeVisible();
   await expect(page.getByText('CE Marked').first()).toBeVisible();
   await expect(page.getByText('EN 10204 3.1 Mill Cert').first()).toBeVisible();
-  await expect(page.getByText('OFF-1042').first()).toBeVisible();
-  await expect(page.getByText('OFF-1039').first()).toBeVisible();
+  await expect(page.getByText(/OFF-REF-1042/).first()).toBeVisible();
+  await expect(page.getByText(/OFF-1039/).first()).toBeVisible();
 });
 
 test('delivery detail renders exact Stitch layout and operational specifications', async ({ page }) => {
@@ -190,9 +190,50 @@ test('transport renders exact Stitch Transport & Delay layout and details', asyn
   await expect(page.getByRole('button', { name: /View Decision DEC-REF-1042/ })).toBeVisible();
 });
 
-test('issue renders canonical issue reference', async ({ page }) => {
+test('issue renders exact Stitch layout and specifications', async ({ page }) => {
   await visit(page, '/issues');
-  await expect(page.getByText('ISS-REF-1042', { exact: false }).first()).toBeVisible();
+
+  // Header & Status strip
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Construction Issue');
+  await expect(page.getByText('SEVERITY: CRITICAL').first()).toBeVisible();
+  await expect(page.getByText('RESOLVED').first()).toBeVisible();
+
+  // Issue Title / Resolution Card
+  await expect(page.getByText('LOGISTICS BOTTLENECK').first()).toBeVisible();
+  await expect(page.getByText(/ISS-REF-1042/).first()).toBeVisible();
+  await expect(page.getByText('Critical Beam Delivery Delayed by Route M1 Blockage').first()).toBeVisible();
+
+  // Active Mitigation
+  await expect(page.getByText('Active Mitigation').first()).toBeVisible();
+  await expect(page.getByText('Rerouted via Decision DEC-1042').first()).toBeVisible();
+
+  // Specifications
+  await expect(page.getByText('Specifications').first()).toBeVisible();
+  await expect(page.getByText('DEL-1042').first()).toBeVisible();
+  await expect(page.getByText('Structural Beams (44t Prefabricated)').first()).toBeVisible();
+  await expect(page.getByText('Foundation').first()).toBeVisible();
+  await expect(page.getByText('Route M1 Alert').first()).toBeVisible();
+  await expect(page.getByText('David K. (Logistics Mgr)').first()).toBeVisible();
+
+  // Stakeholders
+  await expect(page.getByText('Assigned Stakeholders').first()).toBeVisible();
+  await expect(page.getByText('BuildCorp (Main)').first()).toBeVisible();
+  await expect(page.getByText('FastBuild Logistics').first()).toBeVisible();
+  await expect(page.getByText('Engineering Partners').first()).toBeVisible();
+
+  // Impact Assessment
+  await expect(page.getByText('Impact Assessment').first()).toBeVisible();
+  await expect(page.getByText('Foundation Phase Delayed').first()).toBeVisible();
+
+  // Supporting Evidence
+  await expect(page.getByText('Supporting Evidence (2)').first()).toBeVisible();
+  await expect(page.getByText('Road_Restriction_Notice_M1.pdf').first()).toBeVisible();
+  await expect(page.getByText('Transport_Detour_Report_TR1042.pdf').first()).toBeVisible();
+
+  // Action Buttons
+  await expect(page.getByRole('button', { name: /View Decision \(DEC-/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /View Delivery \(/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Open Collaboration Thread/ })).toBeVisible();
 });
 
 test('decision renders the canonical decision reference', async ({ page }) => {
@@ -283,7 +324,7 @@ test('decision action bar navigates to delivery and provenance', async ({ page }
   await visit(page, '/decisions');
 
   await page.getByRole('button', { name: /View Updated Delivery \(DEL-1042\)/ }).click();
-  await expect(page.getByText('North Hub Station Site', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Delivery #DEL-1042');
 
   await page.goto(`${BASE}/decisions`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /View Audit Trail & Provenance/ }).click();

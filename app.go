@@ -1621,6 +1621,9 @@ func (a *App) RefreshToken(userID string) (*auth.TokenPairs, error) {
 }
 func (a *App) RequireAuth(jwtToken string) (*auth.Claims, error) {
 	utils.LogPretty("App - RequireAuth ", jwtToken)
+	if a.AuthHandler == nil {
+		return nil, fmt.Errorf("unauthorized: auth handler is not initialized")
+	}
 	claims, err := a.AuthHandler.VerifyToken(jwtToken)
 	if err != nil {
 		return nil, fmt.Errorf("unauthorized: %w", err)
@@ -3559,6 +3562,156 @@ func (a *App) GetChannel(JwtToken string, channelID string) (*tracecore_types.Ch
 	}
 	return res, err
 }
+
+// ListConstructionProjects fetches all construction project overview read models from Cloud
+// via GET /api/construction/projects.
+func (a *App) ListConstructionProjects(JwtToken string, vaultId string) ([]tracecore_types.ProjectOverviewDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	targetVaultID := vaultId
+	if targetVaultID == "" {
+		targetVaultID = a.resolveVaultID(claims.UserID, claims.Email)
+	}
+
+	projects, err := a.tracecoreClient.ListConstructionProjects(a.ctx, targetVaultID)
+	if err != nil {
+		fmt.Printf("[BOUNDARY 1][App.ListConstructionProjects] error: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("[BOUNDARY 1][App.ListConstructionProjects] targetVaultID=%s count=%d\n", targetVaultID, len(projects))
+	return projects, nil
+}
+
+// CreateConstructionProject creates a new construction project in Cloud via POST /api/construction/projects.
+func (a *App) CreateConstructionProject(JwtToken string, project tracecore_types.ProjectOverviewDTO) (*tracecore_types.ProjectOverviewDTO, error) {
+	claims, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+
+	// Resolve active workspace for current authenticated vault context if project.WorkspaceID is empty
+	if project.WorkspaceID == "" {
+		vaultID := a.resolveVaultID(claims.UserID, claims.Email)
+		if a.WorkspaceHandler != nil {
+			workspaces, err := a.WorkspaceHandler.ListWorkspaces(a.ctx, vaultID)
+			if err == nil && len(workspaces) > 0 && workspaces[0].ID != "" {
+				project.WorkspaceID = workspaces[0].ID
+			}
+		}
+	}
+
+	if project.ProjectID == "" && project.ID != "" {
+		project.ProjectID = project.ID
+	}
+	if project.ID == "" && project.ProjectID != "" {
+		project.ID = project.ProjectID
+	}
+	if project.ProjectReference == "" && project.Code != "" {
+		project.ProjectReference = project.Code
+	}
+	if project.Code == "" && project.ProjectReference != "" {
+		project.Code = project.ProjectReference
+	}
+	if project.ProjectName == "" && project.Name != "" {
+		project.ProjectName = project.Name
+	}
+	if project.Name == "" && project.ProjectName != "" {
+		project.Name = project.ProjectName
+	}
+	if project.ProjectType == "" && project.Type != "" {
+		project.ProjectType = project.Type
+	}
+	if project.Type == "" && project.ProjectType != "" {
+		project.Type = project.ProjectType
+	}
+	if project.StatusSummary == "" && project.RecentActivity != "" {
+		project.StatusSummary = project.RecentActivity
+	}
+	if project.RecentActivity == "" && project.StatusSummary != "" {
+		project.RecentActivity = project.StatusSummary
+	}
+	if project.ProgressPercentage == 0 && project.ProgressPercent != 0 {
+		project.ProgressPercentage = project.ProgressPercent
+	}
+	if project.ProgressPercent == 0 && project.ProgressPercentage != 0 {
+		project.ProgressPercent = project.ProgressPercentage
+	}
+
+	res, err := a.tracecoreClient.CreateConstructionProject(a.ctx, project)
+	if err != nil {
+		fmt.Printf("[BOUNDARY 1][App.CreateConstructionProject] error: %v\n", err)
+		return nil, err
+	}
+	fmt.Printf("[BOUNDARY 1][App.CreateConstructionProject] created project_id=%s workspace_id=%s\n", res.ProjectID, res.WorkspaceID)
+	return res, nil
+}
+
+
+// GetProjectOverview fetches the construction project overview read model from Cloud
+// via GET /api/construction/projects/{id}.
+func (a *App) GetProjectOverview(JwtToken string, projectID string) (*tracecore_types.ProjectOverviewDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	return a.tracecoreClient.GetProjectOverview(a.ctx, projectID)
+}
+
+// GetProcurementOverview fetches the construction procurement/requirement read model from Cloud
+// via GET /api/construction/requirements/{id}.
+func (a *App) GetProcurementOverview(JwtToken string, requirementID string) (*tracecore_types.ProcurementOverviewDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	return a.tracecoreClient.GetProcurementOverview(a.ctx, requirementID)
+}
+
+// GetLogisticsOverview fetches the construction logistics/delivery read model from Cloud
+// via GET /api/construction/deliveries/{id}/overview.
+func (a *App) GetLogisticsOverview(JwtToken string, deliveryID string) (*tracecore_types.LogisticsOverviewDTO, error) {
+	_, err := a.RequireAuth(JwtToken)
+	if err != nil {
+		return nil, fmt.Errorf("unauthorized: %w", err)
+	}
+	if err := a.RequireCloudAuthentication(); err != nil {
+		return nil, err
+	}
+	if a.tracecoreClient == nil {
+		return nil, fmt.Errorf("tracecore client is not initialized")
+	}
+	return a.tracecoreClient.GetLogisticsOverview(a.ctx, deliveryID)
+}
+
+
+
 
 // UpdateChannel updates an existing Channel through the authoritative Cloud
 // backend (PUT /channels/{id}). The Cloud-persisted aggregate is returned; no

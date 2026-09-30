@@ -92,6 +92,8 @@ export function CreateChannel(arg1:string,arg2:string,arg3:string,arg4:string,ar
 
 export function CreateCollaborativeShare(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<tracecore_types.ShareEntryRefDTO>;
 
+export function CreateConstructionProject(arg1:string,arg2:tracecore_types.ProjectOverviewDTO):Promise<tracecore_types.ProjectOverviewDTO>;
+
 export function CreateFolder(arg1:string,arg2:string):Promise<vaults_domain.VaultPayload>;
 
 export function CreateLinkShare(arg1:share_entry_application_dto.LinkShareCreateRequest,arg2:string):Promise<main.CreateLinkShareOutput>;
@@ -156,9 +158,15 @@ export function GetFoldersByVault(arg1:string,arg2:string):Promise<Array<vaults_
 
 export function GetIPFSFile(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
+export function GetLogisticsOverview(arg1:string,arg2:string):Promise<tracecore_types.LogisticsOverviewDTO>;
+
 export function GetPacks(arg1:string):Promise<app_config_worker.PackDTO>;
 
 export function GetPendingPaymentRequests(arg1:string):Promise<Array<billing_domain.PaymentRequest>>;
+
+export function GetProcurementOverview(arg1:string,arg2:string):Promise<tracecore_types.ProcurementOverviewDTO>;
+
+export function GetProjectOverview(arg1:string,arg2:string):Promise<tracecore_types.ProjectOverviewDTO>;
 
 export function GetRecommendedTier(arg1:identity_domain.IdentityChoice):Promise<main.OnboardingStep1Response>;
 
@@ -199,6 +207,8 @@ export function IsVaultDirty(arg1:string):Promise<boolean>;
 export function ListByUser(arg1:string,arg2:number,arg3:number):Promise<Array<notification_center_domain.Notification>>;
 
 export function ListChannels(arg1:string,arg2:string):Promise<Array<tracecore_types.ChannelDTO>>;
+
+export function ListConstructionProjects(arg1:string,arg2:string):Promise<Array<tracecore_types.ProjectOverviewDTO>>;
 
 export function ListLinkSharesByMe(arg1:string):Promise<main.ListLinkSharesByMeResponse>;
 

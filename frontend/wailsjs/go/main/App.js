@@ -126,6 +126,10 @@ export function CreateCollaborativeShare(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateCollaborativeShare'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function CreateConstructionProject(arg1, arg2) {
+  return window['go']['main']['App']['CreateConstructionProject'](arg1, arg2);
+}
+
 export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
@@ -254,12 +258,24 @@ export function GetIPFSFile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetIPFSFile'](arg1, arg2, arg3, arg4);
 }
 
+export function GetLogisticsOverview(arg1, arg2) {
+  return window['go']['main']['App']['GetLogisticsOverview'](arg1, arg2);
+}
+
 export function GetPacks(arg1) {
   return window['go']['main']['App']['GetPacks'](arg1);
 }
 
 export function GetPendingPaymentRequests(arg1) {
   return window['go']['main']['App']['GetPendingPaymentRequests'](arg1);
+}
+
+export function GetProcurementOverview(arg1, arg2) {
+  return window['go']['main']['App']['GetProcurementOverview'](arg1, arg2);
+}
+
+export function GetProjectOverview(arg1, arg2) {
+  return window['go']['main']['App']['GetProjectOverview'](arg1, arg2);
 }
 
 export function GetRecommendedTier(arg1) {
@@ -340,6 +356,10 @@ export function ListByUser(arg1, arg2, arg3) {
 
 export function ListChannels(arg1, arg2) {
   return window['go']['main']['App']['ListChannels'](arg1, arg2);
+}
+
+export function ListConstructionProjects(arg1, arg2) {
+  return window['go']['main']['App']['ListConstructionProjects'](arg1, arg2);
 }
 
 export function ListLinkSharesByMe(arg1) {

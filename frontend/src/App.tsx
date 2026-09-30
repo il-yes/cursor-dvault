@@ -32,8 +32,8 @@ import AssetPage from "./components/C3/ui/thread/AssetPage";
 import ChannelPage from "./components/C3/ui/channel/ChannelPage";
 import C3ConfigurationPage from "./components/C3/configuration/C3ConfigurationPage";
 import FederationPage from "./components/C3/federation/FederationPage";
+import ConstructionApp from "./construction-poc/ConstructionApp";
 import * as ROUTES from './constants/routes';
-
 
 const queryClient = new QueryClient();
 
@@ -130,11 +130,8 @@ function AppContent() {
 		);
 	}
 
-
 	return (
 		<Routes>
-
-
 			<Route path="/" element={<EmailLookup />} />
 			<Route path={ROUTES.DASHBOARD} element={<Index />} />
 			<Route path={ROUTES.VAULT} element={<Vault />} />
@@ -166,7 +163,7 @@ function AppContent() {
 			<Route path={ROUTES.CHANNEL} element={<ChannelPage />} />
 			<Route path={ROUTES.C3_CONFIG} element={<C3ConfigurationPage />} />
 			<Route path={ROUTES.FEDERATION} element={<FederationPage />} />
-
+			<Route path={`${ROUTES.CONSTRUCTION}/*`} element={<ConstructionApp />} />
 
 			{/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 			<Route path={ROUTES.NOT_FOUND} element={<NotFound />} />

@@ -11,6 +11,7 @@ import type { ProjectData } from "./projects.mock";
 import type { scenarioAccessors } from "./scenarioAccessors";
 import type {
   CreateProjectParams,
+  DecisionData,
   LogisticsOverviewData,
   ProcurementData,
 } from "./constructionTypes";
@@ -29,6 +30,13 @@ export type ConstructionDataProvider = typeof scenarioAccessors & {
    */
   getProcurementOverview(requirementId?: string): Promise<ProcurementData | undefined>;
   getLogisticsOverview(deliveryId?: string): Promise<LogisticsOverviewData | undefined>;
+
+  /**
+   * Synchronous page-facing projection of the canonical decision, shaped to the
+   * DEC-1042 composition. Synchronous because the canonical aggregate is a
+   * static scenario record on both providers — there is no AppAPI equivalent yet.
+   */
+  getDecisionData(): DecisionData;
 
   appendThreadEvent(threadId: string, kind: string, content: string): Promise<void>;
 

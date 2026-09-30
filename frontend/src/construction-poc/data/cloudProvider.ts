@@ -15,8 +15,10 @@ import { listWorkspaces } from "@/services/api";
 import { MOCK_PROJECTS } from "./projects.mock";
 import type { ProjectData } from "./projects.mock";
 import { scenarioAccessors } from "./scenarioAccessors";
+import { mapScenarioToDecisionData } from "./scenarioMappers";
 import type {
   CreateProjectParams,
+  DecisionData,
   LogisticsOverviewData,
   ProcurementData,
 } from "./constructionTypes";
@@ -172,6 +174,15 @@ export const cloudProvider: ConstructionDataProvider = {
       console.error(`[AppAPI] GetLogisticsOverview failed for deliveryId=${deliveryId}:`, err);
       throw err;
     }
+  },
+
+  /**
+   * There is no GetDecisionOverview binding on AppAPI. Like the canonical record
+   * accessors it spreads above, this serves the canonical scenario aggregate
+   * directly rather than widening the Cloud surface with an invented endpoint.
+   */
+  getDecisionData(): DecisionData {
+    return mapScenarioToDecisionData();
   },
 
   async appendThreadEvent(threadId: string, kind: string, content: string): Promise<void> {

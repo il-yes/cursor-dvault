@@ -65,6 +65,8 @@ export const getProcurementOverview = (requirementId?: string) =>
 export const getLogisticsOverview = (deliveryId?: string) =>
   activeProvider.getLogisticsOverview(deliveryId);
 
+export const getDecisionData = () => activeProvider.getDecisionData();
+
 /* Scenario — canonical record access */
 
 export const getActivityFeed = () => activeProvider.getActivityFeed();

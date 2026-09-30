@@ -55,6 +55,109 @@ export interface ProcurementData {
   offerStatus: string;
 }
 
+/* DecisionData                                                         */
+
+/**
+ * A labelled fact inside an option card.
+ *
+ * `value` is deliberately optional: several slots the Stitch composition shows
+ * (per-option delay, detour surcharge, commercial term) have no canonical field
+ * behind them. Leaving `value` undefined is how the mapper says "the scenario
+ * carries no such datum", and it lets the view render an explicit unavailable
+ * state instead of a plausible-looking fabrication.
+ */
+export interface DecisionFact {
+  label: string;
+  value?: string;
+}
+
+export interface DecisionOptionData {
+  /** 1-based ordinal, as displayed in the Stitch option badge. */
+  position: number;
+  /** Canonical `optionsConsidered` entry, verbatim. */
+  title: string;
+  isSelected: boolean;
+  /** Derived: a finalized decision selects exactly one option. */
+  statusLabel: string;
+  /** The two-cell impact grid shown on a non-selected option. */
+  impact: DecisionFact[];
+  /** Highlight rows shown on the selected option. */
+  highlights: DecisionFact[];
+  /** Canonical `technicalAssessment` — only the selected option carries one. */
+  rationale?: string;
+}
+
+export interface DecisionParticipantData {
+  /** Derived from the canonical role string; there is no person aggregate. */
+  initials: string;
+  /** Canonical `participantsConsulted` entry, verbatim. */
+  role: string;
+  /** True when the role matches canonical `requestedBy`. */
+  isRequester: boolean;
+  /**
+   * @gap The domain records consultation as free-text roles. There is no
+   * role -> organisation mapping, so `organization` is always undefined here.
+   */
+  organization?: string;
+  /** @gap No per-participant decision or sign-off state is recorded. */
+  signoffLabel?: string;
+  /** @gap No per-participant timestamp is recorded. */
+  signedAtLabel?: string;
+}
+
+/**
+ * Page-facing projection of the canonical ConstructionDecision aggregate, shaped
+ * to the Stitch DEC-1042 composition.
+ */
+export interface DecisionData {
+  id: string;
+  reference: string;
+  type: string;
+  status: string;
+  statusLabel: string;
+  /** Calendar date of the decision, canonical `decisionDate`. */
+  decidedOnLabel: string;
+  /**
+   * @gap `decisionDate` is a bare calendar date, so the composition's clock time
+   * has no source. False tells the view to say so instead of implying one.
+   */
+  decidedHasTime: boolean;
+  requestedBy: string;
+  decidedBy: string;
+  subject: string;
+  context: string;
+  technicalAssessment: string;
+  risksIdentified: string[];
+  evidenceReferences: string[];
+  related: {
+    issueId: string;
+    issueReference: string;
+    deliveryId: string;
+    deliveryReference: string;
+    transportId: string;
+    transportReference: string;
+    /**
+     * The third Stitch chip is a sector/zone facet. @gap the project carries no
+     * sector taxonomy, so canonical `type` stands in for it.
+     */
+    qualifierLabel: string;
+  };
+  route: {
+    reference: string;
+    /** Derived from canonical planned vs actual arrival, when the two differ. */
+    slipLabel?: string;
+    arrivalLabel: string;
+  };
+  options: DecisionOptionData[];
+  selectedIndex: number | null;
+  participants: DecisionParticipantData[];
+  participantCount: number;
+  outcome: {
+    title: string;
+    body: string;
+  };
+}
+
 export interface LogisticsOverviewData {
   delivery: {
     id: string;

@@ -10,12 +10,18 @@ import { MOCK_PROJECTS } from "./projects.mock";
 import type { ProjectData } from "./projects.mock";
 import { scenarioAccessors } from "./scenarioAccessors";
 import {
+  mapScenarioToDecisionData,
   mapScenarioToLogisticsOverviewData,
   mapScenarioToProcurementData,
   scenarioHasDelivery,
   scenarioHasRequirement,
 } from "./scenarioMappers";
-import type { CreateProjectParams, LogisticsOverviewData, ProcurementData } from "./constructionTypes";
+import type {
+  CreateProjectParams,
+  DecisionData,
+  LogisticsOverviewData,
+  ProcurementData,
+} from "./constructionTypes";
 import type { ConstructionDataProvider } from "./provider";
 
 /** Session-scoped project list, so a project created in the demo is listed. */
@@ -82,6 +88,10 @@ export const mockProvider: ConstructionDataProvider = {
   async getLogisticsOverview(deliveryId?: string): Promise<LogisticsOverviewData | undefined> {
     if (!scenarioHasDelivery(deliveryId)) return undefined;
     return mapScenarioToLogisticsOverviewData();
+  },
+
+  getDecisionData(): DecisionData {
+    return mapScenarioToDecisionData();
   },
 
   async appendThreadEvent(): Promise<void> {

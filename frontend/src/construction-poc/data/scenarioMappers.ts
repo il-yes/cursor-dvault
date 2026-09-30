@@ -15,7 +15,13 @@
  */
 
 import { CANONICAL_SCENARIO } from "./constructionScenarioAdapter";
-import type { LogisticsOverviewData, ProcurementData } from "./constructionTypes";
+import type {
+  DecisionData,
+  DecisionFact,
+  DecisionOptionData,
+  LogisticsOverviewData,
+  ProcurementData,
+} from "./constructionTypes";
 
 const S = CANONICAL_SCENARIO;
 
@@ -65,6 +71,76 @@ export function humaniseStatus(status: string): string {
     .join(" ");
 }
 
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+];
+
+/**
+ * format: calendar day of a canonical timestamp, always read in UTC.
+ *
+ * The scenario stores UTC instants and bare calendar dates, so anchoring the
+ * formatter to UTC is what keeps a date from drifting by a day in negative-offset
+ * zones. No timezone conversion is performed — the scenario's own zone is the
+ * one presented.
+ */
+export function formatUtcDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${MONTH_ABBR[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
+/**
+ * format: canonical timestamp as a UTC calendar day, clock time and zone.
+ *
+ * The explicit `UTC` suffix is load-bearing. The Stitch composition shows bare
+ * clock times ("Aug 16 @ 07:30"), which silently asserts a local zone the
+ * canonical scenario never carries.
+ */
+export function formatUtcMoment(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${MONTH_ABBR[d.getUTCMonth()]} ${d.getUTCDate()} @ ${hh}:${mm} UTC`;
+}
+
+/** true when a canonical value carries a clock time, not only a calendar date. */
+export function hasClockTime(iso: string): boolean {
+  return /T\d{2}:\d{2}/.test(iso);
+}
+
+/**
+ * format: whole-or-fractional hours between two canonical timestamps, or
+ * undefined when either is unparseable.
+ */
+export function hoursBetween(fromIso: string, toIso: string): number | undefined {
+  const from = new Date(fromIso).getTime();
+  const to = new Date(toIso).getTime();
+  if (Number.isNaN(from) || Number.isNaN(to)) return undefined;
+  return (to - from) / 3_600_000;
+}
+
+/** format: a signed hour span as a schedule slip, e.g. "+21.5 h". */
+export function formatSlip(hours: number): string {
+  const rounded = Math.round(hours * 10) / 10;
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded} h`;
+}
+
+/**
+ * format: avatar initials derived from a canonical role string.
+ *
+ * There is no person aggregate, so initials are rendered from the role text
+ * rather than from a person's name.
+ */
+export function roleInitials(role: string): string {
+  const words = role.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+}
+
 /* ------------------------------------------------------------------ */
 /* lookup                                                              */
 /* ------------------------------------------------------------------ */
@@ -83,6 +159,136 @@ export function scenarioHasDelivery(deliveryId?: string): boolean {
   if (!deliveryId) return false;
   return matches(S.delivery.deliveryId, deliveryId) ||
     matches(S.delivery.deliveryReference, deliveryId);
+}
+
+/* DecisionData                                                         */
+
+/**
+ * reference: which of `optionsConsidered` the decision actually selected.
+ *
+ * The aggregate stores the outcome as free text beside a parallel list of
+ * options, with no option id to join on. The selection is therefore recovered by
+ * token overlap between the outcome and each candidate, scored on non-stopword
+ * terms so that shared filler ("use", "wait for") cannot decide it.
+ *
+ * For DEC-1042 this resolves unambiguously: the outcome
+ * "Approve Route B alternative transport" shares "route" and "b" with
+ * "Use Route B detour" (score 2) and nothing with "Wait for M1 clearance"
+ * (score 0).
+ */
+export function deriveSelectedOptionIndex(decision: string, options: string[]): number | null {
+  const STOP_WORDS = new Set([
+    "wait", "for", "use", "the", "a", "an", "of", "on", "to", "and", "or", "via", "in", "at", "by"
+  ]);
+
+  const significant = (value: string): string[] => value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 0 && !STOP_WORDS.has(token));
+
+  const outcome = new Set(significant(decision));
+
+  let bestIndex: number | null = null;
+  let bestScore = 0;
+  options.forEach((option, index) => {
+    const overlap = significant(option).filter((token) => outcome.has(token)).length;
+    if (overlap > bestScore) {
+      bestScore = overlap;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+/** @gap the composition's impact grid has no per-option domain source. */
+const OPTION_IMPACT_LABELS = ["Estimated Delay", "Critical Path Impact"];
+
+/** @gap neither a surcharge nor a commercial term is modelled on the aggregate. */
+const SELECTED_HIGHLIGHT_LABELS = ["Arrival Schedule", "Detour Surcharge", "Commercial Term"];
+
+function buildOptions(
+  options: string[],
+  selectedIndex: number | null,
+  arrivalLabel: string,
+  technicalAssessment: string
+): DecisionOptionData[] {
+  return options.map((title, index) => {
+    const isSelected = index === selectedIndex;
+    const highlights: DecisionFact[] = SELECTED_HIGHLIGHT_LABELS.map((label) => ({
+      label,
+      // Only the arrival schedule is canonically available.
+      value: label === "Arrival Schedule" ? arrivalLabel : undefined
+    }));
+
+    return {
+      position: index + 1,
+      title,
+      isSelected,
+      statusLabel: isSelected ? "Approved" : "Rejected",
+      impact: OPTION_IMPACT_LABELS.map((label) => ({ label, value: undefined })),
+      highlights,
+      rationale: isSelected ? technicalAssessment : undefined
+    };
+  });
+}
+
+export function mapScenarioToDecisionData(): DecisionData {
+  const d = S.decision;
+  const transport = S.transport;
+
+  const options = d.optionsConsidered ?? [];
+  const selectedIndex = deriveSelectedOptionIndex(d.decision, options);
+
+  // The transport record is the delivery's leg, so it carries the schedule the
+  // decision actually moved. actualArrival is preferred over eta because the
+  // scenario resolves the arrival before the decision is finalised.
+  const arrivalIso = transport.actualArrival || transport.eta;
+  const arrivalLabel = formatUtcMoment(arrivalIso);
+  const slip = hoursBetween(transport.plannedArrival, arrivalIso);
+
+  return {
+    id: d.decisionId,
+    reference: d.decisionReference,
+    type: d.type,
+    status: d.status,
+    statusLabel: humaniseStatus(d.status).toUpperCase(),
+    decidedOnLabel: formatUtcDay(d.decisionDate),
+    decidedHasTime: hasClockTime(d.decisionDate),
+    requestedBy: d.requestedBy,
+    decidedBy: d.decidedBy,
+    subject: d.subject,
+    context: d.context,
+    technicalAssessment: d.technicalAssessment,
+    risksIdentified: d.risksIdentified ?? [],
+    evidenceReferences: d.evidenceReferences ?? [],
+    related: {
+      issueId: S.issue.issueId,
+      issueReference: S.issue.issueReference,
+      deliveryId: S.delivery.deliveryId,
+      deliveryReference: S.delivery.deliveryReference,
+      transportId: transport.transportId,
+      transportReference: transport.transportReference,
+      qualifierLabel: d.type
+    },
+    route: {
+      reference: transport.routeReference,
+      slipLabel: slip !== undefined && slip > 0 ? formatSlip(slip) : undefined,
+      arrivalLabel
+    },
+    options: buildOptions(options, selectedIndex, arrivalLabel, d.technicalAssessment),
+    selectedIndex,
+    participants: (d.participantsConsulted ?? []).map((role) => ({
+      initials: roleInitials(role),
+      role,
+      isRequester: role === d.requestedBy
+    })),
+    participantCount: (d.participantsConsulted ?? []).length,
+    outcome: {
+      title: d.decision,
+      body: d.consequence
+    }
+  };
 }
 
 /* ------------------------------------------------------------------ */

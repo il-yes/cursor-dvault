@@ -100,11 +100,16 @@ test('dashboard renders canonical project, no crash', async ({ page }) => {
   await expect(page.getByText('23').first()).toBeVisible();
 });
 
-test('project listing renders canonical project reference', async ({ page }) => {
+test('project listing renders canonical project reference and 3 total projects', async ({ page }) => {
   await visit(page, '/projects');
   // code = canonical projectReference (PRJ-METRO-001), not the projectId.
   await expect(page.getByText('PRJ-METRO-001').first()).toBeVisible();
   await expect(page.getByText('Metro Line 4 Expansion').first()).toBeVisible();
+  // PRJ-002 and PRJ-003 restored demo projects
+  await expect(page.getByText('PRJ-002').first()).toBeVisible();
+  await expect(page.getByText('Commercial Plaza North').first()).toBeVisible();
+  await expect(page.getByText('PRJ-003').first()).toBeVisible();
+  await expect(page.getByText('Riverside Logistics Hub').first()).toBeVisible();
 });
 
 test('project detail renders canonical project', async ({ page }) => {
@@ -151,9 +156,140 @@ test('issue renders canonical issue reference', async ({ page }) => {
   await expect(page.getByText('ISS-REF-1042', { exact: false }).first()).toBeVisible();
 });
 
-test('decision renders canonical decision reference', async ({ page }) => {
+test('decision renders the canonical decision reference', async ({ page }) => {
   await visit(page, '/decisions');
   await expect(page.getByText('DEC-REF-1042', { exact: false }).first()).toBeVisible();
+});
+
+/**
+ * Stitch DEC-1042 composition, projected from the canonical aggregate.
+ *
+ * This asserts two things at once: that each composition section is present, and
+ * that the Stitch copy the scenario cannot support was replaced rather than
+ * rendered. The negative assertions are the important half.
+ */
+test('decision renders Stitch composition from canonical data only', async ({ page }) => {
+  await visit(page, '/decisions');
+
+  // Status ribbon — canonical status, canonical id, canonical decision date.
+  await expect(page.getByText('APPROVED').first()).toBeVisible();
+  await expect(page.getByText('DEC-1042').first()).toBeVisible();
+  await expect(page.getByText(/Finalized Aug 15/)).toBeVisible();
+
+  // Header card — canonical subject, canonical context, derived related ids.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Structural material delivery delay alternative route',
+  );
+  await expect(page.getByText('Route M1 blocked, ETA delayed to 2026-08-16T07:30:00Z')).toBeVisible();
+  await expect(page.getByText('ISS-1042').first()).toBeVisible();
+  await expect(page.getByText('DEL-1042').first()).toBeVisible();
+
+  // Options — both canonical options, selection recovered from the decision text.
+  await expect(page.getByRole('heading', { name: 'Options Evaluated' })).toBeVisible();
+  await expect(page.getByText('2 Alternatives Assessed')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Wait for M1 clearance' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Use Route B detour' })).toBeVisible();
+  await expect(page.getByText('Selected & Authorized')).toBeVisible();
+  await expect(page.getByText('Rejected').first()).toBeVisible();
+
+  // The only canonical arrival: derived from transport, labelled UTC.
+  await expect(page.getByText('Aug 16 @ 07:30 UTC').first()).toBeVisible();
+  // The 21.5h slip is derivable from planned vs actual arrival.
+  await expect(page.getByText(/Route-B detour · \+21\.5 h vs plan/)).toBeVisible();
+
+  // Governance — canonical roles, no fabricated organisations.
+  await expect(page.getByRole('heading', { name: 'Governance Chain' })).toBeVisible();
+  for (const role of ['Contractor', 'Supplier', 'Logistics', 'Project Manager']) {
+    await expect(page.getByText(role, { exact: true }).first()).toBeVisible();
+  }
+  await expect(page.getByText('Decided by Project Manager')).toBeVisible();
+  await expect(page.getByText('Requested by Logistics Manager · 4 participants consulted')).toBeVisible();
+
+  // Outcome — canonical decision and consequence, canonical transport reference.
+  await expect(page.getByRole('heading', { name: 'Approve Route B alternative transport' })).toBeVisible();
+  await expect(page.getByText(/Transport re-routed via Route B/)).toBeVisible();
+  await expect(page.getByText('TR-1042').first()).toBeVisible();
+
+  // Action bar routes on the real route constants.
+  await expect(page.getByRole('button', { name: /View Updated Delivery \(DEL-1042\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /View Audit Trail & Provenance/ })).toBeVisible();
+
+  // ---- Negative assertions: Stitch copy the scenario cannot support ----
+  // Clock time on a date-only decisionDate.
+  await expect(page.getByText(/12:35/)).toHaveCount(0);
+  await expect(page.getByText(/no time recorded/)).toBeVisible();
+  // Commercial facts with no canonical field.
+  await expect(page.getByText(/480/)).toHaveCount(0);
+  await expect(page.getByText(/Logistics SLA/)).toHaveCount(0);
+  // Distance/duration deltas, and the "48-72 hour" option impact.
+  await expect(page.getByText(/42 km/)).toHaveCount(0);
+  await expect(page.getByText(/50 min/)).toHaveCount(0);
+  await expect(page.getByText(/48/)).toHaveCount(0);
+  // Per-participant sign-off, organisations and timestamps.
+  await expect(page.getByText(/Acknowledged/)).toHaveCount(0);
+  await expect(page.getByText(/Confirmed$/)).toHaveCount(0);
+  await expect(page.getByText(/EuroSteel/)).toHaveCount(0);
+  await expect(page.getByText(/FastBuild/)).toHaveCount(0);
+  await expect(page.getByText(/Structural Engineer/)).toHaveCount(0);
+  await expect(page.getByText(/Consensus Met/)).toHaveCount(0);
+  await expect(page.getByText(/cryptographic/)).toHaveCount(0);
+  // A sector taxonomy the project does not carry.
+  await expect(page.getByText(/Sector 4/)).toHaveCount(0);
+  // Slots with no canonical datum must say so rather than look plausible.
+  await expect(page.getByText('Not recorded in scenario').first()).toBeVisible();
+  await expect(page.getByText('Sign-off not recorded').first()).toBeVisible();
+});
+
+test('decision action bar navigates to delivery and provenance', async ({ page }) => {
+  await visit(page, '/decisions');
+
+  await page.getByRole('button', { name: /View Updated Delivery \(DEL-1042\)/ }).click();
+  await expect(page.getByText('North Hub Station Site', { exact: false }).first()).toBeVisible();
+
+  await page.goto(`${BASE}/decisions`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /View Audit Trail & Provenance/ }).click();
+  await expect(page.getByText(/CID: QmRoadRestrictionReport1042/)).toBeVisible();
+});
+
+/**
+ * The decision view must resolve entirely from the static scenario on the active
+ * provider. VITE_CONSTRUCTION_DATA_SOURCE defaults to "mock", so any AppAPI call
+ * here would mean the presentation layer had reached around the Functional Data
+ * Boundary.
+ *
+ * The probe wraps the Wails App bindings rather than watching the network: in the
+ * browser AppAPI methods are invoked through window.go, not over HTTP, so a
+ * request-level assertion would miss exactly the leak it is meant to catch.
+ */
+test('decision view reaches AppAPI for nothing', async ({ page }) => {
+  await page.addInitScript(`
+    (() => {
+      const app = window.go && window.go.main && window.go.main.App;
+      window.__appApiCalls = [];
+      if (!app) return;
+      window.go.main.App = new Proxy(app, {
+        get(target, prop) {
+          const value = target[prop];
+          if (typeof value !== 'function') return value;
+          return function (...args) {
+            window.__appApiCalls.push(String(prop));
+            return value.apply(target, args);
+          };
+        }
+      });
+    })();
+  `);
+
+  await visit(page, '/decisions');
+  await expect(page.getByRole('heading', { name: 'Options Evaluated' })).toBeVisible();
+
+  const called = await page.evaluate(() => {
+    const w = window as unknown as { __appApiCalls?: string[] };
+    return w.__appApiCalls ?? [];
+  });
+
+  // GetAppState is the app-shell bootstrap the gate in src/App.tsx performs.
+  expect(called.filter((m) => m !== 'GetAppState'), 'decision view must not call AppAPI').toEqual([]);
 });
 
 test('inspection renders canonical inspection', async ({ page }) => {

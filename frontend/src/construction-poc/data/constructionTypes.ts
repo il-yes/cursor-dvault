@@ -395,4 +395,87 @@ export interface LogisticsOverviewData {
     notes?: string;
     evidenceReferences?: string[];
   };
+  provenance?: ProvenanceOverviewData;
+  inspectionPageData?: InspectionPageData;
+}
+
+export interface InspectionChecklistItem {
+  id: number;
+  title: string;
+  description: string;
+  isPassed: boolean;
+}
+
+export interface InspectionEvidencePhoto {
+  id: string;
+  label: string;
+  imageAlt: string;
+}
+
+export interface InspectionEvidenceDocument {
+  id: string;
+  icon: string;
+  title: string;
+  metadata: string;
+}
+
+export interface InspectionTimelineItem {
+  id: string;
+  category: string;
+  title: string;
+  timestamp: string;
+  isTerminal?: boolean;
+}
+
+export interface InspectionPageData {
+  id: string;
+  reference: string;
+  statusTag: string;
+  title: string;
+  inspectorText: string;
+  checklist: InspectionChecklistItem[];
+  evidencePhotos: InspectionEvidencePhoto[];
+  evidenceDocuments: InspectionEvidenceDocument[];
+  timeline: InspectionTimelineItem[];
+}
+
+export interface ProvenanceMilestoneItem {
+  stepNumber: number;
+  category: string;
+  timestamp: string;
+  title: string;
+  description: string;
+  nodeType: "cause" | "ticket" | "verification" | "consensus" | "execution" | "receipt" | "qc" | "handover";
+  evidenceChip?: {
+    filename: string;
+    badge: string;
+  };
+  signatories?: string[];
+}
+
+export interface ProvenanceAuditLayer {
+  id: "construction" | "collaboration" | "milestones";
+  tabLabel: string;
+  title: string;
+  description: string;
+  footerLeft: string;
+  statusRight: string;
+}
+
+export interface ProvenanceOverviewData {
+  rootCauseTitle: string;
+  rootCauseDescription: string;
+  delayDurationLabel: string;
+  originalEtaLabel: string;
+  actualSiteGateLabel: string;
+  scheduleDeltaLabel: string;
+  milestones: ProvenanceMilestoneItem[];
+  materialAcceptance: {
+    materialCode: string;
+    inspectionCode: string;
+    lotLabel: string;
+    beamCount: number;
+    status: string;
+  };
+  auditLayers: ProvenanceAuditLayer[];
 }

@@ -328,7 +328,7 @@ test('decision action bar navigates to delivery and provenance', async ({ page }
 
   await page.goto(`${BASE}/decisions`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: /View Audit Trail & Provenance/ }).click();
-  await expect(page.getByText(/CID: QmRoadRestrictionReport1042/)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Provenance / Why?');
 });
 
 /**
@@ -372,10 +372,34 @@ test('decision view reaches AppAPI for nothing', async ({ page }) => {
   expect(called.filter((m) => m !== 'GetAppState'), 'decision view must not call AppAPI').toEqual([]);
 });
 
-test('inspection renders canonical inspection', async ({ page }) => {
+test('inspection renders exact Stitch layout, checklist, evidence, and timeline', async ({ page }) => {
   await visit(page, '/inspections');
-  await expect(page.getByText('INSP-REF-1042', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('Receiving Inspection', { exact: false }).first()).toBeVisible();
+
+  // Header & status
+  await expect(page.getByText('INSPECTION COMPLETE').first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Foundation — Zone A');
+  await expect(page.getByText('Inspector: Bureau Inspection').first()).toBeVisible();
+
+  // Verification checklist
+  await expect(page.getByText('Verification Checklist').first()).toBeVisible();
+  await expect(page.getByText('Reinforcement Layout').first()).toBeVisible();
+  await expect(page.getByText('Formwork Integrity').first()).toBeVisible();
+  await expect(page.getByText('Concrete Quality').first()).toBeVisible();
+  await expect(page.getByText('Overall Dimensions').first()).toBeVisible();
+  await expect(page.getByText('Site Safety Protocol').first()).toBeVisible();
+
+  // Supporting evidence
+  await expect(page.getByText('Supporting Evidence').first()).toBeVisible();
+  await expect(page.getByText('Rebar Layout').first()).toBeVisible();
+  await expect(page.getByText('Formwork').first()).toBeVisible();
+  await expect(page.getByText('Concrete Test Results').first()).toBeVisible();
+  await expect(page.getByText('Official Inspection Report').first()).toBeVisible();
+
+  // Workflow timeline
+  await expect(page.getByText('Workflow Timeline').first()).toBeVisible();
+  await expect(page.getByText('Final Approval').first()).toBeVisible();
+  await expect(page.getByText('Review').first()).toBeVisible();
+  await expect(page.getByText('Initiation').first()).toBeVisible();
 });
 
 test('collaboration thread renders canonical event counts, no fake timestamps', async ({ page }) => {
@@ -389,14 +413,74 @@ test('project history renders canonical trace events', async ({ page }) => {
   await expect(page.getByText('TraceCore', { exact: false }).first()).toBeVisible();
 });
 
-test('provenance renders canonical causal chain', async ({ page }) => {
+test('provenance renders exact Stitch layout, causal progression, and audit layers', async ({ page }) => {
   await visit(page, '/provenance');
-  await expect(page.getByText('DEL-REF-1042').first()).toBeVisible();
-  await expect(page.getByText('ISS-REF-1042').first()).toBeVisible();
-  await expect(page.getByText('DEC-REF-1042').first()).toBeVisible();
-  await expect(page.getByText('Road Restriction Official Notice M1')).toBeVisible();
-  // Canonical content CID, not a fabricated one.
-  await expect(page.getByText(/CID: QmRoadRestrictionReport1042/)).toBeVisible();
+
+  // Header & Context
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Provenance / Why?');
+  await expect(page.getByText('Construction Intelligence • Causal Chain & Provenance')).toBeVisible();
+
+  // Root-Cause Synthesis
+  await expect(page.getByText('Root-Cause Diagnosis')).toBeVisible();
+  await expect(page.getByText('+21h 30m Delay')).toBeVisible();
+  await expect(page.getByText('DEL-1042', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Original ETA')).toBeVisible();
+  await expect(page.getByText('Actual Site Gate')).toBeVisible();
+  await expect(page.getByText('Schedule Delta')).toBeVisible();
+
+  // Causal Progression & 8 Milestones
+  await expect(page.getByText('Causal Progression')).toBeVisible();
+  await expect(page.getByText('8 verifiable milestones')).toBeVisible();
+
+  await expect(page.getByText('Physical Cause').first()).toBeVisible();
+  await expect(page.getByText('Road restriction on Route M1').first()).toBeVisible();
+
+  await expect(page.getByText('Disruption Ticket').first()).toBeVisible();
+  await expect(page.getByText('ISS-1042 — Critical Beam Delivery Delayed').first()).toBeVisible();
+
+  await expect(page.getByText('Verification').first()).toBeVisible();
+  await expect(page.getByText('Road Restriction Report (#RD-9942)').first()).toBeVisible();
+  await expect(page.getByText('Corridor_M1_Closure_Order.pdf').first()).toBeVisible();
+
+  await expect(page.getByText('Multi-Org Consensus').first()).toBeVisible();
+  await expect(page.getByText('DEC-1042 — Alternative Route B Approved').first()).toBeVisible();
+
+  await expect(page.getByText('Field Execution').first()).toBeVisible();
+  await expect(page.getByText('Transport Rerouted via Bypass').first()).toBeVisible();
+
+  await expect(page.getByText('Site Receipt').first()).toBeVisible();
+  await expect(page.getByText('Delivery Received at Site-001').first()).toBeVisible();
+
+  await expect(page.getByText('Quality Control').first()).toBeVisible();
+  await expect(page.getByText('Inspection #INSP-1042 Passed').first()).toBeVisible();
+
+  await expect(page.getByText('Construction Handover').first()).toBeVisible();
+  await expect(page.getByText('Material Accepted for Assembly').first()).toBeVisible();
+
+  // Material Acceptance Card
+  await expect(page.getByText('Material Acceptance').first()).toBeVisible();
+  await expect(page.getByText('MAT-STRUCT-001', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('INSP-1042', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Lot #STM-88219 (84 Beams)').first()).toBeVisible();
+
+  // Sources & Audit Integrity and Tab switching
+  await expect(page.getByText('Sources & Audit Integrity').first()).toBeVisible();
+  await expect(page.getByText('Physical Site Data & Field Delivery').first()).toBeVisible();
+  await expect(page.getByText('Authority: Site Super (BuildCorp)').first()).toBeVisible();
+
+  // Tab 2: Collaboration & Evidence
+  await page.getByRole('button', { name: 'Collaboration & Evidence' }).click();
+  await expect(page.getByText('Multi-Organization Consensus Protocol').first()).toBeVisible();
+  await expect(page.getByText('Threads: 14 exchanged records').first()).toBeVisible();
+
+  // Tab 3: Historical Milestones
+  await page.getByRole('button', { name: 'Historical Milestones' }).click();
+  await expect(page.getByText('Historical Milestone Record').first()).toBeVisible();
+  await expect(page.getByText('Ref: TRACE-MILESTONE-001').first()).toBeVisible();
+
+  // Bottom Actions
+  await expect(page.getByRole('button', { name: /Open Full Project History/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Back to Delivery \(/ })).toBeVisible();
 });
 
 test('channels renders the canonical channel topology', async ({ page }) => {

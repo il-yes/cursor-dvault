@@ -628,6 +628,204 @@ export function mapScenarioToLogisticsOverviewData(): LogisticsOverviewData {
       findings: S.inspection.findings,
       notes: S.inspection.notes,
       evidenceReferences: S.inspection.evidenceReferences
+    },
+    provenance: {
+      rootCauseTitle: "Root-Cause Diagnosis",
+      rootCauseDescription: "Delivery #DEL-1042 was delayed by 21h 30m due to an unforeseen physical constraint on transport corridor M1, resolved via collaborative consensus on Route B.",
+      delayDurationLabel: "+21h 30m Delay",
+      originalEtaLabel: "Aug 15, 10:00",
+      actualSiteGateLabel: "Aug 16, 07:32",
+      scheduleDeltaLabel: "Absorbed (0d)",
+      milestones: [
+        {
+          stepNumber: 1,
+          category: "Physical Cause",
+          timestamp: "Aug 15 • 11:15 AM",
+          title: "Road restriction on Route M1",
+          description: "Emergency overpass load-limit closure published by National Transport Authority.",
+          nodeType: "cause"
+        },
+        {
+          stepNumber: 2,
+          category: "Disruption Ticket",
+          timestamp: "Aug 15 • 11:41 AM",
+          title: "ISS-1042 — Critical Beam Delivery Delayed",
+          description: "Automated delay flag triggered by telematics geo-fence on carrier vehicle.",
+          nodeType: "ticket"
+        },
+        {
+          stepNumber: 3,
+          category: "Verification",
+          timestamp: "Aug 15 • 12:05 PM",
+          title: "Road Restriction Report (#RD-9942)",
+          description: "Verified civil traffic bulletin & real-time detour axle-clearance analysis.",
+          nodeType: "verification",
+          evidenceChip: {
+            filename: "Corridor_M1_Closure_Order.pdf",
+            badge: "Signed"
+          }
+        },
+        {
+          stepNumber: 4,
+          category: "Multi-Org Consensus",
+          timestamp: "Aug 15 • 12:45 PM",
+          title: "DEC-1042 — Alternative Route B Approved",
+          description: "Joint electronic sign-off completed within 44 minutes of issue creation.",
+          nodeType: "consensus",
+          signatories: ["BuildCorp (PM)", "EuroSteel (Eng)", "FastBuild (Carrier)"]
+        },
+        {
+          stepNumber: 5,
+          category: "Field Execution",
+          timestamp: "Aug 15 • 01:00 PM",
+          title: "Transport Rerouted via Bypass",
+          description: "Convoy departed onto regional detour corridor B-88 with highway escort.",
+          nodeType: "execution"
+        },
+        {
+          stepNumber: 6,
+          category: "Site Receipt",
+          timestamp: "Aug 16 • 07:32 AM",
+          title: "Delivery Received at Site-001",
+          description: "Weighbridge scan valid. Transferred to laydown yard sector North-B.",
+          nodeType: "receipt"
+        },
+        {
+          stepNumber: 7,
+          category: "Quality Control",
+          timestamp: "Aug 16 • 08:45 AM",
+          title: "Inspection #INSP-1042 Passed",
+          description: "Flange camber, weld ultrasonic testing, and steel mill certifications verified 100%.",
+          nodeType: "qc"
+        },
+        {
+          stepNumber: 8,
+          category: "Construction Handover",
+          timestamp: "Aug 16 • 09:15 AM",
+          title: "Material Accepted for Assembly",
+          description: "84 structural steel beams officially released to Viaduct Erection Gang 03.",
+          nodeType: "handover"
+        }
+      ],
+      materialAcceptance: {
+        materialCode: "MAT-STRUCT-001",
+        inspectionCode: "INSP-1042",
+        lotLabel: "Lot #STM-88219 (84 Beams)",
+        beamCount: 84,
+        status: "Accepted"
+      },
+      auditLayers: [
+        {
+          id: "construction",
+          tabLabel: "Construction",
+          title: "Physical Site Data & Field Delivery",
+          description: "Captured from gate scale telematics, site manager daily logs, and physical acceptance notes signed at Viaduct Sector 4.",
+          footerLeft: "Authority: Site Super (BuildCorp)",
+          statusRight: "Synced in Realtime"
+        },
+        {
+          id: "collaboration",
+          tabLabel: "Collaboration & Evidence",
+          title: "Multi-Organization Consensus Protocol",
+          description: "3-party signed evidence exchange between BuildCorp, EuroSteel Fabricators, and FastBuild Haulage with route liability approvals.",
+          footerLeft: "Threads: 14 exchanged records",
+          statusRight: "Consensus 100%"
+        },
+        {
+          id: "milestones",
+          tabLabel: "Historical Milestones",
+          title: "Historical Milestone Record",
+          description: "Chronological audit trail cross-referenced against the master project schedule baseline. Provides transparent, verifiable milestone delivery history.",
+          footerLeft: "Ref: TRACE-MILESTONE-001",
+          statusRight: "Audited Record"
+        }
+      ]
+    },
+    inspectionPageData: {
+      id: S.inspection.inspectionId,
+      reference: S.inspection.inspectionReference,
+      statusTag: "INSPECTION COMPLETE",
+      title: "Foundation — Zone A",
+      inspectorText: "Inspector: Bureau Inspection",
+      checklist: [
+        {
+          id: 1,
+          title: "Reinforcement Layout",
+          description: "Spacing and bar size verified per structural plans (S-201).",
+          isPassed: true
+        },
+        {
+          id: 2,
+          title: "Formwork Integrity",
+          description: "Bracing and dimensions confirmed against formwork design (F-10).",
+          isPassed: true
+        },
+        {
+          id: 3,
+          title: "Concrete Quality",
+          description: "Slump test passed. Mix design matched specifications.",
+          isPassed: true
+        },
+        {
+          id: 4,
+          title: "Overall Dimensions",
+          description: "Tolerances within acceptable limits (+/- 5mm).",
+          isPassed: true
+        },
+        {
+          id: 5,
+          title: "Site Safety Protocol",
+          description: "All workers wearing appropriate PPE. Trench shoring intact.",
+          isPassed: true
+        }
+      ],
+      evidencePhotos: [
+        {
+          id: "photo-1",
+          label: "Rebar Layout",
+          imageAlt: "Rebar Layout Photo"
+        },
+        {
+          id: "photo-2",
+          label: "Formwork",
+          imageAlt: "Formwork Photo"
+        }
+      ],
+      evidenceDocuments: [
+        {
+          id: "doc-1",
+          icon: "science",
+          title: "Concrete Test Results",
+          metadata: "PDF • 1.2 MB"
+        },
+        {
+          id: "doc-2",
+          icon: "description",
+          title: "Official Inspection Report",
+          metadata: "PDF • 3.4 MB"
+        }
+      ],
+      timeline: [
+        {
+          id: "timeline-1",
+          category: "Final Approval",
+          title: "Approved by Bureau Inspection",
+          timestamp: "Oct 24, 2023 - 14:30",
+          isTerminal: true
+        },
+        {
+          id: "timeline-2",
+          category: "Review",
+          title: "Site walk-through completed",
+          timestamp: "Oct 24, 2023 - 10:15"
+        },
+        {
+          id: "timeline-3",
+          category: "Initiation",
+          title: "Inspection requested by Contractor",
+          timestamp: "Oct 23, 2023 - 09:00"
+        }
+      ]
     }
   };
 }

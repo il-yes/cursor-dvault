@@ -694,4 +694,105 @@ test('notifications renders exact Stitch layout, operational pulse, filters, mar
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Notifications');
 });
 
+test('profile renders exact Stitch layout, credentials, operational access, field switches, and offline sync interaction', async ({ page }) => {
+  await visit(page, '/profile');
+
+  // Identity Verification
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Manuel Vincent');
+  await expect(page.getByText('Lead Structural Engineer')).toBeVisible();
+  await expect(page.getByText('Partner • Engineering Partners')).toBeVisible();
+  await expect(page.getByTitle('Verified User')).toBeVisible();
+  await expect(page.getByLabel('Online indicator')).toBeVisible();
+
+  // Workspace & Active Site Metadata Cards
+  await expect(page.getByText('Workspace ID')).toBeVisible();
+  await expect(page.getByText('SW-FR-7501')).toBeVisible();
+  await expect(page.getByText('Mesh', { exact: true })).toBeVisible();
+  await expect(page.getByText('Active Site')).toBeVisible();
+  await expect(page.getByText('PRJ-001', { exact: true })).toBeVisible();
+  await expect(page.getByText('Metro Line 4').first()).toBeVisible();
+
+  // Credentials & Sign-off
+  await expect(page.getByRole('heading', { level: 2, name: 'Credentials & Sign-off' })).toBeVisible();
+  await expect(page.getByText('3 Active', { exact: true })).toBeVisible();
+  await expect(page.getByText('Eurocodes EN 1992-1 / 1993')).toBeVisible();
+  await expect(page.getByText('Structural Concrete & Steel Authority')).toBeVisible();
+  await expect(page.getByText('Full Sign-off Privilege')).toBeVisible();
+  await expect(page.getByText('Valid to Dec 2026')).toBeVisible();
+
+  await expect(page.getByText('Bureau Inspection Assessor')).toBeVisible();
+  await expect(page.getByText('Level 3 Certified Technical Auditor')).toBeVisible();
+  await expect(page.getByText('Audit Registry: ID-8840-X')).toBeVisible();
+  await expect(page.getByText('Annual Renewal Sync OK')).toBeVisible();
+
+  await expect(page.getByText('Site Safety Pass: Category A')).toBeVisible();
+  await expect(page.getByText('High Risk Infrastructure / Viaduct Zones')).toBeVisible();
+  await expect(page.getByText('All Sectors Authorized')).toBeVisible();
+
+  // Operational Access
+  await expect(page.getByRole('heading', { level: 2, name: 'Operational Access' })).toBeVisible();
+  await expect(page.getByText('Sovereign Rights', { exact: true })).toBeVisible();
+  await expect(page.getByText('PRJ-001 Metro Line 4')).toBeVisible();
+  await expect(page.getByText('Full Engineering Sign-off & Inspection Authority')).toBeVisible();
+  await expect(page.getByText('SITE-001 Riverside Tower')).toBeVisible();
+  await expect(page.getByText('Zone Access: Viaduct & Deep Foundation Sector')).toBeVisible();
+  await expect(page.getByText('TraceCore Milestone Notarization')).toBeVisible();
+  await expect(page.getByText('Active Cryptographic Delegated Signer')).toBeVisible();
+  await expect(page.getByText('HSM Tier 1')).toBeVisible();
+  await expect(page.getByText('C3 Collaboration Feeds')).toBeVisible();
+  await expect(page.getByText('#Logistics, #Foundation, #Technical-Review')).toBeVisible();
+  await expect(page.getByText('3 Linked')).toBeVisible();
+
+  // Field Configuration Switches Initial State
+  const offlineSwitch = page.getByRole('switch', { name: 'Offline Auto-Sync' });
+  const logisticsSwitch = page.getByRole('switch', { name: 'Critical Logistics Dispatch' });
+  const contrastSwitch = page.getByRole('switch', { name: 'High-Contrast Sunlight Mode' });
+  const satelliteSwitch = page.getByRole('switch', { name: 'Satellite / Low-Bandwidth Mode' });
+
+  await expect(offlineSwitch).toHaveAttribute('aria-checked', 'true');
+  await expect(logisticsSwitch).toHaveAttribute('aria-checked', 'true');
+  await expect(contrastSwitch).toHaveAttribute('aria-checked', 'false');
+  await expect(satelliteSwitch).toHaveAttribute('aria-checked', 'false');
+
+  // Toggle Switches Interaction
+  await offlineSwitch.click();
+  await expect(offlineSwitch).toHaveAttribute('aria-checked', 'false');
+
+  await contrastSwitch.click();
+  await expect(contrastSwitch).toHaveAttribute('aria-checked', 'true');
+
+  // System Health & Storage
+  await expect(page.getByRole('heading', { level: 2, name: 'System Health & Storage' })).toBeVisible();
+  await expect(page.getByText('Optimal', { exact: true })).toBeVisible();
+  await expect(page.getByText('42.8 MB')).toBeVisible();
+  await expect(page.getByText('14 Vector Blueprints')).toBeVisible();
+  await expect(page.getByText('Encrypted Mesh OK')).toBeVisible();
+  await expect(page.getByText('v2.4.1 (Sovereign Mobile Edition)')).toBeVisible();
+
+  // Synchronize All Offline Data Interaction
+  const syncBtn = page.getByRole('button', { name: 'Synchronize All Offline Data' });
+  await expect(syncBtn).toBeVisible();
+  await syncBtn.click();
+
+  // Verify transition to synchronizing state
+  const syncingBtn = page.getByRole('button', { name: 'Synchronizing Telemetry...' });
+  await expect(syncingBtn).toBeVisible();
+  await expect(syncingBtn).toBeDisabled();
+
+  // Wait for sync completion
+  await expect(page.getByText('Just now', { exact: true })).toBeVisible();
+
+  // Bottom Navigation -> Profile Navigation
+  await visit(page, '/projects');
+  const profileTab = page.getByRole('button', { name: 'Profile' });
+  await expect(profileTab).toBeVisible();
+  await profileTab.click();
+  await expect(page).toHaveURL(/.*\/profile/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Manuel Vincent');
+
+  // Footer Verification
+  await expect(page.getByText('BuildFlow Field OS • Verified Encrypted Node #881-A')).toBeVisible();
+});
+
+
 

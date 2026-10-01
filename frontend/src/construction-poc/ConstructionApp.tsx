@@ -48,7 +48,6 @@ export const ConstructionAppInner: React.FC = () => {
           {/* Channels & Threads Collaboration Surface */}
           <Route path="/channels" element={<ProjectChannelsPage />} />
           <Route path="/channels/:channelId" element={<ProjectChannelsPage />} />
-          <Route path="/channels/:channelId/threads/:threadId" element={<ProjectChannelsPage />} />
 
           {/* Construction Scenario Entity Detail Views */}
           <Route path="/stakeholders" element={<StakeholdersPage />} />

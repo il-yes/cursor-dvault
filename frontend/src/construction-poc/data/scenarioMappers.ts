@@ -358,7 +358,7 @@ export function mapScenarioToProcurementData(): ProcurementData {
     projectCode: S.project.projectReference,
     projectName: S.project.projectName,
 
-    code: S.requirement.requirementReference,
+    code: S.requirement.requirementId || S.requirement.requirementReference,
     materialId: S.material.materialId,
     materialName: "120t Structural Beams",
     materialStandard: S.material.standard,
@@ -374,12 +374,13 @@ export function mapScenarioToProcurementData(): ProcurementData {
     siteName: S.site.name,
 
     lowestBidTotal: "€142,500",
+    contractValueText: "€142,500",
     lowestBidSavings: "3.8% below est.",
     fastestDeliveryDate: "Aug 15",
     fastestDeliveryStatus: "Target Met (On Time)",
 
     offerId: primaryOffer.offerId,
-    offerReference: primaryOffer.offerReference,
+    offerReference: S.offer.offerId || primaryOffer.offerReference,
     supplierId: primaryOffer.supplierId,
     supplierName: primaryOffer.supplierName,
     supplierStatus: primaryOffer.supplierStatus,
@@ -396,7 +397,26 @@ export function mapScenarioToProcurementData(): ProcurementData {
 
     primaryOffer,
     secondaryOffer,
-    offers
+    offers,
+
+    /* Stitch Material Requirement presentation fields */
+    projectDisplayCode: "PROJ-RT-104",
+    materialSubtitle: "Structural beams",
+    materialDescription: "Structural beams required for viaduct section 4.",
+    specificationGrade: "Grade S355JR",
+    specificationType: "Hot-Rolled (EN 10025-2)",
+    quantityBeamsText: "84 Beams",
+    quantityTonsText: "120 Metric Tons",
+    requiredDateSlotText: "Slot: 08:00 - 12:00",
+    siteCityText: "Site-001 (Paris)",
+    siteLocationText: "Riverside Tower",
+    constructionPhaseText: "Foundation / Viaduct Section 4",
+    invitedCount: 3,
+    offersReceivedCount: 2,
+    selectedCount: 1,
+    contractValueText: canonicalOfferPrice,
+    unitPriceText: "€1,187.50 / ton",
+    proposedDeliveryText: "Aug 15, 2024 at 10:00 AM"
   };
 }
 

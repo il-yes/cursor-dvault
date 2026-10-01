@@ -214,7 +214,7 @@ export const InspectionPage: React.FC = () => {
               >
                 {/* Styled structural graphic container */}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#041627] via-[#0b2b48]/80 to-[#1e3a5f]/60 transition-transform duration-300 group-hover:scale-105" />
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#6cf8bb_1px,transparent_1px)] [background-size:12px_12px]"
+                <div className="absolute inset-0  bg-[radial-gradient(#6cf8bb_1px,transparent_1px)] [background-size:12px_12px]"
                   style={{ backgroundImage: `url("${photo?.src}")` }} />
 
                 <div className="relative z-10">

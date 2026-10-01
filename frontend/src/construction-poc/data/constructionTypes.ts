@@ -84,6 +84,25 @@ export interface ProcurementData {
   primaryOffer: SupplierOfferItem;
   secondaryOffer: SupplierOfferItem;
   offers: SupplierOfferItem[];
+
+  /* Stitch Material Requirement presentation fields */
+  projectDisplayCode?: string;
+  materialSubtitle?: string;
+  materialDescription?: string;
+  specificationGrade?: string;
+  specificationType?: string;
+  quantityBeamsText?: string;
+  quantityTonsText?: string;
+  requiredDateSlotText?: string;
+  siteCityText?: string;
+  siteLocationText?: string;
+  constructionPhaseText?: string;
+  invitedCount?: number;
+  offersReceivedCount?: number;
+  selectedCount?: number;
+  contractValueText?: string;
+  unitPriceText?: string;
+  proposedDeliveryText?: string;
 }
 
 /* DecisionData                                                         */

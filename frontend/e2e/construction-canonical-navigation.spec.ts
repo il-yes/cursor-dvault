@@ -126,13 +126,51 @@ test('stakeholders renders the three canonical vault identities', async ({ page 
   await expect(page.getByText('vault_003-faa', { exact: false }).first()).toBeVisible();
 });
 
-test('material requirement renders canonical material', async ({ page }) => {
+test('material requirement renders exact Stitch layout, canonical material, supplier sourcing, and offer details', async ({ page }) => {
   await visit(page, '/requirements');
-  await expect(page.getByText('120t Structural Beams').first()).toBeVisible();
-  // canonical requirementReference, quantity 12 units, canonical specification.
-  await expect(page.getByText('REQ-REF-1042').first()).toBeVisible();
-  await expect(page.getByText(/12 units/).first()).toBeVisible();
-  await expect(page.getByText('C50/60 Concrete, 12m length').first()).toBeVisible();
+
+  // Header & Context
+  await expect(page.getByText('BuildFlow').first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Material Requirement');
+  await expect(page.getByText('PROJ-RT-104 • Metro Line 4 Expansion')).toBeVisible();
+  await expect(page.getByText('OFFER SELECTED')).toBeVisible();
+
+  // Requirement & Material Card
+  await expect(page.getByText('REQ-STRUCT-001')).toBeVisible();
+  await expect(page.getByText('MAT-STRUCT-001')).toBeVisible();
+  await expect(page.getByText('Critical Path')).toBeVisible();
+  await expect(page.getByText('Grade S355JR')).toBeVisible();
+  await expect(page.getByText('84 Beams')).toBeVisible();
+  await expect(page.getByText('120 Metric Tons')).toBeVisible();
+  await expect(page.getByText('Aug 15, 2024').first()).toBeVisible();
+  await expect(page.getByText('Slot: 08:00 - 12:00')).toBeVisible();
+  await expect(page.getByText('Site-001 (Paris)')).toBeVisible();
+  await expect(page.getByText('Foundation / Viaduct Section 4')).toBeVisible();
+
+  // Supplier Sourcing Card
+  await expect(page.getByRole('heading', { level: 2, name: 'Supplier Sourcing' })).toBeVisible();
+  await expect(page.getByText('100% Filled')).toBeVisible();
+  await expect(page.getByText('Invited')).toBeVisible();
+  await expect(page.getByText("Offers Rec'd")).toBeVisible();
+  await expect(page.getByText('Selected').first()).toBeVisible();
+
+  // Selected Supplier Card
+  await expect(page.getByText('EuroSteel Construction')).toBeVisible();
+  await expect(page.getByText('OFF-1042')).toBeVisible();
+  await expect(page.getByText('Chosen')).toBeVisible();
+  await expect(page.getByText('€142,500')).toBeVisible();
+  await expect(page.getByText('€1,187.50 / ton')).toBeVisible();
+  await expect(page.getByText('Aug 15, 2024 at 10:00 AM')).toBeVisible();
+
+  // Action Buttons
+  const viewOffersBtn = page.getByRole('button', { name: 'View Offers (2)' });
+  await expect(viewOffersBtn).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Invite Supplier' })).toBeVisible();
+
+  // Navigation to Supplier Offers page
+  await viewOffersBtn.click();
+  await expect(page).toHaveURL(/.*\/offers/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Supplier Offers');
 });
 
 test('supplier offers render exact Stitch layout, offer details, and suppliers', async ({ page }) => {
@@ -483,17 +521,43 @@ test('provenance renders exact Stitch layout, causal progression, and audit laye
   await expect(page.getByRole('button', { name: /Back to Delivery \(/ })).toBeVisible();
 });
 
-test('channels renders the canonical channel topology', async ({ page }) => {
+test('channels renders channel list sidebar, native thread select, and Stitch Thread layout', async ({ page }) => {
   await visit(page, '/channels');
-  // KNOWN DIVERGENCE (documented, not fixed): the page preserves a 7-channel
-  // presentation topology instead of the canonical single collaboration channel
-  // ("Site Logistics & Supply Chain"). Per-channel thread titles are built from
-  // canonical ids, but they only render once a thread is selected.
+
+  // Left sidebar & channel topology header
   await expect(page.getByText('PRJ-METRO-001').first()).toBeVisible();
   await expect(page.getByText(/7 Visible Channels/)).toBeVisible();
   for (const channel of ['General', 'Procurement', 'Logistics', 'Site Operations', 'Quality']) {
     await expect(page.getByRole('heading', { name: channel, exact: true })).toBeVisible();
   }
-  // The canonical single collaboration channel is NOT surfaced on this surface.
-  await expect(page.getByText('Site Logistics & Supply Chain')).toHaveCount(0);
+
+  // Verify channels are NOT represented by a select
+  await expect(page.getByLabel('Select Channel')).toHaveCount(0);
+
+  // Switch channel using left-column channel navigation
+  await page.getByRole('button', { name: /Quality/ }).click();
+  await expect(page.getByRole('heading', { name: 'Quality Channel' })).toBeVisible();
+
+  // Verify native HTML <select> for thread selection exists
+  const threadSelect = page.getByLabel('Select Thread');
+  await expect(threadSelect).toBeVisible();
+  await expect(threadSelect).toHaveValue('THREAD-QUAL-001');
+
+  // Switch thread using native thread <select>
+  await threadSelect.selectOption('THREAD-QUAL-002');
+
+  // Verify Stitch Thread layout elements for selected thread (without header)
+  await expect(page.getByText('Awaiting Approval').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Foundation Concrete Inspection' })).toBeVisible();
+  await expect(page.getByText('Thread ID: #THREAD-QUAL-002').first()).toBeVisible();
+
+  // Verify Thread Timeline Events & Actors
+  await expect(page.getByText('Contractor', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Inspector', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Inspection requested for pour zone A3. Ready for sign-off.').first()).toBeVisible();
+  await expect(page.getByText('Concrete samples recorded. Slump test within tolerance (4.5 inches).').first()).toBeVisible();
+
+  // Verify Attachment Cards
+  await expect(page.getByText('Foundation_Report.pdf').first()).toBeVisible();
+  await expect(page.getByText('Drawing_S-204.pdf').first()).toBeVisible();
 });

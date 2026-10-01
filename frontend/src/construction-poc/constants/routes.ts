@@ -22,6 +22,7 @@ export const CONSTRUCTION_ROUTES = {
   PROVENANCE: "/dashboard/construction/provenance",
   HISTORY: "/dashboard/construction/history",
   ACTIVITY: "/dashboard/construction/activity",
+  NOTIFICATIONS: "/dashboard/construction/notifications",
   DOCUMENTS: "/dashboard/construction/documents",
   PROFILE: "/dashboard/construction/profile",
 };

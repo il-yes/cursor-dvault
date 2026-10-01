@@ -604,3 +604,94 @@ test('site detail renders exact Stitch layout and navigates from project page', 
   await expect(page.getByRole('heading', { level: 2 })).toHaveText('Riverside Tower');
 });
 
+test('notifications renders exact Stitch layout, operational pulse, filters, mark all read, and navigation actions', async ({ page }) => {
+  await visit(page, '/notifications');
+
+  // Header & Subtitle
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Notifications');
+  await expect(page.getByText('Operational alerts & project coordination')).toBeVisible();
+
+  // Mark all read button
+  const markReadBtn = page.getByRole('button', { name: 'Mark all read' });
+  await expect(markReadBtn).toBeVisible();
+
+  // Operational Health Pulse
+  await expect(page.getByText('Site Feeds Live')).toBeVisible();
+  await expect(page.getByText('Viaduct Corridor 4 • High Activity')).toBeVisible();
+  await expect(page.getByText('Sync 1m ago')).toBeVisible();
+
+  // Filter Tabs & Counts
+  await expect(page.getByRole('button', { name: 'All 5' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Critical 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Operations 2' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Decisions 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Collaboration 1' })).toBeVisible();
+
+  // Notification Cards Verification
+  // 1. Critical Logistics
+  await expect(page.getByText('CRITICAL • LOGISTICS', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Transport Delay Detected (DEL-1042)' })).toBeVisible();
+  await expect(page.getByText('Route M1 Blocked (km 42.4)')).toBeVisible();
+  await expect(page.getByText('Ref: DEL-1042 • Phase: Foundation')).toBeVisible();
+
+  // 2. Decision
+  await expect(page.getByText('DECISION APPROVED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Decision Approved: Alternative Route B' })).toBeVisible();
+  await expect(page.getByText('Ref: DEC-1042 • Consensus 4/4')).toBeVisible();
+
+  // 3. Issue
+  await expect(page.getByText('ISSUE MITIGATED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Issue ISS-1042 Resolved via Detour' })).toBeVisible();
+  await expect(page.getByText('Ref: ISS-1042 • Carrier: FastBuild')).toBeVisible();
+
+  // 4. Inspection
+  await expect(page.getByText('INSPECTION PASSED', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspection INSP-1042 Passed & Material Accepted' })).toBeVisible();
+  await expect(page.getByText('Ref: INSP-1042 • Material: Grade S355JR')).toBeVisible();
+
+  // 5. C3 Collaboration
+  await expect(page.getByText('C3 COLLABORATION', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'New Thread Activity in #Logistics & Delivery' })).toBeVisible();
+  await expect(page.getByText('EN_10204_3.1_Certificate_Signed.pdf')).toBeVisible();
+
+  // Filter interaction test:
+  // Critical tab -> 1 card
+  await page.getByRole('button', { name: 'Critical 1' }).click();
+  await expect(page.getByRole('heading', { name: 'Transport Delay Detected (DEL-1042)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Decision Approved: Alternative Route B' })).toHaveCount(0);
+
+  // Operations tab -> 2 cards
+  await page.getByRole('button', { name: 'Operations 2' }).click();
+  await expect(page.getByRole('heading', { name: 'Issue ISS-1042 Resolved via Detour' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspection INSP-1042 Passed & Material Accepted' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Transport Delay Detected (DEL-1042)' })).toHaveCount(0);
+
+  // Decisions tab -> 1 card
+  await page.getByRole('button', { name: 'Decisions 1' }).click();
+  await expect(page.getByRole('heading', { name: 'Decision Approved: Alternative Route B' })).toBeVisible();
+
+  // Collaboration tab -> 1 card
+  await page.getByRole('button', { name: 'Collaboration 1' }).click();
+  await expect(page.getByRole('heading', { name: 'New Thread Activity in #Logistics & Delivery' })).toBeVisible();
+
+  // Switch back to All tab
+  await page.getByRole('button', { name: 'All 5' }).click();
+
+  // Mark All Read interaction test
+  await markReadBtn.click();
+  await expect(page.getByRole('button', { name: '✓ Caught up!' })).toBeDisabled();
+
+  // Action Button Navigation test: View Delivery
+  await page.getByRole('button', { name: 'View Delivery (DEL-1042)' }).click();
+  await expect(page).toHaveURL(/.*\/deliveries/);
+
+  // Header notification icon navigation test
+  await visit(page, '/projects/PRJ-001');
+  const notifIcon = page.getByRole('button', { name: 'Notifications' });
+  await expect(notifIcon).toBeVisible();
+  await notifIcon.click();
+  await expect(page).toHaveURL(/.*\/notifications/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Notifications');
+});
+
+

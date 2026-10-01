@@ -554,3 +554,51 @@ export interface SiteData {
   };
 }
 
+export type NotificationCategory = "critical" | "operations" | "decisions" | "collaboration";
+
+export interface NotificationAction {
+  label: string;
+  route: string;
+  primary?: boolean;
+}
+
+export interface ConstructionNotificationItem {
+  id: string;
+  category: NotificationCategory;
+  badge: string;
+  badgeStyle: string;
+  timestamp: string;
+  title: string;
+  body: string;
+  isUnread: boolean;
+  isCritical?: boolean;
+  metadataText: string;
+  widget?: {
+    type: "route" | "consensus" | "metrics" | "attachment";
+    title?: string;
+    subtitle?: string;
+    metrics?: Array<{ label: string; value: string }>;
+    chips?: string[];
+    filename?: string;
+    filesize?: string;
+  };
+  actions: NotificationAction[];
+}
+
+export interface NotificationsData {
+  healthPulse: {
+    statusText: string;
+    detailText: string;
+    syncAgeText: string;
+  };
+  counts: {
+    all: number;
+    critical: number;
+    operations: number;
+    decisions: number;
+    collaboration: number;
+  };
+  notifications: ConstructionNotificationItem[];
+}
+
+

@@ -15,6 +15,7 @@ import type {
   LogisticsOverviewData,
   ProcurementData,
   SiteData,
+  NotificationsData,
 } from "./constructionTypes";
 
 export type ConstructionDataProvider = typeof scenarioAccessors & {
@@ -39,6 +40,7 @@ export type ConstructionDataProvider = typeof scenarioAccessors & {
    */
   getDecisionData(): DecisionData;
   getSiteData(siteId?: string): SiteData;
+  getNotificationsData(): NotificationsData;
 
   appendThreadEvent(threadId: string, kind: string, content: string): Promise<void>;
 

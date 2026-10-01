@@ -22,6 +22,7 @@ import { ProvenanceWhyPage } from "./pages/ProvenanceWhyPage";
 import { ProjectHistoryPage } from "./pages/ProjectHistoryPage";
 import { ProjectChannelsPage } from "./pages/ProjectChannelsPage";
 import { ActivityPage } from "./pages/ActivityPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
@@ -32,7 +33,7 @@ export const ConstructionAppInner: React.FC = () => {
     <div className="bg-[#f7fafc] text-[#181c1e] font-sans min-h-screen flex flex-col antialiased">
       {/* BuildFlow Application Header */}
       <ConstructionHeader
-        onNotificationClick={() => navigate(CONSTRUCTION_ROUTES.ACTIVITY)}
+        onNotificationClick={() => navigate(CONSTRUCTION_ROUTES.NOTIFICATIONS)}
         onProfileClick={() => navigate(CONSTRUCTION_ROUTES.PROFILE)}
       />
 
@@ -68,6 +69,7 @@ export const ConstructionAppInner: React.FC = () => {
 
           {/* Secondary Pages */}
           <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Routes>

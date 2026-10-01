@@ -22,6 +22,7 @@ import type {
   LogisticsOverviewData,
   ProcurementData,
   SiteData,
+  NotificationsData,
 } from "./constructionTypes";
 
 const S = CANONICAL_SCENARIO;
@@ -947,4 +948,117 @@ export function mapScenarioToSiteData(siteId?: string): SiteData {
     }
   };
 }
+
+export function mapScenarioToNotificationsData(): NotificationsData {
+  return {
+    healthPulse: {
+      statusText: "Site Feeds Live",
+      detailText: "Viaduct Corridor 4 • High Activity",
+      syncAgeText: "Sync 1m ago"
+    },
+    counts: {
+      all: 5,
+      critical: 1,
+      operations: 2,
+      decisions: 1,
+      collaboration: 1
+    },
+    notifications: [
+      {
+        id: "notif-1",
+        category: "critical",
+        badge: "CRITICAL • LOGISTICS",
+        badgeStyle: "bg-red-500/10 text-red-600 border-red-200",
+        timestamp: "Aug 15, 11:41 AM",
+        title: "Transport Delay Detected (DEL-1042)",
+        body: "Heavy carrier TR-1042 halted on planned Route M1 due to emergency overpass load clearance restriction (+21h 30m delay). Detour Route B evaluation initiated.",
+        isUnread: true,
+        isCritical: true,
+        metadataText: "Ref: DEL-1042 • Phase: Foundation",
+        widget: {
+          type: "route",
+          title: "Route M1 Blocked (km 42.4)",
+          subtitle: "+21h 30m"
+        },
+        actions: [
+          { label: "View Delivery (DEL-1042)", route: "/dashboard/construction/deliveries", primary: true },
+          { label: "Inspect Issue (ISS-1042)", route: "/dashboard/construction/issues" }
+        ]
+      },
+      {
+        id: "notif-2",
+        category: "decisions",
+        badge: "DECISION APPROVED",
+        badgeStyle: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
+        timestamp: "Aug 15, 12:45 PM",
+        title: "Decision Approved: Alternative Route B",
+        body: "DEC-1042 4-way consensus verified. Transport TR-1042 authorized to proceed via Ring A2 Northern Bypass. Delivery ETA adjusted to Aug 16, 07:30 AM.",
+        isUnread: true,
+        metadataText: "Ref: DEC-1042 • Consensus 4/4",
+        widget: {
+          type: "consensus",
+          chips: ["PM", "SE", "LG", "QA"],
+          title: "All Stakeholders Signed",
+          subtitle: "100% Alignment"
+        },
+        actions: [
+          { label: "View Decision Record", route: "/dashboard/construction/decisions", primary: true }
+        ]
+      },
+      {
+        id: "notif-3",
+        category: "operations",
+        badge: "ISSUE MITIGATED",
+        badgeStyle: "bg-blue-500/10 text-blue-600 border-blue-200",
+        timestamp: "Aug 15, 13:00 PM",
+        title: "Issue ISS-1042 Resolved via Detour",
+        body: "Critical beam delivery bottleneck mitigated without viaduct crane downtime. Heavy escort convoy dispatched onto bypass corridor.",
+        isUnread: false,
+        metadataText: "Ref: ISS-1042 • Carrier: FastBuild",
+        actions: [
+          { label: "View Issue Details", route: "/dashboard/construction/issues", primary: true }
+        ]
+      },
+      {
+        id: "notif-4",
+        category: "operations",
+        badge: "INSPECTION PASSED",
+        badgeStyle: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
+        timestamp: "Aug 16, 09:15 AM",
+        title: "Inspection INSP-1042 Passed & Material Accepted",
+        body: "Bureau Inspection completed tensile tolerance & ultrasonic testing on 84 structural beams. Material accepted and released to Viaduct Erection Gang 03.",
+        isUnread: false,
+        metadataText: "Ref: INSP-1042 • Material: Grade S355JR",
+        widget: {
+          type: "metrics",
+          title: "84 / 84 Beams Tested",
+          subtitle: "Gang 03 Active"
+        },
+        actions: [
+          { label: "View Inspection Checklist", route: "/dashboard/construction/inspections", primary: true }
+        ]
+      },
+      {
+        id: "notif-5",
+        category: "collaboration",
+        badge: "C3 COLLABORATION",
+        badgeStyle: "bg-purple-500/10 text-purple-600 border-purple-200",
+        timestamp: "Aug 16, 09:40 AM",
+        title: "New Thread Activity in #Logistics & Delivery",
+        body: "Lead Inspector R. Bennett posted sign-off certificate (EN 10204 3.1) and site gate verification photos to shared channel.",
+        isUnread: false,
+        metadataText: "3 Orgs Connected • 14 Messages",
+        widget: {
+          type: "attachment",
+          filename: "EN_10204_3.1_Certificate_Signed.pdf",
+          filesize: "2.4 MB • 2 gate photos attached"
+        },
+        actions: [
+          { label: "Open Collaboration Thread", route: "/dashboard/construction/channels", primary: true }
+        ]
+      }
+    ]
+  };
+}
+
 

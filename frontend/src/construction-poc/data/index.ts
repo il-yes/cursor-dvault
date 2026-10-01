@@ -69,6 +69,8 @@ export const getDecisionData = () => activeProvider.getDecisionData();
 
 export const getSiteData = (siteId?: string) => activeProvider.getSiteData(siteId);
 
+export const getNotificationsData = () => activeProvider.getNotificationsData();
+
 /* Scenario — canonical record access */
 
 export const getActivityFeed = () => activeProvider.getActivityFeed();

@@ -14,6 +14,7 @@ import {
   mapScenarioToLogisticsOverviewData,
   mapScenarioToProcurementData,
   mapScenarioToSiteData,
+  mapScenarioToNotificationsData,
   scenarioHasDelivery,
   scenarioHasRequirement,
 } from "./scenarioMappers";
@@ -23,6 +24,7 @@ import type {
   LogisticsOverviewData,
   ProcurementData,
   SiteData,
+  NotificationsData,
 } from "./constructionTypes";
 import type { ConstructionDataProvider } from "./provider";
 
@@ -98,6 +100,10 @@ export const mockProvider: ConstructionDataProvider = {
 
   getSiteData(siteId?: string): SiteData {
     return mapScenarioToSiteData(siteId);
+  },
+
+  getNotificationsData(): NotificationsData {
+    return mapScenarioToNotificationsData();
   },
 
   async appendThreadEvent(): Promise<void> {

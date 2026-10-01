@@ -15,12 +15,13 @@ import { listWorkspaces } from "@/services/api";
 import { MOCK_PROJECTS } from "./projects.mock";
 import type { ProjectData } from "./projects.mock";
 import { scenarioAccessors } from "./scenarioAccessors";
-import { mapScenarioToDecisionData } from "./scenarioMappers";
+import { mapScenarioToDecisionData, mapScenarioToSiteData } from "./scenarioMappers";
 import type {
   CreateProjectParams,
   DecisionData,
   LogisticsOverviewData,
   ProcurementData,
+  SiteData,
 } from "./constructionTypes";
 import type { ConstructionDataProvider } from "./provider";
 
@@ -183,6 +184,10 @@ export const cloudProvider: ConstructionDataProvider = {
    */
   getDecisionData(): DecisionData {
     return mapScenarioToDecisionData();
+  },
+
+  getSiteData(siteId?: string): SiteData {
+    return mapScenarioToSiteData(siteId);
   },
 
   async appendThreadEvent(threadId: string, kind: string, content: string): Promise<void> {

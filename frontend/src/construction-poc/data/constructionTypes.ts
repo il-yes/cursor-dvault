@@ -498,3 +498,59 @@ export interface ProvenanceOverviewData {
   };
   auditLayers: ProvenanceAuditLayer[];
 }
+
+export interface SurveillanceFeedItem {
+  id: string;
+  name: string;
+  badge: string;
+  badgeColor?: string;
+  imageUrl: string;
+  timeLabel: string;
+}
+
+export interface OperationalZoneItem {
+  code: string;
+  name: string;
+  status: string;
+  statusColor: string;
+  progressPercent: number;
+  activityCountText: string;
+}
+
+export interface ActiveInventoryItem {
+  category: string;
+  itemCount: string;
+  occupancyPercent: number;
+}
+
+export interface SiteData {
+  id: string;
+  code: string;
+  name: string;
+  projectName: string;
+  projectCode: string;
+  phaseText: string;
+  zoneText: string;
+  heroImageUrl: string;
+  completionPercent: number;
+  specifications: Array<{ label: string; value: string }>;
+  inspectorName: string;
+  inspectorRole: string;
+  coordinatesText: string;
+  surveillanceFeeds: SurveillanceFeedItem[];
+  operationalZones: OperationalZoneItem[];
+  logisticsOccupancyPercent: number;
+  inventoryItems: ActiveInventoryItem[];
+  incomingDelivery: {
+    reference: string;
+    description: string;
+    etaText: string;
+    statusText: string;
+  };
+  inspectionStatus: {
+    reference: string;
+    statusText: string;
+    inspectorText: string;
+  };
+}
+

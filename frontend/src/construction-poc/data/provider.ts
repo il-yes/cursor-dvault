@@ -14,6 +14,7 @@ import type {
   DecisionData,
   LogisticsOverviewData,
   ProcurementData,
+  SiteData,
 } from "./constructionTypes";
 
 export type ConstructionDataProvider = typeof scenarioAccessors & {
@@ -37,6 +38,7 @@ export type ConstructionDataProvider = typeof scenarioAccessors & {
    * static scenario record on both providers — there is no AppAPI equivalent yet.
    */
   getDecisionData(): DecisionData;
+  getSiteData(siteId?: string): SiteData;
 
   appendThreadEvent(threadId: string, kind: string, content: string): Promise<void>;
 

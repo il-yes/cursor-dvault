@@ -21,6 +21,7 @@ import type {
   DecisionOptionData,
   LogisticsOverviewData,
   ProcurementData,
+  SiteData,
 } from "./constructionTypes";
 
 const S = CANONICAL_SCENARIO;
@@ -414,7 +415,6 @@ export function mapScenarioToProcurementData(): ProcurementData {
     invitedCount: 3,
     offersReceivedCount: 2,
     selectedCount: 1,
-    contractValueText: canonicalOfferPrice,
     unitPriceText: "€1,187.50 / ton",
     proposedDeliveryText: "Aug 15, 2024 at 10:00 AM"
   };
@@ -849,3 +849,102 @@ export function mapScenarioToLogisticsOverviewData(): LogisticsOverviewData {
     }
   };
 }
+
+export function mapScenarioToSiteData(siteId?: string): SiteData {
+  const site = S.site;
+  const project = S.project;
+  const delivery = S.delivery;
+  const inspection = S.inspection;
+
+  return {
+    id: site.siteId,
+    code: site.siteId,
+    name: "Riverside Tower",
+    projectName: project.projectName,
+    projectCode: project.projectCode,
+    phaseText: "Phase 4 of 7 • Structure & Foundation",
+    zoneText: "SITE-001 • Foundation / Viaduct Zone 4",
+    heroImageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDjfKgF_HudRG9bottCQljQdE2VecU-qrrNqM7LXKVdXXbT4s966RXLxnxctdXLGWar40czCJXHHNN71RFpDMdBZGugZ_vaVDrQ8iGrXZrB9ue8gnAWcfdcZoX64CFX2y2_osRvpY7TeKoKYSi68S6asSCQNVZLdQfmCTfzNGRZN-LoGDElNS4y2HyNITD2IxWDXlCQYkAJWcE89H7qbyWy8qT7SKxOYhDd284paO6jLNN1wQ1EpPI",
+    completionPercent: 42,
+    specifications: [
+      { label: "Footprint Area", value: "14,200 m²" },
+      { label: "Excavation Depth", value: "18.5 m" },
+      { label: "Concrete Poured", value: "8,450 m³ / 12,000 m³" },
+      { label: "Active Workforce", value: "148 Personnel" }
+    ],
+    inspectorName: inspection.inspector || "Bureau Inspection",
+    inspectorRole: "Lead R. Bennett",
+    coordinatesText: "48.8566° N, 2.3522° E",
+    surveillanceFeeds: [
+      {
+        id: "feed-1",
+        name: "Foundation Trench — Sector B",
+        badge: "LIVE • CAM-04",
+        badgeColor: "bg-red-500",
+        imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBhckdxDr-fV2ATM4En6e_8KWeaiXTVQmwc-gMnfc1nMK1kT7k7UlmQuK8DALK-E0uBDSAkE1FZR7VJq2yt-Oed03MM607hVmWX7eb98dymFWfqiRJoT3ewQsce-hDLhGVmGvKGHj6Q4lhnxWqMu-6xtt6yyhf5J_9dQ5U1bfcbtIVDQA83bWG8VGovcyuxRpSyicoqvh0EQ_ZD3IQGZbZONy8coAmK0hAK8rjiu_0IR9NkkpKei4U",
+        timeLabel: "Today 14:32:05"
+      },
+      {
+        id: "feed-2",
+        name: "Viaduct Zone 4 — North Pier",
+        badge: "LIVE • CAM-09",
+        badgeColor: "bg-red-500",
+        imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAukRGhkvmqNLy6PA2llfdEkyQX48Ar2l1bJ6DjGFa2_tAiHEYqZC8nwAKPXBhouCWdJkEiqwPXD91RCuy4udEpaaeeI4xdgG1Ji3IvbDEmdXHHqmfX_lCgSJsvaqr-DaOiFDJpuqfNLKH1VWiZCy6EQ0Ii8PoziEc256zR3BCeICKOcWKfuYuksD7dR7jfJOLl6DYQF89bXkIoiORJELybdUUIEAlwqo24xyQ4mmhzW9EDb4bdzww",
+        timeLabel: "Today 14:32:01"
+      }
+    ],
+    operationalZones: [
+      {
+        code: "ZONE-A",
+        name: "Deep Excavation & Shoring",
+        status: "ACTIVE • ON SCHEDULE",
+        statusColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+        progressPercent: 88,
+        activityCountText: "3 Active Crews"
+      },
+      {
+        code: "ZONE-B",
+        name: "Foundation Slab Pouring",
+        status: "ACTIVE • DELAY RISK",
+        statusColor: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+        progressPercent: 42,
+        activityCountText: "Pending Material DEL-1042"
+      },
+      {
+        code: "ZONE-C",
+        name: "Rebar Structure Assembly",
+        status: "ACTIVE • ON SCHEDULE",
+        statusColor: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+        progressPercent: 65,
+        activityCountText: "2 Active Crews"
+      },
+      {
+        code: "ZONE-D",
+        name: "Logistics Yard & Crane Bay 1",
+        status: "OPTIMAL",
+        statusColor: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+        progressPercent: 95,
+        activityCountText: "72% Yard Occupancy"
+      }
+    ],
+    logisticsOccupancyPercent: 72,
+    inventoryItems: [
+      { category: "Structural Steel Beams (HEA 300)", itemCount: "24 Units / 120 Tons", occupancyPercent: 80 },
+      { category: "Portland Cement (Grade 52.5N)", itemCount: "450 Bags / 22.5 Tons", occupancyPercent: 65 },
+      { category: "Rebar Bundles (#8 / 25mm)", itemCount: "18 Bundles / 36 Tons", occupancyPercent: 90 },
+      { category: "Pre-cast Concrete Drainage", itemCount: "12 Segments / 18 Tons", occupancyPercent: 50 }
+    ],
+    incomingDelivery: {
+      reference: delivery.deliveryReference,
+      description: "Delayed HEA 300 Steel Beams Batch",
+      etaText: "ETA Revised: Aug 18, 09:30",
+      statusText: "IN TRANSIT • DETOUR ACTIVE"
+    },
+    inspectionStatus: {
+      reference: inspection.inspectionReference,
+      statusText: "PASSED • CERTIFIED",
+      inspectorText: "Bureau Inspection • Oct 24"
+    }
+  };
+}
+

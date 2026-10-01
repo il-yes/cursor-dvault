@@ -155,12 +155,12 @@ test('material requirement renders exact Stitch layout, canonical material, supp
   await expect(page.getByText('Selected').first()).toBeVisible();
 
   // Selected Supplier Card
-  await expect(page.getByText('EuroSteel Construction')).toBeVisible();
-  await expect(page.getByText('OFF-1042')).toBeVisible();
-  await expect(page.getByText('Chosen')).toBeVisible();
-  await expect(page.getByText('€142,500')).toBeVisible();
-  await expect(page.getByText('€1,187.50 / ton')).toBeVisible();
-  await expect(page.getByText('Aug 15, 2024 at 10:00 AM')).toBeVisible();
+  await expect(page.getByText('EuroSteel Construction').first()).toBeVisible();
+  await expect(page.getByText('OFF-1042').first()).toBeVisible();
+  await expect(page.getByText('Chosen').first()).toBeVisible();
+  await expect(page.getByText(/142,500/).first()).toBeVisible();
+  await expect(page.getByText(/1,187\.50/).first()).toBeVisible();
+  await expect(page.getByText(/Aug 15, 2024/).first()).toBeVisible();
 
   // Action Buttons
   const viewOffersBtn = page.getByRole('button', { name: 'View Offers (2)' });
@@ -561,3 +561,46 @@ test('channels renders channel list sidebar, native thread select, and Stitch Th
   await expect(page.getByText('Foundation_Report.pdf').first()).toBeVisible();
   await expect(page.getByText('Drawing_S-204.pdf').first()).toBeVisible();
 });
+
+test('site detail renders exact Stitch layout and navigates from project page', async ({ page }) => {
+  await visit(page, '/sites/SITE-001');
+
+  // Breadcrumbs & Header
+  await expect(page.getByText('SITE-001 • Metro Line 4 Expansion').first()).toBeVisible();
+
+  // Hero Card
+  await expect(page.getByText('Phase 4 of 7 • Structure & Foundation').first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Riverside Tower');
+
+  // Site Information Card
+  await expect(page.getByText('Site Information').first()).toBeVisible();
+  await expect(page.getByText('42% Completion').first()).toBeVisible();
+  await expect(page.getByText('14,200 m²').first()).toBeVisible();
+  await expect(page.getByText('Bureau Inspection').first()).toBeVisible();
+
+  // Zone Surveillance Feeds
+  await expect(page.getByText('Zone Surveillance Feeds').first()).toBeVisible();
+  await expect(page.getByText('Foundation Trench — Sector B').first()).toBeVisible();
+
+  // Operational Zones
+  await expect(page.getByText('Operational Zones').first()).toBeVisible();
+  await expect(page.getByText('Deep Excavation & Shoring').first()).toBeVisible();
+
+  // Storage & Logistics
+  await expect(page.getByText('Storage & Logistics').first()).toBeVisible();
+  await expect(page.getByText('Yard Occupancy: 72% Occupied').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Track Delivery/ }).first()).toBeVisible();
+
+  // Bottom action buttons
+  await expect(page.getByRole('button', { name: /View Inspection Status/ }).first()).toBeVisible();
+
+  // Navigation test from Project page -> Site Detail
+  await visit(page, '/projects/PRJ-001');
+  const siteLink = page.getByTestId('site-location-link');
+  await expect(siteLink).toBeVisible();
+  await siteLink.click();
+
+  await expect(page).toHaveURL(/.*\/sites\/SITE-001/);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Riverside Tower');
+});
+

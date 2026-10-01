@@ -7,6 +7,7 @@ import { BottomNavigation } from "./components/BottomNavigation";
 import { ConstructionDashboard } from "./pages/ConstructionDashboard";
 import { ProjectListingPage } from "./pages/ProjectListingPage";
 import { ProjectPage } from "./pages/ProjectPage";
+import { SitePage } from "./pages/SitePage";
 import { StakeholdersPage } from "./pages/StakeholdersPage";
 import { MaterialRequirementPage } from "./pages/MaterialRequirementPage";
 import { SupplierOffersPage } from "./pages/SupplierOffersPage";
@@ -44,6 +45,8 @@ export const ConstructionAppInner: React.FC = () => {
           {/* Projects Collection List & Project Detail Hierarchy */}
           <Route path="/projects" element={<ProjectListingPage />} />
           <Route path="/projects/:projectId" element={<ProjectPage />} />
+          <Route path="/sites" element={<SitePage />} />
+          <Route path="/sites/:siteId" element={<SitePage />} />
 
           {/* Channels & Threads Collaboration Surface */}
           <Route path="/channels" element={<ProjectChannelsPage />} />

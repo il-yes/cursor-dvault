@@ -67,6 +67,8 @@ export const getLogisticsOverview = (deliveryId?: string) =>
 
 export const getDecisionData = () => activeProvider.getDecisionData();
 
+export const getSiteData = (siteId?: string) => activeProvider.getSiteData(siteId);
+
 /* Scenario — canonical record access */
 
 export const getActivityFeed = () => activeProvider.getActivityFeed();

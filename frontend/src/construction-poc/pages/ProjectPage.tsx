@@ -155,9 +155,15 @@ export const ProjectPage: React.FC = () => {
           </div>
 
           <h1 className="text-3xl font-bold text-[#041627] mb-2">{project.name}</h1>
-          <div className="flex items-center gap-2 text-sm text-[#44474c] mb-4">
-            <span className="material-symbols-outlined text-[18px] text-[#041627]">location_on</span>
-            <span>{project.location}</span>
+          <div
+            onClick={() => navigate(CONSTRUCTION_ROUTES.SITE("SITE-001"))}
+            className="flex items-center gap-2 text-sm text-[#44474c] mb-4 cursor-pointer hover:text-[#006c49] transition-colors group"
+            data-testid="site-location-link"
+          >
+            <span className="material-symbols-outlined text-[18px] text-[#041627] group-hover:text-[#006c49]">
+              location_on
+            </span>
+            <span className="group-hover:underline font-medium">{project.location}</span>
           </div>
           <p className="text-sm text-[#44474c] max-w-3xl">{project.description}</p>
         </div>

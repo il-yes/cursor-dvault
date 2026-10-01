@@ -13,6 +13,7 @@ import {
   mapScenarioToDecisionData,
   mapScenarioToLogisticsOverviewData,
   mapScenarioToProcurementData,
+  mapScenarioToSiteData,
   scenarioHasDelivery,
   scenarioHasRequirement,
 } from "./scenarioMappers";
@@ -21,6 +22,7 @@ import type {
   DecisionData,
   LogisticsOverviewData,
   ProcurementData,
+  SiteData,
 } from "./constructionTypes";
 import type { ConstructionDataProvider } from "./provider";
 
@@ -92,6 +94,10 @@ export const mockProvider: ConstructionDataProvider = {
 
   getDecisionData(): DecisionData {
     return mapScenarioToDecisionData();
+  },
+
+  getSiteData(siteId?: string): SiteData {
+    return mapScenarioToSiteData(siteId);
   },
 
   async appendThreadEvent(): Promise<void> {

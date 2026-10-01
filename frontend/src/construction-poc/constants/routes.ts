@@ -5,6 +5,8 @@ export const CONSTRUCTION_ROUTES = {
   HOME: "/dashboard/construction",
   PROJECTS: "/dashboard/construction/projects",
   PROJECT: (projectId: string = ":projectId") => `/dashboard/construction/projects/${projectId}`,
+  SITES: "/dashboard/construction/sites",
+  SITE: (siteId: string = ":siteId") => `/dashboard/construction/sites/${siteId}`,
   CHANNELS: "/dashboard/construction/channels",
   CHANNEL: (channelId: string = ":channelId") => `/dashboard/construction/channels/${channelId}`,
   THREAD: (channelId: string = ":channelId", threadId: string = ":threadId") => `/dashboard/construction/channels/${channelId}/threads/${threadId}`,
